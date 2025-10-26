@@ -1,0 +1,10 @@
+# Ignorar credenciales y datos sensibles
+credentials/*
+!credentials/.gitkeep
+.env
+*.log
+*.key
+
+# Ignorar datos de prueba con info real
+test-data/*-real.json
+

@@ -1,0 +1,203 @@
+[1mdiff --git a/src/pages/Calendario.jsx b/src/pages/Calendario.jsx[m
+[1mindex 7f5e962..0adccd4 100644[m
+[1m--- a/src/pages/Calendario.jsx[m
+[1m+++ b/src/pages/Calendario.jsx[m
+[36m@@ -296,10 +296,18 @@[m [mexport default function Calendario() {[m
+             return;[m
+         }[m
+ [m
+[31m-        // Validaciones antes de guardar[m
+[32m+[m[32m        // VALIDACIONES MEJORADAS PARA MÚLTIPLES TURNOS[m
+         const invalidDays = schedule.filter(day => {[m
+             if (!day.is_open) return false;[m
+[31m-            return !day.slots || day.slots.length === 0 || !day.slots[0].start_time || !day.slots[0].end_time;[m
+[32m+[m[41m            [m
+[32m+[m[32m            // Verificar que tenga slots y que todos los slots tengan horarios válidos[m
+[32m+[m[32m            if (!day.slots || day.slots.length === 0) return true;[m
+[32m+[m[41m            [m
+[32m+[m[32m            // Verificar cada slot individualmente[m
+[32m+[m[32m            return day.slots.some(slot =>[m[41m [m
+[32m+[m[32m                !slot.start_time || !slot.end_time ||[m[41m [m
+[32m+[m[32m                slot.start_time === "" || slot.end_time === ""[m
+[32m+[m[32m            );[m
+         });[m
+ [m
+         if (invalidDays.length > 0) {[m
+[36m@@ -309,99 +317,132 @@[m [mexport default function Calendario() {[m
+ [m
+         setSaving(true);[m
+         try {[m
+[31m-            console.log("🔄 Guardando horarios en calendario...", schedule);[m
+[32m+[m[32m            console.log("🔄 Guardando horarios con múltiples turnos...", schedule);[m
+             [m
+[31m-            // Mapear números de día a nombres[m
+[31m-            const dayMapping = {[m
+[31m-                1: 'monday',    // Lunes[m
+[31m-                2: 'tuesday',   // Martes  [m
+[31m-                3: 'wednesday', // Miércoles[m
+[31m-                4: 'thursday',  // Jueves[m
+[31m-                5: 'friday',    // Viernes[m
+[31m-                6: 'saturday',  // Sábado[m
+[31m-                0: 'sunday'     // Domingo[m
+[31m-            };[m
+[31m-[m
+[31m-            // Convertir schedule a formato operating_hours (UNIFICADO CON CONFIGURACIÓN)[m
+[32m+[m[32m            // CONVERSIÓN ROBUSTA A FORMATO SUPABASE[m
+             const operating_hours = {};[m
+[32m+[m[32m            const calendar_schedule = [];[m
+[32m+[m[41m            [m
+             schedule.forEach(day => {[m
+[31m-                // day.day_of_week ya viene como string (monday, tuesday, etc.)[m
+                 const dayName = day.day_of_week;[m
+                 [m
+                 if (!day.is_open || !day.slots || day.slots.length === 0) {[m
+[32m+[m[32m                    // Día cerrado[m
+                     operating_hours[dayName] = {[m
+                         open: "09:00",[m
+                         close: "22:00",[m
+                         closed: true[m
+                     };[m
+[32m+[m[32m                    calendar_schedule.push({[m
+[32m+[m[32m                        day_of_week: dayName,[m
+[32m+[m[32m                        day_name: day.day_name,[m
+[32m+[m[32m                        is_open: false,[m
+[32m+[m[32m                        slots: [][m
+[32m+[m[32m                    });[m
+                 } else {[m
+[31m-                    // Para múltiples turnos, usar el primer turno como principal[m
+[31m-                    // y guardar todos los turnos en una propiedad adicional[m
+[31m-                    const firstSlot = day.slots[0];[m
+[31m-                    operating_hours[dayName] = {[m
+[31m-                        open: firstSlot.start_time || "09:00",[m
+[31m-                        close: firstSlot.end_time || "22:00",[m
+[31m-                        closed: false,[m
+[31m-                        // Guardar todos los turnos para uso futuro[m
+[31m-                        shifts: day.slots.map(slot => ({[m
+[31m-                            start: slot.start_time,[m
+[31m-                            end: slot.end_time,[m
+[31m-                            name: slot.name[m
+[31m-                        }))[m
+[31m-                    };[m
+[32m+[m[32m                    // Día abierto con turnos[m
+[32m+[m[32m                    const validSlots = day.slots.filter(slot =>[m[41m [m
+[32m+[m[32m                        slot.start_time && slot.end_time &&[m[41m [m
+[32m+[m[32m                        slot.start_time !== "" && slot.end_time !== ""[m
+[32m+[m[32m                    );[m
+[32m+[m[41m                    [m
+[32m+[m[32m                    if (validSlots.length > 0) {[m
+[32m+[m[32m                        // Usar el primer turno válido para operating_hours (compatibilidad)[m
+[32m+[m[32m                        const firstSlot = validSlots[0];[m
+[32m+[m[32m                        operating_hours[dayName] = {[m
+[32m+[m[32m                            open: firstSlot.start_time,[m
+[32m+[m[32m                            close: firstSlot.end_time,[m
+[32m+[m[32m                            closed: false,[m
+[32m+[m[32m                            // GUARDAR TODOS LOS TURNOS[m
+[32m+[m[32m                            shifts: validSlots.map(slot => ({[m
+[32m+[m[32m                                id: slot.id || Date.now() + Math.random(),[m
+[32m+[m[32m                                name: slot.name || "Turno",[m
+[32m+[m[32m                                start: slot.start_time,[m
+[32m+[m[32m                                end: slot.end_time[m
+[32m+[m[32m                            }))[m
+[32m+[m[32m                        };[m
+[32m+[m[41m                        [m
+[32m+[m[32m                        calendar_schedule.push({[m
+[32m+[m[32m                            day_of_week: dayName,[m
+[32m+[m[32m                            day_name: day.day_name,[m
+[32m+[m[32m                            is_open: true,[m
+[32m+[m[32m                            slots: validSlots.map(slot => ({[m
+[32m+[m[32m                                id: slot.id || Date.now() + Math.random(),[m
+[32m+[m[32m                                name: slot.name || "Turno",[m
+[32m+[m[32m                                start_time: slot.start_time,[m
+[32m+[m[32m                                end_time: slot.end_time[m
+[32m+[m[32m                            }))[m
+[32m+[m[32m                        });[m
+[32m+[m[32m                    }[m
+                 }[m
+             });[m
+ [m
+[31m-            console.log("📊 Operating hours a guardar:", operating_hours);[m
+[32m+[m[32m            console.log("📊 Datos a guardar:", { operating_hours, calendar_schedule });[m
+ [m
+[31m-            // Obtener settings actuales para no sobrescribir otros datos[m
+[32m+[m[32m            // GUARDADO ROBUSTO EN SUPABASE[m
+             const { data: currentRestaurant, error: fetchError } = await supabase[m
+                 .from("restaurants")[m
+                 .select("settings")[m
+                 .eq("id", restaurantId)[m
+                 .single();[m
+ [m
+[31m-            if (fetchError) {[m
+[32m+[m[32m            if (fetchError && fetchError.code !== 'PGRST116') {[m
+                 console.error("Error obteniendo configuración actual:", fetchError);[m
+                 throw fetchError;[m
+             }[m
+ [m
+             const currentSettings = currentRestaurant?.settings || {};[m
+ [m
+[31m-            // Actualizar en la base de datos[m
+[32m+[m[32m            // Actualizar con estructura completa[m
+             const { error } = await supabase[m
+                 .from("restaurants")[m
+                 .update({[m
+                     settings: {[m
+                         ...currentSettings,[m
+                         operating_hours: operating_hours,[m
+[31m-                        calendar_schedule: schedule // También guardar el schedule completo[m
+[32m+[m[32m                        calendar_schedule: calendar_schedule[m
+                     },[m
+                     updated_at: new Date().toISOString()[m
+                 })[m
+                 .eq("id", restaurantId);[m
+ [m
+             if (error) {[m
+[31m-                console.error("Error en actualización Supabase:", error);[m
+[32m+[m[32m                console.error("❌ Error Supabase:", error);[m
+                 throw error;[m
+             }[m
+ [m
+[31m-            // Disparar evento para sync con Configuración[m
+[31m-            window.dispatchEvent(new CustomEvent('schedule-updated', { [m
+[31m-                detail: { scheduleData: schedule, restaurantId } [m
+[31m-            }));[m
+[32m+[m[32m            // ACTUALIZAR ESTADO LOCAL[m
+[32m+[m[32m            setSchedule(calendar_schedule);[m
+[32m+[m
+[32m+[m[32m            // Evento de sincronización[m
+[32m+[m[32m            try {[m
+[32m+[m[32m                window.dispatchEvent(new CustomEvent('schedule-updated', {[m[41m [m
+[32m+[m[32m                    detail: {[m[41m [m
+[32m+[m[32m                        scheduleData: calendar_schedule,[m[41m [m
+[32m+[m[32m                        operatingHours: operating_hours,[m
+[32m+[m[32m                        restaurantId[m[41m [m
+[32m+[m[32m                    }[m[41m [m
+[32m+[m[32m                }));[m
+[32m+[m[32m            } catch (eventError) {[m
+[32m+[m[32m                console.warn("Error disparando evento:", eventError);[m
+[32m+[m[32m            }[m
+ [m
+[31m-            toast.success("✅ Horarios actualizados correctamente");[m
+[31m-            console.log("✅ Horarios guardados exitosamente");[m
+[32m+[m[32m            toast.success("✅ Turnos guardados correctamente en Supabase");[m
+[32m+[m[32m            console.log("✅ Guardado exitoso con múltiples turnos");[m
+             [m
+         } catch (error) {[m
+[31m-            console.error("❌ Error guardando horarios:", error);[m
+[32m+[m[32m            console.error("❌ Error guardando turnos:", error);[m
+             [m
+[31m-            // Mensajes de error más específicos[m
+[31m-            let errorMessage = "Error al guardar los horarios";[m
+[31m-            if (error.message?.includes('permission')) {[m
+[32m+[m[32m            // MENSAJES DE ERROR ESPECÍFICOS[m
+[32m+[m[32m            let errorMessage = "Error al guardar los turnos";[m
+[32m+[m[41m            [m
+[32m+[m[32m            if (error.code === 'PGRST301') {[m
+[32m+[m[32m                errorMessage = "Sin permisos para actualizar horarios";[m
+[32m+[m[32m            } else if (error.code === '23505') {[m
+[32m+[m[32m                errorMessage = "Conflicto en los datos. Intenta de nuevo";[m
+[32m+[m[32m            } else if (error.message?.includes('permission')) {[m
+                 errorMessage = "Sin permisos para actualizar horarios";[m
+[31m-            } else if (error.message?.includes('network')) {[m
+[32m+[m[32m            } else if (error.message?.includes('network') || error.message?.includes('fetch')) {[m
+                 errorMessage = "Error de conexión. Verifica tu internet";[m
+             } else if (error.message?.includes('validation')) {[m
+                 errorMessage = "Datos de horarios inválidos";[m

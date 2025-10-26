@@ -1,0 +1,214 @@
+{
+  "name": "🔧 TOOL: create_reservation — FINAL LIMPIO",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"restaurant_id\": \"d6b63130-1ebf-4284-98fc-a3b31a85d9d1\",\n  \"customer_id\": null,\n  \"customer_phone\": \"+34612345678\",\n  \"customer_name\": \"Juan Pérez\",\n  \"reservation_date\": \"2025-10-23\",\n  \"reservation_time\": \"20:00\",\n  \"party_size\": 4,\n  \"preferred_zone\": null,\n  \"special_requests\": null,\n  \"source\": \"agent_whatsapp\"\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-1216, 128],
+      "id": "start",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.item.json;\n\nconsole.log('🔍 Input recibido:', JSON.stringify(input, null, 2));\n\nconst required = ['reservation_date', 'reservation_time', 'party_size', 'restaurant_id'];\nconst missing = required.filter(field => !input[field]);\n\nif (missing.length > 0) {\n  throw new Error(`❌ Faltan campos obligatorios: ${missing.join(', ')}`);\n}\n\nreturn {\n  restaurant_id: input.restaurant_id,\n  customer_id: input.customer_id || null,\n  customer_phone: input.customer_phone,\n  customer_name: input.customer_name,\n  reservation_date: input.reservation_date,\n  reservation_time: input.reservation_time,\n  party_size: parseInt(input.party_size),\n  preferred_zone: input.preferred_zone || null,\n  special_requests: input.special_requests || null,\n  source: input.source || 'agent_whatsapp'\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1024, 128],
+      "id": "validar-input",
+      "name": "🔍 Validar Input"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://ktsqwvhqamedpmzkzjaz.supabase.co/rest/v1/rpc/find_table_combinations",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "supabaseApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {"name": "Content-Type", "value": "application/json"},
+            {"name": "Prefer", "value": "return=representation"}
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"p_restaurant_id\": \"{{ $json.restaurant_id }}\",\n  \"p_date\": \"{{ $json.reservation_date }}\",\n  \"p_time\": \"{{ $json.reservation_time }}:00\",\n  \"p_party_size\": {{ $json.party_size }},\n  \"p_zone\": {{ $json.preferred_zone ? '\"' + $json.preferred_zone + '\"' : 'null' }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-816, 128],
+      "id": "verificar-disponibilidad",
+      "name": "🎯 Verificar Disponibilidad",
+      "alwaysOutputData": true,
+      "credentials": {"supabaseApi": {"id": "9pdl4V7ImejCLZWo", "name": "Supabase La-IA"}},
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const validacion = $('🔍 Validar Input').first().json;\nconst resultado = $input.first().json;\n\nconsole.log('📊 Respuesta RPC:', JSON.stringify(resultado, null, 2));\n\nconst disponibilidad = resultado;\n\nif (!disponibilidad || typeof disponibilidad !== 'object') {\n  return {disponible: false, mensaje: 'Error al verificar disponibilidad', ...validacion};\n}\n\nif (!disponibilidad.available) {\n  return {disponible: false, mensaje: disponibilidad.message || 'No hay disponibilidad', ...validacion};\n}\n\nconsole.log('✅ Disponibilidad encontrada. Tipo:', disponibilidad.type);\n\nlet slot_ids = [];\nlet table_ids = [];\n\nif (disponibilidad.type === 'single') {\n  slot_ids = [disponibilidad.slot_id];\n  table_ids = [disponibilidad.table_id];\n} else if (disponibilidad.type === 'combination') {\n  slot_ids = disponibilidad.slot_ids || [];\n  table_ids = disponibilidad.table_ids || [];\n}\n\nif (slot_ids.length === 0) {\n  return {disponible: false, mensaje: 'Error: No se pudieron identificar las mesas', ...validacion};\n}\n\nconsole.log('🎯 Slot IDs:', slot_ids);\nconsole.log('🎯 Table IDs:', table_ids);\n\nreturn {\n  disponible: true,\n  slot_ids: slot_ids,\n  table_ids: table_ids,\n  tipo: disponibilidad.type,\n  tables: disponibilidad.tables || disponibilidad.table_names || [],\n  zone: disponibilidad.zone,\n  ...validacion\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-608, 128],
+      "id": "procesar-disponibilidad",
+      "name": "🔄 Procesar Disponibilidad"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {"caseSensitive": true, "leftValue": "", "typeValidation": "strict"},
+          "conditions": [
+            {
+              "id": "check-available",
+              "leftValue": "={{ $json.disponible }}",
+              "rightValue": "",
+              "operator": {"type": "boolean", "operation": "true", "singleValue": true}
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-432, 128],
+      "id": "check-disponible",
+      "name": "❓ ¿Disponible?"
+    },
+    {
+      "parameters": {
+        "tableId": "reservations",
+        "fieldsUi": {
+          "fieldValues": [
+            {"fieldId": "restaurant_id", "fieldValue": "={{ $json.restaurant_id }}"},
+            {"fieldId": "customer_id", "fieldValue": "={{ $json.customer_id }}"},
+            {"fieldId": "customer_name", "fieldValue": "={{ $json.customer_name }}"},
+            {"fieldId": "customer_phone", "fieldValue": "={{ $json.customer_phone }}"},
+            {"fieldId": "reservation_date", "fieldValue": "={{ $json.reservation_date }}"},
+            {"fieldId": "reservation_time", "fieldValue": "={{ $json.reservation_time }}:00"},
+            {"fieldId": "party_size", "fieldValue": "={{ $json.party_size }}"},
+            {"fieldId": "status", "fieldValue": "pending"},
+            {"fieldId": "preferred_zone", "fieldValue": "={{ $json.zone }}"},
+            {"fieldId": "special_requests", "fieldValue": "={{ $json.special_requests }}"},
+            {"fieldId": "source", "fieldValue": "={{ $json.source }}"}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-224, 0],
+      "id": "crear-reserva",
+      "name": "💾 Crear Reserva",
+      "credentials": {"supabaseApi": {"id": "9pdl4V7ImejCLZWo", "name": "Supabase La-IA"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "const reservationData = $input.first().json;\nconst disponibilidadData = $('🔄 Procesar Disponibilidad').first().json;\n\nconst reservation_id = reservationData.id;\nconst table_ids = disponibilidadData.table_ids;\nconst slot_ids = disponibilidadData.slot_ids;\n\nconsole.log('📦 Reservation ID:', reservation_id);\nconsole.log('📦 Table IDs:', table_ids);\n\nif (!table_ids || !Array.isArray(table_ids)) {\n  throw new Error('table_ids no disponible');\n}\n\nreturn table_ids.map(table_id => ({\n  reservation_id: reservation_id,\n  table_id: table_id,\n  slot_ids: slot_ids\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-32, 0],
+      "id": "preparar-tables",
+      "name": "📦 Preparar reservation_tables"
+    },
+    {
+      "parameters": {
+        "tableId": "reservation_tables",
+        "fieldsUi": {
+          "fieldValues": [
+            {"fieldId": "reservation_id", "fieldValue": "={{ $json.reservation_id }}"},
+            {"fieldId": "table_id", "fieldValue": "={{ $json.table_id }}"}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [160, 0],
+      "id": "crear-tables",
+      "name": "📋 Crear reservation_tables",
+      "credentials": {"supabaseApi": {"id": "9pdl4V7ImejCLZWo", "name": "Supabase La-IA"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst firstItem = items[0].json;\n\nreturn {\n  reservation_id: firstItem.reservation_id,\n  slot_ids: firstItem.slot_ids\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [352, 0],
+      "id": "agrupar",
+      "name": "🔄 Agrupar"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn data.slot_ids.map(slot_id => ({slot_id, reservation_id: data.reservation_id}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [544, 0],
+      "id": "preparar-slots",
+      "name": "📦 Preparar slots"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "availability_slots",
+        "filterType": "manual",
+        "matchFields": [{"fieldName": "id", "fieldValue": "={{ $json.slot_id }}"}],
+        "updateFields": {
+          "values": [
+            {"fieldName": "status", "fieldValue": "reserved"},
+            {"fieldName": "is_available", "fieldValue": "false"},
+            {"fieldName": "reservation_id", "fieldValue": "={{ $json.reservation_id }}"}
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [736, 0],
+      "id": "actualizar-slots",
+      "name": "🔄 Actualizar Slots",
+      "credentials": {"supabaseApi": {"id": "9pdl4V7ImejCLZWo", "name": "Supabase La-IA"}}
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst disponibilidadData = $('🔄 Procesar Disponibilidad').first().json;\nconst reservation_id = items[0].json.reservation_id;\n\nreturn {\n  success: true,\n  reservation_id: reservation_id,\n  customer_name: disponibilidadData.customer_name,\n  reservation_date: disponibilidadData.reservation_date,\n  reservation_time: disponibilidadData.reservation_time,\n  party_size: disponibilidadData.party_size,\n  tables: disponibilidadData.tables,\n  zone: disponibilidadData.zone,\n  message: `Reserva creada exitosamente`\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [928, 0],
+      "id": "respuesta-exito",
+      "name": "✅ Respuesta Éxito"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn {\n  success: false,\n  message: data.mensaje || 'No hay disponibilidad',\n  details: {date: data.reservation_date, time: data.reservation_time, party_size: data.party_size}\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-224, 256],
+      "id": "respuesta-error",
+      "name": "❌ Respuesta: Error"
+    }
+  ],
+  "connections": {
+    "Start": {"main": [[{"node": "🔍 Validar Input", "type": "main", "index": 0}]]},
+    "🔍 Validar Input": {"main": [[{"node": "🎯 Verificar Disponibilidad", "type": "main", "index": 0}]]},
+    "🎯 Verificar Disponibilidad": {"main": [[{"node": "🔄 Procesar Disponibilidad", "type": "main", "index": 0}]]},
+    "🔄 Procesar Disponibilidad": {"main": [[{"node": "❓ ¿Disponible?", "type": "main", "index": 0}]]},
+    "❓ ¿Disponible?": {"main": [[{"node": "💾 Crear Reserva", "type": "main", "index": 0}], [{"node": "❌ Respuesta: Error", "type": "main", "index": 0}]]},
+    "💾 Crear Reserva": {"main": [[{"node": "📦 Preparar reservation_tables", "type": "main", "index": 0}]]},
+    "📦 Preparar reservation_tables": {"main": [[{"node": "📋 Crear reservation_tables", "type": "main", "index": 0}]]},
+    "📋 Crear reservation_tables": {"main": [[{"node": "🔄 Agrupar", "type": "main", "index": 0}]]},
+    "🔄 Agrupar": {"main": [[{"node": "📦 Preparar slots", "type": "main", "index": 0}]]},
+    "📦 Preparar slots": {"main": [[{"node": "🔄 Actualizar Slots", "type": "main", "index": 0}]]},
+    "🔄 Actualizar Slots": {"main": [[{"node": "✅ Respuesta Éxito", "type": "main", "index": 0}]]}
+  },
+  "pinData": {},
+  "meta": {"instanceId": "968c65341fc947850f62b4a42d249947219a244717952c0dbaf2b62952e73bd9"}
+}
+

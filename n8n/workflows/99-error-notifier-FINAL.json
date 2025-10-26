@@ -1,0 +1,98 @@
+{
+  "name": "99 - Error Notifier",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "3ce57ac0-b0ee-4820-a85a-5e00bc6bd182",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Formatear información del error\nconst error = $input.item.json;\n\nconst errorMessage = `\n🚨 ERROR EN N8N - LA-IA APP\n\n📍 Workflow: ${error.workflow?.name || 'Desconocido'}\n🆔 Workflow ID: ${error.workflow?.id || 'N/A'}\n📦 Nodo: ${error.node?.name || 'Desconocido'}\n⏰ Timestamp: ${new Date().toLocaleString('es-ES', { timeZone: 'Europe/Madrid' })}\n\n❌ ERROR:\n${error.error?.message || JSON.stringify(error.error)}\n\n📊 Ejecución ID: ${error.execution?.id || 'N/A'}\n🔗 Ver en N8N: https://gustausantin.app.n8n.cloud/workflow/${error.workflow?.id}/executions/${error.execution?.id}\n\n---\nStack Trace:\n${error.error?.stack || 'No disponible'}\n`;\n\nconsole.log('🚨 ERROR DETECTADO:', errorMessage);\n\nreturn {\n  subject: `🚨 ERROR N8N: ${error.workflow?.name}`,\n  message: errorMessage,\n  workflow_name: error.workflow?.name,\n  workflow_id: error.workflow?.id,\n  node_name: error.node?.name,\n  error_message: error.error?.message,\n  execution_id: error.execution?.id,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "bdebd44a-b5d8-4776-89b1-d1541988da1b",
+      "name": "📝 Formatear Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "sendTo": "gustausantin@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.message }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [680, 300],
+      "id": "f906dd9d-8721-49ac-8d13-2947de37882e",
+      "name": "📧 Enviar Gmail",
+      "webhookId": "d8a56767-f74d-4e16-914b-2e232c830cdf",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "yrh7WBq2YqsL1L4Z",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "console.log('✅ Notificación de error enviada correctamente');\nreturn { success: true };"
+      },
+      "id": "408531e5-ae84-454a-b3ef-40fb68463ebe",
+      "name": "✅ Log",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "📝 Formatear Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📝 Formatear Error": {
+      "main": [
+        [
+          {
+            "node": "📧 Enviar Gmail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📧 Enviar Gmail": {
+      "main": [
+        [
+          {
+            "node": "✅ Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "968c65341fc947850f62b4a42d249947219a244717952c0dbaf2b62952e73bd9"
+  }
+}
+

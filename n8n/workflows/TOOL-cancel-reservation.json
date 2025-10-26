@@ -1,0 +1,265 @@
+{
+  "name": "TOOL — cancel_reservation (CON COMBINACIONES)",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"reservation_id\": \"2f3163a5-d1be-42dd-8341-febb67e300b9\",\n  \"restaurant_id\": \"d6b63130-1ebf-4284-98fc-a3b31a85d9d1\",\n  \"cancellation_reason\": \"Cliente solicitó cancelación\"\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -880,
+        240
+      ],
+      "id": "start-node",
+      "name": "Start"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.item.json;\n\nconsole.log('🔍 Input recibido:', JSON.stringify(input, null, 2));\n\n// ✅ Validar campos obligatorios\nconst required = ['reservation_id', 'restaurant_id'];\nconst missing = required.filter(field => !input[field]);\n\nif (missing.length > 0) {\n  throw new Error(`❌ Faltan campos obligatorios: ${missing.join(', ')}`);\n}\n\nreturn {\n  reservation_id: input.reservation_id,\n  restaurant_id: input.restaurant_id,\n  cancellation_reason: input.cancellation_reason || 'Cliente solicitó cancelación'\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        240
+      ],
+      "id": "validate-input",
+      "name": "🔍 Validar Input"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "reservations",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $json.reservation_id }}"
+            },
+            {
+              "keyName": "restaurant_id",
+              "keyValue": "={{ $json.restaurant_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -560,
+        240
+      ],
+      "id": "find-reservation",
+      "name": "📋 Buscar Reserva",
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $('🔍 Validar Input').item.json;\nconst reservation = $input.item.json;\n\nif (!reservation || !reservation.id) {\n  throw new Error('❌ Reserva no encontrada');\n}\n\nconsole.log('📋 Reserva encontrada:', {\n  id: reservation.id,\n  status: reservation.status,\n  date: reservation.reservation_date,\n  time: reservation.reservation_time,\n  customer_name: reservation.customer_name\n});\n\n// ✅ Validar que la reserva se puede cancelar\nconst validStatuses = ['pending', 'confirmed', 'pending_approval'];\nif (!validStatuses.includes(reservation.status)) {\n  throw new Error(`❌ No se puede cancelar una reserva con estado: ${reservation.status}`);\n}\n\nreturn {\n  reservation_id: reservation.id,\n  restaurant_id: reservation.restaurant_id,\n  customer_id: reservation.customer_id,\n  customer_name: reservation.customer_name,\n  customer_phone: reservation.customer_phone,\n  reservation_date: reservation.reservation_date,\n  reservation_time: reservation.reservation_time,\n  party_size: reservation.party_size,\n  cancellation_reason: inputData.cancellation_reason\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        240
+      ],
+      "id": "prepare-cancellation",
+      "name": "🔄 Preparar Cancelación"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "reservations",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.reservation_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "cancelled"
+            },
+            {
+              "fieldId": "updated_at",
+              "fieldValue": "={{ $now.toISO() }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        240
+      ],
+      "id": "cancel-reservation",
+      "name": "❌ Cancelar Reserva",
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "availability_slots",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "reservation_id",
+              "condition": "eq",
+              "keyValue": "={{ $('🔄 Preparar Cancelación').item.json.reservation_id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "status",
+              "fieldValue": "free"
+            },
+            {
+              "fieldId": "is_available",
+              "fieldValue": true
+            },
+            {
+              "fieldId": "reservation_id",
+              "fieldValue": ""
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        240
+      ],
+      "id": "free-slots",
+      "name": "🔓 Liberar TODOS los Slots",
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      },
+      "notes": "✅ CORREGIDO: Libera TODOS los slots con este reservation_id (incluso combinaciones)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.item.json;\nconst reservationData = $('🔄 Preparar Cancelación').item.json;\n\nconsole.log('✅ Reserva cancelada y slots liberados:', reservationData.reservation_id);\n\nreturn {\n  success: true,\n  reservation_id: reservationData.reservation_id,\n  message: `Reserva cancelada correctamente, ${reservationData.customer_name}. Tu reserva del ${reservationData.reservation_date} a las ${reservationData.reservation_time} ha sido cancelada.`,\n  details: {\n    reservation_id: reservationData.reservation_id,\n    customer_name: reservationData.customer_name,\n    date: reservationData.reservation_date,\n    time: reservationData.reservation_time,\n    party_size: reservationData.party_size,\n    cancellation_reason: reservationData.cancellation_reason\n  }\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        80,
+        240
+      ],
+      "id": "success-response",
+      "name": "✅ Respuesta: Éxito"
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [
+        [
+          {
+            "node": "🔍 Validar Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Validar Input": {
+      "main": [
+        [
+          {
+            "node": "📋 Buscar Reserva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📋 Buscar Reserva": {
+      "main": [
+        [
+          {
+            "node": "🔄 Preparar Cancelación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔄 Preparar Cancelación": {
+      "main": [
+        [
+          {
+            "node": "❌ Cancelar Reserva",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "❌ Cancelar Reserva": {
+      "main": [
+        [
+          {
+            "node": "🔓 Liberar TODOS los Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔓 Liberar TODOS los Slots": {
+      "main": [
+        [
+          {
+            "node": "✅ Respuesta: Éxito",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "Start": [
+      {
+        "reservation_id": "2f3163a5-d1be-42dd-8341-febb67e300b9",
+        "restaurant_id": "d6b63130-1ebf-4284-98fc-a3b31a85d9d1",
+        "cancellation_reason": "Cliente solicitó cancelación por cambio de planes"
+      }
+    ]
+  },
+  "meta": {
+    "instanceId": "968c65341fc947850f62b4a42d249947219a244717952c0dbaf2b62952e73bd9"
+  },
+  "tags": [
+    {
+      "createdAt": "2025-10-22T19:30:00.000Z",
+      "updatedAt": "2025-10-22T19:30:00.000Z",
+      "id": "cancel-combinaciones",
+      "name": "✅ Soporta Combinaciones de Mesas"
+    }
+  ]
+}

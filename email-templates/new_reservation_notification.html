@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nueva Reserva - La-IA</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f7; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;">
+    
+    <!-- Wrapper principal -->
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow: hidden;">
+        
+        <!-- Header con branding -->
+        <div style="background-color: #7c3aed; padding: 30px 40px; color: #ffffff; text-align: center;">
+            <h1 style="margin: 0; font-size: 28px; font-weight: bold;">🍽️ Nueva Reserva</h1>
+            <p style="margin: 8px 0 0 0; font-size: 16px; opacity: 0.9;">{{ RestaurantName }}</p>
+        </div>
+        
+        <!-- Contenido principal -->
+        <div style="padding: 40px;">
+            
+            <!-- Saludo personalizado -->
+            <p style="font-size: 18px; color: #1a1a1a; margin: 0 0 25px 0;">
+                Hola <strong>{{ ContactName }}</strong>,
+            </p>
+            
+            <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 30px 0;">
+                Se ha confirmado una nueva reserva en tu restaurante. Aquí están los detalles:
+            </p>
+            
+            <!-- Detalles de la reserva (tarjeta) -->
+            <div style="background-color: #f9fafb; border-left: 4px solid #7c3aed; padding: 25px; border-radius: 8px; margin-bottom: 30px;">
+                
+                <div style="margin-bottom: 15px;">
+                    <span style="color: #6b7280; font-size: 14px; display: block; margin-bottom: 4px;">👤 Cliente</span>
+                    <span style="color: #111827; font-size: 18px; font-weight: 600;">{{ CustomerName }}</span>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <span style="color: #6b7280; font-size: 14px; display: block; margin-bottom: 4px;">📧 Email</span>
+                    <span style="color: #111827; font-size: 16px;">{{ CustomerEmail }}</span>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <span style="color: #6b7280; font-size: 14px; display: block; margin-bottom: 4px;">📱 Teléfono</span>
+                    <span style="color: #111827; font-size: 16px;">{{ CustomerPhone }}</span>
+                </div>
+                
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+                
+                <div style="margin-bottom: 15px;">
+                    <span style="color: #6b7280; font-size: 14px; display: block; margin-bottom: 4px;">📅 Fecha</span>
+                    <span style="color: #111827; font-size: 18px; font-weight: 600;">{{ ReservationDate }}</span>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <span style="color: #6b7280; font-size: 14px; display: block; margin-bottom: 4px;">🕐 Hora</span>
+                    <span style="color: #111827; font-size: 18px; font-weight: 600;">{{ ReservationTime }}</span>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <span style="color: #6b7280; font-size: 14px; display: block; margin-bottom: 4px;">👥 Comensales</span>
+                    <span style="color: #111827; font-size: 18px; font-weight: 600;">{{ PartySize }} personas</span>
+                </div>
+                
+                <!-- Peticiones especiales (condicional) -->
+                {{ if SpecialRequests }}
+                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
+                <div>
+                    <span style="color: #6b7280; font-size: 14px; display: block; margin-bottom: 4px;">💬 Peticiones especiales</span>
+                    <span style="color: #111827; font-size: 16px; font-style: italic;">{{ SpecialRequests }}</span>
+                </div>
+                {{ endif }}
+                
+            </div>
+            
+            <!-- CTA Button -->
+            <div style="text-align: center; margin: 35px 0;">
+                <a href="{{ AppURL }}" 
+                   style="display: inline-block; background-color: #7c3aed; color: #ffffff; 
+                          padding: 14px 32px; text-decoration: none; border-radius: 8px; 
+                          font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(124, 58, 237, 0.3);
+                          transition: background-color 0.3s;">
+                    Ver detalles en la app
+                </a>
+            </div>
+            
+            <!-- Información adicional -->
+            <div style="background-color: #eff6ff; border-left: 4px solid #3b82f6; padding: 16px; border-radius: 8px; margin-top: 30px;">
+                <p style="margin: 0; font-size: 14px; color: #1e40af; line-height: 1.5;">
+                    <strong>💡 Consejo:</strong> Puedes gestionar esta reserva directamente desde la aplicación. 
+                    Si necesitas contactar al cliente, simplemente responde a este email.
+                </p>
+            </div>
+            
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 30px 40px; border-top: 1px solid #e5e7eb;">
+            <p style="margin: 0 0 10px 0; font-size: 14px; color: #6b7280; text-align: center;">
+                Este email fue enviado por <strong style="color: #7c3aed;">La-IA</strong> - Sistema de reservas inteligente
+            </p>
+            <p style="margin: 0; font-size: 13px; color: #9ca3af; text-align: center;">
+                <a href="https://la-ia-app.vercel.app" style="color: #7c3aed; text-decoration: none;">www.la-ia.site</a>
+                | 
+                <a href="https://la-ia-app.vercel.app/configuracion" style="color: #7c3aed; text-decoration: none;">Configurar notificaciones</a>
+            </p>
+        </div>
+        
+    </div>
+    
+</body>
+</html>
+

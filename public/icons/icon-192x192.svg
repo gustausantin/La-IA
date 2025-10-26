@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="text" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f0f9ff;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0.75" dy="1.5" stdDeviation="1.1294117647058823" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <rect width="192" height="192" rx="30" ry="30" fill="url(#bg)"/>
+  
+  <circle cx="96" cy="96" r="75" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.75"/>
+  
+  <text x="96" y="74.88" font-family="Arial, sans-serif" font-size="29.951999999999998" font-weight="bold" 
+        text-anchor="middle" fill="url(#text)" filter="url(#shadow)">La</text>
+  
+  <text x="96" y="105.024" font-family="Arial, sans-serif" font-size="22.464000000000002" font-weight="300" 
+        text-anchor="middle" fill="url(#text)" filter="url(#shadow)">IA</text>
+  
+  <g transform="translate(96, 120)" fill="url(#text)" filter="url(#shadow)">
+    <path d="M-7.4879999999999995,-3.7439999999999998 L-7.4879999999999995,11.2512 M-9.408000000000001,-3.7439999999999998 L-9.408000000000001,0 M-5.5680000000000005,-3.7439999999999998 L-5.5680000000000005,0 M-7.4879999999999995,0 L-7.4879999999999995,-5.5680000000000005" 
+          stroke="url(#text)" stroke-width="1.1328" fill="none" stroke-linecap="round"/>
+    
+    <path d="M7.4879999999999995,-3.7439999999999998 L7.4879999999999995,11.2512 M5.5680000000000005,-3.7439999999999998 L9.408000000000001,-1.8816 L7.4879999999999995,0" 
+          stroke="url(#text)" stroke-width="1.1328" fill="none" stroke-linecap="round"/>
+    
+    <ellipse cx="0" cy="14.975999999999999" rx="11.2512" ry="2.9951999999999996" fill="none" stroke="url(#text)" stroke-width="0.7487999999999999"/>
+  </g>
+  
+  <path d="M 29.951999999999998,29.951999999999998 Q 67.584,44.928000000000004 105.024,29.951999999999998 Q 142.464,44.928000000000004 180.096,29.951999999999998 L 180.096,44.928000000000004 Q 142.464,60.096000000000004 105.024,44.928000000000004 Q 67.584,60.096000000000004 29.951999999999998,44.928000000000004 Z" 
+        fill="rgba(255,255,255,0.1)"/>
+</svg>

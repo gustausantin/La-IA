@@ -1,0 +1,733 @@
+{
+  "name": "07 - RAG Search Tool (Final)",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "jsonExample",
+        "jsonExample": "{\n  \"restaurant_id\": \"d6b63130-1ebf-4284-98fc-a3b31a85d9d1\",\n  \"query\": \"¿Qué tenéis de primeros?\"\n}"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -1712,
+        -160
+      ],
+      "id": "1e0242f2-17c6-48f2-9d2a-5245e2868d1a",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// 🔍 VALIDAR INPUT DEL SUPER AGENT\n// =============================================\n\nconst input = $input.first().json;\n\nconsole.log('📥 Input recibido:', JSON.stringify(input, null, 2));\n\n// ========== VALIDACIONES ==========\nif (!input.restaurant_id) {\n  throw new Error('❌ restaurant_id es obligatorio');\n}\n\nif (!input.query) {\n  throw new Error('❌ query es obligatorio (pregunta del cliente)');\n}\n\nconsole.log('✅ Validación correcta');\nconsole.log('🏪 Restaurant ID:', input.restaurant_id);\nconsole.log('❓ Query:', input.query);\n\nreturn {\n  restaurant_id: input.restaurant_id,\n  query: input.query\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1504,
+        -160
+      ],
+      "id": "0f4afda0-d1ff-412e-b1b7-f1f20bbca8ef",
+      "name": "🔍 Validar Input"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "restaurant_knowledge_files",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "restaurant_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.restaurant_id }}"
+            },
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "completed"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -1312,
+        -160
+      ],
+      "id": "d0b13864-c924-488e-b048-4acb2ca44bab",
+      "name": "📥 Buscar Archivos",
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// 📄 VERIFICAR SI HAY ARCHIVOS\n// =============================================\n\nconst files = $input.all();\nconst validationData = $('🔍 Validar Input').first().json;\n\nconsole.log('📥 Archivos encontrados:', files.length);\n\nif (!files || files.length === 0) {\n  console.log('❌ No hay archivos procesados para este restaurante');\n  throw new Error('NO_FILES');\n}\n\nconsole.log('✅ Archivos listos para procesar');\n\n// Pasar todos los archivos al loop\nreturn files.map(f => f.json);"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -1120,
+        -160
+      ],
+      "id": "c7f6c457-354a-455c-af4e-3217a3ca36d1",
+      "name": "📄 Verificar Archivos"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -912,
+        -160
+      ],
+      "id": "1876fb10-0814-4e86-ad2f-fb045e04a929",
+      "name": "🔁 Loop Archivos"
+    },
+    {
+      "parameters": {
+        "url": "=https://ktsqwvhqamedpmzkzjaz.supabase.co/storage/v1/object/public/restaurant-knowledge/{{ $json.file_path }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -736,
+        -16
+      ],
+      "id": "5f2cc087-fda8-489f-9579-1409c401943d",
+      "name": "⬇️ Descargar Archivo"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// 📚 CONCATENAR TODO EL CONTENIDO\n// =============================================\n\nconst allFiles = $input.all();\nconst validationData = $('🔍 Validar Input').first().json;\n\nconsole.log('📚 Total de archivos procesados:', allFiles.length);\n\n// Concatenar todo\nlet fullContent = '=== INFORMACIÓN DEL RESTAURANTE ===\\n\\n';\n\nallFiles.forEach((file) => {\n  const data = file.json;\n  const fileName = data.file_name || 'Documento';\n  const category = data.category || 'general';\n  const content = data.content || '';\n  \n  fullContent += `\\n--- ${fileName} (${category}) ---\\n${content}\\n\\n`;\n});\n\nconsole.log('✅ Contenido total concatenado');\nconsole.log('📏 Caracteres totales:', fullContent.length);\n\nreturn {\n  restaurant_id: validationData.restaurant_id,\n  query: validationData.query,\n  full_content: fullContent,\n  files_processed: allFiles.length\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -736,
+        -256
+      ],
+      "id": "6ffb976e-ffa0-4e3f-b7d7-0e60a656dcff",
+      "name": "📚 Concatenar Todo"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {
+          "temperature": 0.1,
+          "systemMessage": "=Eres un asistente que responde preguntas basándote ÚNICAMENTE en el contenido proporcionado.\n\nREGLAS CRÍTICAS:\n1. SOLO usa la información del contenido que te proporcionan\n2. Si la información NO está en el contenido, di: \"No tengo esa información\"\n3. NUNCA inventes, asumas o agregues información externa\n4. Responde en el MISMO IDIOMA que la pregunta\n5. Sé claro, conciso y amigable"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        -592,
+        -384
+      ],
+      "id": "5d752e6e-6b94-461e-bce0-c4c03705ebed",
+      "name": "🤖 GPT-4o-mini",
+      "credentials": {
+        "openAiApi": {
+          "id": "zwtmjTlXACMvkqZx",
+          "name": "OpenAi La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// ✅ PREPARAR RESPUESTA FINAL\n// =============================================\n\nconst llmResponse = $input.first().json;\nconst previousData = $('📚 Concatenar Todo').first().json;\n\nconst answer = llmResponse.text || llmResponse.output || llmResponse.response || '';\n\nconsole.log('✅ Respuesta generada');\nconsole.log('📏 Longitud respuesta:', answer.length);\n\nreturn {\n  success: true,\n  found: true,\n  answer: answer,\n  query: previousData.query,\n  files_used: previousData.files_processed\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        -336
+      ],
+      "id": "0c292157-ea25-428d-adcb-b7c4f2a775a2",
+      "name": "✅ Preparar Respuesta"
+    },
+    {
+      "parameters": {
+        "options": {
+          "systemMessage": "=CONTENIDO DEL RESTAURANTE:\n\n{{ $('📚 Concatenar Todo').item.json.full_content }}\n\n---\n\nPREGUNTA DEL CLIENTE:\n{{ $('📚 Concatenar Todo').item.json.query }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        -592,
+        -256
+      ],
+      "id": "a9343994-62cd-4731-b106-d2b3dafbc44d",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.file_type }}",
+                    "rightValue": "text/plain",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Text"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.file_type }}",
+                    "rightValue": "application/pdf",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "PDF"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.file_type }}",
+                    "rightValue": "text/html",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "HTML"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.file_type }}",
+                    "rightValue": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "XLSX"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.file_type }}",
+                    "rightValue": "application/vnd.ms-excel",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "XLS"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        -560,
+        -96
+      ],
+      "id": "4ef79de7-1fad-40a3-9ab0-f49bab16c0bf",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        352
+      ],
+      "id": "af8b4d01-7b7c-4859-95c9-a737e67cdedd",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "fieldsToSummarize": {
+          "values": [
+            {
+              "aggregation": "concatenate",
+              "field": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.summarize",
+      "typeVersion": 1.1,
+      "position": [
+        -16,
+        352
+      ],
+      "id": "97e4ecfb-1a06-46ca-8766-a20e068af17d",
+      "name": "Summarize"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -144,
+        512
+      ],
+      "id": "b9c0b494-118a-4334-a7c5-afde6cc7256a",
+      "name": "Aggregate1"
+    },
+    {
+      "parameters": {
+        "fieldsToSummarize": {
+          "values": [
+            {
+              "aggregation": "concatenate",
+              "field": "data"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.summarize",
+      "typeVersion": 1.1,
+      "position": [
+        -16,
+        512
+      ],
+      "id": "d3be98f3-fc39-41d8-8d62-16051f09434e",
+      "name": "Summarize1"
+    },
+    {
+      "parameters": {
+        "operation": "xlsx",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        352
+      ],
+      "id": "644c29f6-99e9-4d22-84b1-7bfe4cb0e222",
+      "name": "Extract from XLXS"
+    },
+    {
+      "parameters": {
+        "operation": "xls",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        512
+      ],
+      "id": "373f2e22-cda3-4637-b3dd-53a751f90523",
+      "name": "Extract from XLX"
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        64
+      ],
+      "id": "c6e7431e-ddf1-4a08-a42b-01f99f1a4b55",
+      "name": "Extract from PDF"
+    },
+    {
+      "parameters": {
+        "operation": "text",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        -80
+      ],
+      "id": "d1674e1f-9658-4295-80c2-b39d45f50af5",
+      "name": "Extract from Text"
+    },
+    {
+      "parameters": {
+        "operation": "html",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        208
+      ],
+      "id": "30924096-7975-48d7-9aa6-3a15f869cebd",
+      "name": "Extract from HTML"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// 🧹 LIMPIAR Y PREPARAR TEXTO\n// =============================================\n\nconst item = $input.first();\nconst data = item.json.data || item.json.text || item.json || '';\n\n// Convertir a string si no lo es\nlet text = typeof data === 'string' ? data : JSON.stringify(data);\n\nconsole.log('📥 Texto original:', text.length, 'caracteres');\n\n// ========== LIMPIEZA AGRESIVA ==========\n\n// 1. Quitar múltiples saltos de línea (dejar máximo 2)\ntext = text.replace(/\\n{3,}/g, '\\n\\n');\n\n// 2. Quitar espacios/tabs extras\ntext = text.replace(/[ \\t]+/g, ' ');\n\n// 3. Quitar espacios al inicio y final de cada línea\ntext = text.split('\\n').map(line => line.trim()).join('\\n');\n\n// 4. Quitar líneas vacías múltiples\ntext = text.replace(/\\n\\s*\\n\\s*\\n/g, '\\n\\n');\n\n// 5. Normalizar puntuación (quitar espacios antes de puntos, comas, etc.)\ntext = text.replace(/\\s+([.,;:!?])/g, '$1');\n\n// 6. Quitar caracteres de control raros (excepto \\n y \\t)\ntext = text.replace(/[\\x00-\\x08\\x0B-\\x0C\\x0E-\\x1F\\x7F]/g, '');\n\n// 7. Normalizar espacios Unicode raros\ntext = text.replace(/[\\u00A0\\u1680\\u2000-\\u200B\\u202F\\u205F\\u3000]/g, ' ');\n\n// 8. Trim final\ntext = text.trim();\n\nconsole.log('✅ Texto limpio:', text.length, 'caracteres');\nconsole.log('💰 Ahorro:', (item.json.data?.length || 0) - text.length, 'caracteres');\n\n// Agregar metadata del archivo\nconst fileData = $('🔁 Loop Archivos').item.json;\n\nreturn {\n  file_name: fileData.file_name,\n  category: fileData.category,\n  content: text\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        176,
+        128
+      ],
+      "id": "d3f48b2d-49c3-4097-9e64-01f1c882b882",
+      "name": "🧹 Limpiar Texto"
+    }
+  ],
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "🔍 Validar Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔍 Validar Input": {
+      "main": [
+        [
+          {
+            "node": "📥 Buscar Archivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📥 Buscar Archivos": {
+      "main": [
+        [
+          {
+            "node": "📄 Verificar Archivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📄 Verificar Archivos": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop Archivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🔁 Loop Archivos": {
+      "main": [
+        [
+          {
+            "node": "📚 Concatenar Todo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "⬇️ Descargar Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "⬇️ Descargar Archivo": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "📚 Concatenar Todo": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🤖 GPT-4o-mini": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "✅ Preparar Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Switch": {
+      "main": [
+        [
+          {
+            "node": "Extract from Text",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract from PDF",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract from HTML",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract from XLXS",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract from XLX",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Summarize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize": {
+      "main": [
+        [
+          {
+            "node": "🧹 Limpiar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate1": {
+      "main": [
+        [
+          {
+            "node": "Summarize1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Summarize1": {
+      "main": [
+        [
+          {
+            "node": "🧹 Limpiar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from XLXS": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from XLX": {
+      "main": [
+        [
+          {
+            "node": "Aggregate1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from PDF": {
+      "main": [
+        [
+          {
+            "node": "🧹 Limpiar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from Text": {
+      "main": [
+        [
+          {
+            "node": "🧹 Limpiar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from HTML": {
+      "main": [
+        [
+          {
+            "node": "🧹 Limpiar Texto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "🧹 Limpiar Texto": {
+      "main": [
+        [
+          {
+            "node": "🔁 Loop Archivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "restaurant_id": "d6b63130-1ebf-4284-98fc-a3b31a85d9d1",
+        "query": "Quins postres oferiu al menú?"
+      }
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "968c65341fc947850f62b4a42d249947219a244717952c0dbaf2b62952e73bd9"
+  }
+}
+
+

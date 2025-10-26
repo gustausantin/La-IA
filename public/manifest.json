@@ -1,0 +1,92 @@
+{
+  "name": "La-IA - Sistema Inteligente de Gestión de Restaurantes",
+  "short_name": "La-IA",
+  "description": "La app más avanzada para gestión de restaurantes con IA integrada",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "lang": "es-ES",
+  "categories": ["business", "productivity", "food"],
+    "icons": [
+    {
+      "src": "/icons/icon-base.svg",
+      "sizes": "72x72 96x96 128x128 144x144",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-base.svg",
+      "sizes": "152x152 192x192 384x384 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/favicon.ico",
+      "sizes": "32x32",
+      "type": "image/x-icon"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Acceso rápido al dashboard principal",
+      "url": "/dashboard",
+      "icons": [
+        {
+          "src": "/icons/dashboard-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Reservas",
+      "short_name": "Reservas", 
+      "description": "Gestionar reservas del restaurante",
+      "url": "/reservas",
+      "icons": [
+        {
+          "src": "/icons/reservas-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Mesas",
+      "short_name": "Mesas",
+      "description": "Control de mesas en tiempo real", 
+      "url": "/mesas",
+      "icons": [
+        {
+          "src": "/icons/mesas-icon.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/desktop-dashboard.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Dashboard principal de La-IA"
+    },
+    {
+      "src": "/screenshots/mobile-reservas.png", 
+      "sizes": "375x812",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Gestión de reservas móvil"
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false,
+  "id": "/?source=pwa",
+  "edge_side_panel": {
+    "preferred_width": 320
+  }
+}

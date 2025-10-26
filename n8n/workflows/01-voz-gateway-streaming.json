@@ -1,0 +1,449 @@
+{
+  "name": "01 - VOZ PROFESIONAL: Twilio → OpenAI → Agent → TTS",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-stream",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-incoming",
+      "name": "📞 Llamada Entrante",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "restaurants",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "active",
+              "keyValue": true
+            }
+          ]
+        }
+      },
+      "id": "get-all-restaurants",
+      "name": "🏪 Buscar Restaurantes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [460, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const restaurants = $input.all();\nconst calledNumber = $('📞 Llamada Entrante').first().json.body.Called;\n\nfor (const r of restaurants) {\n  const settings = r.json.settings || {};\n  const channels = settings.channels || {};\n  const voiceNumber = channels.vapi?.voice_number || channels.voice?.phone_number;\n  \n  if (voiceNumber === calledNumber) {\n    return r.json;\n  }\n}\n\nthrow new Error('Restaurante no encontrado para: ' + calledNumber);"
+      },
+      "id": "filter-restaurant",
+      "name": "🔍 Filtrar Restaurante",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "restaurant_settings",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "restaurant_id",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        }
+      },
+      "id": "get-voice-config",
+      "name": "🎙️ Config Voz",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [900, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      },
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const webhook = $('📞 Llamada Entrante').first().json.body;\nconst restaurant = $('🔍 Filtrar Restaurante').first().json;\nconst voiceConfig = $input.first().json;\n\nconst settings = restaurant.settings || {};\nconst agent = settings.agent || {};\nconst agentName = agent.name || 'Daniela';\nconst restaurantName = restaurant.name || 'el restaurante';\n\n// Configuración de voz\nconst voiceGender = voiceConfig?.voice_gender || agent.gender || 'female';\nconst voiceId = voiceConfig?.voice_id || (voiceGender === 'male' ? 'onyx' : 'nova');\n\nconst welcomeMessage = `Hola, bienvenido a ${restaurantName}. Soy ${agentName}, ¿en qué puedo ayudarte?`;\n\nreturn {\n  welcome_message: welcomeMessage,\n  voice_id: voiceId,\n  call_sid: webhook.CallSid,\n  restaurant_id: restaurant.id,\n  restaurant_name: restaurantName,\n  agent_name: agentName,\n  caller_phone: webhook.From\n};"
+      },
+      "id": "prepare-welcome",
+      "name": "📝 Preparar Bienvenida",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "text": "={{ $json.welcome_message }}",
+        "options": {
+          "voice": "={{ $json.voice_id }}",
+          "model": "tts-1",
+          "speed": 1.0
+        }
+      },
+      "id": "tts-welcome",
+      "name": "🔊 TTS Bienvenida",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [1340, 300],
+      "credentials": {
+        "openAiApi": {
+          "id": "zwtmjTlXACMvkqZx",
+          "name": "OpenAi La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cloudinary.com/v1_1/{{ $env.CLOUDINARY_CLOUD_NAME }}/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "={{ 'data:audio/mp3;base64,' + $binary.data.data }}"
+            },
+            {
+              "name": "upload_preset",
+              "value": "{{ $env.CLOUDINARY_UPLOAD_PRESET }}"
+            },
+            {
+              "name": "resource_type",
+              "value": "video"
+            }
+          ]
+        }
+      },
+      "id": "upload-audio",
+      "name": "☁️ Upload Audio",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1560, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const uploadResponse = $input.first().json;\nconst prepareData = $('📝 Preparar Bienvenida').first().json;\n\nconst audioUrl = uploadResponse.secure_url;\n\nconst twiml = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Response>\n    <Play>${audioUrl}</Play>\n    <Record \n        action=\"https://gustausantin.app.n8n.cloud/webhook-test/voice-transcript\"\n        method=\"POST\"\n        maxLength=\"30\"\n        timeout=\"3\"\n        transcribe=\"true\"\n        transcribeCallback=\"https://gustausantin.app.n8n.cloud/webhook-test/voice-transcript\"\n    />\n</Response>`;\n\nreturn {\n  twiml: twiml,\n  call_sid: prepareData.call_sid,\n  restaurant_id: prepareData.restaurant_id\n};"
+      },
+      "id": "generate-twiml",
+      "name": "📄 Generar TwiML",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.twiml }}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "text/xml"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond-webhook",
+      "name": "✅ Contestar Llamada",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "voice-transcript",
+        "options": {}
+      },
+      "id": "webhook-transcript",
+      "name": "🎤 Transcripción Lista",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json.body;\n\nreturn {\n  transcript: data.TranscriptionText || '',\n  call_sid: data.CallSid,\n  restaurant_phone: data.Called,\n  caller_phone: data.From\n};"
+      },
+      "id": "parse-transcript",
+      "name": "📄 Extraer Texto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 520]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "restaurants",
+        "returnAll": true,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "active",
+              "keyValue": true
+            }
+          ]
+        }
+      },
+      "id": "get-restaurants-2",
+      "name": "🏪 Buscar Restaurantes",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 520],
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const restaurants = $input.all();\nconst calledNumber = $('📄 Extraer Texto').first().json.restaurant_phone;\n\nfor (const r of restaurants) {\n  const settings = r.json.settings || {};\n  const channels = settings.channels || {};\n  const voiceNumber = channels.vapi?.voice_number || channels.voice?.phone_number;\n  \n  if (voiceNumber === calledNumber) {\n    return r.json;\n  }\n}\n\nthrow new Error('Restaurante no encontrado');"
+      },
+      "id": "filter-restaurant-2",
+      "name": "🔍 Identificar Restaurante",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 520]
+    },
+    {
+      "parameters": {
+        "jsCode": "const transcript = $('📄 Extraer Texto').first().json;\nconst restaurant = $input.first().json;\n\nreturn {\n  customer_phone: transcript.caller_phone,\n  customer_name: 'Cliente',\n  restaurant_id: restaurant.id,\n  message_text: transcript.transcript,\n  channel: 'voice',\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "prepare-gateway",
+      "name": "🔗 Preparar Gateway",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 520]
+    },
+    {
+      "parameters": {
+        "workflowId": "={{ $parameter.workflowId }}",
+        "options": {}
+      },
+      "id": "execute-gateway",
+      "name": "🚪 Gateway → Agent",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.1,
+      "position": [1340, 520],
+      "notes": "ID del workflow 2-GATEWAY-FINAL-IMPORTAR"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst agentText = response.agent_response?.output || response.response || 'Lo siento, no pude procesar tu solicitud.';\n\nreturn {\n  text: agentText,\n  call_sid: $('📄 Extraer Texto').first().json.call_sid,\n  restaurant_id: $('🔗 Preparar Gateway').first().json.restaurant_id\n};"
+      },
+      "id": "extract-response",
+      "name": "💬 Respuesta Agent",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 520]
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "restaurant_settings",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "restaurant_id",
+              "keyValue": "={{ $json.restaurant_id }}"
+            }
+          ]
+        }
+      },
+      "id": "get-voice-config-2",
+      "name": "🎙️ Config Voz Respuesta",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1780, 520],
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      },
+      "alwaysOutputData": true,
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const agentData = $('💬 Respuesta Agent').first().json;\nconst voiceConfig = $input.first().json;\n\nconst voiceId = voiceConfig?.voice_id || 'nova';\n\nreturn {\n  text: agentData.text,\n  voice_id: voiceId,\n  call_sid: agentData.call_sid\n};"
+      },
+      "id": "prepare-tts",
+      "name": "🎯 Preparar TTS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 520]
+    },
+    {
+      "parameters": {
+        "resource": "audio",
+        "text": "={{ $json.text }}",
+        "options": {
+          "voice": "={{ $json.voice_id }}",
+          "model": "tts-1",
+          "speed": 1.0
+        }
+      },
+      "id": "tts-response",
+      "name": "🔊 TTS Respuesta",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.8,
+      "position": [2220, 520],
+      "credentials": {
+        "openAiApi": {
+          "id": "zwtmjTlXACMvkqZx",
+          "name": "OpenAi La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cloudinary.com/v1_1/{{ $env.CLOUDINARY_CLOUD_NAME }}/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "file",
+              "value": "={{ 'data:audio/mp3;base64,' + $binary.data.data }}"
+            },
+            {
+              "name": "upload_preset",
+              "value": "{{ $env.CLOUDINARY_UPLOAD_PRESET }}"
+            },
+            {
+              "name": "resource_type",
+              "value": "video"
+            }
+          ]
+        }
+      },
+      "id": "upload-response",
+      "name": "☁️ Upload Respuesta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2440, 520]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.twilio.com/2010-04-01/Accounts/{{ $env.TWILIO_ACCOUNT_SID }}/Calls/{{ $('🎯 Preparar TTS').item.json.call_sid }}.json",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpBasicAuth",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "Twiml",
+              "value": "=<Response><Play>{{ $json.secure_url }}</Play><Hangup/></Response>"
+            }
+          ]
+        }
+      },
+      "id": "update-call",
+      "name": "📲 Responder Cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2660, 520],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "twilio-auth",
+          "name": "Twilio Auth"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "📞 Llamada Entrante": {
+      "main": [[{"node": "🏪 Buscar Restaurantes", "type": "main", "index": 0}]]
+    },
+    "🏪 Buscar Restaurantes": {
+      "main": [[{"node": "🔍 Filtrar Restaurante", "type": "main", "index": 0}]]
+    },
+    "🔍 Filtrar Restaurante": {
+      "main": [[{"node": "🎙️ Config Voz", "type": "main", "index": 0}]]
+    },
+    "🎙️ Config Voz": {
+      "main": [[{"node": "📝 Preparar Bienvenida", "type": "main", "index": 0}]]
+    },
+    "📝 Preparar Bienvenida": {
+      "main": [[{"node": "🔊 TTS Bienvenida", "type": "main", "index": 0}]]
+    },
+    "🔊 TTS Bienvenida": {
+      "main": [[{"node": "☁️ Upload Audio", "type": "main", "index": 0}]]
+    },
+    "☁️ Upload Audio": {
+      "main": [[{"node": "📄 Generar TwiML", "type": "main", "index": 0}]]
+    },
+    "📄 Generar TwiML": {
+      "main": [[{"node": "✅ Contestar Llamada", "type": "main", "index": 0}]]
+    },
+    "🎤 Transcripción Lista": {
+      "main": [[{"node": "📄 Extraer Texto", "type": "main", "index": 0}]]
+    },
+    "📄 Extraer Texto": {
+      "main": [[{"node": "🏪 Buscar Restaurantes", "type": "main", "index": 0}]]
+    },
+    "🏪 Buscar Restaurantes": {
+      "main": [[{"node": "🔍 Identificar Restaurante", "type": "main", "index": 0}]]
+    },
+    "🔍 Identificar Restaurante": {
+      "main": [[{"node": "🔗 Preparar Gateway", "type": "main", "index": 0}]]
+    },
+    "🔗 Preparar Gateway": {
+      "main": [[{"node": "🚪 Gateway → Agent", "type": "main", "index": 0}]]
+    },
+    "🚪 Gateway → Agent": {
+      "main": [[{"node": "💬 Respuesta Agent", "type": "main", "index": 0}]]
+    },
+    "💬 Respuesta Agent": {
+      "main": [[{"node": "🎙️ Config Voz Respuesta", "type": "main", "index": 0}]]
+    },
+    "🎙️ Config Voz Respuesta": {
+      "main": [[{"node": "🎯 Preparar TTS", "type": "main", "index": 0}]]
+    },
+    "🎯 Preparar TTS": {
+      "main": [[{"node": "🔊 TTS Respuesta", "type": "main", "index": 0}]]
+    },
+    "🔊 TTS Respuesta": {
+      "main": [[{"node": "☁️ Upload Respuesta", "type": "main", "index": 0}]]
+    },
+    "☁️ Upload Respuesta": {
+      "main": [[{"node": "📲 Responder Cliente", "type": "main", "index": 0}]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "meta": {
+    "instanceId": "968c65341fc947850f62b4a42d249947219a244717952c0dbaf2b62952e73bd9"
+  }
+}
+

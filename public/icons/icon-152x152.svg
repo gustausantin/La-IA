@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 152 152" width="152" height="152">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#1d4ed8;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="text" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#ffffff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#f0f9ff;stop-opacity:1" />
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0.59375" dy="1.1875" stdDeviation="0.8941176470588236" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
+  </defs>
+  
+  <rect width="152" height="152" rx="23.75" ry="23.75" fill="url(#bg)"/>
+  
+  <circle cx="76" cy="76" r="59.375" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="0.59375"/>
+  
+  <text x="76" y="59.28" font-family="Arial, sans-serif" font-size="23.712" font-weight="bold" 
+        text-anchor="middle" fill="url(#text)" filter="url(#shadow)">La</text>
+  
+  <text x="76" y="83.144" font-family="Arial, sans-serif" font-size="17.784000000000002" font-weight="300" 
+        text-anchor="middle" fill="url(#text)" filter="url(#shadow)">IA</text>
+  
+  <g transform="translate(76, 95)" fill="url(#text)" filter="url(#shadow)">
+    <path d="M-5.928,-2.964 L-5.928,8.9072 M-7.448,-2.964 L-7.448,0 M-4.408,-2.964 L-4.408,0 M-5.928,0 L-5.928,-4.408" 
+          stroke="url(#text)" stroke-width="0.8967999999999999" fill="none" stroke-linecap="round"/>
+    
+    <path d="M5.928,-2.964 L5.928,8.9072 M4.408,-2.964 L7.448,-1.4896 L5.928,0" 
+          stroke="url(#text)" stroke-width="0.8967999999999999" fill="none" stroke-linecap="round"/>
+    
+    <ellipse cx="0" cy="11.856" rx="8.9072" ry="2.3712" fill="none" stroke="url(#text)" stroke-width="0.5928"/>
+  </g>
+  
+  <path d="M 23.712,23.712 Q 53.504,35.568000000000005 83.144,23.712 Q 112.78399999999999,35.568000000000005 142.576,23.712 L 142.576,35.568000000000005 Q 112.78399999999999,47.576 83.144,35.568000000000005 Q 53.504,47.576 23.712,35.568000000000005 Z" 
+        fill="rgba(255,255,255,0.1)"/>
+</svg>

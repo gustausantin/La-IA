@@ -1,0 +1,443 @@
+{
+  "name": "2️⃣ Gateway Unificado - CORREGIDO",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [-1424, -160],
+      "id": "ce8aa0d4-ca51-44ad-b138-d78c90920c20",
+      "name": "▶️ Start"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $input.item.json;\n\nconsole.log('🔍 Gateway recibió:', JSON.stringify(input, null, 2));\n\n// ✅ NUEVO: Validar canal (incluir 'voice')\nconst validChannels = ['whatsapp', 'instagram', 'facebook', 'web', 'voice'];\nconst inputChannel = input.channel || 'whatsapp';\n\nif (!validChannels.includes(inputChannel)) {\n  console.error('❌ Canal no válido:', inputChannel);\n  throw new Error(`Canal no válido: ${inputChannel}. Canales permitidos: ${validChannels.join(', ')}`);\n}\n\nconst normalized = {\n  restaurant_id: input.restaurant_id,\n  customer_phone: input.customer_phone,\n  customer_name: input.customer_name || 'Cliente',\n  customer_email: input.customer_email || null,\n  user_message: input.user_message || input.message_text || input.messages || '',\n  channel: inputChannel,\n  timestamp: input.timestamp || new Date().toISOString(),\n  message_count: input.message_count || 1,\n  // ✅ NUEVO: Flag para detectar si es voz\n  is_voice_channel: inputChannel === 'voice',\n  // ✅ NUEVO: Metadata de llamada (si existe)\n  call_metadata: input.call_metadata || null\n};\n\nconsole.log('✅ Normalizado:', {\n  ...normalized,\n  user_message: normalized.user_message.substring(0, 50) + '...'\n});\n\nreturn normalized;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1200, -160],
+      "id": "9b45aa4e-95eb-4ab3-b184-68018b1e5460",
+      "name": "📝 Normalizar"
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\n\nconst normalized = {\n  ...data,\n  customer_phone_normalized: data.customer_phone\n};\n\nconsole.log('📞 Teléfono recibido (con +):', normalized.customer_phone_normalized);\n\nreturn normalized;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-1024, -160],
+      "id": "42363c56-8246-4178-95a7-6caa4bd9536f",
+      "name": "📞 Normalizar Teléfono"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "customers",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "restaurant_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.restaurant_id }}"
+            },
+            {
+              "keyName": "phone",
+              "condition": "eq",
+              "keyValue": "={{ $json.customer_phone_normalized }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-848, -160],
+      "id": "447adeaa-7789-45e8-91bf-e9f5cd0f7c2b",
+      "name": "🔍 Buscar Cliente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-customer-exists",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-672, -176],
+      "id": "fd0f0d82-b311-46e2-b1f4-21fa90503b67",
+      "name": "❓ ¿Existe?"
+    },
+    {
+      "parameters": {
+        "tableId": "customers",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "restaurant_id",
+              "fieldValue": "={{ $('📝 Normalizar').item.json.restaurant_id }}"
+            },
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $('📝 Normalizar').item.json.customer_name }}"
+            },
+            {
+              "fieldId": "phone",
+              "fieldValue": "={{ $('📝 Normalizar').item.json.customer_phone }}"
+            },
+            {
+              "fieldId": "email",
+              "fieldValue": "={{ $('📝 Normalizar').item.json.customer_email }}"
+            },
+            {
+              "fieldId": "segment_auto",
+              "fieldValue": "nuevo"
+            },
+            {
+              "fieldId": "segment_auto_v2",
+              "fieldValue": "nuevo"
+            },
+            {
+              "fieldId": "preferred_channel",
+              "fieldValue": "={{ $('📝 Normalizar').item.json.channel }}"
+            },
+            {
+              "fieldId": "consent_whatsapp",
+              "fieldValue": true
+            },
+            {
+              "fieldId": "total_visits",
+              "fieldValue": 0
+            },
+            {
+              "fieldId": "visits_count",
+              "fieldValue": 0
+            },
+            {
+              "fieldId": "total_spent",
+              "fieldValue": 0
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-480, -272],
+      "id": "505ffa77-d4e8-491c-a954-fc62c72f7608",
+      "name": "➕ Crear Cliente",
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $('📝 Normalizar').item.json;\nconst customerData = $input.item.json;\n\nreturn {\n  ...inputData,\n  customer_id: customerData.id\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-272, -160],
+      "id": "0dd7dae9-dce2-4b8a-80b0-0b0b5369fc78",
+      "name": "🔗 Fusionar Datos"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "agent_conversations",
+        "returnAll": true,
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "customer_phone",
+              "condition": "eq",
+              "keyValue": "={{ $('🔗 Fusionar Datos').item.json.customer_phone }}"
+            },
+            {
+              "keyName": "restaurant_id",
+              "condition": "eq",
+              "keyValue": "={{ $('🔗 Fusionar Datos').item.json.restaurant_id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [-176, -272],
+      "id": "0ebecdb7-257e-48b0-a090-8eac56f27c60",
+      "name": "🔍 Buscar Todas Conversaciones",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// FILTRAR CONVERSACIONES DE LOS ÚLTIMOS 10 MINUTOS\n// Si NO hay conversación activa → Retorna [] (para crear nueva)\n// Si SÍ hay conversación activa → Retorna la conversación (para reusar)\n// =====================================================\n\nconst conversations = $input.all();\n\nconsole.log('📥 Total de items recibidos:', conversations.length);\n\n// ✅ PASO 1: FILTRAR objetos vacíos o sin 'id'\nconst validConversations = conversations.filter(item => {\n  const isValid = item.json && item.json.id && item.json.created_at;\n  if (!isValid) {\n    console.log('⚠️ Item inválido ignorado:', item.json);\n  }\n  return isValid;\n});\n\nconsole.log('✅ Conversaciones válidas encontradas:', validConversations.length);\n\n// ✅ CASO 1: NO HAY CONVERSACIONES → CREAR NUEVA\nif (validConversations.length === 0) {\n  console.log('🆕 No hay conversaciones previas → El workflow creará una nueva');\n  return [];\n}\n\n// ✅ PASO 2: CALCULAR hace 10 minutos\nconst now = new Date();\nconst tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);\n\nconsole.log('🕐 Ahora:', now.toISOString());\nconsole.log('🕐 Hace 10 min:', tenMinutesAgo.toISOString());\n\n// ✅ PASO 3: FILTRAR conversaciones de los últimos 10 minutos\nconst activeConversations = validConversations.filter(item => {\n  const createdAt = new Date(item.json.created_at);\n  const isRecent = createdAt > tenMinutesAgo;\n  const ageMinutes = Math.floor((now - createdAt) / 1000 / 60);\n  \n  console.log(`📊 Conversación ${item.json.id.substring(0, 8)}:`, {\n    created_at: createdAt.toISOString(),\n    age_minutes: ageMinutes,\n    is_active: isRecent ? '✅ ACTIVA' : '❌ EXPIRADA'\n  });\n  \n  return isRecent;\n});\n\n// ✅ CASO 2: NO HAY CONVERSACIÓN ACTIVA (todas > 10 min) → CREAR NUEVA\nif (activeConversations.length === 0) {\n  console.log('🆕 No hay conversación activa (todas expiradas) → El workflow creará una nueva');\n  return [];\n}\n\n// ✅ CASO 3: SÍ HAY CONVERSACIÓN ACTIVA → REUSAR LA MÁS RECIENTE\nactiveConversations.sort((a, b) => {\n  return new Date(b.json.created_at) - new Date(a.json.created_at);\n});\n\nconst mostRecent = activeConversations[0].json;\n\nconsole.log('♻️ Conversación activa encontrada:', {\n  id: mostRecent.id,\n  created_at: mostRecent.created_at,\n  age_minutes: Math.floor((now - new Date(mostRecent.created_at)) / 1000 / 60)\n});\n\nreturn mostRecent;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-96, -272],
+      "id": "filter-10min-code",
+      "name": "⏰ Filtrar por 10 min"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-conversation-exists",
+              "leftValue": "={{ $input.all().length }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [112, -272],
+      "id": "4d1da60b-c36f-43c8-abd8-bafe159149c4",
+      "name": "❓ ¿Conversación existe?"
+    },
+    {
+      "parameters": {
+        "jsCode": "const conversation = $input.item.json;\nconst fusionData = $('🔗 Fusionar Datos').item.json;\n\nconsole.log('♻️ Reusando conversación:', conversation.id);\n\nreturn {\n  id: conversation.id,\n  restaurant_id: fusionData.restaurant_id,\n  customer_phone: fusionData.customer_phone,\n  user_message: fusionData.user_message,\n  timestamp: fusionData.timestamp,\n  customer_id: fusionData.customer_id,\n  customer_name: fusionData.customer_name,\n  channel: fusionData.channel\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, -176],
+      "id": "c927405f-b2a7-4dce-a289-c462b467f9d2",
+      "name": "♻️ Reusar Conversación"
+    },
+    {
+      "parameters": {
+        "tableId": "agent_conversations",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "restaurant_id",
+              "fieldValue": "={{ $('🔗 Fusionar Datos').item.json.restaurant_id }}"
+            },
+            {
+              "fieldId": "customer_id",
+              "fieldValue": "={{ $('🔗 Fusionar Datos').item.json.customer_id }}"
+            },
+            {
+              "fieldId": "customer_phone",
+              "fieldValue": "={{ $('🔗 Fusionar Datos').item.json.customer_phone }}"
+            },
+            {
+              "fieldId": "customer_name",
+              "fieldValue": "={{ $('🔗 Fusionar Datos').item.json.customer_name }}"
+            },
+            {
+              "fieldId": "customer_email",
+              "fieldValue": "={{ $('🔗 Fusionar Datos').item.json.customer_email }}"
+            },
+            {
+              "fieldId": "source_channel",
+              "fieldValue": "={{ $('🔗 Fusionar Datos').item.json.channel }}"
+            },
+            {
+              "fieldId": "interaction_type",
+              "fieldValue": "inquiry"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "active"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [320, -368],
+      "id": "2d88a11c-3ad7-4e64-9097-34677774fe77",
+      "name": "💬 Crear Conversación",
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "tableId": "agent_messages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "conversation_id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "restaurant_id",
+              "fieldValue": "={{ $json.restaurant_id }}"
+            },
+            {
+              "fieldId": "customer_phone",
+              "fieldValue": "={{ $json.customer_phone }}"
+            },
+            {
+              "fieldId": "direction",
+              "fieldValue": "inbound"
+            },
+            {
+              "fieldId": "sender",
+              "fieldValue": "customer"
+            },
+            {
+              "fieldId": "message_text",
+              "fieldValue": "={{ $json.user_message }}"
+            },
+            {
+              "fieldId": "timestamp",
+              "fieldValue": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [528, -272],
+      "id": "0555d0c8-f850-4cdf-9974-d770557b6848",
+      "name": "💾 Guardar Mensaje",
+      "credentials": {
+        "supabaseApi": {
+          "id": "9pdl4V7ImejCLZWo",
+          "name": "Supabase La-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const savedMessage = $input.item.json;\nlet sourceData = null;\n\ntry {\n  sourceData = $('💬 Crear Conversación').first().json;\n} catch (e) {\n  try {\n    sourceData = $('♻️ Reusar Conversación').first().json;\n  } catch (e2) {\n    sourceData = {};\n  }\n}\n\nconsole.log('📦 Mensaje guardado con conversation_id:', savedMessage.conversation_id);\n\nreturn {\n  conversation_id: savedMessage.conversation_id,\n  restaurant_id: sourceData.restaurant_id || savedMessage.restaurant_id,\n  customer_id: sourceData.customer_id || null,\n  customer_name: sourceData.customer_name || 'Cliente',\n  customer_phone: sourceData.customer_phone || savedMessage.customer_phone,\n  channel: sourceData.channel || 'whatsapp',\n  user_message: sourceData.user_message || savedMessage.message_text,\n  timestamp: sourceData.timestamp || savedMessage.timestamp\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [736, -272],
+      "id": "974a0855-43fd-4e7c-b792-c30ca4f1ab7b",
+      "name": "📦 Para Clasificador"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "Dctj1QcfrlJPbVGC",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/Dctj1QcfrlJPbVGC",
+          "cachedResultName": " Agent IA — 3 - Super Agente"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [944, -272],
+      "id": "0b52cefd-da86-4759-97e5-ed2f6471b171",
+      "name": "🚀 Clasificador"
+    }
+  ],
+  "connections": {
+    "▶️ Start": {
+      "main": [[{"node": "📝 Normalizar", "type": "main", "index": 0}]]
+    },
+    "📝 Normalizar": {
+      "main": [[{"node": "📞 Normalizar Teléfono", "type": "main", "index": 0}]]
+    },
+    "📞 Normalizar Teléfono": {
+      "main": [[{"node": "🔍 Buscar Cliente", "type": "main", "index": 0}]]
+    },
+    "🔍 Buscar Cliente": {
+      "main": [[{"node": "❓ ¿Existe?", "type": "main", "index": 0}]]
+    },
+    "❓ ¿Existe?": {
+      "main": [
+        [{"node": "➕ Crear Cliente", "type": "main", "index": 0}],
+        [{"node": "🔗 Fusionar Datos", "type": "main", "index": 0}]
+      ]
+    },
+    "➕ Crear Cliente": {
+      "main": [[{"node": "🔗 Fusionar Datos", "type": "main", "index": 0}]]
+    },
+    "🔗 Fusionar Datos": {
+      "main": [[{"node": "🔍 Buscar Todas Conversaciones", "type": "main", "index": 0}]]
+    },
+    "🔍 Buscar Todas Conversaciones": {
+      "main": [[{"node": "⏰ Filtrar por 10 min", "type": "main", "index": 0}]]
+    },
+    "⏰ Filtrar por 10 min": {
+      "main": [[{"node": "❓ ¿Conversación existe?", "type": "main", "index": 0}]]
+    },
+    "❓ ¿Conversación existe?": {
+      "main": [
+        [{"node": "💬 Crear Conversación", "type": "main", "index": 0}],
+        [{"node": "♻️ Reusar Conversación", "type": "main", "index": 0}]
+      ]
+    },
+    "♻️ Reusar Conversación": {
+      "main": [[{"node": "💾 Guardar Mensaje", "type": "main", "index": 0}]]
+    },
+    "💬 Crear Conversación": {
+      "main": [[{"node": "💾 Guardar Mensaje", "type": "main", "index": 0}]]
+    },
+    "💾 Guardar Mensaje": {
+      "main": [[{"node": "📦 Para Clasificador", "type": "main", "index": 0}]]
+    },
+    "📦 Para Clasificador": {
+      "main": [[{"node": "🚀 Clasificador", "type": "main", "index": 0}]]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "tags": []
+}
+
