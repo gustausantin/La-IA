@@ -110,7 +110,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     const loadRestaurantSettings = async () => {
         try {
             const { data, error } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('settings')
                 .eq('id', restaurantId)
                 .single();
@@ -197,7 +197,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
             // 1. Obtener configuración del restaurante (solo para duración y período)
             const { data: restaurantData, error: restError } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('settings')
                 .eq('id', restaurantId)
                 .single();
@@ -399,7 +399,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
         // 📅 Calcular rango de fechas
         try {
             const { data: settings } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('settings')
                 .eq('id', restaurantId)
                 .single();
@@ -685,7 +685,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
         // 🔄 SIEMPRE recargar settings desde Supabase para tener los horarios actualizados
         console.log('🔄 Recargando settings desde Supabase antes de validar...');
         const { data: freshSettings, error: settingsError } = await supabase
-            .from('restaurants')
+            .from('businesses')
             .select('settings')
             .eq('id', restaurantId)
             .single();
@@ -896,7 +896,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // 1. VALIDAR RESERVAS EN DÍAS CERRADOS (igual que smartRegeneration)
             console.log('🛡️ Validando reservas existentes antes de generar...');
             const { data: restaurantData, error: settingsError } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('settings')
                 .eq('id', restaurantId)
                 .single();

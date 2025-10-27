@@ -24,6 +24,13 @@ export default function DashboardAgenteV2() {
     const [loading, setLoading] = useState(true);
     const [lastUpdate, setLastUpdate] = useState(new Date());
     
+    // 🎯 Redirigir al wizard si no tiene negocio
+    useEffect(() => {
+        if (user && !restaurant) {
+            navigate('/onboarding', { replace: true });
+        }
+    }, [user, restaurant, navigate]);
+    
     const [dashboardData, setDashboardData] = useState({
         // Hero Section - KPIs Críticos
         reservationsToday: 0,
@@ -79,7 +86,7 @@ export default function DashboardAgenteV2() {
             
             // ✅ SIEMPRE recargar restaurant desde Supabase (para tener canales actualizados)
             const { data: freshRestaurant } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('*')
                 .eq('id', restaurant.id)
                 .single();
@@ -601,7 +608,7 @@ export default function DashboardAgenteV2() {
             
             // FORZAR RECARGA del restaurant desde Supabase
             const { data: freshRestaurant } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('*')
                 .eq('id', restaurant.id)
                 .single();

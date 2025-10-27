@@ -11,7 +11,7 @@ export const healthCheck = async () => {
   try {
     // Check Supabase connection
     const { error: supabaseError } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .select('count', { count: 'exact', head: true });
     
     checks.services.supabase = {

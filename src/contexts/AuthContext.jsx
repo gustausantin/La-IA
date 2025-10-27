@@ -48,18 +48,20 @@ const AuthProvider = ({ children }) => {
       console.log('📡 Intento 1: Query directo a user_business_mapping...');
       const { data: mapping, error: mapErr } = await supabase
         .from('user_business_mapping')
-        .select('restaurant_id')
+        .select('business_id')
         .eq('auth_user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (mapping?.restaurant_id) {
-        console.log('✅ Mapping encontrado, restaurant_id:', mapping.restaurant_id);
+      console.log('📊 Resultado mapping:', { mapping, error: mapErr });
+
+      if (mapping?.business_id) {
+        console.log('✅ Mapping encontrado, business_id:', mapping.business_id);
         
         // Obtener datos del negocio
         const { data: rest, error: restErr } = await supabase
           .from('businesses')
           .select('*')
-          .eq('id', mapping.restaurant_id)
+          .eq('id', mapping.business_id)
           .single();
 
         if (rest) {
@@ -103,16 +105,18 @@ const AuthProvider = ({ children }) => {
       const { data: maps, error } = await supabase
         .from('user_business_mapping')
         .select(`
-          restaurant_id,
-          restaurant:businesses(*)
+          business_id,
+          business:businesses(*)
         `)
         .eq('auth_user_id', userId)
-        .single();
+        .maybeSingle();
 
-      if (maps?.restaurant) {
-        console.log('✅ Query expandido exitoso:', maps.restaurant.name);
-        setBusiness(maps.restaurant);
-        setBusinessId(maps.restaurant.id);
+      console.log('📊 Resultado expandido:', { maps, error });
+
+      if (maps?.business) {
+        console.log('✅ Query expandido exitoso:', maps.business.name);
+        setBusiness(maps.business);
+        setBusinessId(maps.business.id);
         return;
       }
     } catch (e) {
@@ -129,7 +133,9 @@ const AuthProvider = ({ children }) => {
           .from('businesses')
           .select('*')
           .eq('email', user.email)
-          .single();
+          .maybeSingle();
+
+        console.log('📊 Resultado por email:', { rest, error });
 
         if (rest) {
           console.log('✅ Restaurant encontrado por email:', rest.name);

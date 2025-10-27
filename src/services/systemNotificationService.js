@@ -274,7 +274,7 @@ export const startAgentHealthMonitor = () => {
     try {
       // Obtener todos los restaurantes activos
       const { data: restaurants } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('*')
         .eq('active', true);
       
@@ -323,7 +323,7 @@ export const trackError = async (restaurantId, errorType, errorMessage) => {
       
       // Obtener restaurante
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('*')
         .eq('id', restaurantId)
         .single();

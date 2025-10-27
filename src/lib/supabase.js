@@ -26,7 +26,7 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 
 // Verificación silenciosa de conexión
 supabase
-  .from('restaurants')
+  .from('businesses')
   .select('count', { count: 'exact', head: true })
   .then(() => {
     if (typeof window !== 'undefined') {

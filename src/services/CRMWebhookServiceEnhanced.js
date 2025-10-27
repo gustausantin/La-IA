@@ -33,7 +33,7 @@ export class CRMWebhookServiceEnhanced {
       
       // Obtener datos del restaurante
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id, name, email, phone')
         .eq('id', restaurantId)
         .single();
@@ -99,7 +99,7 @@ export class CRMWebhookServiceEnhanced {
       
       // Obtener datos del restaurante
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id, name, email, phone')
         .eq('id', restaurantId)
         .single();
@@ -159,7 +159,7 @@ export class CRMWebhookServiceEnhanced {
       
       // Obtener datos del restaurante
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id, name, email, phone')
         .eq('id', restaurantId)
         .single();

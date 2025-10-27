@@ -551,7 +551,7 @@ export const startRealtimeEmailListener = () => {
         try {
           // Obtener datos completos del restaurante
           const { data: restaurant } = await supabase
-            .from('restaurants')
+            .from('businesses')
             .select('*')
             .eq('id', payload.new.restaurant_id)
             .single();
@@ -583,7 +583,7 @@ export const startRealtimeEmailListener = () => {
         
         try {
           const { data: restaurant } = await supabase
-            .from('restaurants')
+            .from('businesses')
             .select('*')
             .eq('id', payload.new.restaurant_id)
             .single();

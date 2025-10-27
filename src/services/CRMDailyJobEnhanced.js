@@ -75,7 +75,7 @@ export class CRMDailyJobEnhanced {
   async getActiveRestaurants() {
     try {
       const { data, error } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('id, name, email, phone')
         .eq('active', true);
       
@@ -403,7 +403,7 @@ export class CRMDailyJobEnhanced {
     try {
       // Obtener datos del restaurante
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('name, email, phone')
         .eq('id', restaurantId)
         .single();

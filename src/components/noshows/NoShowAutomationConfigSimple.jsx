@@ -24,7 +24,7 @@ export default function NoShowAutomationConfigSimple() {
                 setLoading(true);
                 
                 const { data, error } = await supabase
-                    .from('restaurants')
+                    .from('businesses')
                     .select('settings')
                     .eq('id', restaurant.id)
                     .single();
@@ -57,7 +57,7 @@ export default function NoShowAutomationConfigSimple() {
 
             // Obtener settings actuales
             const { data: currentData } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('settings')
                 .eq('id', restaurant.id)
                 .single();
@@ -75,7 +75,7 @@ export default function NoShowAutomationConfigSimple() {
 
             // Guardar en Supabase
             const { error } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .update({ settings: updatedSettings })
                 .eq('id', restaurant.id);
 

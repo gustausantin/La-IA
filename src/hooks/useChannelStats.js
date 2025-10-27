@@ -21,7 +21,7 @@ export const useChannelStats = () => {
 
         try {
             const { data: restaurant, error } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('settings')
                 .eq('id', restaurantId)
                 .single();

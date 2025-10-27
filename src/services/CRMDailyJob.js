@@ -217,7 +217,7 @@ async function generateDailyMetrics() {
         
         // Obtener todos los restaurantes activos
         const { data: restaurants, error: restaurantsError } = await supabase
-            .from('restaurants')
+            .from('businesses')
             .select('id, name')
             .eq('active', true);
             

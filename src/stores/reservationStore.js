@@ -85,7 +85,7 @@ export const useReservationStore = create()(
           }
           
           const { data, error } = await supabase
-            .from('restaurants')
+            .from('businesses')
             .select('settings')
             .eq('id', restaurantId)
             .single();
@@ -377,7 +377,7 @@ export const useReservationStore = create()(
           
           // 3. OBTENER HORARIO GENERAL DEL RESTAURANTE (SIMPLIFICADO)
           const { data: restaurantData, error: restaurantError } = await supabase
-            .from('restaurants')
+            .from('businesses')
             .select('settings')
             .eq('id', restaurantId)
             .single();
@@ -400,7 +400,7 @@ export const useReservationStore = create()(
             
             // Guardar horarios por defecto
             await supabase
-              .from('restaurants')
+              .from('businesses')
               .update({ 
                 settings: { 
                   ...restaurantData?.settings, 
@@ -714,7 +714,7 @@ export const useReservationStore = create()(
           
           try {
             const { data: settingsData, error: settingsError } = await supabase
-              .from('restaurants')
+              .from('businesses')
               .select('settings')
               .eq('id', restaurantId)
               .single();

@@ -17,7 +17,7 @@ export const calculateOccupancy = async (restaurantId, days = 7) => {
 
         // 1. Obtener configuración del restaurante (horarios y mesas)
         const { data: restaurant, error: restaurantError } = await supabase
-            .from("restaurants")
+            .from("businesses")
             .select("settings")
             .eq("id", restaurantId)
             .single();
@@ -196,7 +196,7 @@ export const calculateTodayOccupancy = async (restaurantId, date = new Date()) =
         // Obtener horarios y reservas de hoy
         const [restaurantRes, tablesRes, reservationsRes] = await Promise.all([
             supabase
-                .from("restaurants")
+                .from("businesses")
                 .select("settings")
                 .eq("id", restaurantId)
                 .single(),

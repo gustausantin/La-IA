@@ -357,7 +357,7 @@ export class AvailabilityService {
         try {
             // 1. Verificar configuración del restaurante
             const { data: restaurant, error: restaurantError } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('settings')
                 .eq('id', restaurantId)
                 .single();

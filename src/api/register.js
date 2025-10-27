@@ -23,9 +23,9 @@ export default async function handler(req, res) {
     password,
     firstName,
     lastName,
-    restaurantName,
+    businessName,
     phone,
-    cuisineType,
+    verticalType,
     address,
     city,
     postalCode,
@@ -36,8 +36,8 @@ export default async function handler(req, res) {
     // 1. VALIDACIÓN COMPLETA DE DATOS
     // Step 1: Validating input data
 
-    if (!email || !password || !firstName || !lastName || !restaurantName ||
-        !phone || !cuisineType || !address || !city || !postalCode) {
+    if (!email || !password || !firstName || !lastName || !businessName ||
+        !phone || !verticalType || !address || !city || !postalCode) {
       return res.status(400).json({
         error: 'Faltan campos obligatorios',
         details: 'Todos los campos marcados como requeridos deben estar completos'
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
       user_metadata: {
         first_name: firstName,
         last_name: lastName,
-        restaurant_name: restaurantName,
+        business_name: businessName,
         phone,
         city,
         postal_code: postalCode,
@@ -111,12 +111,12 @@ export default async function handler(req, res) {
     }
 
     const userId = authData.user.id;
-    // 3. CREAR RESTAURANTE
-    const restaurantData = {
-      name: restaurantName,
-      cuisine_type: cuisineType,
+    // 3. CREAR NEGOCIO
+    const businessData = {
+      name: businessName,
+      vertical_type: verticalType,
       phone,
-      email, // Agregar email del restaurante
+      email, // Agregar email del negocio
       address,
       city,
       postal_code: postalCode,
@@ -124,25 +124,25 @@ export default async function handler(req, res) {
       created_at: new Date().toISOString()
     };
 
-    const { data: restaurant, error: restaurantError } = await supabaseAdmin
-      .from('restaurants')
-      .insert(restaurantData)
+    const { data: business, error: businessError } = await supabaseAdmin
+      .from('businesses')
+      .insert(businessData)
       .select()
       .single();
 
-    if (restaurantError) {
+    if (businessError) {
       // Si falla, el usuario ya existe pero sin datos completos
       return res.status(400).json({
-        error: 'Error creando restaurante',
-        details: restaurantError.message
+        error: 'Error creando negocio',
+        details: businessError.message
       });
     }
 
-    const restaurantId = restaurant.id;
-    // 4. CREAR RELACIÓN USUARIO-RESTAURANTE
+    const businessId = business.id;
+    // 4. CREAR RELACIÓN USUARIO-NEGOCIO
     const mappingData = {
       auth_user_id: userId,
-      restaurant_id: restaurantId,
+      business_id: businessId,
       role: 'owner',
       permissions: ['all'],
       created_at: new Date().toISOString()
@@ -150,15 +150,15 @@ export default async function handler(req, res) {
     };
 
     const { error: mappingError } = await supabaseAdmin
-      .from('user_restaurant_mapping')
+      .from('user_business_mapping')
       .insert(mappingData);
 
     if (mappingError) {
-      // Si falla, eliminar el restaurante
-      await supabaseAdmin.from('restaurants').delete().eq('id', restaurantId);
+      // Si falla, eliminar el negocio
+      await supabaseAdmin.from('businesses').delete().eq('id', businessId);
 
       return res.status(400).json({
-        error: 'Error creando relación usuario-restaurante',
+        error: 'Error creando relación usuario-negocio',
         details: mappingError.message
       });
     }
@@ -206,9 +206,9 @@ export default async function handler(req, res) {
       message: 'Cuenta creada exitosamente. Revisa tu email para confirmar tu cuenta.',
       data: {
         userId,
-        restaurantId,
+        businessId,
         email,
-        restaurantName
+        businessName
       },
       requiresEmailConfirmation: true
     });

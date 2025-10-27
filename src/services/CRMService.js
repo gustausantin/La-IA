@@ -664,7 +664,7 @@ const renderMessageTemplate = async (template, customer, restaurantId) => {
   try {
     // Obtener datos del restaurante
     const { data: restaurant } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .select('name, email, phone')
       .eq('id', restaurantId)
       .single();

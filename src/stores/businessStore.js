@@ -57,10 +57,10 @@ export const useBusinessStore = create()(
           set({ isLoading: true, error: null });
           
           try {
-            log.info('🏪 Loading restaurant data:', businessId);
+            log.info('🏪 Loading business data:', businessId);
             
             const { data, error } = await supabase
-              .from('restaurants')
+              .from('businesses')
               .select('*')
               .eq('id', businessId)
               .single();
@@ -75,7 +75,7 @@ export const useBusinessStore = create()(
             await get().loadSettings();
             await get().loadMetrics();
             
-            log.info('✅ Restaurant data loaded');
+            log.info('✅ Business data loaded');
             
           } catch (error) {
             log.error('❌ Failed to load business:', error);
@@ -87,15 +87,15 @@ export const useBusinessStore = create()(
         
         updateBusiness: async (updates) => {
           const { business } = get();
-          if (!restaurant) return;
+          if (!business) return;
           
           try {
-            log.info('📝 Updating restaurant');
+            log.info('📝 Updating business');
             
             const { data, error } = await supabase
-              .from('restaurants')
+              .from('businesses')
               .update(updates)
-              .eq('id', restaurant.id)
+              .eq('id', business.id)
               .select()
               .single();
             
@@ -104,7 +104,7 @@ export const useBusinessStore = create()(
             }
             
             set({ business: data });
-            log.info('✅ Restaurant updated');
+            log.info('✅ Business updated');
             
             return { success: true };
             
@@ -117,13 +117,13 @@ export const useBusinessStore = create()(
         // === GESTIÓN DE CONFIGURACIÓN ===
         loadSettings: async () => {
           const { business } = get();
-          if (!restaurant) return;
+          if (!business) return;
           
           try {
             const { data, error } = await supabase
-              .from('restaurant_settings')
+              .from('business_settings')
               .select('*')
-              .eq('restaurant_id', restaurant.id)
+              .eq('business_id', business.id)
               .maybeSingle();
             if (error) throw error;
             if (data) {
@@ -136,15 +136,15 @@ export const useBusinessStore = create()(
         
         updateSettings: async (newSettings) => {
           const { business, settings } = get();
-          if (!restaurant) return;
+          if (!business) return;
           
           try {
             const updatedSettings = { ...settings, ...newSettings };
             
             const { error } = await supabase
-              .from('restaurant_settings')
+              .from('business_settings')
               .upsert({
-                restaurant_id: restaurant.id,
+                business_id: business.id,
                 settings: updatedSettings,
               });
             
@@ -166,7 +166,7 @@ export const useBusinessStore = create()(
         // === MÉTRICAS Y ANALYTICS ===
         loadMetrics: async () => {
           const { business } = get();
-          if (!restaurant) return;
+          if (!business) return;
           
           try {
             // Cargar métricas del día actual
@@ -175,7 +175,7 @@ export const useBusinessStore = create()(
             const { data, error } = await supabase
               .from('daily_metrics')
               .select('*')
-              .eq('restaurant_id', restaurant.id)
+              .eq('business_id', business.id)
               .eq('date', today)
               .single();
             
@@ -202,7 +202,7 @@ export const useBusinessStore = create()(
         
         syncMetrics: async () => {
           const { business, metrics } = get();
-          if (!restaurant) return;
+          if (!business) return;
           
           try {
             const today = new Date().toISOString().split('T')[0];
@@ -210,7 +210,7 @@ export const useBusinessStore = create()(
             await supabase
               .from('daily_metrics')
               .upsert({
-                restaurant_id: restaurant.id,
+                business_id: business.id,
                 date: today,
                 metrics,
                 updated_at: new Date().toISOString(),
@@ -224,13 +224,13 @@ export const useBusinessStore = create()(
         // === GESTIÓN DE STAFF ===
         loadStaff: async () => {
           const { business } = get();
-          if (!restaurant) return;
+          if (!business) return;
           
           try {
             const { data, error } = await supabase
               .from('staff')
               .select('*')
-              .eq('restaurant_id', restaurant.id)
+              .eq('business_id', business.id)
               .eq('active', true);
             
             if (error) {
@@ -246,14 +246,14 @@ export const useBusinessStore = create()(
         
         addStaffMember: async (staffData) => {
           const { business } = get();
-          if (!restaurant) return;
+          if (!business) return;
           
           try {
             const { data, error } = await supabase
               .from('staff')
               .insert({
                 ...staffData,
-                restaurant_id: restaurant.id,
+                business_id: business.id,
               })
               .select()
               .single();
@@ -278,13 +278,13 @@ export const useBusinessStore = create()(
         // === GESTIÓN DE INVENTARIO ===
         loadInventory: async () => {
           const { business } = get();
-          if (!restaurant) return;
+          if (!business) return;
           
           try {
             const { data, error } = await supabase
               .from('inventory_items')
               .select('*')
-              .eq('restaurant_id', restaurant.id);
+              .eq('business_id', business.id);
             
             if (error) {
               throw error;
@@ -425,14 +425,14 @@ export const useBusinessStore = create()(
         },
       }),
       {
-        name: 'la-ia-restaurant-store',
+        name: 'la-ia-business-store',
         partialize: (state) => ({
           settings: state.settings,
         }),
       }
     ),
     {
-      name: 'RestaurantStore',
+      name: 'BusinessStore',
     }
   )
 );

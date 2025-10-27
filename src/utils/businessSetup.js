@@ -13,12 +13,12 @@ export const createBusinessForUser = async (user) => {
     
     // Verificar si ya existe un negocio para este usuario
     const { data: existingMapping } = await supabase
-      .from('user_restaurant_mapping')
-      .select('restaurant_id')
+      .from('user_business_mapping')
+      .select('business_id')
       .eq('auth_user_id', user.id)
       .maybeSingle();
     
-    if (existingMapping?.restaurant_id) {
+    if (existingMapping?.business_id) {
       console.log('✅ Negocio ya existe, no es necesario crear');
       return null;
     }
@@ -32,14 +32,14 @@ export const createBusinessForUser = async (user) => {
       city: 'Madrid',
       country: 'España',
       postal_code: '28001',
-      cuisine_type: 'internacional',
+      vertical_type: 'fisioterapia',
       plan: 'trial',
       active: true
     };
 
     // Insertar negocio
     const { data: business, error: businessError } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .insert([businessData])
       .select()
       .single();
@@ -50,10 +50,10 @@ export const createBusinessForUser = async (user) => {
 
     // Crear mapping usuario-negocio
     const { error: mappingError } = await supabase
-      .from('user_restaurant_mapping')
+      .from('user_business_mapping')
       .insert([{
         auth_user_id: user.id,
-        restaurant_id: business.id,
+        business_id: business.id,
         role: 'owner'
       }]);
 
@@ -88,12 +88,12 @@ export const ensureBusinessExists = async (user) => {
   try {
     // Verificar si ya existe
     const { data: mapping } = await supabase
-      .from('user_restaurant_mapping')
-      .select('restaurant_id')
+      .from('user_business_mapping')
+      .select('business_id')
       .eq('auth_user_id', user.id)
       .maybeSingle();
 
-    if (mapping?.restaurant_id) {
+    if (mapping?.business_id) {
       return true; // Ya existe
     }
 

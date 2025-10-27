@@ -84,7 +84,7 @@ const sendNoShowMessage = async (reservation) => {
             .single();
 
         const { data: restaurant } = await supabase
-            .from('restaurants')
+            .from('businesses')
             .select('name')
             .eq('id', reservation.restaurant_id)
             .single();
@@ -1344,7 +1344,7 @@ export default function Reservas() {
     const loadPolicySettings = useCallback(async () => {
         try {
             const { data, error } = await supabase
-                .from('restaurants')
+                .from('businesses')
                 .select('settings')
                 .eq('id', restaurantId)
                 .single();
@@ -2725,7 +2725,7 @@ export default function Reservas() {
                                     
                                     // Obtener configuración actual
                                     const { data: currentData, error: fetchError } = await supabase
-                                        .from('restaurants')
+                                        .from('businesses')
                                         .select('settings')
                                         .eq('id', restaurantId)
                                         .single();
@@ -2745,7 +2745,7 @@ export default function Reservas() {
                                     console.log('🔧 Guardando configuración:', updatedSettings);
                                     
                                     const { error } = await supabase
-                                        .from('restaurants')
+                                        .from('businesses')
                                         .update({ 
                                             settings: updatedSettings
                                         })

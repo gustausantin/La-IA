@@ -537,7 +537,7 @@ export async function runGlobalCRMAutomations() {
         
         // Obtener todos los restaurantes activos
         const { data: restaurants, error } = await supabase
-            .from('restaurants')
+            .from('businesses')
             .select('id, name')
             .eq('active', true);
             

@@ -256,8 +256,8 @@ const Configuracion = () => {
             if (!currentBusinessId) {
                 console.log("⚠️ No hay businessId en contexto, buscando en mapping...");
                 const { data: mapping, error: mapError } = await supabase
-                    .from('user_restaurant_mapping')
-                    .select('restaurant_id')
+                    .from('user_business_mapping')
+                    .select('business_id')
                     .eq('auth_user_id', authUser.id)
                     .maybeSingle();
                 
@@ -267,14 +267,14 @@ const Configuracion = () => {
                     console.log("🔄 Error de permisos, intentando con RPC...");
                     try {
                         const { data: rpcData, error: rpcErr } = await supabase
-                            .rpc('get_user_restaurant_info', { user_id: authUser.id });
+                            .rpc('get_user_business_info', { user_id: authUser.id });
                         console.log("📊 Resultado RPC:", { rpcData, error: rpcErr });
-                        currentBusinessId = rpcData?.restaurant_id || null;
+                        currentBusinessId = rpcData?.business_id || null;
                     } catch (e) {
                         console.error("❌ Error en RPC:", e);
                     }
                 } else {
-                    currentBusinessId = mapping?.restaurant_id || null;
+                    currentBusinessId = mapping?.business_id || null;
                 }
             }
             
@@ -290,7 +290,7 @@ const Configuracion = () => {
             console.log("🏪 Restaurant ID encontrado:", currentBusinessId);
 
             const { data: restaurantData, error: restError } = await supabase
-                .from("restaurants")
+                .from("businesses")
                 .select("*")
                 .eq("id", currentBusinessId)
                 .maybeSingle();
@@ -433,11 +433,11 @@ const Configuracion = () => {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data: mapping } = await supabase
-                    .from('user_restaurant_mapping')
-                    .select('restaurant_id')
+                    .from('user_business_mapping')
+                    .select('business_id')
                     .eq('auth_user_id', user.id)
                     .maybeSingle();
-                effectiveRestaurantId = mapping?.restaurant_id || null;
+                effectiveRestaurantId = mapping?.business_id || null;
             }
         }
         if (!effectiveRestaurantId) {

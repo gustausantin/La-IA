@@ -45,7 +45,7 @@ export class ReservationValidationService {
 
       // 2. Obtener configuración del restaurante
       const { data: restaurant, error: restaurantError } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('settings')
         .eq('id', restaurantId)
         .single();
@@ -165,7 +165,7 @@ export class ReservationValidationService {
 
       // 1. Obtener configuración del restaurante
       const { data: restaurant, error: restaurantError } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('settings')
         .eq('id', restaurantId)
         .single();
@@ -362,7 +362,7 @@ export class ReservationValidationService {
 
       // 1. Obtener configuración del restaurante
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('settings')
         .eq('id', restaurantId)
         .single();
@@ -476,7 +476,7 @@ export class ReservationValidationService {
 
       // Obtener configuración del restaurante
       const { data: restaurant, error: restaurantError } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('settings')
         .eq('id', restaurantId)
         .single();
@@ -581,7 +581,7 @@ export class ReservationValidationService {
 
       // 2. Obtener configuración de duración de reserva
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('settings')
         .eq('id', restaurantId)
         .single();
@@ -723,7 +723,7 @@ export class ReservationValidationService {
 
       // 3. 🔥 Verificar que NO haya conflictos con reservas existentes (SIN availability_slots)
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('settings')
         .eq('id', restaurantId)
         .single();
@@ -875,7 +875,7 @@ export class ReservationValidationService {
 
       // 1. Obtener configuración del restaurante
       const { data: restaurant, error: restaurantError } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('settings')
         .eq('id', restaurantId)
         .single();
@@ -1069,7 +1069,7 @@ export class ReservationValidationService {
 
       // 2. Obtener duración de reserva
       const { data: restaurant } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('settings')
         .eq('id', restaurantId)
         .single();

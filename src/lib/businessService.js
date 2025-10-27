@@ -10,11 +10,11 @@ import { supabase } from './supabase';
 export async function getMiBusiness(authUser) {
   try {
     const { data, error } = await supabase
-      .from('user_restaurant_mapping')
+      .from('user_business_mapping')
       .select(`
         role,
         permissions,
-        restaurant:restaurant_id (
+        business:business_id (
           id,
           name,
           address,
@@ -22,7 +22,7 @@ export async function getMiBusiness(authUser) {
           email,
           website,
           logo_url,
-          cuisine_type,
+          vertical_type,
           city,
           postal_code,
           country,
@@ -38,7 +38,7 @@ export async function getMiBusiness(authUser) {
     }
 
     return {
-      business: data.restaurant,
+      business: data.business,
       role: data.role,
       permissions: data.permissions || []
     };
@@ -50,13 +50,13 @@ export async function getMiBusiness(authUser) {
 /** Devuelve el mapping y el negocio por defecto del usuario */
 export async function getUserBusiness(authUserId) {
   const { data, error } = await supabase
-    .from('user_restaurant_mapping')
+    .from('user_business_mapping')
     .select(`
       role,
       permissions,
-      restaurant:restaurant_id (*)
+      business:business_id (*)
     `)
-    .eq('auth_user_id', authUserId)  // ← clave correcta
+    .eq('auth_user_id', authUserId)
     .single();
 
   if (error) throw error;
@@ -66,10 +66,10 @@ export async function getUserBusiness(authUserId) {
 /** Inserta el vínculo usuario⇄negocio (si creas uno por defecto) */
 export async function linkUserToBusiness({ authUserId, businessId, role = 'owner' }) {
   const { error } = await supabase
-    .from('user_restaurant_mapping')
+    .from('user_business_mapping')
     .insert({
-      auth_user_id: authUserId,      // ← clave correcta
-      restaurant_id: businessId,
+      auth_user_id: authUserId,
+      business_id: businessId,
       role,
       permissions: {}
     });
@@ -85,7 +85,7 @@ export async function linkUserToBusiness({ authUserId, businessId, role = 'owner
 export async function hasPermission(authUser, permission) {
   try {
     const { data } = await supabase
-      .from('user_restaurant_mapping')
+      .from('user_business_mapping')
       .select('permissions, role')
       .eq('auth_user_id', authUser.id)
       .single();
