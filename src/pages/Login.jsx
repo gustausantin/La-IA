@@ -30,7 +30,7 @@ const FeatureCard = ({ icon, title, description }) => (
 );
 
 // Componente de testimonial REDISEÑADO
-const TestimonialCard = ({ quote, author, restaurant, savings }) => (
+const TestimonialCard = ({ quote, author, business, savings }) => (
   <div className="relative overflow-hidden bg-white/15 backdrop-blur-xl border border-white/30 rounded-xl p-2 hover:bg-white/20 transition-all duration-300 group">
     <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
     <div className="relative z-10">
@@ -43,7 +43,7 @@ const TestimonialCard = ({ quote, author, restaurant, savings }) => (
     <div className="flex items-center justify-between">
       <div>
           <p className="font-bold text-white text-xs">{author}</p>
-          <p className="text-white/70 text-xs">{restaurant}</p>
+          <p className="text-white/70 text-xs">{business}</p>
       </div>
       {savings && (
           <div className="text-right bg-green-500/20 backdrop-blur rounded-lg px-2 py-0.5">
@@ -173,7 +173,7 @@ export default function Login() {
 
 🔗 Por favor, revisa tu bandeja de entrada (y spam) y haz clic en el enlace para activar tu cuenta.
 
-⏰ Una vez confirmado, podrás iniciar sesión y configurar tu restaurante.`);
+⏰ Una vez confirmado, podrás iniciar sesión y configurar tu negocio.`);
         
         setShowResendButton(true);
         setLoading(false);
@@ -236,13 +236,13 @@ export default function Login() {
           />
           <FeatureCard
               icon={<TrendingUp className="w-6 h-6 text-white" />}
-            title="Más Reservas"
-            description="Aumenta tus reservas un 35% capturando clientes 24/7."
+            title="Más Citas"
+            description="Aumenta tus citas un 35% capturando clientes 24/7."
           />
           <FeatureCard
               icon={<Shield className="w-6 h-6 text-white" />}
             title="Sin Errores"
-            description="Olvídate de reservas duplicadas o errores de comunicación."
+            description="Olvídate de citas duplicadas o errores de comunicación."
           />
         </div>
 
@@ -253,15 +253,15 @@ export default function Login() {
             Lo que dicen nuestros clientes
           </h3>
           <TestimonialCard
-            quote="En 2 meses hemos aumentado las reservas un 40%. El agente nunca duerme."
+            quote="En 2 meses hemos aumentado las citas un 40%. El agente nunca duerme."
             author="Carlos Mendoza"
-            restaurant="La Brasería Madrid"
+            business="Fisioterapia Mendoza"
             savings="1,200"
           />
           <TestimonialCard
-            quote="Ya no pierdo reservas por no contestar el WhatsApp. ¡Es increíble!"
+            quote="Ya no pierdo citas por no contestar el WhatsApp. ¡Es increíble!"
             author="María García"
-            restaurant="Sushi Kyoto Barcelona"
+            business="Centro Estética Glow"
             savings="800"
           />
         </div>
@@ -312,10 +312,10 @@ export default function Login() {
               </div>
             </div>
             <p className="text-gray-700 text-base font-bold mb-2">
-              Sistema Inteligente de Reservas
+              Sistema Inteligente de Gestión
             </p>
             <p className="text-gray-500 text-sm font-medium">
-              Automatiza tu restaurante con IA avanzada
+              Automatiza tu negocio con IA avanzada
             </p>
           </div>
 
@@ -528,7 +528,7 @@ export default function Login() {
 
                   <div className="mt-4 p-3 bg-gradient-to-r from-purple-100 to-blue-100 rounded-xl border border-purple-200">
                     <p className="text-sm text-purple-700 text-center font-bold">
-                      💡 Después del registro, podrás configurar tu restaurante completo
+                      💡 Después del registro, podrás configurar tu negocio completo
                     </p>
                   </div>
                 </form>
@@ -571,7 +571,7 @@ export default function Login() {
 
           {/* Footer */}
           <div className="text-center text-sm text-gray-500 font-medium">
-            <p>© 2024 La-IA. Sistema de Inteligencia para Restaurantes</p>
+            <p>© 2024 La-IA. Sistema Inteligente de Gestión para Profesionales</p>
           </div>
         </div>
       </div>
