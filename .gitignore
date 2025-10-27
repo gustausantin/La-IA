@@ -172,3 +172,15 @@ supabase/.branches
 # Archivos de configuración local
 config.local.js
 settings.local.json
+
+# === BACKUPS DE BASE DE DATOS ===
+# CRÍTICO: Nunca subir backups (contienen datos sensibles)
+backups/
+*.dump
+*.backup
+backup*.sql
+*backup*.sql
+backup_*.dump
+schema_*.sql
+data_*.sql
+backup_log_*.txt
