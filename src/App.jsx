@@ -18,7 +18,6 @@ const Layout = lazy(() => import('./components/Layout'));
 const Login = lazy(() => import('./pages/Login'));
 const Confirm = lazy(() => import('./pages/Confirm'));
 const Reservas = lazy(() => import('./pages/Reservas'));
-const ReservasAntigua = lazy(() => import('./pages/ReservasAntigua'));
 const Clientes = lazy(() => import('./pages/Clientes'));
 const PlantillasCRM = lazy(() => import('./pages/PlantillasCRM'));
 const Mesas = lazy(() => import('./pages/Mesas'));
@@ -120,14 +119,6 @@ function AppContent() {
                 element={
                   <Suspense fallback={<PageLoading />}>
                     <Reservas />
-                  </Suspense>
-                } 
-              />
-              <Route 
-                path="/reservas-antigua" 
-                element={
-                  <Suspense fallback={<PageLoading />}>
-                    <ReservasAntigua />
                   </Suspense>
                 } 
               />

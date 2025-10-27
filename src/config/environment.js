@@ -28,10 +28,10 @@ const loadEnvironmentConfig = async () => {
   }
 };
 
-// Configuración de Supabase (migrada al sistema por ambiente) - NUEVO PROYECTO
+// Configuración de Supabase (desde variables de entorno - SEGURO)
 export const SUPABASE_CONFIG = {
-  url: import.meta.env.VITE_SUPABASE_URL || 'https://zrcsujgurtglyqoqiynr.supabase.co',
-  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3N1amd1cnRnbHlxb3FpeW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTYwOTEsImV4cCI6MjA3NzA5MjA5MX0.ArgosNCVMqlC-4-r6Y_cnUh_CoA2SiX9wayS0N0kyjM',
+  url: import.meta.env.VITE_SUPABASE_URL,
+  anonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
 };
 
 // Configuración de la aplicación

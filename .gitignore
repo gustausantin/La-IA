@@ -173,6 +173,17 @@ supabase/.branches
 config.local.js
 settings.local.json
 
+# === VARIABLES DE ENTORNO (CRÍTICO) ===
+# NUNCA subir archivos con credenciales
+.env
+.env.local
+.env.development
+.env.production
+.env.staging
+.env.test
+*.env
+!.env.example
+
 # === BACKUPS DE BASE DE DATOS ===
 # CRÍTICO: Nunca subir backups (contienen datos sensibles)
 backups/

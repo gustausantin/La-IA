@@ -3,9 +3,9 @@ export const config = {
   NODE_ENV: 'development',
   APP_ENV: 'development',
   
-  // Supabase Configuration (Development) - NUEVO PROYECTO
-  SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || 'https://zrcsujgurtglyqoqiynr.supabase.co',
-  SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3N1amd1cnRnbHlxb3FpeW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTYwOTEsImV4cCI6MjA3NzA5MjA5MX0.ArgosNCVMqlC-4-r6Y_cnUh_CoA2SiX9wayS0N0kyjM',
+  // Supabase Configuration (desde variables de entorno - SEGURO)
+  SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+  SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
   
   // API Configuration
   API_BASE_URL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001',
