@@ -14,8 +14,8 @@ SELECT
   phone,
   address,
   city,
-  postal_code AS "postal_code",
-  vertical AS "cuisine_type", -- Mapeo temporal
+  postal_code,
+  vertical_type::text AS cuisine_type, -- Mapeo temporal (ENUM to TEXT)
   settings,
   active,
   created_at,
@@ -39,15 +39,15 @@ CREATE OR REPLACE RULE restaurants_insert AS
   ON INSERT TO restaurants DO INSTEAD
   INSERT INTO businesses (
     id, name, email, phone, address, city, postal_code, 
-    vertical, settings, active
+    vertical_type, settings, active
   )
   VALUES (
     NEW.id, NEW.name, NEW.email, NEW.phone, NEW.address, 
-    NEW.city, NEW.postal_code, NEW.cuisine_type, NEW.settings, NEW.active
+    NEW.city, NEW.postal_code, NEW.cuisine_type::vertical_type, NEW.settings, NEW.active
   )
   RETURNING 
-    id, name, email, phone, address, city, postal_code AS "postal_code",
-    vertical AS "cuisine_type", settings, active, created_at, updated_at;
+    id, name, email, phone, address, city, postal_code,
+    vertical_type::text AS cuisine_type, settings, active, created_at, updated_at;
 
 CREATE OR REPLACE RULE restaurants_update AS
   ON UPDATE TO restaurants DO INSTEAD
@@ -58,14 +58,14 @@ CREATE OR REPLACE RULE restaurants_update AS
     address = NEW.address,
     city = NEW.city,
     postal_code = NEW.postal_code,
-    vertical = NEW.cuisine_type,
+    vertical_type = NEW.cuisine_type::vertical_type,
     settings = NEW.settings,
     active = NEW.active,
     updated_at = CURRENT_TIMESTAMP
   WHERE id = OLD.id
   RETURNING 
-    id, name, email, phone, address, city, postal_code AS "postal_code",
-    vertical AS "cuisine_type", settings, active, created_at, updated_at;
+    id, name, email, phone, address, city, postal_code,
+    vertical_type::text AS cuisine_type, settings, active, created_at, updated_at;
 
 -- Vista user_restaurant_mapping
 CREATE OR REPLACE RULE user_restaurant_mapping_insert AS
