@@ -38,6 +38,9 @@ const NoShowControl = lazy(() => import('./pages/NoShowControlNuevo'));
 // 🤖 Dashboard del Agente IA
 const DashboardAgente = lazy(() => import('./pages/DashboardAgente'));
 
+// 🎯 Wizard de Onboarding para nuevos usuarios
+const OnboardingWizard = lazy(() => import('./components/onboarding/OnboardingWizard'));
+
 // Páginas de prueba eliminadas - funcionalidad migrada al Dashboard original
 
 // Componente de carga mejorado
@@ -70,7 +73,7 @@ const PageLoading = () => (
 
 // Componente principal de contenido
 function AppContent() {
-  const { isReady, isAuthenticated, user } = useAuthContext();
+  const { isReady, isAuthenticated, user, business } = useAuthContext();
   
   // Debug logging
   useEffect(() => {
@@ -101,9 +104,19 @@ function AppContent() {
           </>
         ) : (
           <>
+            {/* Wizard de Onboarding (fuera del Layout, sin sidebar) */}
+            <Route 
+              path="/onboarding" 
+              element={
+                <Suspense fallback={<LoadingScreen />}>
+                  <OnboardingWizard />
+                </Suspense>
+              } 
+            />
+
             <Route element={<Layout />}>
-              {/* Ruta por defecto al dashboard */}
-              <Route index element={<Navigate to="/dashboard" replace />} />
+              {/* Ruta por defecto: si no tiene negocio → onboarding, si tiene → dashboard */}
+              <Route index element={<Navigate to={business ? "/dashboard" : "/onboarding"} replace />} />
 
               {/* Dashboard principal */}
               <Route 
