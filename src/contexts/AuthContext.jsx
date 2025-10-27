@@ -45,9 +45,9 @@ const AuthProvider = ({ children }) => {
 
     // INTENTO 1: Query directo simple
     try {
-      console.log('📡 Intento 1: Query directo a user_restaurant_mapping...');
+      console.log('📡 Intento 1: Query directo a user_business_mapping...');
       const { data: mapping, error: mapErr } = await supabase
-        .from('user_restaurant_mapping')
+        .from('user_business_mapping')
         .select('restaurant_id')
         .eq('auth_user_id', userId)
         .single();
@@ -55,9 +55,9 @@ const AuthProvider = ({ children }) => {
       if (mapping?.restaurant_id) {
         console.log('✅ Mapping encontrado, restaurant_id:', mapping.restaurant_id);
         
-        // Obtener datos del restaurante
+        // Obtener datos del negocio
         const { data: rest, error: restErr } = await supabase
-          .from('restaurants')
+          .from('businesses')
           .select('*')
           .eq('id', mapping.restaurant_id)
           .single();
@@ -101,10 +101,10 @@ const AuthProvider = ({ children }) => {
     try {
       console.log('📡 Intento 3: Query con select expandido...');
       const { data: maps, error } = await supabase
-        .from('user_restaurant_mapping')
+        .from('user_business_mapping')
         .select(`
           restaurant_id,
-          restaurant:restaurants(*)
+          restaurant:businesses(*)
         `)
         .eq('auth_user_id', userId)
         .single();
@@ -121,12 +121,12 @@ const AuthProvider = ({ children }) => {
 
     // INTENTO 4: Buscar por email
     try {
-      console.log('📡 Intento 4: Buscar restaurant por email del usuario...');
+      console.log('📡 Intento 4: Buscar negocio por email del usuario...');
       const { data: { user } } = await supabase.auth.getUser();
       
       if (user?.email) {
         const { data: rest, error } = await supabase
-          .from('restaurants')
+          .from('businesses')
           .select('*')
           .eq('email', user.email)
           .single();
@@ -138,10 +138,10 @@ const AuthProvider = ({ children }) => {
           
           // Intentar crear el mapping si no existe
           await supabase
-            .from('user_restaurant_mapping')
+            .from('user_business_mapping')
             .upsert({
               auth_user_id: userId,
-              restaurant_id: rest.id,
+              business_id: rest.id,
               role: 'owner'
             }, { onConflict: 'auth_user_id' });
           
@@ -250,16 +250,16 @@ const AuthProvider = ({ children }) => {
       logger.info('🏢 Cargando información del restaurante...');
       await fetchBusinessInfo(u.id);
       
-      // PASO 3: Verificar que el restaurante existe (arquitectura enterprise)
+      // PASO 3: Verificar que el negocio existe (arquitectura enterprise)
       const { data: userMapping, error: mappingError } = await supabase
-        .from('user_restaurant_mapping')
-        .select('restaurant_id')
+        .from('user_business_mapping')
+        .select('business_id')
         .eq('auth_user_id', u.id)
         .maybeSingle();
       
       if (mappingError) {
         logger.error('❌ Error verificando mapping:', mappingError);
-      } else if (!userMapping?.restaurant_id) {
+      } else if (!userMapping?.business_id) {
         logger.warn('🚨 Trigger failure - ejecutando fallback de emergencia');
         
         try {
