@@ -28,7 +28,7 @@ import ConfirmActionModal from './ConfirmActionModal';
 import ResultModal from './ResultModal';
 
 const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
-    const { restaurantId } = useAuthContext();
+    const { businessId: restaurantId } = useAuthContext();
     const changeDetection = useAvailabilityChangeDetection(restaurantId);
     const [loading, setLoading] = useState(false);
     const [showNoSlotsModal, setShowNoSlotsModal] = useState(false);

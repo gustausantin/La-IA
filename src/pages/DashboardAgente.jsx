@@ -19,7 +19,7 @@ import {
 import toast from 'react-hot-toast';
 
 export default function DashboardAgenteV2() {
-    const { restaurant, user } = useAuthContext();
+    const { business: restaurant, user } = useAuthContext();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [lastUpdate, setLastUpdate] = useState(new Date());

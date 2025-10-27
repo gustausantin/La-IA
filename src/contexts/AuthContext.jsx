@@ -20,8 +20,8 @@ export const useAuthContext = () => {
 const AuthProvider = ({ children }) => {
   const [status, setStatus] = useState('checking');
   const [user, setUser] = useState(null);
-  const [restaurant, setRestaurant] = useState(null);
-  const [restaurantId, setRestaurantId] = useState(null);
+  const [business, setBusiness] = useState(null);
+  const [businessId, setBusinessId] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [agentStatus, setAgentStatus] = useState({
     active: true, activeConversations: 0, pendingActions: 0,
@@ -33,13 +33,13 @@ const AuthProvider = ({ children }) => {
   const loadUserDataRef = useRef(false); // NUEVA PROTECCIÓN CONTRA EJECUCIONES MÚLTIPLES
 
   // FUNCIÓN ULTRA SIMPLIFICADA Y DIRECTA
-  const fetchRestaurantInfo = async (userId, forceRefresh = false) => {
-    console.log('🔵 INICIANDO fetchRestaurantInfo para usuario:', userId, forceRefresh ? '(FORCE REFRESH)' : '');
+  const fetchBusinessInfo = async (userId, forceRefresh = false) => {
+    console.log('🔵 INICIANDO fetchBusinessInfo para usuario:', userId, forceRefresh ? '(FORCE REFRESH)' : '');
     
     if (!userId) { 
       console.error('❌ No hay userId');
-      setRestaurant(null); 
-      setRestaurantId(null); 
+      setBusiness(null); 
+      setBusinessId(null); 
       return; 
     }
 
@@ -64,8 +64,8 @@ const AuthProvider = ({ children }) => {
 
         if (rest) {
           console.log('✅ Restaurant encontrado:', rest.name);
-          setRestaurant(rest);
-          setRestaurantId(rest.id);
+          setBusiness(rest);
+          setBusinessId(rest.id);
           return;
         }
       }
@@ -81,7 +81,7 @@ const AuthProvider = ({ children }) => {
       
       if (rpcData?.restaurant_id) {
         console.log('✅ RPC exitosa, restaurant:', rpcData.restaurant_name);
-        setRestaurant({
+        setBusiness({
           id: rpcData.restaurant_id,
           name: rpcData.restaurant_name,
           email: rpcData.email,
@@ -90,7 +90,7 @@ const AuthProvider = ({ children }) => {
           plan: rpcData.plan,
           active: rpcData.active
         });
-        setRestaurantId(rpcData.restaurant_id);
+        setBusinessId(rpcData.restaurant_id);
         return;
       }
     } catch (e) {
@@ -111,8 +111,8 @@ const AuthProvider = ({ children }) => {
 
       if (maps?.restaurant) {
         console.log('✅ Query expandido exitoso:', maps.restaurant.name);
-        setRestaurant(maps.restaurant);
-        setRestaurantId(maps.restaurant.id);
+        setBusiness(maps.restaurant);
+        setBusinessId(maps.restaurant.id);
         return;
       }
     } catch (e) {
@@ -133,8 +133,8 @@ const AuthProvider = ({ children }) => {
 
         if (rest) {
           console.log('✅ Restaurant encontrado por email:', rest.name);
-          setRestaurant(rest);
-          setRestaurantId(rest.id);
+          setBusiness(rest);
+          setBusinessId(rest.id);
           
           // Intentar crear el mapping si no existe
           await supabase
@@ -154,8 +154,8 @@ const AuthProvider = ({ children }) => {
 
     // Si llegamos aquí, el usuario no tiene restaurante asociado (es normal para nuevos usuarios)
     console.warn('⚠️ Usuario sin restaurante asociado - deberá completar configuración inicial');
-    setRestaurant(null);
-    setRestaurantId(null);
+    setBusiness(null);
+    setBusinessId(null);
   };
 
   // ENTERPRISE: Función para crear restaurant automáticamente para usuarios huérfanos
@@ -193,8 +193,8 @@ const AuthProvider = ({ children }) => {
         name: restaurantData.restaurant_name || `Restaurante de ${user.email.split('@')[0]}`
       };
       
-      setRestaurant(restaurantInfo);
-      setRestaurantId(restaurantInfo.id);
+      setBusiness(restaurantInfo);
+      setBusinessId(restaurantInfo.id);
       try {
         await realtimeService.setRestaurantFilter(restaurantInfo.id);
       } catch {}
@@ -248,7 +248,7 @@ const AuthProvider = ({ children }) => {
       
       // PASO 2: Cargar información del restaurante
       logger.info('🏢 Cargando información del restaurante...');
-      await fetchRestaurantInfo(u.id);
+      await fetchBusinessInfo(u.id);
       
       // PASO 3: Verificar que el restaurante existe (arquitectura enterprise)
       const { data: userMapping, error: mappingError } = await supabase
@@ -264,7 +264,7 @@ const AuthProvider = ({ children }) => {
         
         try {
           await createRestaurantForOrphanUser(u);
-          await fetchRestaurantInfo(u.id);
+          await fetchBusinessInfo(u.id);
           logger.info('✅ Fallback completado exitosamente');
         } catch (fallbackError) {
           logger.error('💥 Fallback falló:', fallbackError);
@@ -332,8 +332,8 @@ const AuthProvider = ({ children }) => {
       const { restaurant: freshRestaurant } = event.detail;
       if (freshRestaurant) {
         logger.info('🔄 Forzando actualización de restaurant desde evento:', freshRestaurant.name);
-        setRestaurant(freshRestaurant);
-        setRestaurantId(freshRestaurant.id);
+        setBusiness(freshRestaurant);
+        setBusinessId(freshRestaurant.id);
       }
     };
 
@@ -372,8 +372,8 @@ const AuthProvider = ({ children }) => {
       } else if (event === 'SIGNED_OUT') {
         lastSignInRef.current = null;
         setUser(null); 
-        setRestaurant(null); 
-        setRestaurantId(null);
+        setBusiness(null); 
+        setBusinessId(null);
         setStatus('signed_out');
         
         // Limpiar flags de carga
@@ -403,8 +403,8 @@ const AuthProvider = ({ children }) => {
       const updatedRestaurant = event.detail?.restaurant;
       if (updatedRestaurant) {
         console.log('🔄 AuthContext: Recibiendo actualización del restaurant desde Configuración');
-        setRestaurant(updatedRestaurant);
-        setRestaurantId(updatedRestaurant.id);
+        setBusiness(updatedRestaurant);
+        setBusinessId(updatedRestaurant.id);
         console.log('✅ AuthContext: Restaurant actualizado en memoria');
       }
     };
@@ -497,8 +497,8 @@ const AuthProvider = ({ children }) => {
       logger.info('Force logout initiated');
       // Limpiar todo el estado local
       setUser(null);
-      setRestaurant(null);
-      setRestaurantId(null);
+      setBusiness(null);
+      setBusinessId(null);
       setStatus('signed_out');
       setNotifications([]);
       
@@ -563,9 +563,13 @@ const AuthProvider = ({ children }) => {
     isReady: true, // SIEMPRE true - la app está lista inmediatamente
     loading: false, // NUNCA loading - eliminamos el concepto de loading
     user, 
-    restaurant, 
-    restaurantId, 
-    restaurantInfo: restaurant,
+    business, 
+    businessId, 
+    businessInfo: business,
+    // Aliases para compatibilidad temporal
+    restaurant: business,
+    restaurantId: businessId,
+    restaurantInfo: business,
     notifications, 
     agentStatus, 
     unreadCount,
@@ -579,7 +583,7 @@ const AuthProvider = ({ children }) => {
     markNotificationAsRead, 
     markAllNotificationsAsRead: clearNotifications, 
     clearNotifications,
-    fetchRestaurantInfo,
+    fetchBusinessInfo,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -585,7 +585,7 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
 
 // Componente principal
 export default function Reservas() {
-    const { restaurant, restaurantId, isReady, addNotification } =
+    const { business: restaurant, businessId: restaurantId, isReady, addNotification } =
         useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();

@@ -31,7 +31,7 @@ import { conversationalAI } from '../../services/ConversationalAI';
  */
 
 const AIDashboard = memo(() => {
-  const { restaurantId } = useAuthContext();
+  const { businessId: restaurantId } = useAuthContext();
   const [aiStatus, setAiStatus] = useState({
     mlEngine: 'active',
     conversationalAI: 'active',

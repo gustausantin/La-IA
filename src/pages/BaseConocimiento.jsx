@@ -15,7 +15,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 export default function BaseConocimiento() {
-  const { restaurant } = useAuthContext();
+  const { business: restaurant } = useAuthContext();
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   

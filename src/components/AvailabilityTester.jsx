@@ -6,7 +6,7 @@ import { Calendar, Clock, Users, CheckCircle, XCircle, AlertTriangle } from 'luc
 import toast from 'react-hot-toast';
 
 const AvailabilityTester = () => {
-    const { restaurantId } = useAuthContext();
+    const { businessId: restaurantId } = useAuthContext();
     const [loading, setLoading] = useState(false);
     const [testDate, setTestDate] = useState(new Date().toISOString().split('T')[0]);
     const [testTime, setTestTime] = useState('19:00');

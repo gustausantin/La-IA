@@ -3,13 +3,13 @@ import { devtools, persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase.js';
 import { log } from '../utils/logger.js';
 
-// Store del restaurante
-export const useRestaurantStore = create()(
+// Store del negocio (business)
+export const useBusinessStore = create()(
   devtools(
     persist(
       (set, get) => ({
-        // === INFORMACIÓN DEL RESTAURANTE ===
-        restaurant: null,
+        // === INFORMACIÓN DEL NEGOCIO ===
+        business: null,
         isLoading: false,
         error: null,
         
@@ -53,23 +53,23 @@ export const useRestaurantStore = create()(
         },
         
         // === ACCIONES PRINCIPALES ===
-        loadRestaurant: async (restaurantId) => {
+        loadBusiness: async (businessId) => {
           set({ isLoading: true, error: null });
           
           try {
-            log.info('🏪 Loading restaurant data:', restaurantId);
+            log.info('🏪 Loading restaurant data:', businessId);
             
             const { data, error } = await supabase
               .from('restaurants')
               .select('*')
-              .eq('id', restaurantId)
+              .eq('id', businessId)
               .single();
             
             if (error) {
               throw error;
             }
             
-            set({ restaurant: data });
+            set({ business: data });
             
             // Cargar configuración adicional
             await get().loadSettings();
@@ -78,15 +78,15 @@ export const useRestaurantStore = create()(
             log.info('✅ Restaurant data loaded');
             
           } catch (error) {
-            log.error('❌ Failed to load restaurant:', error);
+            log.error('❌ Failed to load business:', error);
             set({ error: error.message });
           } finally {
             set({ isLoading: false });
           }
         },
         
-        updateRestaurant: async (updates) => {
-          const { restaurant } = get();
+        updateBusiness: async (updates) => {
+          const { business } = get();
           if (!restaurant) return;
           
           try {
@@ -103,20 +103,20 @@ export const useRestaurantStore = create()(
               throw error;
             }
             
-            set({ restaurant: data });
+            set({ business: data });
             log.info('✅ Restaurant updated');
             
             return { success: true };
             
           } catch (error) {
-            log.error('❌ Failed to update restaurant:', error);
+            log.error('❌ Failed to update business:', error);
             return { success: false, error: error.message };
           }
         },
         
         // === GESTIÓN DE CONFIGURACIÓN ===
         loadSettings: async () => {
-          const { restaurant } = get();
+          const { business } = get();
           if (!restaurant) return;
           
           try {
@@ -135,7 +135,7 @@ export const useRestaurantStore = create()(
         },
         
         updateSettings: async (newSettings) => {
-          const { restaurant, settings } = get();
+          const { business, settings } = get();
           if (!restaurant) return;
           
           try {
@@ -165,7 +165,7 @@ export const useRestaurantStore = create()(
         
         // === MÉTRICAS Y ANALYTICS ===
         loadMetrics: async () => {
-          const { restaurant } = get();
+          const { business } = get();
           if (!restaurant) return;
           
           try {
@@ -201,7 +201,7 @@ export const useRestaurantStore = create()(
         },
         
         syncMetrics: async () => {
-          const { restaurant, metrics } = get();
+          const { business, metrics } = get();
           if (!restaurant) return;
           
           try {
@@ -223,7 +223,7 @@ export const useRestaurantStore = create()(
         
         // === GESTIÓN DE STAFF ===
         loadStaff: async () => {
-          const { restaurant } = get();
+          const { business } = get();
           if (!restaurant) return;
           
           try {
@@ -245,7 +245,7 @@ export const useRestaurantStore = create()(
         },
         
         addStaffMember: async (staffData) => {
-          const { restaurant } = get();
+          const { business } = get();
           if (!restaurant) return;
           
           try {
@@ -277,7 +277,7 @@ export const useRestaurantStore = create()(
         
         // === GESTIÓN DE INVENTARIO ===
         loadInventory: async () => {
-          const { restaurant } = get();
+          const { business } = get();
           if (!restaurant) return;
           
           try {
@@ -405,7 +405,7 @@ export const useRestaurantStore = create()(
         // === RESET ===
         reset: () => {
           set({
-            restaurant: null,
+            business: null,
             metrics: {
               currentOccupancy: 0,
               todayReservations: 0,

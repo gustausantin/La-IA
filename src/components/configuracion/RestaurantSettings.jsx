@@ -24,7 +24,7 @@ import RegenerationRequiredModal from '../RegenerationRequiredModal';
 import { useAuthContext } from '../../contexts/AuthContext';
 
 const RestaurantSettings = React.memo(({ restaurant, onUpdate }) => {
-  const { restaurantId } = useAuthContext();
+  const { businessId: restaurantId } = useAuthContext();
   const changeDetection = useAvailabilityChangeDetection(restaurantId);
   const { isModalOpen, modalChangeReason, modalChangeDetails, showRegenerationModal, closeModal } = useRegenerationModal();
   const [settings, setSettings] = useState({

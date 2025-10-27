@@ -90,7 +90,7 @@ const daysOfWeek = [
 ];
 
 export default function Calendario() {
-    const { restaurant, restaurantId, isReady, addNotification } = useAuthContext();
+    const { business: restaurant, businessId: restaurantId, isReady, addNotification } = useAuthContext();
     const { channelStats } = useChannelStats();
     const { occupancy: occupancyData } = useOccupancy(7);
     const changeDetection = useAvailabilityChangeDetection(restaurantId);

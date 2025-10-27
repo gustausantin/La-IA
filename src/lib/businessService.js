@@ -1,13 +1,13 @@
 
-// src/lib/restaurantService.js
+// src/lib/businessService.js
 import { supabase } from './supabase';
 
 /**
- * Obtiene el restaurante asociado al usuario autenticado
+ * Obtiene el negocio asociado al usuario autenticado
  * @param {Object} authUser - Usuario autenticado de Supabase
- * @returns {Promise<Object>} Datos del restaurante y rol del usuario
+ * @returns {Promise<Object>} Datos del negocio y rol del usuario
  */
-export async function getMiRestaurante(authUser) {
+export async function getMiBusiness(authUser) {
   try {
     const { data, error } = await supabase
       .from('user_restaurant_mapping')
@@ -38,7 +38,7 @@ export async function getMiRestaurante(authUser) {
     }
 
     return {
-      restaurant: data.restaurant,
+      business: data.restaurant,
       role: data.role,
       permissions: data.permissions || []
     };
@@ -47,8 +47,8 @@ export async function getMiRestaurante(authUser) {
   }
 }
 
-/** Devuelve el mapping y el restaurante por defecto del usuario */
-export async function getUserRestaurant(authUserId) {
+/** Devuelve el mapping y el negocio por defecto del usuario */
+export async function getUserBusiness(authUserId) {
   const { data, error } = await supabase
     .from('user_restaurant_mapping')
     .select(`
@@ -60,16 +60,16 @@ export async function getUserRestaurant(authUserId) {
     .single();
 
   if (error) throw error;
-  return data; // { role, permissions, restaurant: {...} }
+  return data; // { role, permissions, business: {...} }
 }
 
-/** Inserta el vínculo usuario⇄restaurante (si creas uno por defecto) */
-export async function linkUserToRestaurant({ authUserId, restaurantId, role = 'owner' }) {
+/** Inserta el vínculo usuario⇄negocio (si creas uno por defecto) */
+export async function linkUserToBusiness({ authUserId, businessId, role = 'owner' }) {
   const { error } = await supabase
     .from('user_restaurant_mapping')
     .insert({
       auth_user_id: authUserId,      // ← clave correcta
-      restaurant_id: restaurantId,
+      restaurant_id: businessId,
       role,
       permissions: {}
     });

@@ -1,17 +1,17 @@
-// restaurantSetup.js - Utilidades para configuración automática de restaurant
+// businessSetup.js - Utilidades para configuración automática de negocios
 import { supabase } from '../lib/supabase';
 import toast from 'react-hot-toast';
 
 /**
- * Crea automáticamente un restaurant para un usuario si no existe
+ * Crea automáticamente un negocio para un usuario si no existe
  * @param {object} user - Usuario autenticado
- * @returns {Promise<object|null>} - Restaurant creado o null si error
+ * @returns {Promise<object|null>} - Negocio creado o null si error
  */
-export const createRestaurantForUser = async (user) => {
+export const createBusinessForUser = async (user) => {
   try {
-    console.log('🚀 Creando restaurant automáticamente para usuario:', user.email);
+    console.log('🚀 Creando negocio automáticamente para usuario:', user.email);
     
-    // Verificar si ya existe un restaurant para este usuario
+    // Verificar si ya existe un negocio para este usuario
     const { data: existingMapping } = await supabase
       .from('user_restaurant_mapping')
       .select('restaurant_id')
@@ -19,13 +19,13 @@ export const createRestaurantForUser = async (user) => {
       .maybeSingle();
     
     if (existingMapping?.restaurant_id) {
-      console.log('✅ Restaurant ya existe, no es necesario crear');
+      console.log('✅ Negocio ya existe, no es necesario crear');
       return null;
     }
 
-    // Crear restaurant con datos por defecto
-    const restaurantData = {
-      name: `Restaurante de ${user.email.split('@')[0]}`,
+    // Crear negocio con datos por defecto
+    const businessData = {
+      name: `Negocio de ${user.email.split('@')[0]}`,
       email: user.email,
       phone: '+34 600 000 000',
       address: 'Dirección pendiente',
@@ -37,23 +37,23 @@ export const createRestaurantForUser = async (user) => {
       active: true
     };
 
-    // Insertar restaurant
-    const { data: restaurant, error: restaurantError } = await supabase
+    // Insertar negocio
+    const { data: business, error: businessError } = await supabase
       .from('restaurants')
-      .insert([restaurantData])
+      .insert([businessData])
       .select()
       .single();
 
-    if (restaurantError) {
-      throw restaurantError;
+    if (businessError) {
+      throw businessError;
     }
 
-    // Crear mapping usuario-restaurant
+    // Crear mapping usuario-negocio
     const { error: mappingError } = await supabase
       .from('user_restaurant_mapping')
       .insert([{
         auth_user_id: user.id,
-        restaurant_id: restaurant.id,
+        restaurant_id: business.id,
         role: 'owner'
       }]);
 
@@ -61,28 +61,28 @@ export const createRestaurantForUser = async (user) => {
       throw mappingError;
     }
 
-    console.log('✅ Restaurant creado exitosamente:', restaurant.name);
+    console.log('✅ Negocio creado exitosamente:', business.name);
     
     // Disparar evento para actualizar contextos
-    window.dispatchEvent(new CustomEvent('force-restaurant-reload'));
+    window.dispatchEvent(new CustomEvent('force-business-reload'));
     
     toast.success('¡Configuración inicial completada!');
     
-    return restaurant;
+    return business;
     
   } catch (error) {
-    console.error('❌ Error creando restaurant:', error);
+    console.error('❌ Error creando negocio:', error);
     toast.error(`Error en configuración inicial: ${error.message}`);
     return null;
   }
 };
 
 /**
- * Verifica y crea restaurant si es necesario
+ * Verifica y crea negocio si es necesario
  * @param {object} user - Usuario autenticado
  * @returns {Promise<boolean>} - true si todo OK, false si error
  */
-export const ensureRestaurantExists = async (user) => {
+export const ensureBusinessExists = async (user) => {
   if (!user) return false;
 
   try {
@@ -98,11 +98,11 @@ export const ensureRestaurantExists = async (user) => {
     }
 
     // Crear automáticamente
-    const restaurant = await createRestaurantForUser(user);
-    return restaurant !== null;
+    const business = await createBusinessForUser(user);
+    return business !== null;
     
   } catch (error) {
-    console.error('Error verificando/creando restaurant:', error);
+    console.error('Error verificando/creando negocio:', error);
     return false;
   }
 };

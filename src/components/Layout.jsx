@@ -37,7 +37,7 @@ export default function Layout() {
 // Obtener TODOS los datos necesarios del contexto global
     const {
         user,
-        restaurant,
+        business: restaurant,
         signOut,
         restartApp, // NUEVO - función de reinicio
         forceLogout, // NUEVO - función de cierre forzado

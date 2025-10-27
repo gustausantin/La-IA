@@ -368,7 +368,7 @@ const TableCard = ({
 
 // Componente principal
 export default function Mesas() {
-    const { restaurant, restaurantId, isReady, addNotification, user, fetchRestaurantInfo } =
+    const { business: restaurant, businessId: restaurantId, isReady, addNotification, user, fetchBusinessInfo: fetchRestaurantInfo } =
         useAuthContext();
     const changeDetection = useAvailabilityChangeDetection(restaurantId);
     const { isModalOpen, modalChangeReason, modalChangeDetails, showRegenerationModal, closeModal } = useRegenerationModal();
