@@ -3,7 +3,7 @@ import Constants from 'expo-constants';
 
 // IMPORTANTE: Configura estas variables en tu archivo .env o app.json
 const supabaseUrl = Constants.expoConfig?.extra?.supabaseUrl || 'https://zrcsujgurtglyqoqiynr.supabase.co';
-const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || 'tu-anon-key-aqui';
+const supabaseAnonKey = Constants.expoConfig?.extra?.supabaseAnonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3N1amd1cnRnbHlxb3FpeW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTYwOTEsImV4cCI6MjA3NzA5MjA5MX0.ArgosNCVMqlC-4-r6Y_cnUh_CoA2SiX9wayS0N0kyjM';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {

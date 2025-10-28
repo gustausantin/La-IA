@@ -55,8 +55,8 @@ export const VERTICALS = [
     ],
   },
   {
-    id: 'peluqueria',
-    name: 'Peluquería',
+    id: 'peluqueria_barberia',
+    name: 'Peluquería / Barbería',
     icon: '💇',
     description: 'Salones de peluquería y barbería',
     defaultServices: [
@@ -66,12 +66,44 @@ export const VERTICALS = [
     ],
   },
   {
-    id: 'otros',
-    name: 'Otros',
-    icon: '📋',
-    description: 'Otros servicios profesionales',
+    id: 'centro_unas',
+    name: 'Centro de Uñas',
+    icon: '💅',
+    description: 'Manicura y pedicura',
     defaultServices: [
-      { name: 'Sesión estándar', duration: 60, price: 50 },
+      { name: 'Manicura', duration: 30, price: 20 },
+      { name: 'Pedicura', duration: 45, price: 25 },
+      { name: 'Uñas de gel', duration: 60, price: 35 },
+    ],
+  },
+  {
+    id: 'entrenador_personal',
+    name: 'Entrenador Personal',
+    icon: '💪',
+    description: 'Entrenamiento personalizado',
+    defaultServices: [
+      { name: 'Sesión personal', duration: 60, price: 40 },
+      { name: 'Valoración inicial', duration: 90, price: 60 },
+    ],
+  },
+  {
+    id: 'yoga_pilates',
+    name: 'Yoga / Pilates',
+    icon: '🧘',
+    description: 'Clases de yoga y pilates',
+    defaultServices: [
+      { name: 'Clase grupal', duration: 60, price: 15 },
+      { name: 'Clase privada', duration: 60, price: 50 },
+    ],
+  },
+  {
+    id: 'veterinario',
+    name: 'Veterinario',
+    icon: '🐾',
+    description: 'Clínica veterinaria',
+    defaultServices: [
+      { name: 'Consulta general', duration: 30, price: 35 },
+      { name: 'Vacunación', duration: 20, price: 40 },
     ],
   },
 ];

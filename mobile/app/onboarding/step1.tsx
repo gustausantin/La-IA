@@ -7,6 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useForm, Controller } from 'react-hook-form';
@@ -95,7 +97,11 @@ export default function Step1() {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={0}
+    >
       <OnboardingHeader
         currentStep={1}
         totalSteps={8}
@@ -106,6 +112,8 @@ export default function Step1() {
       <ScrollView
         style={styles.content}
         contentContainerStyle={styles.contentContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={true}
       >
         {/* Selector de vertical */}
         <View style={styles.section}>
@@ -233,10 +241,10 @@ export default function Step1() {
       <OnboardingFooter
         onContinue={handleSubmit(onSubmit)}
         continueText="Crear negocio y continuar"
-        disabled={!isValid}
-        loading={loading}
+        disabled={!!(!isValid || loading)}
+        loading={!!loading}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

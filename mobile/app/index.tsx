@@ -1,16 +1,60 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View, Text, ActivityIndicator, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function Index() {
   const router = useRouter();
+  const hasChecked = useRef(false); // Evitar múltiples ejecuciones
 
   useEffect(() => {
-    // Por ahora vamos directo al onboarding
-    // Más adelante aquí irá la lógica de auth
+    // Solo ejecutar UNA VEZ al montar el componente
+    if (hasChecked.current) return;
+    hasChecked.current = true;
+
+    // Verificar si hay sesión activa
+    const checkSession = async () => {
+      const { supabase } = await import('../services/supabase');
+      const { useOnboardingStore } = await import('../stores/onboardingStore');
+      
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session) {
+        console.log('[Index] Usuario autenticado:', session.user.email);
+        
+        // Verificar si tiene negocio EN SUPABASE (la única fuente de verdad)
+        const { data: mapping, error } = await supabase
+          .from('user_business_mapping')
+          .select('business_id')
+          .eq('auth_user_id', session.user.id)
+          .eq('active', true)
+          .single();
+
+        if (error) {
+          console.log('[Index] No tiene negocio en Supabase:', error.message);
+        }
+
+        if (mapping) {
+          // Tiene negocio, ir al dashboard
+          console.log('[Index] Usuario con negocio:', mapping.business_id);
+          // TODO: router.replace('/dashboard');
+          router.replace('/onboarding'); // Temporal hasta que exista dashboard
+        } else {
+          // NO tiene negocio -> Resetear store y empezar onboarding desde cero
+          console.log('[Index] Reseteando onboarding para usuario sin negocio');
+          useOnboardingStore.getState().resetOnboarding();
+          router.replace('/onboarding');
+        }
+      } else {
+        // No hay sesión, ir a auth
+        console.log('[Index] Sin sesión, ir a login');
+        router.replace('/auth');
+      }
+    };
+
     const timer = setTimeout(() => {
-      router.replace('/onboarding');
-    }, 1000);
+      checkSession();
+    }, 500);
 
     return () => clearTimeout(timer);
   }, []);

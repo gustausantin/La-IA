@@ -195,3 +195,29 @@ backup_*.dump
 schema_*.sql
 data_*.sql
 backup_log_*.txt
+
+# === REACT NATIVE / EXPO ===
+# Expo
+mobile/.expo/
+mobile/.expo-shared/
+mobile/node_modules/
+mobile/npm-debug.*
+mobile/yarn-error.log
+mobile/web-build/
+mobile/dist/
+
+# Android
+mobile/android/
+mobile/.gradle/
+mobile/local.properties
+mobile/*.iml
+mobile/*.hprof
+
+# iOS
+mobile/ios/
+mobile/Pods/
+mobile/*.xcworkspace
+mobile/*.xcuserdata
+
+# Metro
+mobile/.metro-health-check*
