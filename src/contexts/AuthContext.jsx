@@ -32,152 +32,78 @@ const AuthProvider = ({ children }) => {
   const lastSignInRef = useRef(null);
   const loadUserDataRef = useRef(false); // NUEVA PROTECCIÓN CONTRA EJECUCIONES MÚLTIPLES
 
-  // FUNCIÓN ULTRA SIMPLIFICADA Y DIRECTA
+  // ✅ FUNCIÓN REAL: Cargar información del negocio
   const fetchBusinessInfo = async (userId, forceRefresh = false) => {
-    console.log('🔵 INICIANDO fetchBusinessInfo para usuario:', userId, forceRefresh ? '(FORCE REFRESH)' : '');
+    console.log('🔵 INICIANDO fetchBusinessInfo para usuario:', userId);
     
-    if (!userId) { 
-      console.error('❌ No hay userId');
-      setBusiness(null); 
-      setBusinessId(null); 
-      return; 
-    }
-
-    // INTENTO 1: Query directo simple
     try {
-      console.log('📡 Intento 1: Query directo a user_business_mapping...');
-      const { data: mapping, error: mapErr } = await supabase
+      // PASO 1: Obtener business_id del mapping
+      console.log('📡 Query 1: Obteniendo business_id del mapping...');
+      const { data: mappingData, error: mappingError } = await supabase
         .from('user_business_mapping')
         .select('business_id')
         .eq('auth_user_id', userId)
+        .eq('active', true)
         .maybeSingle();
 
-      console.log('📊 Resultado mapping:', { mapping, error: mapErr });
-
-      if (mapping?.business_id) {
-        console.log('✅ Mapping encontrado, business_id:', mapping.business_id);
-        
-        // Obtener datos del negocio
-        const { data: rest, error: restErr } = await supabase
-          .from('businesses')
-          .select('*')
-          .eq('id', mapping.business_id)
-          .single();
-
-        if (rest) {
-          console.log('✅ Restaurant encontrado:', rest.name);
-          setBusiness(rest);
-          setBusinessId(rest.id);
-          return;
-        }
-      }
-    } catch (e) {
-      console.log('⚠️ Intento 1 falló:', e.message);
-    }
-
-    // INTENTO 2: RPC directa
-    try {
-      console.log('📡 Intento 2: RPC get_user_restaurant_info...');
-      const { data: rpcData, error: rpcErr } = await supabase
-        .rpc('get_user_restaurant_info', { user_id: userId });
-      
-      if (rpcData?.restaurant_id) {
-        console.log('✅ RPC exitosa, restaurant:', rpcData.restaurant_name);
-        setBusiness({
-          id: rpcData.restaurant_id,
-          name: rpcData.restaurant_name,
-          email: rpcData.email,
-          phone: rpcData.phone,
-          city: rpcData.city,
-          plan: rpcData.plan,
-          active: rpcData.active
-        });
-        setBusinessId(rpcData.restaurant_id);
+      if (mappingError) {
+        console.error('❌ Error en mapping query:', mappingError);
+        setBusiness(null);
+        setBusinessId(null);
         return;
       }
-    } catch (e) {
-      console.log('⚠️ Intento 2 falló:', e.message);
-    }
 
-    // INTENTO 3: Query con select expandido
-    try {
-      console.log('📡 Intento 3: Query con select expandido...');
-      const { data: maps, error } = await supabase
-        .from('user_business_mapping')
-        .select(`
-          business_id,
-          business:businesses(*)
-        `)
-        .eq('auth_user_id', userId)
-        .maybeSingle();
-
-      console.log('📊 Resultado expandido:', { maps, error });
-
-      if (maps?.business) {
-        console.log('✅ Query expandido exitoso:', maps.business.name);
-        setBusiness(maps.business);
-        setBusinessId(maps.business.id);
-        return;
-      }
-    } catch (e) {
-      console.log('⚠️ Intento 3 falló:', e.message);
-    }
-
-    // INTENTO 4: Buscar por email
-    try {
-      console.log('📡 Intento 4: Buscar negocio por email del usuario...');
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user?.email) {
-        const { data: rest, error } = await supabase
-          .from('businesses')
-          .select('*')
-          .eq('email', user.email)
-          .maybeSingle();
-
-        console.log('📊 Resultado por email:', { rest, error });
-
-        if (rest) {
-          console.log('✅ Restaurant encontrado por email:', rest.name);
-          setBusiness(rest);
-          setBusinessId(rest.id);
-          
-          // Intentar crear el mapping si no existe
-          await supabase
-            .from('user_business_mapping')
-            .upsert({
-              auth_user_id: userId,
-              business_id: rest.id,
-              role: 'owner'
-            }, { onConflict: 'auth_user_id' });
-          
+        if (!mappingData) {
+          console.log('⚠️ Usuario sin negocio asociado en mapping');
+          setBusiness(null);
+          setBusinessId(null);
           return;
         }
-      }
-    } catch (e) {
-      console.log('⚠️ Intento 4 falló:', e.message);
-    }
 
-    // Si llegamos aquí, el usuario no tiene restaurante asociado (es normal para nuevos usuarios)
-    console.warn('⚠️ Usuario sin restaurante asociado - deberá completar configuración inicial');
-    setBusiness(null);
-    setBusinessId(null);
+      console.log('✅ business_id encontrado:', mappingData.business_id);
+
+      // PASO 2: Obtener datos del negocio
+      console.log('📡 Query 2: Obteniendo datos del negocio...');
+      const { data: businessData, error: businessError } = await supabase
+        .from('businesses')
+        .select('*')
+        .eq('id', mappingData.business_id)
+        .eq('active', true)
+        .single();
+
+      if (businessError) {
+        console.error('❌ Error en businesses query:', businessError);
+        setBusiness(null);
+        setBusinessId(null);
+        return;
+      }
+
+      console.log('✅ Negocio cargado:', businessData);
+      
+      setBusiness(businessData);
+      setBusinessId(businessData.id);
+
+    } catch (err) {
+      console.error('💥 Error fatal en fetchBusinessInfo:', err);
+      setBusiness(null);
+      setBusinessId(null);
+    }
   };
 
-  // ENTERPRISE: Función para crear restaurant automáticamente para usuarios huérfanos
-  const createRestaurantForOrphanUser = async (user) => {
+  // ENTERPRISE: Función para crear negocio automáticamente para usuarios huérfanos
+  const createBusinessForOrphanUser = async (user) => {
     try {
       logger.info('🚀 Iniciando migración automática para usuario huérfano...', { userId: user.id, email: user.email });
       
-      // Crear restaurant automáticamente usando los datos del usuario
-      const { data: restaurantData, error: restaurantError } = await supabase
-        .rpc('create_restaurant_securely', {
-          restaurant_data: {
-            name: `Restaurante de ${user.email.split('@')[0]}`, // Nombre basado en email
+      // Crear negocio automáticamente usando los datos del usuario
+      const { data: businessData, error: businessError } = await supabase
+        .rpc('create_business_securely', {
+          business_data: {
+            name: `Negocio de ${user.email.split('@')[0]}`,
+            vertical_type: 'otros',
             email: user.email,
             phone: '+34 600 000 000', // Teléfono por defecto
             city: 'Madrid', // Ciudad por defecto
-            plan: 'trial',
             active: true
           },
           user_profile: {
@@ -186,36 +112,35 @@ const AuthProvider = ({ children }) => {
           }
         });
 
-      if (restaurantError) {
-        logger.error('❌ Error en migración automática:', restaurantError);
-        throw restaurantError;
+      if (businessError) {
+        logger.error('❌ Error en migración automática:', businessError);
+        throw businessError;
       }
 
-      logger.info('✅ Migración automática completada:', restaurantData);
+      logger.info('✅ Migración automática completada:', businessData);
       
       // Actualizar estado inmediatamente
-      const restaurantInfo = {
-        id: restaurantData.restaurant_id,
-        name: restaurantData.restaurant_name || `Restaurante de ${user.email.split('@')[0]}`
+      const newBusiness = {
+        id: businessData?.business_id,
+        name: businessData?.business_name || `Negocio de ${user.email.split('@')[0]}`
       };
       
-      setBusiness(restaurantInfo);
-      setBusinessId(restaurantInfo.id);
+      setBusiness(newBusiness);
+      setBusinessId(newBusiness.id);
       try {
-        await realtimeService.setRestaurantFilter(restaurantInfo.id);
+        await realtimeService.setBusinessFilter(newBusiness.id);
       } catch {}
       
       // Disparar evento para que otras partes de la app se actualicen
-      window.dispatchEvent(new CustomEvent('restaurant-created', { 
-        detail: { restaurant: restaurantInfo } 
+      window.dispatchEvent(new CustomEvent('business-created', { 
+        detail: { business: newBusiness } 
       }));
       
-      logger.info('🎉 Usuario migrado exitosamente - restaurant disponible');
+      logger.info('🎉 Usuario migrado exitosamente - negocio disponible');
       
     } catch (error) {
       logger.error('💥 Error crítico en migración automática:', error);
-      // No hacer throw para que la app siga funcionando, pero logear el error
-      toast.error('Error al configurar tu restaurante. Por favor, contacta con soporte.');
+      // Silencioso - no mostrar toast innecesario
     }
   };
 
@@ -252,8 +177,8 @@ const AuthProvider = ({ children }) => {
       setStatus('signed_in');
       logger.info('✅ Usuario establecido en contexto');
       
-      // PASO 2: Cargar información del restaurante
-      logger.info('🏢 Cargando información del restaurante...');
+      // PASO 2: Cargar información del negocio
+      logger.info('🏢 Cargando información del negocio...');
       await fetchBusinessInfo(u.id);
       
       // PASO 3: Verificar que el negocio existe (arquitectura enterprise)
@@ -269,16 +194,15 @@ const AuthProvider = ({ children }) => {
         logger.warn('🚨 Trigger failure - ejecutando fallback de emergencia');
         
         try {
-          await createRestaurantForOrphanUser(u);
+          await createBusinessForOrphanUser(u);
           await fetchBusinessInfo(u.id);
           logger.info('✅ Fallback completado exitosamente');
         } catch (fallbackError) {
           logger.error('💥 Fallback falló:', fallbackError);
-          toast.error('Error configurando restaurante. Contactar soporte.');
-          throw fallbackError;
+          // Silencioso - el usuario será redirigido al onboarding
         }
       } else {
-        logger.info('✅ Restaurant verificado correctamente');
+        logger.info('✅ Negocio verificado correctamente');
       }
       
       // PASO 4: Marcar como completado
@@ -334,17 +258,6 @@ const AuthProvider = ({ children }) => {
     bootedRef.current = true;
 
     // CRÍTICO: Escuchar eventos de forzar recarga desde Configuración
-    const handleForceReload = (event) => {
-      const { restaurant: freshRestaurant } = event.detail;
-      if (freshRestaurant) {
-        logger.info('🔄 Forzando actualización de restaurant desde evento:', freshRestaurant.name);
-        setBusiness(freshRestaurant);
-        setBusinessId(freshRestaurant.id);
-      }
-    };
-
-    window.addEventListener('force-restaurant-reload', handleForceReload);
-
     // Inicializar inmediatamente
     initSession();
 
@@ -405,22 +318,32 @@ const AuthProvider = ({ children }) => {
     });
 
     // Event listener para sincronización manual desde Configuración
-    const handleRestaurantUpdate = (event) => {
-      const updatedRestaurant = event.detail?.restaurant;
-      if (updatedRestaurant) {
-        console.log('🔄 AuthContext: Recibiendo actualización del restaurant desde Configuración');
-        setBusiness(updatedRestaurant);
-        setBusinessId(updatedRestaurant.id);
-        console.log('✅ AuthContext: Restaurant actualizado en memoria');
+    const handleBusinessUpdate = (event) => {
+      const updatedBusiness = event.detail?.business;
+      if (updatedBusiness) {
+        console.log('🔄 AuthContext: Recibiendo actualización del negocio desde Configuración');
+        setBusiness(updatedBusiness);
+        setBusinessId(updatedBusiness.id);
+        console.log('✅ AuthContext: Negocio actualizado en memoria');
       }
     };
     
-    window.addEventListener('restaurant-updated', handleRestaurantUpdate);
+    // ✅ Event listener para recarga forzada desde OnboardingWizard
+    const handleForceBusinessReload = async () => {
+      console.log('🔄 AuthContext: Recarga forzada desde OnboardingWizard');
+      if (user?.id) {
+        await fetchBusinessInfo(user.id, true);
+        console.log('✅ AuthContext: Negocio recargado');
+      }
+    };
+    
+    window.addEventListener('business-updated', handleBusinessUpdate);
+    window.addEventListener('force-business-reload', handleForceBusinessReload);
 
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener('force-restaurant-reload', handleForceReload);
-      window.removeEventListener('restaurant-updated', handleRestaurantUpdate);
+      window.removeEventListener('business-updated', handleBusinessUpdate);
+      window.removeEventListener('force-business-reload', handleForceBusinessReload);
     };
   }, []);
 
@@ -574,7 +497,6 @@ const AuthProvider = ({ children }) => {
     businessInfo: business,
     // Aliases para compatibilidad temporal
     restaurant: business,
-    restaurantId: businessId,
     restaurantInfo: business,
     notifications, 
     agentStatus, 
@@ -597,3 +519,4 @@ const AuthProvider = ({ children }) => {
 
 export { AuthProvider };
 export default AuthProvider;
+

@@ -9,7 +9,7 @@
 ## 🎯 PROBLEMA IDENTIFICADO
 
 ### Antes:
-- ✅ Horarios guardados en: `restaurants.settings.operating_hours` (JSONB)
+- ✅ Horarios guardados en: `businesses.settings.operating_hours` (JSONB)
 - ❌ Tabla `restaurant_operating_hours`: **VACÍA**
 - ❌ Super Agent consultaba tabla vacía → **No sabía los horarios**
 
@@ -19,7 +19,7 @@
 
 ### Ahora los horarios se guardan en **AMBOS** lugares:
 
-1. **`restaurants.settings.operating_hours`** (JSONB)
+1. **`businesses.settings.operating_hours`** (JSONB)
    - ✅ Mantiene compatibilidad total
    - ✅ Toda la app sigue funcionando
 
@@ -88,7 +88,7 @@ try {
 ```
 Usuario guarda horarios en Calendario
            ↓
-1️⃣ Guarda en restaurants.settings.operating_hours (JSONB)
+1️⃣ Guarda en businesses.settings.operating_hours (JSONB)
            ↓
 2️⃣ Borra registros viejos de restaurant_operating_hours
            ↓
@@ -101,7 +101,7 @@ Usuario guarda horarios en Calendario
 
 ## 📊 ESTRUCTURA DE DATOS
 
-### **JSONB:** `restaurants.settings.operating_hours`
+### **JSONB:** `businesses.settings.operating_hours`
 ```json
 {
   "monday": { "open": "12:00", "close": "23:00", "closed": false },
@@ -169,7 +169,7 @@ Usuario guarda horarios en Calendario
 ```sql
 -- Ver horarios en JSONB
 SELECT settings->'operating_hours' 
-FROM restaurants 
+FROM businesses 
 WHERE id = 'tu-restaurant-id';
 
 -- Ver horarios en tabla SQL
@@ -199,7 +199,7 @@ ORDER BY day_of_week;
    - `reservationStore.js`
    - `occupancyCalculator.js`
 
-2. Deprecar `restaurants.settings.operating_hours` gradualmente
+2. Deprecar `businesses.settings.operating_hours` gradualmente
 
 3. Eliminar JSONB cuando migración completa
 

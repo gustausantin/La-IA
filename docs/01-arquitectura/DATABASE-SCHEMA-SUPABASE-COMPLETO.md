@@ -48,7 +48,7 @@
 35. [restaurant_operating_hours](#35-restaurant_operating_hours) - Horarios operativos
 36. [restaurant_settings](#36-restaurant_settings) - Settings restaurante
 37. [restaurant_shifts](#37-restaurant_shifts) - Turnos restaurante
-38. [restaurants](#38-restaurants) - **Restaurantes**
+38. [businesses](#38-businesses) - **Restaurantes**
 39. [scheduled_messages](#39-scheduled_messages) - Mensajes programados
 40. [special_events](#40-special_events) - Eventos especiales
 41. [staff](#41-staff) - Personal
@@ -68,7 +68,7 @@
 | Columna | Tipo | NULL | Default | Descripción |
 |---------|------|------|---------|-------------|
 | `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `restaurant_id` | uuid | NO | - | FK → restaurants |
+| `restaurant_id` | uuid | NO | - | FK → businesses |
 | `customer_id` | uuid | YES | - | FK → customers (nullable) |
 | `customer_phone` | varchar | NO | - | **Teléfono cliente** |
 | `customer_name` | varchar | YES | - | Nombre cliente |
@@ -116,7 +116,7 @@
 |---------|------|------|---------|-------------|
 | `id` | uuid | NO | `gen_random_uuid()` | PK |
 | `conversation_id` | uuid | NO | - | FK → agent_conversations |
-| `restaurant_id` | uuid | NO | - | FK → restaurants |
+| `restaurant_id` | uuid | NO | - | FK → businesses |
 | `direction` | varchar | NO | - | **inbound / outbound** |
 | `sender` | varchar | NO | - | **customer / agent** |
 | `message_text` | text | NO | - | Texto mensaje |
@@ -284,7 +284,7 @@
 | Columna | Tipo | NULL | Default | Descripción |
 |---------|------|------|---------|-------------|
 | `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `restaurant_id` | uuid | NO | - | FK → restaurants |
+| `restaurant_id` | uuid | NO | - | FK → businesses |
 | `slot_date` | date | NO | - | **Fecha del slot** |
 | `start_time` | time | NO | - | **Hora inicio** |
 | `end_time` | time | NO | - | **Hora fin** |
@@ -467,7 +467,7 @@
 | Columna | Tipo | NULL | Default | Descripción |
 |---------|------|------|---------|-------------|
 | `id` | uuid | NO | `gen_random_uuid()` | ID único |
-| `restaurant_id` | uuid | NO | - | FK → restaurants |
+| `restaurant_id` | uuid | NO | - | FK → businesses |
 | `customer_id` | uuid | NO | - | FK → customers |
 | `interaction_type` | varchar | NO | - | Tipo: feedback, bienvenida, reactivacion, vip_upgrade, recordatorio, marketing, manual |
 | `campaign_id` | varchar | YES | - | ID de campaña (ej: feedback_post_visit_day1) |
@@ -586,7 +586,7 @@
 | Columna | Tipo | NULL | Default | Descripción |
 |---------|------|------|---------|-------------|
 | `id` | uuid | NO | `gen_random_uuid()` | **PK** |
-| `restaurant_id` | uuid | NO | - | FK → restaurants |
+| `restaurant_id` | uuid | NO | - | FK → businesses |
 | `name` | varchar | NO | - | Nombre completo |
 | `email` | varchar | YES | - | Email |
 | `phone` | varchar | YES | - | Teléfono |
@@ -873,7 +873,7 @@
 | Columna | Tipo | NULL | Default | Descripción |
 |---------|------|------|---------|-------------|
 | `id` | uuid | NO | `gen_random_uuid()` | **PK** |
-| `restaurant_id` | uuid | NO | - | FK → restaurants |
+| `restaurant_id` | uuid | NO | - | FK → businesses |
 | `customer_id` | uuid | YES | - | FK → customers |
 | `customer_name` | varchar | NO | - | Nombre cliente |
 | `customer_email` | varchar | YES | - | Email cliente |
@@ -1001,7 +1001,7 @@
 
 ---
 
-### 38. restaurants
+### 38. businesses
 
 **Propósito:** 🔥 **RESTAURANTES** (Multi-tenant base)
 
@@ -1101,7 +1101,7 @@
 | Columna | Tipo | NULL | Default | Descripción |
 |---------|------|------|---------|-------------|
 | `id` | uuid | NO | `gen_random_uuid()` | **PK** |
-| `restaurant_id` | uuid | NO | - | FK → restaurants |
+| `restaurant_id` | uuid | NO | - | FK → businesses |
 | `table_number` | text | NO | - | **Número mesa** |
 | `name` | varchar | YES | - | Nombre mesa |
 | `capacity` | int | NO | - | **Capacidad personas** |
@@ -1173,7 +1173,7 @@
 ## 🔗 DIAGRAMA DE RELACIONES CLAVE
 
 ```
-restaurants (1) ────┬─── (N) agent_conversations
+businesses (1) ────┬─── (N) agent_conversations
                     ├─── (N) agent_messages
                     ├─── (N) customers
                     ├─── (N) reservations

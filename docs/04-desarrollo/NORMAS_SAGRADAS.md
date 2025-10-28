@@ -53,7 +53,7 @@ duration: 90
 // ✅ BIEN - De BD
 slotsMarked: realStats?.reserved || 0  // De query real
 daysProtected: results?.days_protected || 0  // Del SQL
-duration: restaurantSettings?.reservation_duration || 60  // De settings
+duration: businessesettings?.reservation_duration || 60  // De settings
 ```
 
 ### 🎯 OBJETIVO:

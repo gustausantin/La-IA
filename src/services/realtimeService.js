@@ -14,7 +14,7 @@ class RealtimeService {
     this.subscriptions = new Map();
     this.eventHandlers = new Map();
     this.heartbeatInterval = null;
-    this.currentRestaurantId = null;
+    this.currentBusinessId = null;
     
     // Estados del servicio
     this.connectionState = 'disconnected'; // disconnected, connecting, connected, reconnecting
@@ -55,15 +55,15 @@ class RealtimeService {
     try {
       log.info('📡 Setting up Supabase realtime channels');
       
-      // Canal principal del restaurante (sin filtro inicial)
-      this.restaurantChannel = supabase
-        .channel('restaurant-updates')
+      // Canal principal del negocio (sin filtro inicial)
+      this.businessChannel = supabase
+        .channel('business-updates')
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
-          table: 'reservations',
+          table: 'appointments',
         }, (payload) => {
-          this.handleReservationUpdate(payload);
+          this.handleAppointmentUpdate(payload);
         })
         .on('postgres_changes', {
           event: '*',
@@ -87,7 +87,7 @@ class RealtimeService {
           this.handleMetricsUpdate(payload);
         })
         .subscribe((status) => {
-          log.info('📡 Restaurant channel status:', status);
+          log.info('📡 Business channel status:', status);
           this.updateConnectionState(status === 'SUBSCRIBED' ? 'connected' : 'disconnected');
         });
 
@@ -143,28 +143,28 @@ class RealtimeService {
     }
   }
 
-  // === FILTRO POR RESTAURANT ===
-  async setRestaurantFilter(restaurantId) {
+  // === FILTRO POR NEGOCIO ===
+  async setBusinessFilter(businessId) {
     try {
-      if (!restaurantId) return;
-      this.currentRestaurantId = restaurantId;
+      if (!businessId) return;
+      this.currentBusinessId = businessId;
 
-      if (this.restaurantChannel) {
-        await supabase.removeChannel(this.restaurantChannel);
-        this.restaurantChannel = null;
+      if (this.businessChannel) {
+        await supabase.removeChannel(this.businessChannel);
+        this.businessChannel = null;
       }
 
-      const filter = `restaurant_id=eq.${restaurantId}`;
+      const filter = `business_id=eq.${businessId}`;
 
-      this.restaurantChannel = supabase
-        .channel(`restaurant-updates-${restaurantId}`)
+      this.businessChannel = supabase
+        .channel(`business-updates-${businessId}`)
         .on('postgres_changes', {
           event: '*',
           schema: 'public',
-          table: 'reservations',
+          table: 'appointments',
           filter
         }, (payload) => {
-          this.handleReservationUpdate(payload);
+          this.handleAppointmentUpdate(payload);
         })
         .on('postgres_changes', {
           event: '*',
@@ -191,13 +191,13 @@ class RealtimeService {
           this.handleMetricsUpdate(payload);
         })
         .subscribe((status) => {
-          log.info('📡 Restaurant scoped channel status:', status);
+          log.info('📡 Business scoped channel status:', status);
           this.updateConnectionState(status === 'SUBSCRIBED' ? 'connected' : 'disconnected');
         });
 
-      log.info('🎯 Realtime filtrado por restaurant_id', { restaurantId });
+      log.info('🎯 Realtime filtrado por business_id', { businessId });
     } catch (error) {
-      log.error('❌ Error setting restaurant filter:', error);
+      log.error('❌ Error setting business filter:', error);
     }
   }
 
@@ -280,32 +280,32 @@ class RealtimeService {
   }
 
   // === MANEJO DE EVENTOS ===
-  handleReservationUpdate(payload) {
-    log.info('📅 Reservation update received:', payload);
+  handleAppointmentUpdate(payload) {
+    log.info('📅 Appointment update received:', payload);
     
     const { eventType, new: newRecord, old: oldRecord } = payload;
     
-    this.emit('reservation:updated', {
+    this.emit('appointment:updated', {
       type: eventType,
-      reservation: newRecord,
-      previousReservation: oldRecord,
+      appointment: newRecord,
+      previousAppointment: oldRecord,
       timestamp: new Date().toISOString(),
     });
 
     // Notificación específica por tipo de evento
     switch (eventType) {
       case 'INSERT':
-        this.emit('reservation:created', newRecord);
+        this.emit('appointment:created', newRecord);
         this.showNotification('Nueva reserva', {
           body: `Reserva para ${newRecord.party_size} personas`,
           icon: '📅',
         });
         break;
       case 'UPDATE':
-        this.emit('reservation:modified', { new: newRecord, old: oldRecord });
+        this.emit('appointment:modified', { new: newRecord, old: oldRecord });
         break;
       case 'DELETE':
-        this.emit('reservation:cancelled', oldRecord);
+        this.emit('appointment:cancelled', oldRecord);
         break;
     }
   }
@@ -597,8 +597,8 @@ class RealtimeService {
       }
       
       // Desuscribir canales de Supabase
-      if (this.restaurantChannel) {
-        await supabase.removeChannel(this.restaurantChannel);
+      if (this.businessChannel) {
+        await supabase.removeChannel(this.businessChannel);
       }
       if (this.presenceChannel) {
         await supabase.removeChannel(this.presenceChannel);

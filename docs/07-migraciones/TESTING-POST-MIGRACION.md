@@ -33,7 +33,7 @@
 ☐ noshow_predictions
 ☐ reservations
 ☐ reservation_tables
-☐ restaurants
+☐ businesses
 ☐ special_events
 ☐ tables
 ☐ user_restaurant_mapping
@@ -60,7 +60,7 @@
 ### 3️⃣ **Crear Restaurante de Prueba** (3 min)
 
 1. Ve a: https://supabase.com/dashboard/project/zrcsujgurtglyqoqiynr/editor
-2. Tabla: `restaurants`
+2. Tabla: `businesses`
 3. Click en **"Insert"** → **"Insert row"**
 4. Rellena:
    ```
@@ -208,7 +208,7 @@ URL: https://zrcsujgurtglyqoqiynr.supabase.co
 Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...ArgosNCVMqlC-4-r6Y_cnUh...
 ```
 
-### Error: "Table 'restaurants' doesn't exist"
+### Error: "Table 'businesses' doesn't exist"
 → El esquema SQL no se importó. Vuelve a ejecutarlo en SQL Editor
 
 ### Error: "Row Level Security policy violation"

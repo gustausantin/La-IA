@@ -10,7 +10,7 @@ import { supabase } from '../lib/supabase';
 import ConflictDetectionService from '../services/ConflictDetectionService';
 import toast from 'react-hot-toast';
 
-const ReservationFormModal = ({ isOpen, onClose, onSave, tables, restaurantId }) => {
+const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) => {
     const [formData, setFormData] = useState({
         customer_name: '',
         customer_email: '',
@@ -64,13 +64,13 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, restaurantId })
     }, [formData.reservation_date, formData.reservation_time, formData.party_size, formData.table_id]);
 
     const validateAvailability = async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
         
         setAvailabilityStatus(prev => ({ ...prev, checking: true }));
         
         try {
             const validation = await ConflictDetectionService.validateReservationAvailability(
-                restaurantId,
+                businessId,
                 formData.reservation_date,
                 formData.reservation_time,
                 formData.party_size,
@@ -124,7 +124,7 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, restaurantId })
             const { data: existingCustomer } = await supabase
                 .from('customers')
                 .select('id')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('phone', formData.customer_phone)
                 .single();
             
@@ -145,7 +145,7 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, restaurantId })
                 const { data: newCustomer, error: customerError } = await supabase
                     .from('customers')
                     .insert({
-                        restaurant_id: restaurantId,
+                        business_id: businessId,
                         name: formData.customer_name,
                         email: formData.customer_email || null,
                         phone: formData.customer_phone,
@@ -167,9 +167,9 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, restaurantId })
             
             // 3. Crear la reserva
             const { data: reservation, error: reservationError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .insert({
-                    restaurant_id: restaurantId,
+                    business_id: businessId,
                     customer_id: customerId,
                     customer_name: formData.customer_name,
                     customer_email: formData.customer_email || null,
@@ -457,3 +457,4 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, restaurantId })
 };
 
 export default ReservationFormModal;
+

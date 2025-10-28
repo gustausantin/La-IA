@@ -23,7 +23,7 @@ export const cspHeaders = {
     "font-src 'self' https://fonts.gstatic.com",
     
     // Conexiones: APIs permitidas
-    "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.stripe.com",
+    "connect-src 'self' http://localhost:* http://127.0.0.1:* https://*.supabase.co wss://*.supabase.co https://api.stripe.com https://*.n8n.cloud",
     
     // Frames: Solo mismo origen (anti-clickjacking)
     "frame-src 'self'",

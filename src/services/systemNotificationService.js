@@ -262,7 +262,7 @@ export const sendCriticalErrorAlert = async (restaurant, errorType, errorMessage
 };
 
 // Sistema de health check para agentes
-const agentHealthStatus = new Map(); // {restaurant_id: lastSeen}
+const agentHealthStatus = new Map(); // {business_id: lastSeen}
 
 export const startAgentHealthMonitor = () => {
   console.log('🏥 Iniciando monitor de salud de agentes...');
@@ -273,14 +273,14 @@ export const startAgentHealthMonitor = () => {
     
     try {
       // Obtener todos los restaurantes activos
-      const { data: restaurants } = await supabase
+      const { data: businesses } = await supabase
         .from('businesses')
         .select('*')
         .eq('active', true);
       
-      if (!restaurants) return;
+      if (!businesses) return;
       
-      for (const restaurant of restaurants) {
+      for (const restaurant of businesses) {
         const lastSeen = agentHealthStatus.get(restaurant.id);
         const now = Date.now();
         
@@ -300,15 +300,15 @@ export const startAgentHealthMonitor = () => {
 };
 
 // Registrar actividad del agente (llamar cuando el agente procesa algo)
-export const registerAgentActivity = (restaurantId) => {
-  agentHealthStatus.set(restaurantId, Date.now());
+export const registerAgentActivity = (businessId) => {
+  agentHealthStatus.set(businessId, Date.now());
 };
 
 // Sistema de tracking de errores
 const errorTracking = new Map(); // {errorKey: {count, firstSeen, lastSeen}}
 
-export const trackError = async (restaurantId, errorType, errorMessage) => {
-  const errorKey = `${restaurantId}:${errorType}`;
+export const trackError = async (businessId, errorType, errorMessage) => {
+  const errorKey = `${businessId}:${errorType}`;
   const now = Date.now();
   
   const existing = errorTracking.get(errorKey);
@@ -325,7 +325,7 @@ export const trackError = async (restaurantId, errorType, errorMessage) => {
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('*')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
       
       if (restaurant) {
@@ -350,4 +350,5 @@ export const trackError = async (restaurantId, errorType, errorMessage) => {
     }
   }
 };
+
 

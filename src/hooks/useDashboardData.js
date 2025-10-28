@@ -14,7 +14,7 @@ const LOADING_STATES = {
   ERROR: "error",
 };
 
-export const useDashboardData = (restaurantId) => {
+export const useDashboardData = (businessId) => {
   // Estados principales
   const [loadingState, setLoadingState] = useState(LOADING_STATES.INITIAL);
   const [stats, setStats] = useState({
@@ -39,7 +39,7 @@ export const useDashboardData = (restaurantId) => {
 
   // Función para obtener estadísticas del dashboard
   const fetchDashboardStats = useCallback(async () => {
-    if (!restaurantId) return;
+    if (!businessId) return;
 
     try {
       // LIMPIO: Datos vacíos para nuevo restaurant
@@ -76,11 +76,11 @@ export const useDashboardData = (restaurantId) => {
       toast.error("Error al cargar estadísticas");
       throw error;
     }
-  }, [restaurantId]);
+  }, [businessId]);
 
   // Función para obtener conversaciones del agente
   const fetchAgentConversations = useCallback(async () => {
-    if (!restaurantId) return;
+    if (!businessId) return;
 
     try {
       // LIMPIO: Array vacío hasta tener conversaciones reales
@@ -93,15 +93,15 @@ export const useDashboardData = (restaurantId) => {
       toast.error("Error al cargar conversaciones");
       throw error;
     }
-  }, [restaurantId]);
+  }, [businessId]);
 
   // Función para obtener reservas del día
   const fetchTodayReservations = useCallback(async () => {
-    if (!restaurantId) return;
+    if (!businessId) return;
 
     try {
       const { data, error } = await supabase
-        .from("reservations")
+        .from('appointments')
         .select(`
           id,
           customer_id,
@@ -118,7 +118,7 @@ export const useDashboardData = (restaurantId) => {
           channel,
           created_at
         `)
-        .eq("restaurant_id", restaurantId)
+        .eq("business_id", businessId)
         .gte("reservation_date", format(new Date(), "yyyy-MM-dd"))
         .lte("reservation_date", format(addHours(new Date(), 24), "yyyy-MM-dd"))
         .order("reservation_time", { ascending: true });
@@ -142,11 +142,11 @@ export const useDashboardData = (restaurantId) => {
       toast.error("Error al cargar reservas");
       throw error;
     }
-  }, [restaurantId]);
+  }, [businessId]);
 
   // Función para cargar todos los datos
   const loadDashboardData = useCallback(async () => {
-    if (!restaurantId) return;
+    if (!businessId) return;
 
     if (loadingState === LOADING_STATES.LOADING) {
       logger.info('Dashboard: Ya está cargando, esperando...');
@@ -183,7 +183,7 @@ export const useDashboardData = (restaurantId) => {
       logger.error('Dashboard: Error cargando datos', error);
       setLoadingState(LOADING_STATES.ERROR);
     }
-  }, [restaurantId, loadingState, fetchDashboardStats, fetchAgentConversations, fetchTodayReservations]);
+  }, [businessId, loadingState, fetchDashboardStats, fetchAgentConversations, fetchTodayReservations]);
 
   // Función para refrescar datos
   const handleRefresh = useCallback(async () => {
@@ -196,29 +196,29 @@ export const useDashboardData = (restaurantId) => {
   // Efecto para cargar datos iniciales
   useEffect(() => {
     logger.info('Dashboard: Verificando condiciones de carga', { 
-      restaurantId, 
+      businessId, 
       loadingState 
     });
 
-    if (restaurantId && loadingState === LOADING_STATES.INITIAL) {
+    if (businessId && loadingState === LOADING_STATES.INITIAL) {
       logger.info('Dashboard: Iniciando carga automática inmediata...');
       loadDashboardData();
     }
-  }, [restaurantId, loadingState, loadDashboardData]);
+  }, [businessId, loadingState, loadDashboardData]);
 
   // Suscripción real-time a reservas
   useEffect(() => {
-    if (!restaurantId) return;
+    if (!businessId) return;
 
     const channel = supabase
-      .channel(`dashboard-${restaurantId}`)
+      .channel(`dashboard-${businessId}`)
       .on(
         "postgres_changes",
         {
           event: "INSERT",
           schema: "public",
           table: "reservations",
-          filter: `restaurant_id=eq.${restaurantId}`,
+          filter: `business_id=eq.${businessId}`,
         },
         (payload) => {
           logger.info("Nueva reserva", payload);
@@ -251,7 +251,7 @@ export const useDashboardData = (restaurantId) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [restaurantId]);
+  }, [businessId]);
 
   // Métricas calculadas
   const agentEfficiency = useMemo(() => {
@@ -291,3 +291,4 @@ export const useDashboardData = (restaurantId) => {
     isSuccess: loadingState === LOADING_STATES.SUCCESS,
   };
 };
+

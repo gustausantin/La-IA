@@ -6,7 +6,7 @@ import { Calendar, Clock, Users, CheckCircle, XCircle, AlertTriangle } from 'luc
 import toast from 'react-hot-toast';
 
 const AvailabilityTester = () => {
-    const { businessId: restaurantId } = useAuthContext();
+    const { businessId: businessId } = useAuthContext();
     const [loading, setLoading] = useState(false);
     const [testDate, setTestDate] = useState(new Date().toISOString().split('T')[0]);
     const [testTime, setTestTime] = useState('19:00');
@@ -14,7 +14,7 @@ const AvailabilityTester = () => {
     const [results, setResults] = useState(null);
 
     const testAvailability = async () => {
-        if (!restaurantId) {
+        if (!businessId) {
             toast.error('No hay restaurante configurado');
             return;
         }
@@ -23,17 +23,17 @@ const AvailabilityTester = () => {
         try {
             // 1. Verificar disponibilidad
             const availability = await AvailabilityService.checkAvailability(
-                restaurantId, testDate, testTime, partySize
+                businessId, testDate, testTime, partySize
             );
 
             // 2. Validar fecha/hora
             const validation = await AvailabilityService.validateBookingTime(
-                restaurantId, testDate, testTime
+                businessId, testDate, testTime
             );
 
             // 3. Obtener slots disponibles
             const timeSlots = await AvailabilityService.getAvailableTimeSlots(
-                restaurantId, testDate, partySize
+                businessId, testDate, partySize
             );
 
             setResults({
@@ -60,7 +60,7 @@ const AvailabilityTester = () => {
     };
 
     const generateSlots = async () => {
-        if (!restaurantId) {
+        if (!businessId) {
             toast.error('No hay restaurante configurado');
             return;
         }
@@ -68,7 +68,7 @@ const AvailabilityTester = () => {
         setLoading(true);
         try {
             const result = await AvailabilityService.generateAvailabilitySlots(
-                restaurantId, testDate, null
+                businessId, testDate, null
             );
 
             if (result.success) {
@@ -87,7 +87,7 @@ const AvailabilityTester = () => {
     };
 
     const testBooking = async () => {
-        if (!restaurantId || !results?.availability?.hasAvailability) {
+        if (!businessId || !results?.availability?.hasAvailability) {
             toast.error('No hay disponibilidad para reservar');
             return;
         }
@@ -95,7 +95,7 @@ const AvailabilityTester = () => {
         setLoading(true);
         try {
             const booking = await AvailabilityService.bookTable({
-                restaurantId,
+                businessId,
                 date: testDate,
                 time: testTime,
                 partySize,
@@ -123,14 +123,14 @@ const AvailabilityTester = () => {
     };
 
     const initializeSystem = async () => {
-        if (!restaurantId) {
+        if (!businessId) {
             toast.error('No hay restaurante configurado');
             return;
         }
 
         setLoading(true);
         try {
-            const result = await AvailabilityService.initializeAvailabilitySystem(restaurantId);
+            const result = await AvailabilityService.initializeAvailabilitySystem(businessId);
             
             if (result.success) {
                 toast.success('Sistema inicializado correctamente');

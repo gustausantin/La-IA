@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
-export const useAvailabilityChangeDetection = (restaurantId) => {
+export const useAvailabilityChangeDetection = (businessId) => {
     const [needsRegeneration, setNeedsRegeneration] = useState(false);
     const [lastChangeTimestamp, setLastChangeTimestamp] = useState(null);
     const [changeType, setChangeType] = useState(null);
@@ -11,13 +11,13 @@ export const useAvailabilityChangeDetection = (restaurantId) => {
 
     // Función para verificar si existen slots de disponibilidad
     const checkExistingSlots = useCallback(async () => {
-        if (!restaurantId) return false;
+        if (!businessId) return false;
         
         try {
             const { data, error } = await supabase
                 .from('availability_slots')
                 .select('id')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .limit(1);
             
             if (error) {
@@ -32,7 +32,7 @@ export const useAvailabilityChangeDetection = (restaurantId) => {
             console.warn('Error verificando slots existentes:', error);
             return false;
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Función para marcar que se necesita regeneración (SOLO si ya existen slots)
     const markNeedsRegeneration = useCallback(async (type, details = null) => {
@@ -52,7 +52,7 @@ export const useAvailabilityChangeDetection = (restaurantId) => {
 
         // Guardar en localStorage para persistencia
         try {
-            localStorage.setItem(`needsRegeneration_${restaurantId}`, JSON.stringify({
+            localStorage.setItem(`needsRegeneration_${businessId}`, JSON.stringify({
                 needsRegeneration: true,
                 lastChangeTimestamp: timestamp,
                 changeType: type,
@@ -61,7 +61,7 @@ export const useAvailabilityChangeDetection = (restaurantId) => {
         } catch (error) {
             console.warn('Error guardando estado de regeneración:', error);
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Función para limpiar el estado de regeneración
     const clearRegenerationFlag = useCallback(() => {
@@ -71,18 +71,18 @@ export const useAvailabilityChangeDetection = (restaurantId) => {
         setChangeDetails(null);
 
         try {
-            localStorage.removeItem(`needsRegeneration_${restaurantId}`);
+            localStorage.removeItem(`needsRegeneration_${businessId}`);
         } catch (error) {
             console.warn('Error limpiando estado de regeneración:', error);
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Cargar estado persistente al inicializar Y verificar slots existentes
     useEffect(() => {
-        if (restaurantId) {
+        if (businessId) {
             // 🚨 CARGAR INMEDIATAMENTE desde localStorage
             try {
-                const saved = localStorage.getItem(`needsRegeneration_${restaurantId}`);
+                const saved = localStorage.getItem(`needsRegeneration_${businessId}`);
                 console.log('🔍 Hook: Leyendo localStorage ->', saved);
                 
                 if (saved) {
@@ -103,7 +103,7 @@ export const useAvailabilityChangeDetection = (restaurantId) => {
                         if (!slotsExist) {
                             // Limpiar estado si no hay slots (protección)
                             console.log('⚠️ Hook: No hay slots, limpiando estado...');
-                            localStorage.removeItem(`needsRegeneration_${restaurantId}`);
+                            localStorage.removeItem(`needsRegeneration_${businessId}`);
                             setNeedsRegeneration(false);
                             setLastChangeTimestamp(null);
                             setChangeType(null);
@@ -120,7 +120,7 @@ export const useAvailabilityChangeDetection = (restaurantId) => {
             // Verificar si existen slots (independiente del localStorage)
             checkExistingSlots();
         }
-    }, [restaurantId, checkExistingSlots]);
+    }, [businessId, checkExistingSlots]);
 
     // Funciones específicas para diferentes tipos de cambios
     const onTableChange = useCallback(async (action, tableData) => {
@@ -195,3 +195,4 @@ export const useAvailabilityChangeDetection = (restaurantId) => {
         getChangeMessage
     };
 };
+

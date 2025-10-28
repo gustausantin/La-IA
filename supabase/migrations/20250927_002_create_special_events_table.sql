@@ -10,7 +10,7 @@ DROP TABLE IF EXISTS special_events CASCADE;
 -- Crear tabla special_events con estructura correcta
 CREATE TABLE special_events (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     event_date DATE NOT NULL,
     title VARCHAR(255) NOT NULL,
     description TEXT,

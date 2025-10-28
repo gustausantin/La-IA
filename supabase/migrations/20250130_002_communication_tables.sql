@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS message_batches_demo (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     batch_id VARCHAR(50) UNIQUE NOT NULL,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     customer_id UUID, -- REFERENCES customers(id) ON DELETE SET NULL - será añadido cuando la tabla esté lista
     channel VARCHAR(20) NOT NULL DEFAULT 'whatsapp',
     status VARCHAR(20) NOT NULL DEFAULT 'active',
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS message_batches_demo (
 CREATE TABLE IF NOT EXISTS ai_conversation_insights (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     sentiment VARCHAR(20), -- positive, negative, neutral
     intent VARCHAR(50), -- reservation, complaint, question, compliment
     confidence_score DECIMAL(3,2), -- 0.00 a 1.00
@@ -46,7 +46,7 @@ CREATE TABLE IF NOT EXISTS ai_conversation_insights (
 CREATE TABLE IF NOT EXISTS customer_feedback (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
     rating INTEGER CHECK (rating >= 1 AND rating <= 5),
     feedback_text TEXT,
@@ -164,7 +164,7 @@ CREATE TRIGGER trigger_update_ai_insights_updated_at
 -- DATOS DE EJEMPLO PARA TESTING
 -- ====================================
 
--- TEMPORAL: Datos de ejemplo comentados hasta que tengamos restaurants
+-- TEMPORAL: Datos de ejemplo comentados hasta que tengamos businesses
 -- TODO: Descomentar cuando las tablas principales estén sincronizadas
 /*
 INSERT INTO message_batches_demo (batch_id, restaurant_id, channel, state, message_count)
@@ -174,7 +174,7 @@ SELECT
     (ARRAY['whatsapp', 'web_chat', 'email'])[floor(random() * 3 + 1)],
     (ARRAY['active', 'resolved'])[floor(random() * 2 + 1)],
     floor(random() * 10 + 1)
-FROM restaurants r
+FROM businesses r
 LIMIT 5;
 */
 

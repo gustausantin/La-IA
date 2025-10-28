@@ -8,7 +8,7 @@
 CREATE TABLE IF NOT EXISTS crm_interactions (
   -- Identificadores
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   
   -- Tipo de interacción CRM
@@ -145,7 +145,7 @@ ON crm_interactions
 FOR ALL
 USING (
   restaurant_id IN (
-    SELECT id FROM restaurants 
+    SELECT id FROM businesses 
     WHERE id = restaurant_id
   )
 );

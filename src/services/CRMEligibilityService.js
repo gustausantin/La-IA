@@ -12,21 +12,21 @@ export class CRMEligibilityService {
   /**
    * Verifica si un cliente es elegible para recibir un mensaje
    * @param {string} customerId - ID del cliente
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} automationRuleId - ID de la regla de automatización
    * @param {object} options - Opciones adicionales
    * @returns {Promise<{eligible: boolean, reasons: string[], channel: string|null}>}
    */
-  static async checkEligibility(customerId, restaurantId, automationRuleId, options = {}) {
+  static async checkEligibility(customerId, businessId, automationRuleId, options = {}) {
     try {
-      console.log('🔍 Verificando elegibilidad:', { customerId, restaurantId, automationRuleId });
+      console.log('🔍 Verificando elegibilidad:', { customerId, businessId, automationRuleId });
       
       // 1. Obtener datos del cliente
       const { data: customer, error: customerError } = await supabase
         .from('customers')
         .select('*')
         .eq('id', customerId)
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .single();
       
       if (customerError || !customer) {
@@ -42,7 +42,7 @@ export class CRMEligibilityService {
         .from('automation_rules')
         .select('*, template:template_id(*)')
         .eq('id', automationRuleId)
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .single();
       
       if (ruleError || !rule) {
@@ -116,7 +116,7 @@ export class CRMEligibilityService {
       }
       
       // 8. Verificar límite diario del tenant
-      const dailyLimitCheck = await this.checkDailyLimit(restaurantId, rule.max_daily_executions);
+      const dailyLimitCheck = await this.checkDailyLimit(businessId, rule.max_daily_executions);
       if (!dailyLimitCheck.eligible) {
         eligible = false;
         reasons.push('daily_limit_reached');
@@ -268,14 +268,14 @@ export class CRMEligibilityService {
   /**
    * Verifica el límite diario del tenant
    */
-  static async checkDailyLimit(restaurantId, maxDailyExecutions) {
+  static async checkDailyLimit(businessId, maxDailyExecutions) {
     try {
       const today = new Date().toISOString().split('T')[0];
       
       const { data, error, count } = await supabase
         .from('scheduled_messages')
         .select('id', { count: 'exact', head: true })
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .gte('created_at', `${today}T00:00:00.000Z`)
         .lt('created_at', `${today}T23:59:59.999Z`)
         .in('status', ['planned', 'processing', 'sent', 'delivered']);
@@ -375,7 +375,7 @@ export class CRMEligibilityService {
   /**
    * Obtiene estadísticas de elegibilidad para un restaurante
    */
-  static async getEligibilityStats(restaurantId, dateRange = 7) {
+  static async getEligibilityStats(businessId, dateRange = 7) {
     try {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - dateRange);
@@ -384,7 +384,7 @@ export class CRMEligibilityService {
       const { data: sentMessages, error: sentError } = await supabase
         .from('scheduled_messages')
         .select('status, channel_final, created_at')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .gte('created_at', startDate.toISOString())
         .in('status', ['sent', 'delivered', 'failed', 'skipped']);
       
@@ -394,7 +394,7 @@ export class CRMEligibilityService {
       const { data: customers, error: customersError } = await supabase
         .from('customers')
         .select('notifications_enabled, consent_whatsapp, consent_email, phone, email, preferences')
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
       
       if (customersError) throw customersError;
       
@@ -421,3 +421,4 @@ export class CRMEligibilityService {
 }
 
 export default CRMEligibilityService;
+

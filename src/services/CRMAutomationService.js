@@ -13,8 +13,8 @@ import { es } from 'date-fns/locale';
  * Sistema central que ejecuta reglas de automatización
  */
 export class CRMAutomationProcessor {
-    constructor(restaurantId) {
-        this.restaurantId = restaurantId;
+    constructor(businessId) {
+        this.businessId = businessId;
         this.executionStats = {
             total_processed: 0,
             successful_sends: 0,
@@ -29,13 +29,13 @@ export class CRMAutomationProcessor {
      */
     async executeAllAutomations() {
         try {
-            console.log(`🤖 CRM: Iniciando automatizaciones para restaurante ${this.restaurantId}`);
+            console.log(`🤖 CRM: Iniciando automatizaciones para restaurante ${this.businessId}`);
             
             // 1. Obtener reglas activas
             const { data: activeRules, error: rulesError } = await supabase
                 .from('automation_rules')
                 .select('*')
-                .eq('restaurant_id', this.restaurantId)
+                .eq('business_id', this.businessId)
                 .eq('is_active', true);
                 
             if (rulesError) {
@@ -137,7 +137,7 @@ export class CRMAutomationProcessor {
             let query = supabase
                 .from('customers')
                 .select('*')
-                .eq('restaurant_id', this.restaurantId);
+                .eq('business_id', this.businessId);
             
             // Aplicar filtros según el tipo de regla
             switch (rule.rule_type) {
@@ -264,7 +264,7 @@ export class CRMAutomationProcessor {
             const { data: execution, error: executionError } = await supabase
                 .from('automation_rule_executions')
                 .insert({
-                    restaurant_id: this.restaurantId,
+                    business_id: this.businessId,
                     rule_id: rule.id,
                     customer_id: customer.id,
                     status: 'pending',
@@ -294,7 +294,7 @@ export class CRMAutomationProcessor {
             const { data: interaction, error: interactionError } = await supabase
                 .from('customer_interactions')
                 .insert({
-                    restaurant_id: this.restaurantId,
+                    business_id: this.businessId,
                     customer_id: customer.id,
                     channel: this.getChannelForActionType(rule.action_type),
                     template_id: template.id,
@@ -344,7 +344,7 @@ export class CRMAutomationProcessor {
             const { data: template, error } = await supabase
                 .from('message_templates')
                 .select('*')
-                .eq('restaurant_id', this.restaurantId)
+                .eq('business_id', this.businessId)
                 .eq('template_type', rule.rule_type)
                 .eq('channel', channel)
                 .eq('is_active', true)
@@ -512,11 +512,11 @@ export class CRMAutomationProcessor {
  * FUNCIÓN PRINCIPAL PARA EJECUTAR AUTOMATIZACIONES
  * Esta función se llamará desde un cron job o webhook
  */
-export async function runCRMAutomations(restaurantId) {
+export async function runCRMAutomations(businessId) {
     try {
-        console.log(`🚀 Iniciando automatizaciones CRM para restaurante ${restaurantId}`);
+        console.log(`🚀 Iniciando automatizaciones CRM para restaurante ${businessId}`);
         
-        const processor = new CRMAutomationProcessor(restaurantId);
+        const processor = new CRMAutomationProcessor(businessId);
         const result = await processor.executeAllAutomations();
         
         console.log(`📊 Resultado automatizaciones:`, result);
@@ -536,7 +536,7 @@ export async function runGlobalCRMAutomations() {
         console.log('🌍 Ejecutando automatizaciones globales CRM');
         
         // Obtener todos los restaurantes activos
-        const { data: restaurants, error } = await supabase
+        const { data: businesses, error } = await supabase
             .from('businesses')
             .select('id, name')
             .eq('active', true);
@@ -549,11 +549,11 @@ export async function runGlobalCRMAutomations() {
         const results = [];
         
         // Ejecutar para cada restaurante
-        for (const restaurant of restaurants || []) {
+        for (const restaurant of businesses || []) {
             console.log(`🏪 Procesando restaurante: ${restaurant.name} (${restaurant.id})`);
             const result = await runCRMAutomations(restaurant.id);
             results.push({
-                restaurant_id: restaurant.id,
+                business_id: restaurant.id,
                 restaurant_name: restaurant.name,
                 ...result
             });
@@ -562,7 +562,7 @@ export async function runGlobalCRMAutomations() {
         console.log('✅ Automatizaciones globales completadas');
         return {
             success: true,
-            restaurants_processed: results.length,
+            businesses_processed: results.length,
             results
         };
         
@@ -577,3 +577,4 @@ export default {
     runCRMAutomations,
     runGlobalCRMAutomations
 };
+

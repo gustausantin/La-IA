@@ -174,9 +174,9 @@ serve(async (req) => {
       });
     }
 
-    const { event, reservation_id, restaurant_id } = await req.json();
+    const { event, reservation_id, business_id } = await req.json();
 
-    console.log('📧 Procesando evento de notificación:', { event, reservation_id, restaurant_id });
+    console.log('📧 Procesando evento de notificación:', { event, reservation_id, business_id });
 
     // Crear cliente de Supabase
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -188,7 +188,7 @@ serve(async (req) => {
       .from('reservations')
       .select(`
         *,
-        restaurant:restaurants(
+        restaurant:businesses(
           id,
           name,
           email,
@@ -294,4 +294,5 @@ serve(async (req) => {
     });
   }
 });
+
 

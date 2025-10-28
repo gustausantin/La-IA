@@ -66,7 +66,7 @@ const sendNoShowMessage = async (reservation) => {
         const { data: template, error: templateError } = await supabase
             .from('message_templates')
             .select('*')
-            .eq('restaurant_id', reservation.restaurant_id)
+            .eq('business_id', reservation.business_id)
             .eq('name', 'Seguimiento No-Show')
             .eq('is_active', true)
             .single();
@@ -86,7 +86,7 @@ const sendNoShowMessage = async (reservation) => {
         const { data: restaurant } = await supabase
             .from('businesses')
             .select('name')
-            .eq('id', reservation.restaurant_id)
+            .eq('id', reservation.business_id)
             .single();
 
         if (!customer || !restaurant) {
@@ -104,7 +104,7 @@ const sendNoShowMessage = async (reservation) => {
         const { error: messageError } = await supabase
             .from('scheduled_messages')
             .insert({
-                restaurant_id: reservation.restaurant_id,
+                business_id: reservation.business_id,
                 customer_id: reservation.customer_id,
                 template_id: template.id,
                 message_content: message,
@@ -133,8 +133,8 @@ const sendNoShowMessage = async (reservation) => {
 // - tabla: customers
 // - tabla: tables
 // - tabla: agent_reservation_insights (insights del agente)
-// - RPC: get_reservation_stats_by_source(restaurant_id, start_date, end_date)
-// - RPC: get_agent_conversion_stats(restaurant_id)
+// - RPC: get_reservation_stats_by_source(business_id, start_date, end_date)
+// - RPC: get_agent_conversion_stats(business_id)
 // - real-time: suscripción a cambios en reservations
 
 // Estados de reserva con colores y acciones
@@ -585,11 +585,11 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
 
 // Componente principal
 export default function Reservas() {
-    const { business: restaurant, businessId: restaurantId, isReady, addNotification } =
+    const { business: restaurant, businessId: businessId, isReady, addNotification } =
         useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();
-    const changeDetection = useAvailabilityChangeDetection(restaurantId);
+    const changeDetection = useAvailabilityChangeDetection(businessId);
 
     const [loading, setLoading] = useState(true);
     const [reservations, setReservations] = useState([]);
@@ -608,7 +608,7 @@ export default function Reservas() {
         occupancyData, 
         metrics: occupancyMetrics, 
         reload: reloadOccupancy 
-    } = useOccupancyData(restaurantId, occupancyDate, occupancyZone);
+    } = useOccupancyData(businessId, occupancyDate, occupancyZone);
 
     // 🚨 Auto-abrir tab de disponibilidades si viene desde el modal de regeneración
     useEffect(() => {
@@ -662,7 +662,7 @@ export default function Reservas() {
     
     // 🤖 AUTOMATIZACIÓN: Completar reservas automáticamente
     const autoCompleteReservations = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
         
         try {
             const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
@@ -671,9 +671,9 @@ export default function Reservas() {
             
             // Buscar reservas de ayer que estén confirmadas o sentadas
             const { data: reservationsToComplete, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('id, customer_name, status, reservation_date')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('reservation_date', yesterday)
                 .in('status', ['confirmed', 'seated']);
                 
@@ -696,7 +696,7 @@ export default function Reservas() {
             const reservationIds = reservationsToComplete.map(r => r.id);
             
             const { error: updateError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .update({ status: 'completed' })
                 .in('id', reservationIds);
                 
@@ -717,11 +717,11 @@ export default function Reservas() {
         } catch (error) {
             console.error('Error en auto-completado:', error);
         }
-    }, [restaurantId]); // 🔧 CORRECCIÓN: Quitar loadReservations para evitar dependencia circular
+    }, [businessId]); // 🔧 CORRECCIÓN: Quitar loadReservations para evitar dependencia circular
 
     // Cargar estadísticas REALES del agente IA
     const loadAgentStats = useCallback(async (reservations) => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
@@ -839,11 +839,11 @@ export default function Reservas() {
                 conversionRate: agentReservations > 0 ? 75 : 0
             }));
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Cargar reservas
     const loadReservations = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             setLoading(true);
@@ -851,7 +851,7 @@ export default function Reservas() {
             // 🔥 USAR RPC OPTIMIZADO CON DATOS DE CUSTOMERS INCLUIDOS + RIESGO NO-SHOW
             // Ahora los datos del customer se obtienen automáticamente vía customer_id
             const { data, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     *,
                     customer:customer_id (
@@ -882,7 +882,7 @@ export default function Reservas() {
                         )
                     )
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .neq('status', 'deleted')  // ✅ OCULTAR reservas eliminadas
                 .order('reservation_date', { ascending: true })
                 .order('reservation_time', { ascending: true });
@@ -892,7 +892,7 @@ export default function Reservas() {
             try {
                 const { data: riskPredictions } = await supabase
                     .rpc('predict_upcoming_noshows_v2', {
-                        p_restaurant_id: restaurantId,
+                        p_business_id: businessId,
                         p_days_ahead: 0
                     });
                 
@@ -980,7 +980,7 @@ export default function Reservas() {
             setLoading(false);
         }
     }, [
-        restaurantId,
+        businessId,
         filters.status,
         filters.channel,
         filters.source
@@ -988,13 +988,13 @@ export default function Reservas() {
 
     // Cargar mesas
     const loadTables = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             const { data, error } = await supabase
-                .from("tables")
+                .from('resources')
                 .select("*")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .eq("is_active", true)
                 .order("zone")
                 .order("table_number");
@@ -1006,11 +1006,11 @@ export default function Reservas() {
             console.error("❌ Error cargando mesas:", error);
             toast.error("Error al cargar las mesas");
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Cargar insights del agente
     const loadAgentInsights = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             // Calcular insights reales basados en las reservas
@@ -1071,7 +1071,7 @@ export default function Reservas() {
         } catch (error) {
             console.error('Error generando insights:', error);
         }
-    }, [restaurantId, reservations]);
+    }, [businessId, reservations]);
 
     // CRÍTICO: Función para validar antes de crear reservas
     const handleCreateReservation = useCallback(() => {
@@ -1170,7 +1170,7 @@ export default function Reservas() {
 
     // Configurar real-time subscriptions
     useEffect(() => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         // Suscribirse a cambios en tiempo real
         const subscription = supabase
@@ -1181,7 +1181,7 @@ export default function Reservas() {
                     event: "*",
                     schema: "public",
                     table: "reservations",
-                    filter: `restaurant_id=eq.${restaurantId}`,
+                    filter: `business_id=eq.${businessId}`,
                 },
                 (payload) => {
                     // Notificar si el agente creó una reserva
@@ -1219,7 +1219,7 @@ export default function Reservas() {
                 subscription.unsubscribe();
             }
         };
-    }, [restaurantId, loadReservations, addNotification]);
+    }, [businessId, loadReservations, addNotification]);
 
     // Filtrar reservas
     const filteredReservations = useMemo(() => {
@@ -1346,7 +1346,7 @@ export default function Reservas() {
             const { data, error } = await supabase
                 .from('businesses')
                 .select('settings')
-                .eq('id', restaurantId)
+                .eq('id', businessId)
                 .single();
 
             if (error) throw error;
@@ -1362,11 +1362,11 @@ export default function Reservas() {
         } catch (error) {
             console.error('Error cargando política:', error);
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Cargar datos inicial - SIN DEPENDENCY LOOPS
     useEffect(() => {
-        if (isReady && restaurantId) {
+        if (isReady && businessId) {
             setLoading(true);
             Promise.all([
                 loadReservations(),
@@ -1375,16 +1375,16 @@ export default function Reservas() {
                 loadPolicySettings()
             ]).finally(() => setLoading(false));
         }
-    }, [isReady, restaurantId]); // SOLO dependencies estables
+    }, [isReady, businessId]); // SOLO dependencies estables
 
     // Recargar cuando cambien los filtros - SIN BUCLES
     useEffect(() => {
-        if (isReady && restaurantId) {
+        if (isReady && businessId) {
             loadReservations();
         }
     }, [
         isReady,
-        restaurantId,
+        businessId,
         filters.status,
         filters.channel,
         filters.source,
@@ -1399,7 +1399,7 @@ export default function Reservas() {
             const { data: existingCustomers, error: searchError } = await supabase
                 .from("customers")
                 .select("*")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .or(`phone.eq.${reservationData.customer_phone},email.eq.${reservationData.customer_email || ''}`);
 
             if (searchError) {
@@ -1445,7 +1445,7 @@ export default function Reservas() {
                     consent_email: customerData.consent_email || false,
                     consent_sms: customerData.consent_sms || false,
                     consent_whatsapp: customerData.consent_whatsapp || false,
-                    restaurant_id: restaurantId,
+                    business_id: businessId,
                     visits_count: 1,
                     last_visit_at: reservationData.reservation_date,
                     total_spent: 0,
@@ -1472,7 +1472,7 @@ export default function Reservas() {
         } catch (error) {
             console.error("Error in customer linking:", error);
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Función para calcular segmento automático
     const calculateAutomaticSegment = useCallback((customerData, existingCustomer) => {
@@ -1532,7 +1532,7 @@ export default function Reservas() {
         try {
             // 1️⃣ CANCELAR: Cambiar status a 'cancelled'
             const { error: updateError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .update({ 
                     status: 'cancelled',
                     updated_at: new Date().toISOString()
@@ -1576,7 +1576,7 @@ export default function Reservas() {
         try {
             // 1️⃣ SOFT DELETE: Cambiar status a 'deleted'
             const { error: updateError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .update({ 
                     status: 'deleted',
                     updated_at: new Date().toISOString()
@@ -1696,7 +1696,7 @@ export default function Reservas() {
                     try {
                         // Actualizar a cancelled con motivo
                         const { error } = await supabase
-                            .from('reservations')
+                            .from('appointments')
                             .update({ 
                                 status: 'cancelled',
                                 cancellation_reason: reason
@@ -1725,7 +1725,7 @@ export default function Reservas() {
             try {
                 // Actualizar la reserva en Supabase
                 const { data, error } = await supabase
-                    .from("reservations")
+                    .from('appointments')
                     .update({ status: newStatus })
                     .eq("id", reservation.id)
                     .select()
@@ -1756,7 +1756,7 @@ export default function Reservas() {
                     console.log("🎯 CRM: Procesando completación de reserva", reservation.id);
                     
                     try {
-                        const crmResult = await processReservationCompletion(reservation.id, restaurantId);
+                        const crmResult = await processReservationCompletion(reservation.id, businessId);
                         
                         if (crmResult.success && crmResult.segmentChanged) {
                             toast.success(
@@ -1780,7 +1780,7 @@ export default function Reservas() {
                 toast.error(`Error al actualizar la reserva: ${error.message}`);
             }
         },
-        [loadReservations, addNotification, restaurantId],
+        [loadReservations, addNotification, businessId],
     );
 
     // Manejar acciones masivas
@@ -1839,7 +1839,7 @@ export default function Reservas() {
 
                 // 1️⃣ Actualizar status de las reservas
                 const { error } = await supabase
-                    .from("reservations")
+                    .from('appointments')
                     .update({
                         status: newStatus,
                         updated_at: new Date().toISOString()
@@ -2412,7 +2412,7 @@ export default function Reservas() {
             {/* Modals - WIZARD NUEVO */}
             {showCreateModal && (
                 <ReservationWizard
-                    restaurantId={restaurantId}
+                    businessId={businessId}
                     initialData={null}
                     onSave={async (reservationData) => {
                         try {
@@ -2427,7 +2427,7 @@ export default function Reservas() {
                             
                             // 1. Crear reserva en Supabase
                             const { data: newReservation, error } = await supabase
-                                .from('reservations')
+                                .from('appointments')
                                 .insert([reservationData])
                                 .select()
                                 .single();
@@ -2488,7 +2488,7 @@ export default function Reservas() {
 
             {showEditModal && editingReservation && (
                 <ReservationWizard
-                    restaurantId={restaurantId}
+                    businessId={businessId}
                     initialData={editingReservation}
                     onSave={async (reservationData) => {
                         try {
@@ -2503,7 +2503,7 @@ export default function Reservas() {
                             
                             // Actualizar reserva en Supabase
                             const { error } = await supabase
-                                .from('reservations')
+                                .from('appointments')
                                 .update(reservationData)
                                 .eq('id', editingReservation.id);
 
@@ -2727,7 +2727,7 @@ export default function Reservas() {
                                     const { data: currentData, error: fetchError } = await supabase
                                         .from('businesses')
                                         .select('settings')
-                                        .eq('id', restaurantId)
+                                        .eq('id', businessId)
                                         .single();
                                     
                                     if (fetchError) throw fetchError;
@@ -2749,7 +2749,7 @@ export default function Reservas() {
                                         .update({ 
                                             settings: updatedSettings
                                         })
-                                        .eq('id', restaurantId);
+                                        .eq('id', businessId);
                                     
                                     if (error) throw error;
                                     
@@ -2856,7 +2856,7 @@ export default function Reservas() {
                             try {
                                 // Buscar la reserva DIRECTAMENTE por ID
                                 const { data: reservation, error } = await supabase
-                                    .from('reservations')
+                                    .from('appointments')
                                     .select(`
                                         *,
                                         tables (
@@ -2977,7 +2977,7 @@ const ReservationFormModal = ({
     onSave,
     reservation = null,
     tables = [],
-    restaurantId,
+    businessId,
 }) => {
     const [loading, setLoading] = useState(false);
     
@@ -3037,7 +3037,7 @@ const ReservationFormModal = ({
             const { data: customers, error } = await supabase
                 .from("customers")
                 .select("*")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .or(`phone.ilike.%${phone}%,name.ilike.%${phone}%`)
                 .order('last_visit_at', { ascending: false })
                 .limit(5);
@@ -3090,7 +3090,7 @@ const ReservationFormModal = ({
             const { data: existingCustomers, error: searchError } = await supabase
                 .from("customers")
                 .select("*")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .or(`phone.eq.${reservationData.customer_phone},email.eq.${reservationData.customer_email || ''}`);
 
             if (searchError) {
@@ -3144,7 +3144,7 @@ const ReservationFormModal = ({
                     consent_whatsapp: customerData.consent_whatsapp || false,
                     
                     // 🏪 RESTAURANT DATA
-                    restaurant_id: restaurantId,
+                    business_id: businessId,
                     visits_count: 1,
                     last_visit_at: reservationData.reservation_date,
                     total_spent: 0,
@@ -3219,9 +3219,9 @@ const ReservationFormModal = ({
         // 🔍 VALIDACIÓN AVANZADA: LÍMITES CONFIGURADOS (COHERENCIA)
         try {
             const { data: restaurantData } = await supabase
-                .from("restaurants")
+                .from("businesses")
                 .select("settings")
-                .eq("id", restaurantId)
+                .eq("id", businessId)
                 .single();
             
             const reservationSettings = restaurantData?.settings?.reservation_settings || {};
@@ -3292,7 +3292,7 @@ const ReservationFormModal = ({
                 special_requests: formData.special_requests || null,
                 table_number: formData.table_number || null,
                 notes: formData.notes || null,
-                restaurant_id: restaurantId,
+                business_id: businessId,
                 status: backendStatus, // Usar el estado traducido y validado
                 source: "dashboard",
                 table_id: formData.table_id || null
@@ -3303,7 +3303,7 @@ const ReservationFormModal = ({
                 // MODO EDICIÓN
                 // Paso 1: Actualizar la reserva
                 const { error: reservationError } = await supabase
-                    .from("reservations")
+                    .from('appointments')
                     .update(reservationData)
                     .eq("id", reservation.id);
 
@@ -3319,7 +3319,7 @@ const ReservationFormModal = ({
                 // 🔧 BUSCAR CLIENTE PARA GUARDAR (si no hay customer_id)
                 if (!actualCustomerId && (formData.customer_phone || formData.customer_email)) {
                     console.log('🔍 Buscando cliente para guardar...');
-                    let query = supabase.from('customers').select('id').eq('restaurant_id', restaurantId);
+                    let query = supabase.from('customers').select('id').eq('business_id', businessId);
                     
                     if (formData.customer_phone) {
                         query = query.eq('phone', formData.customer_phone);
@@ -3369,7 +3369,7 @@ const ReservationFormModal = ({
             } else {
                 // MODO CREACIÓN (la lógica existente es correcta)
                 const { error } = await supabase
-                    .from("reservations")
+                    .from('appointments')
                     .insert([reservationData]);
 
                 if (error) throw error;
@@ -3446,7 +3446,7 @@ const ReservationFormModal = ({
                 try {
                     // Paso 1: Cargar datos de la reserva
                     const { data: reservationData, error: reservationError } = await supabase
-                        .from("reservations")
+                        .from('appointments')
                         .select(`*`)
                         .eq("id", reservation.id)
                         .single();
@@ -3477,7 +3477,7 @@ const ReservationFormModal = ({
                         console.log('Buscando con email:', reservationData.customer_email);
                         
                         if (reservationData.customer_phone || reservationData.customer_email) {
-                            let query = supabase.from('customers').select('*').eq('restaurant_id', restaurantId);
+                            let query = supabase.from('customers').select('*').eq('business_id', businessId);
                             
                             if (reservationData.customer_phone) {
                                 query = query.eq('phone', reservationData.customer_phone);
@@ -4081,5 +4081,6 @@ const ReservationFormModal = ({
         </div>
     );
 };
+
 
 

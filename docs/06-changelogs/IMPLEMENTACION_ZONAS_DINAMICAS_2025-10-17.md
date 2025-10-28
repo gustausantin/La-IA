@@ -167,7 +167,7 @@ Agente: [Llama check_availability con zone='terraza']
 | Columna | Tipo | NULL | Default | Descripción |
 |---------|------|------|---------|-------------|
 | `id` | uuid | NO | `gen_random_uuid()` | PK |
-| `restaurant_id` | uuid | NO | - | FK → restaurants |
+| `restaurant_id` | uuid | NO | - | FK → businesses |
 | `slot_date` | date | NO | - | Fecha del slot |
 | `start_time` | time | NO | - | Hora inicio |
 | `end_time` | time | NO | - | Hora fin |

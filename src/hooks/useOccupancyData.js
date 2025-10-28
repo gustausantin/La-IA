@@ -3,14 +3,14 @@ import { supabase } from '../lib/supabase';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
-export const useOccupancyData = (restaurantId, selectedDate, selectedZone) => {
+export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
     const [occupancyData, setOccupancyData] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [metrics, setMetrics] = useState(null);
 
     const fetchOccupancyData = useCallback(async () => {
-        if (!restaurantId || !selectedDate) {
+        if (!businessId || !selectedDate) {
             setLoading(false);
             return;
         }
@@ -23,9 +23,9 @@ export const useOccupancyData = (restaurantId, selectedDate, selectedZone) => {
 
             // 1. Obtener todas las mesas activas del restaurante
             let tablesQuery = supabase
-                .from('tables')
+                .from('resources')
                 .select('id, name, capacity, zone, is_active')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('is_active', true)
                 .order('zone', { ascending: true })
                 .order('name', { ascending: true });
@@ -52,7 +52,7 @@ export const useOccupancyData = (restaurantId, selectedDate, selectedZone) => {
             const { data: slots, error: slotsError } = await supabase
                 .from('availability_slots')
                 .select('id, table_id, start_time, end_time, status, reservation_id')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('slot_date', dateStr)
                 .in('table_id', tableIds)
                 .order('start_time', { ascending: true });
@@ -89,7 +89,7 @@ export const useOccupancyData = (restaurantId, selectedDate, selectedZone) => {
             let reservations = [];
             if (reservedSlotIds.length > 0) {
                 const { data: fetchedReservations, error: reservationsError } = await supabase
-                    .from('reservations')
+                    .from('appointments')
                     .select('id, customer_name, party_size, special_requests, status')
                     .in('id', reservedSlotIds);
 
@@ -187,7 +187,7 @@ export const useOccupancyData = (restaurantId, selectedDate, selectedZone) => {
         } finally {
             setLoading(false);
         }
-    }, [restaurantId, selectedDate, selectedZone]);
+    }, [businessId, selectedDate, selectedZone]);
 
     useEffect(() => {
         fetchOccupancyData();
@@ -201,3 +201,4 @@ export const useOccupancyData = (restaurantId, selectedDate, selectedZone) => {
         reload: fetchOccupancyData 
     };
 };
+

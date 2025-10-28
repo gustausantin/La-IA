@@ -4,7 +4,7 @@ import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 
 export const useChannelStats = () => {
-    const { restaurantId } = useAuthContext();
+    const { businessId } = useAuthContext();
     const [channelStats, setChannelStats] = useState({
         active: 0,
         total: 5,
@@ -13,7 +13,7 @@ export const useChannelStats = () => {
     const [loading, setLoading] = useState(true);
 
     const loadChannelStats = async () => {
-        if (!restaurantId) {
+        if (!businessId) {
             setChannelStats({ active: 0, total: 5, validChannels: [] });
             setLoading(false);
             return;
@@ -23,7 +23,7 @@ export const useChannelStats = () => {
             const { data: restaurant, error } = await supabase
                 .from('businesses')
                 .select('settings')
-                .eq('id', restaurantId)
+                .eq('id', businessId)
                 .single();
 
             if (error) throw error;
@@ -71,7 +71,7 @@ export const useChannelStats = () => {
 
     useEffect(() => {
         loadChannelStats();
-    }, [restaurantId]);
+    }, [businessId]);
 
     return {
         channelStats,

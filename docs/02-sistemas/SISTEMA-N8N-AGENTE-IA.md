@@ -156,7 +156,7 @@ Almacena todas las conversaciones del agente IA.
 ```sql
 CREATE TABLE agent_conversations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id),
+    restaurant_id UUID NOT NULL REFERENCES businesses(id),
     customer_id UUID REFERENCES customers(id),
     
     -- Datos del cliente
@@ -205,7 +205,7 @@ Almacena mensajes individuales de cada conversación.
 CREATE TABLE agent_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID NOT NULL REFERENCES agent_conversations(id) ON DELETE CASCADE,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id),
+    restaurant_id UUID NOT NULL REFERENCES businesses(id),
     
     -- Dirección
     direction VARCHAR NOT NULL, -- 'inbound' (cliente → agente), 'outbound' (agente → cliente)
@@ -230,7 +230,7 @@ Métricas agregadas por día.
 ```sql
 CREATE TABLE agent_metrics (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id),
+    restaurant_id UUID NOT NULL REFERENCES businesses(id),
     metric_date DATE NOT NULL,
     
     -- Contadores por canal
@@ -338,7 +338,7 @@ SELECT
   r.party_size,
   rest.name as restaurant_name
 FROM reservations r
-JOIN restaurants rest ON r.restaurant_id = rest.id
+JOIN businesses rest ON r.restaurant_id = rest.id
 WHERE r.status = 'pending'
   AND r.reservation_date = CURRENT_DATE + INTERVAL '1 day'
   AND r.customer_phone IS NOT NULL;

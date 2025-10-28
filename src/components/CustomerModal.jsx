@@ -110,7 +110,7 @@ const CustomerModal = ({
     onClose, 
     onSave,
     onDelete, 
-    restaurantId,
+    businessId,
     mode = 'view' // 'view', 'edit', 'create'
 }) => {
     const [formData, setFormData] = useState({
@@ -157,13 +157,13 @@ const CustomerModal = ({
     // Cargar configuración CRM para segmentación
     useEffect(() => {
         const loadCrmConfig = async () => {
-            if (!restaurantId) return;
+            if (!businessId) return;
             
             try {
                 const { data, error } = await supabase
                     .from('crm_settings')
                     .select('*')
-                    .eq('restaurant_id', restaurantId)
+                    .eq('business_id', businessId)
                     .maybeSingle();
                 if (error) throw error;
                 if (data) setCrmConfig(data);
@@ -173,7 +173,7 @@ const CustomerModal = ({
         };
         
         loadCrmConfig();
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Inicializar datos del cliente
     useEffect(() => {
@@ -273,7 +273,7 @@ const CustomerModal = ({
                 }
             }
             
-            if (!restaurantId) {
+            if (!businessId) {
                 toast.error('❌ Error: No se encontró el ID del restaurante');
                 setSaving(false);
                 return;
@@ -284,7 +284,7 @@ const CustomerModal = ({
             
             // Preparar datos para guardar - CORRIGIENDO MANEJO DE CAMPOS OPCIONALES
             const dataToSave = {
-                restaurant_id: restaurantId,
+                business_id: businessId,
                 name: fullName,
                 first_name: formData.first_name.trim(),
                 consent_email: Boolean(formData.consent_email),
@@ -322,8 +322,8 @@ const CustomerModal = ({
             console.log('Data to save:', dataToSave);
             
             // Validaciones adicionales antes de guardar
-            if (!dataToSave.restaurant_id) {
-                throw new Error('restaurant_id es requerido');
+            if (!dataToSave.business_id) {
+                throw new Error('business_id es requerido');
             }
             
             if (!dataToSave.name || dataToSave.name.trim() === '') {
@@ -893,7 +893,7 @@ const CustomerModal = ({
                                     
                                     if (mode === 'create') {
                                         // CREAR nuevo cliente
-                                        dataToSave.restaurant_id = restaurantId;
+                                        dataToSave.business_id = businessId;
                                         const { data, error } = await supabase
                                             .from('customers')
                                             .insert([dataToSave])
@@ -1001,7 +1001,7 @@ const CustomerModal = ({
                                         
                                         // 1️⃣ VERIFICAR si tiene reservas ACTIVAS
                                         const { data: activeReservations, error: checkError } = await supabase
-                                            .from('reservations')
+                                            .from('appointments')
                                             .select('id, reservation_date, reservation_time, status')
                                             .eq('customer_id', customer.id)
                                             .in('status', ['pending', 'pending_approval', 'confirmed', 'seated']);
@@ -1072,3 +1072,4 @@ const CustomerModal = ({
 };
 
 export default CustomerModal;
+

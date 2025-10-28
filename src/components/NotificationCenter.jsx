@@ -25,7 +25,7 @@ export default function NotificationCenter({ isOpen, onClose, restaurant }) {
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
-        .eq("restaurant_id", restaurant.id)
+        .eq("business_id", restaurant.id)
         .order("created_at", { ascending: false })
         .limit(20);
 

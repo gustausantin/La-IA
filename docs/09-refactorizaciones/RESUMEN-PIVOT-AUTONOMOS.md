@@ -21,7 +21,7 @@
 
 | ❌ Antes (Restaurantes) | ✅ Ahora (Autónomos) |
 |------------------------|---------------------|
-| `restaurants` | `businesses` |
+| `businesses` | `businesses` |
 | `tables` | `resources` |
 | `table_number` | `resource_number` |
 | `menu_items` | `services` |
@@ -185,8 +185,8 @@ Wizard de Onboarding:
 #### **PASO 2: Adaptar Frontend** (2-3 días)
 ```
 Archivos a modificar:
-- src/stores/restaurantStore.js → businessStore.js
-- src/services/restaurantService.js → businessService.js
+- src/stores/businessestore.js → businessStore.js
+- src/services/businesseservice.js → businessService.js
 - src/services/tableService.js → resourceService.js
 - src/services/menuService.js → serviceService.js
 - src/services/reservationService.js → appointmentService.js

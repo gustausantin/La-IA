@@ -7,7 +7,7 @@ import toast from 'react-hot-toast';
 
 /**
  * Panel para configurar acciones automáticas por nivel de riesgo
- * Guarda configuración en restaurants.settings.noshow_automation (JSONB)
+ * Guarda configuración en businesses.settings.noshow_automation (JSONB)
  */
 export default function NoShowAutomationConfig() {
     const { restaurant } = useAuthContext();

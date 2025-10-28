@@ -37,7 +37,7 @@ Página de acceso moderna con diseño glassmorphism donde puedes crear tu cuenta
 
 ### **¿Qué datos reales maneja?**
 - **Base de datos:** Tabla `auth.users` (Supabase)
-- **Restaurant creado:** Tabla `restaurants` con datos básicos
+- **Restaurant creado:** Tabla `businesses` con datos básicos
 - **Perfil usuario:** Tabla `profiles` con información personal
 
 ### **¿Funciona correctamente?**
@@ -123,7 +123,7 @@ Sistema completo de gestión de reservas con **3 pestañas principales**, **filt
 - ⏰ **Duración estándar:** Tiempo por reserva (60-120 minutos)
 - 🕐 **Buffer entre reservas:** Tiempo de limpieza (0-30 minutos)
 - ⏳ **Horas mínimas de antelación:** Para reservas del mismo día
-- 💾 **Guardado automático** en `restaurants.settings` (JSONB)
+- 💾 **Guardado automático** en `businesses.settings` (JSONB)
 - 📱 **Filtros por canal:** WhatsApp, llamadas, Instagram, Facebook, web, manual
 - 🛡️ **Manejo de errores específicos** con mensajes claros y navegación guiada
 
@@ -158,7 +158,7 @@ Sistema completo de gestión de reservas con **3 pestañas principales**, **filt
 - Tabla `reservations` - Reservas con validación de disponibilidad ✅ FUNCIONA
 - Tabla `tables` - Mesas activas para generar slots ✅ FUNCIONA
 - Tabla `special_events` - Eventos que afectan disponibilidad ✅ FUNCIONA
-- Tabla `restaurants.settings` - Configuración de políticas ✅ FUNCIONA
+- Tabla `businesses.settings` - Configuración de políticas ✅ FUNCIONA
 - RPC `generate_availability_slots()` - Función ultra-robusta ✅ FUNCIONA
 
 ### **¿Funciona correctamente?**
@@ -330,7 +330,7 @@ Gestiona horarios del restaurante, disponibilidad del agente IA y eventos especi
 **⚠️ IMPORTANTE:** Los datos son **SIMULADOS/MOCK**
 
 **Datos reales que debería usar:**
-- Campo `restaurants.settings.operating_hours` - Horarios simplificados (sin turnos)
+- Campo `businesses.settings.operating_hours` - Horarios simplificados (sin turnos)
 - Tabla `agent_schedule` - Horarios del agente por canal
 - Tabla `special_events` - Eventos y cierres
 - Tabla `capacity_settings` - Configuración de capacidad
@@ -405,7 +405,7 @@ Panel de configuración completo para personalizar el restaurante y el agente IA
 ✅ **DATOS REALES:** Completamente conectado a Supabase
 
 **Tablas utilizadas:**
-- Tabla `restaurants` - Configuración básica ✅ FUNCIONA
+- Tabla `businesses` - Configuración básica ✅ FUNCIONA
 - Campo `settings` (JSONB) - Website y descripción ✅ FUNCIONA
 - Tabla `agent_settings` - Configuración del agente
 - Tabla `agent_personality` - Personalidad del bot

@@ -22,7 +22,7 @@
 - **Credenciales:** Supabase La-IA (id: `9pdl4V7ImejCLZWo`)
 - **Tablas usadas:** `customers`, `agent_conversations`, `agent_messages`
 - **Variable de entorno NECESARIA:**
-  - `DEFAULT_RESTAURANT_ID`: UUID del restaurante (obtener de tabla `restaurants`)
+  - `DEFAULT_RESTAURANT_ID`: UUID del restaurante (obtener de tabla `businesses`)
 - **Configuración NECESARIA después de importar:**
   - Nodo "Ejecutar Clasificador":
     - `workflowId`: Cambiar a ID del workflow "3️⃣ Clasificador Super Agent"
@@ -51,7 +51,7 @@
 **En Supabase → SQL Editor → Nueva Query:**
 
 ```sql
-SELECT id, name FROM public.restaurants LIMIT 1;
+SELECT id, name FROM public.businesses LIMIT 1;
 ```
 
 **Copiar el UUID del restaurante.**

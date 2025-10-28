@@ -81,7 +81,7 @@ SELECT daily_availability_maintenance();
 ```json
 {
   "success": true,
-  "restaurants_processed": 1,
+  "businesses_processed": 1,
   "total_slots_deleted": X,
   "total_slots_created": X,
   "summary": "Procesados 1 restaurantes..."

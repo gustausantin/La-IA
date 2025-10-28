@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS escalations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     customer_phone VARCHAR NOT NULL,
     customer_name VARCHAR,
     customer_message TEXT,

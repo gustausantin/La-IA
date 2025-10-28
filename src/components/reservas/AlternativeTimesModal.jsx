@@ -3,7 +3,7 @@
 // ======================================================================
 // REGLA 1: Ajuste quirúrgico - mejora la UX sin degradar
 // REGLA 2: Solo muestra datos REALES de availability_slots
-// REGLA 3: Multi-tenant (todas las alternativas son del restaurantId)
+// REGLA 3: Multi-tenant (todas las alternativas son del businessId)
 // ======================================================================
 
 import React from 'react';

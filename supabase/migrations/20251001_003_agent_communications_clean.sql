@@ -25,7 +25,7 @@ DROP TABLE IF EXISTS message_batches_demo CASCADE;
 CREATE TABLE agent_conversations (
     -- Identificadores
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
     
     -- Datos del cliente
@@ -82,7 +82,7 @@ CREATE TABLE agent_conversations (
 CREATE TABLE agent_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     conversation_id UUID NOT NULL REFERENCES agent_conversations(id) ON DELETE CASCADE,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Dirección
     direction VARCHAR NOT NULL CHECK (direction IN ('inbound', 'outbound')),

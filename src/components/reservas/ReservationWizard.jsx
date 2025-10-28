@@ -30,8 +30,8 @@ import { getZoneIcon, getZoneLabel } from '../../constants/zones';
 /**
  * Componente principal del wizard de reservas
  */
-export const ReservationWizard = ({ restaurantId, initialData = null, onSave, onCancel }) => {
-  const wizard = useReservationWizard(restaurantId, initialData);
+export const ReservationWizard = ({ businessId, initialData = null, onSave, onCancel }) => {
+  const wizard = useReservationWizard(businessId, initialData);
 
   const {
     currentStep,
@@ -66,7 +66,7 @@ export const ReservationWizard = ({ restaurantId, initialData = null, onSave, on
 
     // 🔥 SOLO COLUMNAS QUE EXISTEN EN LA TABLA RESERVATIONS
     const finalData = {
-      restaurant_id: restaurantId,
+      business_id: businessId,
       customer_id: formData.customerId,
       customer_name: fullName,
       customer_email: formData.customerEmail || null,
@@ -1006,4 +1006,5 @@ const StepTable = ({ formData, validation, availableTables, loadingTables, onCha
 };
 
 export default ReservationWizard;
+
 

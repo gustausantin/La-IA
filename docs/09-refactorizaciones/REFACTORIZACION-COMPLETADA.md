@@ -1,4 +1,4 @@
-# 🎉 REFACTORIZACIÓN COMPLETADA: Restaurants → Businesses
+# 🎉 REFACTORIZACIÓN COMPLETADA: businesses → Businesses
 
 **Fecha:** 27 de octubre de 2025
 **Duración:** ~2 horas
@@ -18,16 +18,16 @@ Se ha completado exitosamente la refactorización del frontend para adaptar la a
 
 | Antes | Después |
 |-------|---------|
-| `src/stores/restaurantStore.js` | `src/stores/businessStore.js` |
-| `src/lib/restaurantService.js` | `src/lib/businessService.js` |
-| `src/utils/restaurantSetup.js` | `src/utils/businessSetup.js` |
+| `src/stores/businessestore.js` | `src/stores/businessStore.js` |
+| `src/lib/businesseservice.js` | `src/lib/businessService.js` |
+| `src/utils/businessesetup.js` | `src/utils/businessSetup.js` |
 
 ---
 
 ### **2. Stores Actualizados**
 
 #### **businessStore.js**
-- ✅ `useRestaurantStore` → `useBusinessStore`
+- ✅ `usebusinessestore` → `useBusinessStore`
 - ✅ `loadRestaurant()` → `loadBusiness()`
 - ✅ `updateRestaurant()` → `updateBusiness()`
 - ✅ `restaurant` (state) → `business`
@@ -105,7 +105,7 @@ Se actualizaron las destructuraciones del contexto usando aliases para minimizar
 |------------|--------|
 | `src/components/Layout.jsx` | `const { business: restaurant } = useAuthContext();` |
 | `src/components/AvailabilityManager.jsx` | `const { businessId: restaurantId } = useAuthContext();` |
-| `src/components/configuracion/RestaurantSettings.jsx` | `const { businessId: restaurantId } = useAuthContext();` |
+| `src/components/configuracion/businessesettings.jsx` | `const { businessId: restaurantId } = useAuthContext();` |
 | `src/components/AvailabilityTester.jsx` | `const { businessId: restaurantId } = useAuthContext();` |
 | `src/components/ai/AIDashboard.jsx` | `const { businessId: restaurantId } = useAuthContext();` |
 
@@ -181,7 +181,7 @@ Estado: ✅ Servidor iniciado correctamente
 
 ### **Tablas de Supabase (NO MODIFICADAS)**
 Las queries a Supabase siguen usando los nombres antiguos de tablas:
-- `restaurants`
+- `businesses`
 - `user_restaurant_mapping`
 
 Esto es intencional para no romper la compatibilidad con la base de datos actual. La migración completa de BD se hará en una fase posterior.
@@ -219,7 +219,7 @@ Frontend (React)
 
 Backend (Supabase)
 └── Tablas (sin cambios)
-    ├── restaurants (temporal)
+    ├── businesses (temporal)
     ├── user_restaurant_mapping (temporal)
     └── ... (esquema autónomos pendiente)
 ```

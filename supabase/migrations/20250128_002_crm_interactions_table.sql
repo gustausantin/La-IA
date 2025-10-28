@@ -7,7 +7,7 @@
 -- 1. CREAR TABLA customer_interactions
 CREATE TABLE IF NOT EXISTS customer_interactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
     
     -- Datos de la interacción

@@ -2,7 +2,7 @@
 // SERVICIO DE VALIDACIÓN DE RESERVAS - ENTERPRISE GRADE
 // ======================================================================
 // NORMA 2: Solo datos REALES de Supabase
-// NORMA 3: Multi-tenant (filtrado por restaurant_id)
+// NORMA 3: Multi-tenant (filtrado por business_id)
 // NORMA 4: Usa AvailabilityService y tablas existentes
 // ======================================================================
 
@@ -16,11 +16,11 @@ export class ReservationValidationService {
   
   /**
    * Validar fecha de reserva
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @returns {Promise<Object>} { valid: boolean, message: string, code: string }
    */
-  static async validateDate(restaurantId, date) {
+  static async validateDate(businessId, date) {
     try {
       if (!date) {
         return {
@@ -47,7 +47,7 @@ export class ReservationValidationService {
       const { data: restaurant, error: restaurantError } = await supabase
         .from('businesses')
         .select('settings')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
 
       if (restaurantError) {
@@ -78,7 +78,7 @@ export class ReservationValidationService {
       const { data: events, error: eventsError } = await supabase
         .from('special_events')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .lte('event_date', date)
         .gte('event_date', date);
 
@@ -146,12 +146,12 @@ export class ReservationValidationService {
 
   /**
    * Validar hora de reserva
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} time - Hora en formato HH:MM:SS
    * @returns {Promise<Object>} { valid: boolean, message: string, alternatives: array }
    */
-  static async validateTime(restaurantId, date, time, excludeReservationId = null) {
+  static async validateTime(businessId, date, time, excludeReservationId = null) {
     try {
       if (!time) {
         return {
@@ -167,7 +167,7 @@ export class ReservationValidationService {
       const { data: restaurant, error: restaurantError } = await supabase
         .from('businesses')
         .select('settings')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
 
       if (restaurantError) {
@@ -269,9 +269,9 @@ export class ReservationValidationService {
 
       // Buscar reservas confirmadas que se solapen con este horario
       let query = supabase
-        .from('reservations')
+        .from('appointments')
         .select('id, reservation_time, party_size, table_id')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('reservation_date', date)
         .in('status', ['confirmed', 'pending'])
         .order('reservation_time');
@@ -309,18 +309,18 @@ export class ReservationValidationService {
 
   /**
    * Buscar horas alternativas cercanas
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} requestedTime - Hora solicitada en formato HH:MM:SS
    * @param {number} rangeMinutes - Rango de búsqueda en minutos (±)
    * @returns {Promise<Array>} Array de horas alternativas
    */
-  static async findAlternativeTimes(restaurantId, date, requestedTime, rangeMinutes = 60) {
+  static async findAlternativeTimes(businessId, date, requestedTime, rangeMinutes = 60) {
     try {
       const { data: slots, error } = await supabase
         .from('availability_slots')
         .select('start_time, end_time')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('slot_date', date)
         .eq('status', 'free')
         .order('start_time');
@@ -346,7 +346,7 @@ export class ReservationValidationService {
   /**
    * 🚀 BUSCAR ALTERNATIVAS MÁS CERCANAS (SIN DEPENDER DE availability_slots)
    * Genera horarios dinámicamente y verifica disponibilidad real
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} requestedTime - Hora solicitada en formato HH:MM o HH:MM:SS
    * @param {number} partySize - Número de personas
@@ -354,17 +354,17 @@ export class ReservationValidationService {
    * @returns {Promise<Array>} Array de alternativas ordenadas por proximidad
    * 
    * REGLA 2: Solo datos REALES (mesas + reservas)
-   * REGLA 3: Multi-tenant (filtrado por restaurant_id)
+   * REGLA 3: Multi-tenant (filtrado por business_id)
    */
-  static async findNearestAlternatives(restaurantId, date, requestedTime, partySize, k = 6, excludeReservationId = null) {
+  static async findNearestAlternatives(businessId, date, requestedTime, partySize, k = 6, excludeReservationId = null) {
     try {
-      console.log('🔍 Buscando alternativas cercanas:', { restaurantId, date, requestedTime, partySize, k, excludeReservationId });
+      console.log('🔍 Buscando alternativas cercanas:', { businessId, date, requestedTime, partySize, k, excludeReservationId });
 
       // 1. Obtener configuración del restaurante
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('settings')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
 
       const settings = restaurant?.settings || {};
@@ -408,7 +408,7 @@ export class ReservationValidationService {
       const alternatives = [];
       
       for (const time of possibleTimes) {
-        const result = await this.getAvailableTables(restaurantId, date, time, partySize, excludeReservationId);
+        const result = await this.getAvailableTables(businessId, date, time, partySize, excludeReservationId);
         
         if (result.success && result.tables.length > 0) {
           alternatives.push({
@@ -460,11 +460,11 @@ export class ReservationValidationService {
 
   /**
    * Validar número de personas
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {number} partySize - Número de personas
    * @returns {Promise<Object>} { valid: boolean, message: string }
    */
-  static async validatePartySize(restaurantId, partySize) {
+  static async validatePartySize(businessId, partySize) {
     try {
       if (!partySize || partySize < 1) {
         return {
@@ -478,7 +478,7 @@ export class ReservationValidationService {
       const { data: restaurant, error: restaurantError } = await supabase
         .from('businesses')
         .select('settings')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
 
       if (restaurantError) {
@@ -541,21 +541,21 @@ export class ReservationValidationService {
 
   /**
    * 🔥 Obtener mesas disponibles SIN DEPENDER DE availability_slots
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} time - Hora en formato HH:MM:SS
    * @param {number} partySize - Número de personas
    * @returns {Promise<Object>} { success: boolean, tables: array }
    */
-  static async getAvailableTables(restaurantId, date, time, partySize, excludeReservationId = null) {
+  static async getAvailableTables(businessId, date, time, partySize, excludeReservationId = null) {
     try {
       console.log(`🔍 Buscando mesas para ${partySize} personas el ${date} a las ${time}`, excludeReservationId ? `(excluyendo reserva ${excludeReservationId})` : '');
 
       // 1. Obtener TODAS las mesas activas con capacidad suficiente
       const { data: allTables, error: tablesError } = await supabase
-        .from('tables')
+        .from('resources')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('is_active', true)
         .gte('capacity', partySize)
         .order('capacity', { ascending: true }); // Mesa más pequeña primero
@@ -583,7 +583,7 @@ export class ReservationValidationService {
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('settings')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
 
       const reservationDuration = restaurant?.settings?.reservation_duration || 60;
@@ -595,9 +595,9 @@ export class ReservationValidationService {
 
       // 4. Obtener reservas existentes en ese día (EXCLUYENDO la actual si estamos editando)
       let query = supabase
-        .from('reservations')
+        .from('appointments')
         .select('id, table_id, reservation_time, party_size')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('reservation_date', date)
         .in('status', ['confirmed', 'pending']);
 
@@ -671,14 +671,14 @@ export class ReservationValidationService {
 
   /**
    * Validar mesa seleccionada
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} tableId - ID de la mesa
    * @param {number} partySize - Número de personas
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} time - Hora en formato HH:MM:SS
    * @returns {Promise<Object>} { valid: boolean, message: string }
    */
-  static async validateTable(restaurantId, tableId, partySize, date, time, excludeReservationId = null) {
+  static async validateTable(businessId, tableId, partySize, date, time, excludeReservationId = null) {
     try {
       if (!tableId) {
         return {
@@ -690,10 +690,10 @@ export class ReservationValidationService {
 
       // 1. Verificar que la mesa existe y está activa
       const { data: table, error: tableError } = await supabase
-        .from('tables')
+        .from('resources')
         .select('*')
         .eq('id', tableId)
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .single();
 
       if (tableError || !table) {
@@ -725,7 +725,7 @@ export class ReservationValidationService {
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('settings')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
 
       const reservationDuration = restaurant?.settings?.reservation_duration || 60;
@@ -737,9 +737,9 @@ export class ReservationValidationService {
 
       // Obtener reservas existentes para esta mesa en ese día
       let query = supabase
-        .from('reservations')
+        .from('appointments')
         .select('id, reservation_time')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('table_id', tableId)
         .eq('reservation_date', date)
         .in('status', ['confirmed', 'pending']);
@@ -814,7 +814,7 @@ export class ReservationValidationService {
    * @returns {Promise<Object>} { valid: boolean, errors: object }
    */
   static async validateFullReservation(reservationData) {
-    const { restaurantId, date, time, partySize, tableId, customerPhone, customerName } = reservationData;
+    const { businessId, date, time, partySize, tableId, customerPhone, customerName } = reservationData;
 
     const errors = {};
 
@@ -828,25 +828,25 @@ export class ReservationValidationService {
     }
 
     // 2. Validar fecha
-    const dateValidation = await this.validateDate(restaurantId, date);
+    const dateValidation = await this.validateDate(businessId, date);
     if (!dateValidation.valid) {
       errors.date = dateValidation.message;
     }
 
     // 3. Validar hora
-    const timeValidation = await this.validateTime(restaurantId, date, time);
+    const timeValidation = await this.validateTime(businessId, date, time);
     if (!timeValidation.valid) {
       errors.time = timeValidation.message;
     }
 
     // 4. Validar personas
-    const partySizeValidation = await this.validatePartySize(restaurantId, partySize);
+    const partySizeValidation = await this.validatePartySize(businessId, partySize);
     if (!partySizeValidation.valid) {
       errors.partySize = partySizeValidation.message;
     }
 
     // 5. Validar mesa
-    const tableValidation = await this.validateTable(restaurantId, tableId, partySize, date, time);
+    const tableValidation = await this.validateTable(businessId, tableId, partySize, date, time);
     if (!tableValidation.valid) {
       errors.tableId = tableValidation.message;
     }
@@ -861,7 +861,7 @@ export class ReservationValidationService {
   /**
    * 🚀 BUSCAR ALTERNATIVAS CERCANAS
    * Encuentra horarios disponibles cercanos a la hora solicitada
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} requestedTime - Hora solicitada en formato HH:MM:SS
    * @param {number} partySize - Número de personas
@@ -869,7 +869,7 @@ export class ReservationValidationService {
    * @param {string} excludeReservationId - ID de reserva a excluir (modo edición)
    * @returns {Promise<Array>} Array de alternativas ordenadas por proximidad
    */
-  static async findNearestAlternatives(restaurantId, date, requestedTime, partySize, k = 6, excludeReservationId = null) {
+  static async findNearestAlternatives(businessId, date, requestedTime, partySize, k = 6, excludeReservationId = null) {
     try {
       console.log(`🔍 Buscando ${k} alternativas para ${date} ${requestedTime} (${partySize} personas)`);
 
@@ -877,7 +877,7 @@ export class ReservationValidationService {
       const { data: restaurant, error: restaurantError } = await supabase
         .from('businesses')
         .select('settings')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
 
       if (restaurantError) {
@@ -931,7 +931,7 @@ export class ReservationValidationService {
       for (const slotTime of allSlots) {
         // Obtener mesas disponibles para este slot
         const availableTables = await this.getAvailableTables(
-          restaurantId,
+          businessId,
           date,
           slotTime,
           partySize,
@@ -1031,14 +1031,14 @@ export class ReservationValidationService {
   /**
    * 🔍 OBTENER MESAS DISPONIBLES
    * Encuentra todas las mesas disponibles para una fecha/hora/tamaño específicos
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} time - Hora en formato HH:MM:SS
    * @param {number} partySize - Número de personas
    * @param {string} excludeReservationId - ID de reserva a excluir (modo edición)
    * @returns {Promise<Array>} Array de mesas disponibles
    */
-  static async getAvailableTables(restaurantId, date, time, partySize, excludeReservationId = null) {
+  static async getAvailableTables(businessId, date, time, partySize, excludeReservationId = null) {
     try {
       // 🔥 CAMBIO: Para CUALQUIER grupo, intentar buscar combinaciones si no hay mesa individual
       // Primero intentamos con mesas individuales, si no hay, buscamos combinaciones
@@ -1048,9 +1048,9 @@ export class ReservationValidationService {
       // Siempre obtener TODAS las mesas para poder buscar combinaciones
       needsCombination = true;
         const { data: allTablesData, error: allTablesError } = await supabase
-          .from('tables')
+          .from('resources')
           .select('*')
-          .eq('restaurant_id', restaurantId)
+          .eq('business_id', businessId)
           .eq('is_active', true)
           .order('zone, table_number');
 
@@ -1071,7 +1071,7 @@ export class ReservationValidationService {
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('settings')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
 
       const reservationDuration = restaurant?.settings?.reservation_duration || 60;
@@ -1083,9 +1083,9 @@ export class ReservationValidationService {
 
       // 4. Obtener todas las reservas confirmadas/pendientes para ese día
       let query = supabase
-        .from('reservations')
+        .from('appointments')
         .select('id, table_id, reservation_time')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('reservation_date', date)
         .in('status', ['confirmed', 'pending']);
 
@@ -1138,4 +1138,5 @@ export class ReservationValidationService {
 }
 
 export default ReservationValidationService;
+
 

@@ -96,7 +96,7 @@ DECLARE
     restaurant_record RECORD;
 BEGIN
     FOR restaurant_record IN 
-        SELECT id, name FROM restaurants WHERE active = true
+        SELECT id, name FROM businesses WHERE active = true
     LOOP
         PERFORM insert_reminder_templates_for_restaurant(restaurant_record.id);
         RAISE NOTICE 'Plantillas de recordatorio creadas para: %', restaurant_record.name;

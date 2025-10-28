@@ -184,7 +184,7 @@ const ProfessionalCalculators = {
 };
 
 export default function Analytics() {
-    const { restaurant, restaurantId, isReady } = useAuthContext();
+    const { restaurant, businessId, isReady } = useAuthContext();
     
     // Estados principales
     const [loading, setLoading] = useState(true);
@@ -201,16 +201,16 @@ export default function Analytics() {
     
     // Cargar datos con transparencia completa
     const loadAnalyticsData = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
         
         try {
             setLoading(true);
             
             // 1. Métricas calculadas desde reservas reales
             const { data: reservationsData, error: metricsError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('*')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .order('created_at', { ascending: true });
 
             // Generar métricas desde reservas reales
@@ -240,7 +240,7 @@ export default function Analytics() {
             // const { data: conversations, error: convError } = await supabase
             //     .from('agent_conversations')
             //     .select('satisfaction_score, started_at, booking_created')
-            //     .eq('restaurant_id', restaurantId)
+            //     .eq('business_id', businessId)
             //     .not('satisfaction_score', 'is', null);
                 
             // if (convError) throw convError;
@@ -319,7 +319,7 @@ export default function Analytics() {
         } finally {
             setLoading(false);
         }
-    }, [restaurantId, restaurant]);
+    }, [businessId, restaurant]);
     
     // Generar insights accionables basados en datos
     const generateInsights = (metrics, forecast, satisfaction) => {
@@ -746,3 +746,4 @@ export default function Analytics() {
         </div>
     );
 }
+

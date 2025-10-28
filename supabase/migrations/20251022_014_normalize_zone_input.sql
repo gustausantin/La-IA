@@ -66,7 +66,7 @@ BEGIN
       0
     )
   INTO v_restaurant_timezone, v_min_advance_minutes
-  FROM restaurants
+  FROM businesses
   WHERE id = p_restaurant_id;
 
   -- Calcular minutos hasta la reserva (usando la zona horaria del restaurante)
@@ -166,7 +166,7 @@ BEGIN
       0
     )
   INTO v_restaurant_timezone, v_min_advance_minutes
-  FROM restaurants
+  FROM businesses
   WHERE id = p_restaurant_id;
 
   -- Calcular minutos hasta la reserva (usando la zona horaria del restaurante)

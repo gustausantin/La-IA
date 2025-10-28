@@ -45,7 +45,7 @@ const NoShowManagerSimple = () => {
                 const { data: noShowActions } = await supabase
                     .from('noshow_actions')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .gte('created_at', weekAgo.toISOString())
                     .order('created_at', { ascending: false });
 
@@ -303,3 +303,4 @@ const NoShowManagerSimple = () => {
 };
 
 export default NoShowManagerSimple;
+

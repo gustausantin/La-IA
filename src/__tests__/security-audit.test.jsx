@@ -39,7 +39,7 @@ describe('🔒 AUDITORÍA DE SEGURIDAD CRÍTICA', () => {
   describe('🛡️ ROW LEVEL SECURITY (RLS)', () => {
     it('CRÍTICO: Todas las tablas sensibles deben tener RLS habilitado', () => {
       const criticalTables = [
-        'restaurants',
+        'businesses',
         'user_restaurant_mapping', 
         'reservations',
         'customers',
@@ -74,7 +74,7 @@ describe('🔒 AUDITORÍA DE SEGURIDAD CRÍTICA', () => {
   describe('📋 POLÍTICAS DE SEGURIDAD', () => {
     it('CRÍTICO: Tablas críticas deben tener al menos 1 política', () => {
       const criticalTables = [
-        'restaurants',
+        'businesses',
         'user_restaurant_mapping',
         'reservations', 
         'customers'
@@ -96,16 +96,16 @@ describe('🔒 AUDITORÍA DE SEGURIDAD CRÍTICA', () => {
     it('CRÍTICO: No debe poder acceder a datos de otros usuarios', async () => {
       // Intentar acceder a todas las reservas sin filtro
       const { data, error } = await supabase
-        .from('reservations')
+        .from('appointments')
         .select('*');
 
       // Si RLS funciona, solo debe ver sus propias reservas (o ninguna si no tiene)
-      // Si ve reservas de múltiples restaurants diferentes = PROBLEMA
+      // Si ve reservas de múltiples businesses diferentes = PROBLEMA
       if (data && data.length > 1) {
-        const uniqueRestaurants = [...new Set(data.map(r => r.restaurant_id))];
-        if (uniqueRestaurants.length > 1) {
-          console.error('❌ LEAK DE DATOS: Ve reservas de múltiples restaurants:', uniqueRestaurants);
-          expect(uniqueRestaurants.length).toBeLessThanOrEqual(1);
+        const uniquebusinesses = [...new Set(data.map(r => r.business_id))];
+        if (uniquebusinesses.length > 1) {
+          console.error('❌ LEAK DE DATOS: Ve reservas de múltiples businesses:', uniquebusinesses);
+          expect(uniquebusinesses.length).toBeLessThanOrEqual(1);
         }
       }
 
@@ -113,14 +113,14 @@ describe('🔒 AUDITORÍA DE SEGURIDAD CRÍTICA', () => {
       expect(error).toBeNull();
     });
 
-    it('CRÍTICO: No debe poder acceder a restaurants de otros usuarios', async () => {
+    it('CRÍTICO: No debe poder acceder a businesses de otros usuarios', async () => {
       const { data, error } = await supabase
-        .from('restaurants')
+        .from('businesses')
         .select('*');
 
       // Similar al test anterior
       if (data && data.length > 1) {
-        console.error('❌ LEAK DE DATOS: Ve múltiples restaurants sin autorización');
+        console.error('❌ LEAK DE DATOS: Ve múltiples businesses sin autorización');
         expect(data.length).toBeLessThanOrEqual(1);
       }
 
@@ -142,7 +142,7 @@ describe('🔒 AUDITORÍA DE SEGURIDAD CRÍTICA', () => {
 
     it('CRÍTICO: Tablas fundamentales deben existir', async () => {
       const fundamentalTables = [
-        'restaurants',
+        'businesses',
         'user_restaurant_mapping',
         'reservations'
       ];
@@ -161,12 +161,12 @@ describe('🔒 AUDITORÍA DE SEGURIDAD CRÍTICA', () => {
 
 // ✅ TESTS PARA DETECTAR ARQUITECTURA INCORRECTA
 describe('🏗️ AUDITORÍA DE ARQUITECTURA', () => {
-  it('CRÍTICO: AuthContext debe proveer restaurantId', () => {
-    // Este test fallaría si AuthContext no gestiona restaurantId correctamente
+  it('CRÍTICO: AuthContext debe proveer businessId', () => {
+    // Este test fallaría si AuthContext no gestiona businessId correctamente
     const mockAuthContext = {
       user: { id: 'test-user' },
       restaurant: null,
-      restaurantId: null,
+      businessId: null,
       isReady: true
     };
 
@@ -174,7 +174,7 @@ describe('🏗️ AUDITORÍA DE ARQUITECTURA', () => {
     expect(mockAuthContext.isReady).toBe(true);
     
     // TODO: Implementar test que verifique migración automática
-    console.warn('⚠️ TODO: Verificar que migración automática funciona cuando restaurantId es null');
+    console.warn('⚠️ TODO: Verificar que migración automática funciona cuando businessId es null');
   });
 
   it('CRÍTICO: App debe funcionar durante outages de Supabase', () => {
@@ -190,7 +190,7 @@ describe('🏗️ AUDITORÍA DE ARQUITECTURA', () => {
       // Simular carga de página durante outage
       const mockPageLoad = () => {
         try {
-          supabaseOutage.from('restaurants').select('*');
+          supabaseOutage.from('businesses').select('*');
         } catch (error) {
           return 'loading'; // App debe mostrar loading, no crash
         }
@@ -199,3 +199,4 @@ describe('🏗️ AUDITORÍA DE ARQUITECTURA', () => {
     }).not.toThrow();
   });
 });
+

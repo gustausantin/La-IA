@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuthContext } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
 import {
@@ -106,6 +106,16 @@ export default function Login() {
     }
   };
 
+  // ❌ DESHABILITADO: No forzar logout automático
+  // useEffect(() => {
+  //   const forceLogout = async () => {
+  //     await supabase.auth.signOut();
+  //     localStorage.clear();
+  //     sessionStorage.clear();
+  //   };
+  //   forceLogout();
+  // }, []);
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -159,6 +169,9 @@ export default function Login() {
         password: password,
         options: {
           emailRedirectTo: `${window.location.origin}/confirm`,
+          data: {
+            email_confirm: false // ✅ No requiere confirmación
+          }
         },
       });
 
@@ -167,15 +180,17 @@ export default function Login() {
       }
 
       if (authData.user) {
-        setMessage(`✅ ¡Registro exitoso! 
+        // ✅ REGISTRO EXITOSO - Login automático
+        setMessage(`✅ ¡Cuenta creada exitosamente! Redirigiendo...`);
         
-📧 Hemos enviado un email de confirmación a: ${email}
-
-🔗 Por favor, revisa tu bandeja de entrada (y spam) y haz clic en el enlace para activar tu cuenta.
-
-⏰ Una vez confirmado, podrás iniciar sesión y configurar tu negocio.`);
+        // Auto-login después de registro
+        setTimeout(async () => {
+          const result = await login(email, password);
+          if (!result.success) {
+            setError("Cuenta creada pero error al iniciar sesión. Intenta hacer login manualmente.");
+          }
+        }, 1500);
         
-        setShowResendButton(true);
         setLoading(false);
         return;
       }

@@ -54,7 +54,7 @@ DROP TABLE IF EXISTS restaurant_business_config CASCADE;
 DROP TABLE IF EXISTS restaurant_operating_hours CASCADE;
 DROP TABLE IF EXISTS restaurant_settings CASCADE;
 DROP TABLE IF EXISTS restaurant_shifts CASCADE;
-DROP TABLE IF EXISTS restaurants CASCADE;
+DROP TABLE IF EXISTS businesses CASCADE;
 DROP TABLE IF EXISTS scheduled_messages CASCADE;
 DROP TABLE IF EXISTS special_events CASCADE;
 DROP TABLE IF EXISTS staff CASCADE;

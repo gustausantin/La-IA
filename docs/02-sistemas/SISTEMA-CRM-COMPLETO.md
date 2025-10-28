@@ -124,7 +124,7 @@ El **CRM Sistema Inteligente** es una solución enterprise especializada para re
 ```sql
 CREATE TABLE customers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id),
+    restaurant_id UUID NOT NULL REFERENCES businesses(id),
     
     -- Info básica
     name VARCHAR NOT NULL,
@@ -170,7 +170,7 @@ CREATE TABLE customers (
 CREATE TABLE customer_interactions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     interaction_type VARCHAR NOT NULL, -- 'segment_change', 'campaign', 'manual', 'automation'
     interaction_channel VARCHAR NOT NULL, -- 'email', 'sms', 'whatsapp', 'phone', 'in_person'
@@ -200,7 +200,7 @@ CREATE TABLE customer_interactions (
 ```sql
 CREATE TABLE automation_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     name VARCHAR NOT NULL,
     description TEXT,
@@ -236,7 +236,7 @@ CREATE TABLE automation_rules (
 ```sql
 CREATE TABLE scheduled_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
     automation_rule_id UUID REFERENCES automation_rules(id) ON DELETE SET NULL,
     
@@ -260,7 +260,7 @@ CREATE TABLE scheduled_messages (
 ```sql
 CREATE TABLE crm_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     name VARCHAR NOT NULL,
     category VARCHAR NOT NULL, -- 'welcome', 'retention', 'reactivation', 'vip', 'feedback'

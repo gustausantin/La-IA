@@ -28,7 +28,7 @@ WITH CHECK (
   bucket_id = 'restaurant-knowledge'
   AND auth.role() = 'authenticated'
   AND (storage.foldername(name))[1] IN (
-    SELECT r.id::text FROM restaurants r
+    SELECT r.id::text FROM businesses r
     WHERE r.owner_id = auth.uid()
   )
 );
@@ -45,7 +45,7 @@ USING (
     OR
     -- O es su restaurante
     (storage.foldername(name))[1] IN (
-      SELECT r.id::text FROM restaurants r
+      SELECT r.id::text FROM businesses r
       WHERE r.owner_id = auth.uid()
     )
   )
@@ -59,7 +59,7 @@ USING (
   bucket_id = 'restaurant-knowledge'
   AND auth.role() = 'authenticated'
   AND (storage.foldername(name))[1] IN (
-    SELECT r.id::text FROM restaurants r
+    SELECT r.id::text FROM businesses r
     WHERE r.owner_id = auth.uid()
   )
 );
@@ -72,7 +72,7 @@ USING (
   bucket_id = 'restaurant-knowledge'
   AND auth.role() = 'authenticated'
   AND (storage.foldername(name))[1] IN (
-    SELECT r.id::text FROM restaurants r
+    SELECT r.id::text FROM businesses r
     WHERE r.owner_id = auth.uid()
   )
 );

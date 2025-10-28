@@ -209,9 +209,9 @@ describe('Supabase - Base de Datos', () => {
       });
 
       const query = supabase
-        .from('reservations')
+        .from('appointments')
         .select('*')
-        .eq('restaurant_id', 'rest-123')
+        .eq('business_id', 'rest-123')
         .order('created_at');
 
       const result = await query;
@@ -231,9 +231,9 @@ describe('Supabase - Base de Datos', () => {
       }));
 
       const query = supabase
-        .from('reservations')
+        .from('appointments')
         .select('*')
-        .eq('restaurant_id', 'invalid-id')
+        .eq('business_id', 'invalid-id')
         .order('created_at');
 
       const result = await query;
@@ -256,9 +256,9 @@ describe('Supabase - Base de Datos', () => {
       }));
 
       const query = supabase
-        .from('reservations')
+        .from('appointments')
         .select('*')
-        .eq('restaurant_id', 'rest-123')
+        .eq('business_id', 'rest-123')
         .gte('reservation_date', '2025-01-25')
         .lte('reservation_date', '2025-01-25')
         .order('reservation_time');
@@ -317,7 +317,7 @@ describe('Supabase - Base de Datos', () => {
   describe('Operaciones RPC', () => {
     it('debería ejecutar RPC functions correctamente', async () => {
       const mockResult = {
-        restaurant_id: 'rest-123',
+        business_id: 'rest-123',
         restaurant_name: 'Test Restaurant'
       };
 
@@ -389,8 +389,8 @@ describe('Supabase - Real-time', () => {
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
-          table: 'reservations',
-          filter: 'restaurant_id=eq.rest-123'
+          table: 'appointments',
+          filter: 'business_id=eq.rest-123'
         }, (payload) => {
         })
         .subscribe();
@@ -514,9 +514,9 @@ describe('Supabase - Error Handling', () => {
     }));
 
     const result = await supabase
-      .from('reservations')
+      .from('appointments')
       .select('*')
-      .eq('restaurant_id', 'unauthorized');
+      .eq('business_id', 'unauthorized');
 
     expect(result.error.code).toBe('42501');
     expect(result.error.message).toContain('permission denied');
@@ -571,12 +571,13 @@ describe('Supabase - Performance', () => {
 
     // Ejecutar la misma query múltiples veces
     await Promise.all([
-      supabase.from('reservations').select('*').eq('restaurant_id', 'rest-123').order('created_at'),
-      supabase.from('reservations').select('*').eq('restaurant_id', 'rest-123').order('created_at'),
-      supabase.from('reservations').select('*').eq('restaurant_id', 'rest-123').order('created_at')
+      supabase.from('appointments').select('*').eq('business_id', 'rest-123').order('created_at'),
+      supabase.from('appointments').select('*').eq('business_id', 'rest-123').order('created_at'),
+      supabase.from('appointments').select('*').eq('business_id', 'rest-123').order('created_at')
     ]);
 
     // Cada query debería ejecutarse independientemente
     expect(callCount).toBe(3);
   });
-});
+});
+

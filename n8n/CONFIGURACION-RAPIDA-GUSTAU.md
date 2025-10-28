@@ -10,7 +10,7 @@
 
 ```sql
 -- Ejecutar en Supabase SQL Editor:
-SELECT id, name FROM restaurants LIMIT 1;
+SELECT id, name FROM businesses LIMIT 1;
 ```
 
 **Copia el UUID completo** (ejemplo: `a1b2c3d4-e5f6-...`)

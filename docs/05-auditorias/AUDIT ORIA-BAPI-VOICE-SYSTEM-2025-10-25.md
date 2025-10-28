@@ -38,7 +38,7 @@ Un workflow de n8n que actúe como **Gateway de BAPI** para permitir que las lla
 
 ### **1. TABLAS PRINCIPALES (Supabase)**
 
-#### **restaurants**
+#### **businesses**
 ```sql
 id UUID PRIMARY KEY
 name VARCHAR(255)
@@ -164,7 +164,7 @@ source VARCHAR  -- 'agent_whatsapp', 'agent_voice', 'manual'
 8. Ejecuta Gateway
 
 **Tablas usadas:**
-- `restaurants` (buscar por phone)
+- `businesses` (buscar por phone)
 - `whatsapp_message_buffer`
 
 ---
@@ -257,7 +257,7 @@ source VARCHAR  -- 'agent_whatsapp', 'agent_voice', 'manual'
 
 **Tablas usadas:**
 - `reservations` (buscar activas)
-- `restaurants` (info completa)
+- `businesses` (info completa)
 - `agent_messages` (historial)
 - `agent_conversations` (actualizar)
 
@@ -413,7 +413,7 @@ source VARCHAR  -- 'agent_whatsapp', 'agent_voice', 'manual'
 
 **1. Identificar Restaurante:**
 - Por teléfono llamado (`call.to` o `call.forwardedFrom`)
-- Buscar en `restaurants.channels.voice.phone_number`
+- Buscar en `businesses.channels.voice.phone_number`
 
 **2. Identificar Cliente:**
 - Por teléfono llamante (`call.from`)
@@ -550,15 +550,15 @@ Webhook que recibe llamada de BAPI y devuelve contexto dinámico.
 ## 🚨 PUNTOS CRÍTICOS
 
 ### **1. Búsqueda de Restaurante**
-**Problema:** `restaurants.channels` es JSONB, no se puede filtrar directo por SQL.
+**Problema:** `businesses.channels` es JSONB, no se puede filtrar directo por SQL.
 
 **Solución:**
 ```javascript
 // En n8n Code node
-const allRestaurants = await getAllRestaurants();
+const allbusinesses = await getAllbusinesses();
 const restaurantPhone = call.to || call.forwardedFrom;
 
-const matched = allRestaurants.find(r => {
+const matched = allbusinesses.find(r => {
   const voicePhone = r.channels?.voice?.phone_number;
   return voicePhone === restaurantPhone;
 });

@@ -45,7 +45,7 @@ const mockSupabase = {
       return Promise.resolve({
         data: {
           success: true,
-          restaurant_id: 'test-restaurant-id',
+          business_id: 'test-restaurant-id',
           restaurant_name: params?.restaurant_data?.name || 'Test Restaurant',
           message: 'Restaurant created successfully'
         },
@@ -167,7 +167,7 @@ vi.mock('framer-motion', () => ({
 export const createMockAuthContext = (overrides = {}) => ({
   user: { id: 'test-user', email: 'test@example.com' },
   restaurant: { id: 'test-restaurant', name: 'Test Restaurant' },
-  restaurantId: 'test-restaurant',
+  businessId: 'test-restaurant',
   isAuthenticated: true,
   isReady: true,
   loading: false,
@@ -211,7 +211,7 @@ export const createMockReservation = (overrides = {}) => ({
   source: 'agent',
   channel: 'whatsapp',
   created_at: '2025-01-25T10:00:00Z',
-  restaurant_id: 'test-restaurant',
+  business_id: 'test-restaurant',
   ...overrides,
 });
 
@@ -224,7 +224,7 @@ export const createMockConversation = (overrides = {}) => ({
   last_message: 'Hola, quiero hacer una reserva',
   last_message_at: '2025-01-25T10:00:00Z',
   resulted_in_reservation: false,
-  restaurant_id: 'test-restaurant',
+  business_id: 'test-restaurant',
   ...overrides,
 });
 
@@ -448,3 +448,4 @@ export {
   expect,
   cleanup,
 };
+

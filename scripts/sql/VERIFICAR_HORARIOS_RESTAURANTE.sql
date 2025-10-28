@@ -26,14 +26,14 @@ ORDER BY day_of_week;
 
 -- =====================================================
 
--- ✅ OPCIÓN 2: Verificar settings.calendar_schedule en restaurants
+-- ✅ OPCIÓN 2: Verificar settings.calendar_schedule en businesses
 SELECT 
   id,
   name,
   settings->'calendar_schedule' AS calendar_schedule,
   settings->'reservation_duration' AS reservation_duration,
   settings->'agent'->>'name' AS agent_name
-FROM restaurants
+FROM businesses
 WHERE id = 'd6b63130-1ebf-4284-98fc-a3b31a85d9d1';
 
 -- =====================================================
@@ -41,7 +41,7 @@ WHERE id = 'd6b63130-1ebf-4284-98fc-a3b31a85d9d1';
 -- ✅ OPCIÓN 3: Extraer calendar_schedule formateado (si existe)
 SELECT 
   jsonb_array_elements(settings->'calendar_schedule') AS day_info
-FROM restaurants
+FROM businesses
 WHERE id = 'd6b63130-1ebf-4284-98fc-a3b31a85d9d1'
   AND settings ? 'calendar_schedule';
 
@@ -72,7 +72,7 @@ SELECT
     FROM jsonb_array_elements(settings->'calendar_schedule') AS day
     WHERE (day->>'is_open')::boolean = false
   ) AS dias_cerrados
-FROM restaurants
+FROM businesses
 WHERE id = 'd6b63130-1ebf-4284-98fc-a3b31a85d9d1'
   AND settings ? 'calendar_schedule';
 

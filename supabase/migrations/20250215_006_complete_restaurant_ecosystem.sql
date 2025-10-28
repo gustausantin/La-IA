@@ -83,7 +83,7 @@ BEGIN
     SELECT u.id, r.id 
     INTO target_user_id, target_restaurant_id
     FROM auth.users u
-    INNER JOIN restaurants r ON r.owner_id = u.id
+    INNER JOIN businesses r ON r.owner_id = u.id
     WHERE u.email = 'gustausantin@gmail.com'
     LIMIT 1;
     
@@ -99,7 +99,7 @@ BEGIN
     
     CREATE TABLE IF NOT EXISTS menu_items (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
         name VARCHAR(255) NOT NULL,
         description TEXT,
         category VARCHAR(100) NOT NULL, -- 'primeros', 'segundos', 'postres', 'bebidas', 'extras'
@@ -135,7 +135,7 @@ BEGIN
             CREATE POLICY "Users can manage menu items from their restaurant" ON menu_items
             FOR ALL USING (
                 restaurant_id IN (
-                    SELECT r.id FROM restaurants r 
+                    SELECT r.id FROM businesses r 
                     WHERE r.owner_id = auth.uid()
                 )
             );

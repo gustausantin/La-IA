@@ -10,7 +10,7 @@ export const useReservationStore = create()(
       // === ESTADO DE RESERVAS ===
       isLoading: false,
       error: null,
-      restaurantId: null, // ID del restaurante - REQUERIDO para datos reales
+      businessId: null, // ID del negocio - REQUERIDO para datos reales
       
       // === RESERVAS ===
       reservations: [],
@@ -32,11 +32,11 @@ export const useReservationStore = create()(
       // === CONFIGURACIÓN DINÁMICA - SOLO DATOS REALES ===
       settings: {
         // NUNCA valores por defecto - SIEMPRE desde Supabase
-        slotDuration: null, // se obtiene OBLIGATORIAMENTE de restaurants.settings.reservation_duration
-        maxAdvanceBooking: null, // se obtiene OBLIGATORIAMENTE de restaurants.settings.advance_booking_days
-        minAdvanceBooking: null, // se obtiene OBLIGATORIAMENTE de restaurants.settings.min_advance_hours
-        maxPartySize: null, // se obtiene OBLIGATORIAMENTE de restaurants.settings.max_party_size
-        minPartySize: null, // se obtiene OBLIGATORIAMENTE de restaurants.settings.min_party_size
+        slotDuration: null, // se obtiene OBLIGATORIAMENTE de businesses.settings.reservation_duration
+        maxAdvanceBooking: null, // se obtiene OBLIGATORIAMENTE de businesses.settings.advance_booking_days
+        minAdvanceBooking: null, // se obtiene OBLIGATORIAMENTE de businesses.settings.min_advance_hours
+        maxPartySize: null, // se obtiene OBLIGATORIAMENTE de businesses.settings.max_party_size
+        minPartySize: null, // se obtiene OBLIGATORIAMENTE de businesses.settings.min_party_size
         bufferTime: 15, // único valor técnico permitido
       },
       
@@ -53,18 +53,18 @@ export const useReservationStore = create()(
       // === ACCIONES PRINCIPALES ===
       
       // === INICIALIZACIÓN CON DATOS REALES ===
-      initialize: async (restaurantId) => {
+      initialize: async (businessId) => {
         try {
-          log.info('🚀 Initializing reservation store with REAL data for restaurant:', restaurantId);
+          log.info('🚀 Initializing reservation store with REAL data for business:', businessId);
           
-          if (!restaurantId) {
-            throw new Error('Restaurant ID is REQUIRED for initialization');
+          if (!businessId) {
+            throw new Error('Business ID is REQUIRED for initialization');
           }
           
-          set({ restaurantId, isLoading: true, error: null });
+          set({ businessId, isLoading: true, error: null });
           
           // Cargar política de reservas REAL
-          await get().loadReservationPolicy(restaurantId);
+          await get().loadReservationPolicy(businessId);
           
           log.info('✅ Reservation store initialized with REAL data');
           
@@ -76,18 +76,18 @@ export const useReservationStore = create()(
       },
       
       // === CARGAR POLÍTICA DE RESERVAS - SOLO DATOS REALES ===
-      loadReservationPolicy: async (restaurantId) => {
+      loadReservationPolicy: async (businessId) => {
         try {
-          log.info('⚙️ Loading REAL reservation policy for restaurant:', restaurantId);
+          log.info('⚙️ Loading REAL reservation policy for restaurant:', businessId);
           
-          if (!restaurantId) {
+          if (!businessId) {
             throw new Error('Restaurant ID is required - NO DEFAULTS ALLOWED');
           }
           
           const { data, error } = await supabase
             .from('businesses')
             .select('settings')
-            .eq('id', restaurantId)
+            .eq('id', businessId)
             .single();
           
           if (error) throw error;
@@ -97,7 +97,7 @@ export const useReservationStore = create()(
           // VALIDAR que existan los datos REALES - NO defaults
           if (!policy.reservation_duration || !policy.advance_booking_days || 
               !policy.min_advance_hours || !policy.max_party_size || !policy.min_party_size) {
-            throw new Error('INCOMPLETE RESERVATION POLICY - All fields required in restaurants.settings');
+            throw new Error('INCOMPLETE RESERVATION POLICY - All fields required in businesses.settings');
           }
           
           // Actualizar SOLO con datos REALES de Supabase
@@ -134,7 +134,7 @@ export const useReservationStore = create()(
           log.info('📅 Loading reservations for:', targetDate);
           
           const { data, error } = await supabase
-            .from('reservations')
+            .from('appointments')
             .select(`
               *,
               customer:customer_id (
@@ -202,7 +202,7 @@ export const useReservationStore = create()(
 
           const { data: rpcData, error: rpcError } = await supabase
             .rpc('create_reservation_validated', {
-              p_restaurant_id: reservationData.restaurant_id,
+              p_business_id: reservationData.business_id,
               p_payload: payload,
               p_slot_minutes: 90
             });
@@ -239,7 +239,7 @@ export const useReservationStore = create()(
           log.info('📝 Updating reservation:', reservationId);
           
           const { data, error } = await supabase
-            .from('reservations')
+            .from('appointments')
             .update({
               ...updates,
               updated_at: new Date().toISOString(),
@@ -278,7 +278,7 @@ export const useReservationStore = create()(
           log.info('❌ Cancelling reservation:', reservationId);
           
           const { data, error } = await supabase
-            .from('reservations')
+            .from('appointments')
             .update({
               status: 'cancelled',
               cancellation_reason: reason,
@@ -333,10 +333,10 @@ export const useReservationStore = create()(
           }));
           
           // Generar slots de tiempo disponibles con datos REALES
-          // Necesitamos el restaurantId - obtenerlo del contexto o parámetro
-          const restaurantId = get().restaurantId; // Agregar al estado si no existe
-          if (restaurantId) {
-            await get().generateTimeSlots(date, restaurantId);
+          // Necesitamos el businessId - obtenerlo del contexto o parámetro
+          const businessId = get().businessId; // Agregar al estado si no existe
+          if (businessId) {
+            await get().generateTimeSlots(date, businessId);
           } else {
             log.error('❌ Restaurant ID required for generating REAL time slots');
           }
@@ -347,7 +347,7 @@ export const useReservationStore = create()(
       },
       
       // === GENERAR SLOTS SIMPLIFICADOS (SIN TURNOS) ===
-      generateTimeSlots: async (date, restaurantId) => {
+      generateTimeSlots: async (date, businessId) => {
         try {
           const { settings } = get();
           
@@ -362,7 +362,7 @@ export const useReservationStore = create()(
           const { data: eventsData, error: eventsError } = await supabase
             .from('special_events')
             .select('*')
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .eq('event_date', date);
             
           if (eventsError) throw eventsError;
@@ -379,7 +379,7 @@ export const useReservationStore = create()(
           const { data: restaurantData, error: restaurantError } = await supabase
             .from('businesses')
             .select('settings')
-            .eq('id', restaurantId)
+            .eq('id', businessId)
             .single();
             
           if (restaurantError) throw restaurantError;
@@ -407,7 +407,7 @@ export const useReservationStore = create()(
                   operating_hours: defaultHours 
                 } 
               })
-              .eq('id', restaurantId);
+              .eq('id', businessId);
               
             log.info('✅ Default operating hours created and saved');
             operatingHours = defaultHours;
@@ -643,11 +643,11 @@ export const useReservationStore = create()(
       },
       
       // === OBTENER ESTADÍSTICAS REALES DE DISPONIBILIDADES ===
-      getAvailabilityStats: async (restaurantId) => {
+      getAvailabilityStats: async (businessId) => {
         try {
-          log.info('📊 Loading REAL availability stats for restaurant:', restaurantId);
+          log.info('📊 Loading REAL availability stats for restaurant:', businessId);
           
-          if (!restaurantId) {
+          if (!businessId) {
             throw new Error('Restaurant ID is REQUIRED for REAL stats');
           }
           
@@ -660,14 +660,14 @@ export const useReservationStore = create()(
           
           log.info('📅 Using correct date for 30/09/2025:', {
             date_filter: todayStr,
-            restaurant_id: restaurantId
+            business_id: businessId
           });
           
           // Consultar slots REALES desde Supabase
           const { data: slotsData, error: slotsError } = await supabase
             .from('availability_slots')
             .select('*')
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .gte('slot_date', todayStr); // Solo futuros
             
           if (slotsError) {
@@ -684,9 +684,9 @@ export const useReservationStore = create()(
             
             // Consulta simplificada para evitar error 400
             const { data, error: reservationsError } = await supabase
-              .from('reservations')
+              .from('appointments')
               .select('id, status, reservation_date') // Quitar slot_id por si no existe
-              .eq('restaurant_id', restaurantId)
+              .eq('business_id', businessId)
               .gte('reservation_date', todayStr);
               
             if (reservationsError) {
@@ -716,7 +716,7 @@ export const useReservationStore = create()(
             const { data: settingsData, error: settingsError } = await supabase
               .from('businesses')
               .select('settings')
-              .eq('id', restaurantId)
+              .eq('id', businessId)
               .single();
             
             if (!settingsError && settingsData?.settings) {
@@ -746,9 +746,9 @@ export const useReservationStore = create()(
           let tablesCount = 0;
           try {
             const { data: tablesData, error: tablesError } = await supabase
-              .from('tables')
+              .from('resources')
               .select('id')
-              .eq('restaurant_id', restaurantId)
+              .eq('business_id', businessId)
               .eq('is_active', true);
               
             if (tablesError) {
@@ -786,7 +786,7 @@ export const useReservationStore = create()(
           availability: {},
           timeSlots: [],
           selectedDate: new Date().toISOString().split('T')[0],
-          restaurantId: null, // Reset restaurant ID también
+          businessId: null, // Reset restaurant ID también
           filters: {
             status: 'all',
             timeRange: 'today',
@@ -802,3 +802,4 @@ export const useReservationStore = create()(
     }
   )
 );
+

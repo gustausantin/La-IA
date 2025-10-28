@@ -10,7 +10,7 @@ const mockAuthContext = {
   status: 'unauthenticated',
   notifications: [],
   restaurant: null,
-  restaurantId: null,
+  businessId: null,
   login: vi.fn(),
   register: vi.fn(),
   logout: vi.fn(),

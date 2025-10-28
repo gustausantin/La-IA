@@ -85,7 +85,7 @@ DECLARE
     v_has_reservations BOOLEAN;
     v_is_day_closed BOOLEAN;
 BEGIN
-    SELECT settings INTO v_settings FROM restaurants WHERE id = p_restaurant_id;
+    SELECT settings INTO v_settings FROM businesses WHERE id = p_restaurant_id;
     IF v_settings IS NULL THEN
         RETURN jsonb_build_object('success', false, 'error', 'Restaurante no encontrado');
     END IF;

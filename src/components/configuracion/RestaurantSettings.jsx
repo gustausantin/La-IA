@@ -23,9 +23,9 @@ import { useRegenerationModal } from '../../hooks/useRegenerationModal';
 import RegenerationRequiredModal from '../RegenerationRequiredModal';
 import { useAuthContext } from '../../contexts/AuthContext';
 
-const RestaurantSettings = React.memo(({ restaurant, onUpdate }) => {
-  const { businessId: restaurantId } = useAuthContext();
-  const changeDetection = useAvailabilityChangeDetection(restaurantId);
+const businessesettings = React.memo(({ restaurant, onUpdate }) => {
+  const { businessId: businessId } = useAuthContext();
+  const changeDetection = useAvailabilityChangeDetection(businessId);
   const { isModalOpen, modalChangeReason, modalChangeDetails, showRegenerationModal, closeModal } = useRegenerationModal();
   const [settings, setSettings] = useState({
     name: restaurant?.name || '',
@@ -506,6 +506,6 @@ const RestaurantSettings = React.memo(({ restaurant, onUpdate }) => {
   );
 });
 
-RestaurantSettings.displayName = 'RestaurantSettings';
+businessesettings.displayName = 'businessesettings';
 
-export default RestaurantSettings;
+export default businessesettings;

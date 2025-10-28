@@ -31,11 +31,11 @@ export class CRMDailyJobEnhanced {
     
     try {
       // 1. Obtener todos los restaurantes activos
-      const restaurants = await this.getActiveRestaurants();
-      console.log(`📍 Procesando ${restaurants.length} restaurantes activos`);
+      const businesses = await this.getActivebusinesses();
+      console.log(`📍 Procesando ${businesses.length} restaurantes activos`);
       
       // 2. Procesar cada restaurante
-      for (const restaurant of restaurants) {
+      for (const restaurant of businesses) {
         await this.processRestaurant(restaurant);
       }
       
@@ -72,7 +72,7 @@ export class CRMDailyJobEnhanced {
   /**
    * Obtiene todos los restaurantes activos
    */
-  async getActiveRestaurants() {
+  async getActivebusinesses() {
     try {
       const { data, error } = await supabase
         .from('businesses')
@@ -115,13 +115,13 @@ export class CRMDailyJobEnhanced {
   /**
    * Actualiza estadísticas de clientes para un restaurante
    */
-  async updateCustomerStats(restaurantId) {
+  async updateCustomerStats(businessId) {
     try {
       // Obtener todos los clientes del restaurante
       const { data: customers, error } = await supabase
         .from('customers')
         .select('id')
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
       
       if (error) throw error;
       
@@ -134,7 +134,7 @@ export class CRMDailyJobEnhanced {
         
         await Promise.allSettled(
           batch.map(customer => 
-            recomputeCustomerStats(customer.id, restaurantId)
+            recomputeCustomerStats(customer.id, businessId)
           )
         );
         
@@ -152,13 +152,13 @@ export class CRMDailyJobEnhanced {
   /**
    * Recalcula segmentación automática para todos los clientes
    */
-  async updateCustomerSegments(restaurantId) {
+  async updateCustomerSegments(businessId) {
     try {
       // Obtener clientes que necesitan recalculo de segmento
       const { data: customers, error } = await supabase
         .from('customers')
         .select('id, preferences, total_visits, total_spent, last_visit')
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
       
       if (error) throw error;
       
@@ -171,7 +171,7 @@ export class CRMDailyJobEnhanced {
           const previousSegment = customer.preferences?.segment || 'nuevo';
           
           // Recalcular segmento
-          await recomputeSegment(customer.id, restaurantId);
+          await recomputeSegment(customer.id, businessId);
           
           // Verificar si cambió el segmento
           const { data: updatedCustomer } = await supabase
@@ -188,7 +188,7 @@ export class CRMDailyJobEnhanced {
             // Disparar evento de cambio de segmento
             await this.triggerSegmentChangeEvent(
               customer.id, 
-              restaurantId, 
+              businessId, 
               previousSegment, 
               newSegment
             );
@@ -212,13 +212,13 @@ export class CRMDailyJobEnhanced {
   /**
    * Evalúa todas las reglas de automatización para un restaurante
    */
-  async evaluateAutomationRules(restaurantId) {
+  async evaluateAutomationRules(businessId) {
     try {
       // Obtener reglas activas para daily_check
       const { data: rules, error } = await supabase
         .from('automation_rules')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('is_active', true)
         .eq('trigger_event', 'daily_check');
       
@@ -227,7 +227,7 @@ export class CRMDailyJobEnhanced {
       console.log(`📋 Evaluando ${rules.length} reglas de automatización...`);
       
       for (const rule of rules) {
-        await this.evaluateRule(rule, restaurantId);
+        await this.evaluateRule(rule, businessId);
         this.stats.rulesEvaluated++;
       }
       
@@ -242,12 +242,12 @@ export class CRMDailyJobEnhanced {
   /**
    * Evalúa una regla específica
    */
-  async evaluateRule(rule, restaurantId) {
+  async evaluateRule(rule, businessId) {
     try {
       console.log(`🔍 Evaluando regla: ${rule.name}`);
       
       // 1. Obtener clientes candidatos según el segmento objetivo
-      const candidates = await this.getRuleCandidates(rule, restaurantId);
+      const candidates = await this.getRuleCandidates(rule, businessId);
       
       console.log(`👥 ${candidates.length} candidatos para regla ${rule.name}`);
       
@@ -259,7 +259,7 @@ export class CRMDailyJobEnhanced {
           // Verificar elegibilidad
           const eligibility = await CRMEligibilityService.checkEligibility(
             customer.id,
-            restaurantId,
+            businessId,
             rule.id
           );
           
@@ -268,7 +268,7 @@ export class CRMDailyJobEnhanced {
             const messageCreated = await this.createScheduledMessage(
               customer,
               rule,
-              restaurantId,
+              businessId,
               eligibility.channel
             );
             
@@ -299,12 +299,12 @@ export class CRMDailyJobEnhanced {
   /**
    * Obtiene candidatos para una regla específica
    */
-  async getRuleCandidates(rule, restaurantId) {
+  async getRuleCandidates(rule, businessId) {
     try {
       let query = supabase
         .from('customers')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('notifications_enabled', true);
       
       // Filtrar por segmento objetivo
@@ -342,7 +342,7 @@ export class CRMDailyJobEnhanced {
   /**
    * Crea un mensaje programado
    */
-  async createScheduledMessage(customer, rule, restaurantId, channel) {
+  async createScheduledMessage(customer, rule, businessId, channel) {
     try {
       // Obtener la plantilla asociada
       const { data: template, error: templateError } = await supabase
@@ -356,7 +356,7 @@ export class CRMDailyJobEnhanced {
       }
       
       // Renderizar contenido con variables del cliente
-      const renderedContent = await this.renderTemplate(template, customer, restaurantId);
+      const renderedContent = await this.renderTemplate(template, customer, businessId);
       
       // Calcular cuándo enviar (considerando delay)
       const scheduledFor = new Date();
@@ -369,13 +369,13 @@ export class CRMDailyJobEnhanced {
       
       // Crear el mensaje programado
       const messageData = {
-        restaurant_id: restaurantId,
+        business_id: businessId,
         customer_id: customer.id,
         automation_rule_id: rule.id,
         template_id: template.id,
         scheduled_for: scheduledFor.toISOString(),
         channel_planned: channel,
-        subject_rendered: template.subject ? await this.renderTemplate({ content_markdown: template.subject }, customer, restaurantId) : null,
+        subject_rendered: template.subject ? await this.renderTemplate({ content_markdown: template.subject }, customer, businessId) : null,
         content_rendered: renderedContent,
         variables_used: this.extractVariablesUsed(template, customer),
         status: 'planned'
@@ -399,13 +399,13 @@ export class CRMDailyJobEnhanced {
   /**
    * Renderiza una plantilla con datos del cliente
    */
-  async renderTemplate(template, customer, restaurantId) {
+  async renderTemplate(template, customer, businessId) {
     try {
       // Obtener datos del restaurante
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('name, email, phone')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
       
       // Preparar variables
@@ -519,7 +519,7 @@ export class CRMDailyJobEnhanced {
   /**
    * Dispara evento de cambio de segmento
    */
-  async triggerSegmentChangeEvent(customerId, restaurantId, previousSegment, newSegment) {
+  async triggerSegmentChangeEvent(customerId, businessId, previousSegment, newSegment) {
     try {
       console.log(`🔄 Cambio de segmento detectado: ${previousSegment} → ${newSegment}`);
       
@@ -527,7 +527,7 @@ export class CRMDailyJobEnhanced {
       const { data: rules, error } = await supabase
         .from('automation_rules')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('is_active', true)
         .eq('trigger_event', 'segment_changed')
         .eq('target_segment', newSegment);
@@ -538,7 +538,7 @@ export class CRMDailyJobEnhanced {
       for (const rule of rules) {
         const eligibility = await CRMEligibilityService.checkEligibility(
           customerId,
-          restaurantId,
+          businessId,
           rule.id,
           { previousSegment }
         );
@@ -553,7 +553,7 @@ export class CRMDailyJobEnhanced {
           await this.createScheduledMessage(
             customer,
             rule,
-            restaurantId,
+            businessId,
             eligibility.channel
           );
           
@@ -654,3 +654,4 @@ export const runCRMDailyJob = async () => {
 };
 
 export default CRMDailyJobEnhanced;
+

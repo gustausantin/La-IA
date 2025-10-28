@@ -86,16 +86,16 @@ export const SEGMENTATION_RULES = {
  * RECOMPUTAR ESTADÍSTICAS DE CLIENTE
  * Recalcula visits_count, total_spent, avg_ticket, last_visit_at
  */
-export async function recomputeCustomerStats(customerId, restaurantId) {
+export async function recomputeCustomerStats(customerId, businessId) {
     try {
         console.log(`🔄 Recomputando stats para cliente ${customerId}`);
         
         // 1. Obtener reservas completadas del cliente
         const { data: reservations, error: reservationsError } = await supabase
-            .from('reservations')
+            .from('appointments')
             .select('*')
             .eq('customer_id', customerId)
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .in('status', ['confirmed', 'completed', 'seated'])
             .order('created_at', { ascending: false });
             
@@ -125,7 +125,7 @@ export async function recomputeCustomerStats(customerId, restaurantId) {
                 updated_at: new Date().toISOString()
             })
             .eq('id', customerId)
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .select()
             .single();
             
@@ -151,7 +151,7 @@ export async function recomputeCustomerStats(customerId, restaurantId) {
  * RECOMPUTAR SEGMENTO DE CLIENTE
  * Aplica reglas de segmentación automática
  */
-export async function recomputeSegment(customerId, restaurantId) {
+export async function recomputeSegment(customerId, businessId) {
     try {
         console.log(`🎯 Recomputando segmento para cliente ${customerId}`);
         
@@ -160,7 +160,7 @@ export async function recomputeSegment(customerId, restaurantId) {
             .from('customers')
             .select('*')
             .eq('id', customerId)
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .single();
             
         if (customerError || !customer) {
@@ -170,10 +170,10 @@ export async function recomputeSegment(customerId, restaurantId) {
         
         // 2. Obtener reservas del cliente
         const { data: reservations, error: reservationsError } = await supabase
-            .from('reservations')
+            .from('appointments')
             .select('*')
             .eq('customer_id', customerId)
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .in('status', ['confirmed', 'completed', 'seated'])
             .order('created_at', { ascending: false });
             
@@ -216,7 +216,7 @@ export async function recomputeSegment(customerId, restaurantId) {
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', customerId)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .select()
                 .single();
                 
@@ -228,7 +228,7 @@ export async function recomputeSegment(customerId, restaurantId) {
             console.log(`✅ Segmento actualizado: ${previousSegment} → ${newSegment}`);
             
             // 6. Verificar si necesita crear interacción automática
-            await checkAndCreateAutomaticInteraction(customerId, restaurantId, previousSegment, newSegment);
+            await checkAndCreateAutomaticInteraction(customerId, businessId, previousSegment, newSegment);
             
             // 7. 🔗 WEBHOOK: Notificar cambio de segmento
             try {
@@ -318,7 +318,7 @@ function calculatePredictedLTV(customer, reservations) {
 /**
  * VERIFICAR Y CREAR INTERACCIÓN AUTOMÁTICA
  */
-async function checkAndCreateAutomaticInteraction(customerId, restaurantId, previousSegment, newSegment) {
+async function checkAndCreateAutomaticInteraction(customerId, businessId, previousSegment, newSegment) {
     try {
         // Solo crear interacciones para ciertos cambios
         const interactionRules = {
@@ -335,7 +335,7 @@ async function checkAndCreateAutomaticInteraction(customerId, restaurantId, prev
             const { error } = await supabase
                 .from('customer_interactions')
                 .insert({
-                    restaurant_id: restaurantId,
+                    business_id: businessId,
                     customer_id: customerId,
                     channel: rule.channel,
                     interaction_type: rule.type,
@@ -365,16 +365,16 @@ async function checkAndCreateAutomaticInteraction(customerId, restaurantId, prev
  * PROCESAR FINALIZACIÓN DE RESERVA
  * Trigger principal cuando se completa una reserva
  */
-export async function processReservationCompletion(reservationId, restaurantId) {
+export async function processReservationCompletion(reservationId, businessId) {
     try {
         console.log(`🎯 Procesando completación de reserva ${reservationId}`);
         
         // 1. Obtener datos de la reserva
         const { data: reservation, error: reservationError } = await supabase
-            .from('reservations')
+            .from('appointments')
             .select('*')
             .eq('id', reservationId)
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .single();
             
         if (reservationError || !reservation) {
@@ -390,7 +390,7 @@ export async function processReservationCompletion(reservationId, restaurantId) 
             const { data: existingCustomer } = await supabase
                 .from('customers')
                 .select('id')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .or(`phone.eq.${reservation.customer_phone},email.eq.${reservation.customer_email}`)
                 .single();
                 
@@ -399,7 +399,7 @@ export async function processReservationCompletion(reservationId, restaurantId) 
                 
                 // Actualizar reserva con customer_id
                 await supabase
-                    .from('reservations')
+                    .from('appointments')
                     .update({ customer_id: customerId })
                     .eq('id', reservationId);
                     
@@ -409,7 +409,7 @@ export async function processReservationCompletion(reservationId, restaurantId) 
                 const { data: newCustomer, error: createError } = await supabase
                     .from('customers')
                     .insert({
-                        restaurant_id: restaurantId,
+                        business_id: businessId,
                         name: reservation.customer_name,
                         first_name: names[0] || '',
                         last_name1: names[1] || '',
@@ -431,21 +431,21 @@ export async function processReservationCompletion(reservationId, restaurantId) 
                 
                 // Actualizar reserva con customer_id
                 await supabase
-                    .from('reservations')
+                    .from('appointments')
                     .update({ customer_id: customerId })
                     .eq('id', reservationId);
             }
         }
         
         // 3. Recomputar estadísticas del cliente
-        const statsResult = await recomputeCustomerStats(customerId, restaurantId);
+        const statsResult = await recomputeCustomerStats(customerId, businessId);
         if (!statsResult.success) {
             console.error('❌ Error recomputando stats:', statsResult.error);
             return statsResult;
         }
         
         // 4. Recomputar segmento del cliente
-        const segmentResult = await recomputeSegment(customerId, restaurantId);
+        const segmentResult = await recomputeSegment(customerId, businessId);
         if (!segmentResult.success) {
             console.error('❌ Error recomputando segmento:', segmentResult.error);
             return segmentResult;
@@ -482,13 +482,13 @@ export async function processReservationCompletion(reservationId, restaurantId) 
 /**
  * OBTENER ESTADÍSTICAS CRM DEL RESTAURANTE
  */
-export async function getCRMStats(restaurantId) {
+export async function getCRMStats(businessId) {
     try {
         // Estadísticas de clientes por segmento
         const { data: segments, error: segmentsError } = await supabase
             .from('customers')
             .select('segment_auto, segment_manual')
-            .eq('restaurant_id', restaurantId);
+            .eq('business_id', businessId);
             
         if (segmentsError) throw segmentsError;
         
@@ -503,7 +503,7 @@ export async function getCRMStats(restaurantId) {
         const { data: interactions, error: interactionsError } = await supabase
             .from('customer_interactions')
             .select('status, channel, created_at')
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .gte('created_at', subDays(new Date(), 30).toISOString());
             
         if (interactionsError) throw interactionsError;
@@ -531,7 +531,7 @@ export async function getCRMStats(restaurantId) {
 /**
  * NUEVA FUNCIÓN: Evalúa reglas de automatización en tiempo real
  */
-export const evaluateAutomationRules = async (customerId, restaurantId, triggerEvent, context = {}) => {
+export const evaluateAutomationRules = async (customerId, businessId, triggerEvent, context = {}) => {
   try {
     console.log('🔄 Evaluando reglas de automatización:', { customerId, triggerEvent, context });
     
@@ -539,7 +539,7 @@ export const evaluateAutomationRules = async (customerId, restaurantId, triggerE
     const { data: rules, error: rulesError } = await supabase
       .from('automation_rules')
       .select('*')
-      .eq('restaurant_id', restaurantId)
+      .eq('business_id', businessId)
       .eq('is_active', true)
       .eq('trigger_event', triggerEvent);
     
@@ -563,7 +563,7 @@ export const evaluateAutomationRules = async (customerId, restaurantId, triggerE
         // Verificar elegibilidad
         const eligibility = await CRMEligibilityService.checkEligibility(
           customerId,
-          restaurantId,
+          businessId,
           rule.id,
           context
         );
@@ -572,7 +572,7 @@ export const evaluateAutomationRules = async (customerId, restaurantId, triggerE
           // Crear mensaje programado
           await createScheduledMessageFromRule(
             customerId,
-            restaurantId,
+            businessId,
             rule,
             eligibility.channel,
             context
@@ -596,7 +596,7 @@ export const evaluateAutomationRules = async (customerId, restaurantId, triggerE
 /**
  * Crea un mensaje programado desde una regla de automatización
  */
-const createScheduledMessageFromRule = async (customerId, restaurantId, rule, channel, context) => {
+const createScheduledMessageFromRule = async (customerId, businessId, rule, channel, context) => {
   try {
     // Obtener datos del cliente
     const { data: customer, error: customerError } = await supabase
@@ -621,7 +621,7 @@ const createScheduledMessageFromRule = async (customerId, restaurantId, rule, ch
     }
     
     // Renderizar contenido
-    const renderedContent = await renderMessageTemplate(template, customer, restaurantId);
+    const renderedContent = await renderMessageTemplate(template, customer, businessId);
     
     // Calcular cuándo enviar
     const scheduledFor = new Date();
@@ -631,13 +631,13 @@ const createScheduledMessageFromRule = async (customerId, restaurantId, rule, ch
     
     // Crear mensaje programado
     const messageData = {
-      restaurant_id: restaurantId,
+      business_id: businessId,
       customer_id: customerId,
       automation_rule_id: rule.id,
       template_id: template.id,
       scheduled_for: scheduledFor.toISOString(),
       channel_planned: channel,
-      subject_rendered: template.subject ? await renderMessageTemplate({ content_markdown: template.subject }, customer, restaurantId) : null,
+      subject_rendered: template.subject ? await renderMessageTemplate({ content_markdown: template.subject }, customer, businessId) : null,
       content_rendered: renderedContent,
       variables_used: extractTemplateVariables(template, customer),
       status: 'planned'
@@ -660,13 +660,13 @@ const createScheduledMessageFromRule = async (customerId, restaurantId, rule, ch
 /**
  * Renderiza una plantilla de mensaje con variables del cliente
  */
-const renderMessageTemplate = async (template, customer, restaurantId) => {
+const renderMessageTemplate = async (template, customer, businessId) => {
   try {
     // Obtener datos del restaurante
     const { data: restaurant } = await supabase
       .from('businesses')
       .select('name, email, phone')
-      .eq('id', restaurantId)
+      .eq('id', businessId)
       .single();
     
     let content = template.content_markdown || '';
@@ -747,3 +747,4 @@ export default {
     CRM_THRESHOLDS,
     SEGMENTATION_RULES
 };
+

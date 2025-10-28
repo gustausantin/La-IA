@@ -108,7 +108,7 @@ export default function DashboardAgenteV2() {
             
             // Reservas HOY
             const { data: todayReservations } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     *,
                     customer:customer_id (
@@ -116,15 +116,15 @@ export default function DashboardAgenteV2() {
                         segment_auto
                     )
                 `)
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('reservation_date', todayStr)
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
             
             // Reservas AYER
             const { data: yesterdayReservations } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('id, party_size')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('reservation_date', yesterdayStr)
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
             
@@ -134,9 +134,9 @@ export default function DashboardAgenteV2() {
             
             // Ocupación HOY vs AYER
             const { data: tables } = await supabase
-                .from('tables')
+                .from('resources')
                 .select('capacity')
-                .eq('restaurant_id', restaurant.id);
+                .eq('business_id', restaurant.id);
             
             const totalCapacity = tables?.reduce((sum, t) => sum + (t.capacity || 0), 0) || 0;
             const openingHours = 4; // 18:00 - 22:00 (simplificado)
@@ -160,13 +160,13 @@ export default function DashboardAgenteV2() {
             }, 0) || 0;
             
             const { data: yesterdayReservationsWithCustomer } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     party_size,
                     customer_id,
                     customer:customer_id (visits_count)
                 `)
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('reservation_date', yesterdayStr)
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
             
@@ -182,7 +182,7 @@ export default function DashboardAgenteV2() {
             // Alertas NO-SHOWS de riesgo HOY
             const { data: riskPredictions } = await supabase
                 .rpc('predict_upcoming_noshows_v2', {
-                    p_restaurant_id: restaurant.id,
+                    p_business_id: restaurant.id,
                     p_days_ahead: 0
                 });
             
@@ -198,7 +198,7 @@ export default function DashboardAgenteV2() {
             const { data: conversations } = await supabase
                 .from('agent_conversations')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('created_at', format(sevenDaysAgo, 'yyyy-MM-dd'));
             
             // Filtrar solo las que tienen análisis (sentiment o satisfaction)
@@ -283,7 +283,7 @@ export default function DashboardAgenteV2() {
             
             // Obtener reservas de ESTA SEMANA con datos de clientes
             const { data: thisWeekReservationsWithCustomers } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     *,
                     customer:customer_id (
@@ -292,7 +292,7 @@ export default function DashboardAgenteV2() {
                         segment_auto
                     )
                 `)
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
@@ -338,17 +338,17 @@ export default function DashboardAgenteV2() {
             
             // Valor generado esta semana (fechas ya calculadas arriba)
             const { data: thisWeekRes } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('spend_amount')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
                 .in('status', ['completed', 'seated']);
             
             const { data: lastWeekRes } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('spend_amount')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(startLastWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endLastWeek, 'yyyy-MM-dd'))
                 .in('status', ['completed', 'seated']);
@@ -383,9 +383,9 @@ export default function DashboardAgenteV2() {
             };
             
             const { data: thisWeekChannels } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('source')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
@@ -492,7 +492,7 @@ export default function DashboardAgenteV2() {
             const { data: crmSuggestions } = await supabase
                 .from('crm_suggestions')
                 .select('type')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('status', 'pending');
             
             const crmAlertsCounts = {};
@@ -519,9 +519,9 @@ export default function DashboardAgenteV2() {
                 const dateStr = format(date, 'yyyy-MM-dd');
                 
                 const { data: dayReservations } = await supabase
-                    .from('reservations')
+                    .from('appointments')
                     .select('id')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .eq('reservation_date', dateStr)
                     .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
                 
@@ -1048,4 +1048,5 @@ export default function DashboardAgenteV2() {
         </div>
     );
 }
+
 

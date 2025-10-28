@@ -38,7 +38,7 @@ import { es } from 'date-fns/locale';
 
 // Componente principal
 export default function CRMProximosMensajes() {
-  const { restaurantId, isReady } = useAuthContext();
+  const { businessId, isReady } = useAuthContext();
   
   const [loading, setLoading] = useState(true);
   const [messages, setMessages] = useState([]);
@@ -59,7 +59,7 @@ export default function CRMProximosMensajes() {
 
   // Cargar mensajes programados
   const loadMessages = useCallback(async () => {
-    if (!restaurantId) return;
+    if (!businessId) return;
     
     try {
       setLoading(true);
@@ -72,7 +72,7 @@ export default function CRMProximosMensajes() {
           automation_rule:automation_rule_id(name, description, target_segment),
           template:template_id(name, category, subject)
         `)
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .order('scheduled_for', { ascending: true });
       
       // Aplicar filtros
@@ -141,7 +141,7 @@ export default function CRMProximosMensajes() {
     } finally {
       setLoading(false);
     }
-  }, [restaurantId, filters]);
+  }, [businessId, filters]);
   
   // Calcular estadísticas
   const calculateStats = (messagesData) => {
@@ -276,16 +276,16 @@ export default function CRMProximosMensajes() {
   
   // Cargar datos al montar
   useEffect(() => {
-    if (isReady && restaurantId) {
+    if (isReady && businessId) {
       loadMessages();
     }
-  }, [isReady, restaurantId, loadMessages]);
+  }, [isReady, businessId, loadMessages]);
   
   if (!isReady) {
     return <div className="p-6 text-center">Cargando...</div>;
   }
   
-  if (!restaurantId) {
+  if (!businessId) {
     return (
       <div className="p-6 text-center">
         <AlertTriangle className="w-16 h-16 text-orange-500 mx-auto mb-4" />
@@ -852,3 +852,4 @@ const EditModal = ({ message, onSave, onClose }) => {
     </div>
   );
 };
+

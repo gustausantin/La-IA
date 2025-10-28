@@ -629,9 +629,9 @@ const DashboardRevolutionary = () => {
             console.log('🔍 Dashboard buscando reservas para fecha:', todayDate);
             
             const { data: todayReservations, error: reservationsError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('reservation_date', todayDate)
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'seated']);
             
@@ -643,7 +643,7 @@ const DashboardRevolutionary = () => {
             const { data: activeCustomers } = await supabase
                 .from('customers')
                 .select('id')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .neq('segment_auto', 'inactivo');
 
             // 2. DATOS REALES DE NO-SHOWS - SOLO DESDE SUPABASE
@@ -660,7 +660,7 @@ const DashboardRevolutionary = () => {
                 const { data: todayHighRiskActions } = await supabase
                     .from('noshow_actions')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .eq('reservation_date', format(new Date(), 'yyyy-MM-dd'))
                     .eq('risk_level', 'high');
 
@@ -677,7 +677,7 @@ const DashboardRevolutionary = () => {
                 const { data: weeklyActions } = await supabase
                     .from('noshow_actions')
                     .select('final_outcome, customer_response, prevented_noshow')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
                 const weeklyPrevented = weeklyActions?.filter(action => 
@@ -701,7 +701,7 @@ const DashboardRevolutionary = () => {
             const { data: returningCustomers } = await supabase
                 .from('customers')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('visits_count', 2)
                 .order('visits_count', { ascending: false })
                 .limit(10);
@@ -722,7 +722,7 @@ const DashboardRevolutionary = () => {
             const { data: crmSuggestions } = await supabase
                 .from('crm_suggestions')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('status', 'pending')
                 .order('priority', { ascending: false })
                 .limit(10);
@@ -761,7 +761,7 @@ const DashboardRevolutionary = () => {
             const { data: todayNoShows } = await supabase
                 .from('noshow_actions')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(new Date(), 'yyyy-MM-dd'))
                 .lte('reservation_date', format(new Date(), 'yyyy-MM-dd'));
 
@@ -893,4 +893,5 @@ const DashboardRevolutionary = () => {
 export { NoShowWidget, ReturningCustomersWidget, TotalValueWidget, CRMOpportunitiesWidget };
 
 export default DashboardRevolutionary;
+
 

@@ -11,18 +11,18 @@ class ConflictDetectionService {
     /**
      * 🚨 DETECTAR CONFLICTOS AL CAMBIAR HORARIOS
      */
-    static async detectScheduleConflicts(restaurantId, newSchedule, startDate, endDate) {
+    static async detectScheduleConflicts(businessId, newSchedule, startDate, endDate) {
         try {
             const conflicts = [];
             
             // Obtener reservas en el rango afectado
             const { data: reservations, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     id, customer_name, reservation_date, reservation_time,
                     party_size, table_id, tables(name, zone)
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('reservation_date', startDate)
                 .lte('reservation_date', endDate)
                 .in('status', ['confirmada', 'sentada', 'pendiente']);
@@ -73,16 +73,16 @@ class ConflictDetectionService {
     /**
      * 🪑 DETECTAR CONFLICTOS AL CAMBIAR MESAS
      */
-    static async detectTableConflicts(restaurantId, tableId, changeType, newCapacity = null) {
+    static async detectTableConflicts(businessId, tableId, changeType, newCapacity = null) {
         try {
             // Obtener reservas futuras de esta mesa
             const { data: reservations, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     id, customer_name, reservation_date, reservation_time,
                     party_size, customer_phone
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('table_id', tableId)
                 .gte('reservation_date', format(new Date(), 'yyyy-MM-dd'))
                 .in('status', ['confirmada', 'sentada', 'pendiente'])
@@ -135,7 +135,7 @@ class ConflictDetectionService {
     /**
      * 🎉 DETECTAR CONFLICTOS AL CREAR EVENTOS ESPECIALES
      */
-    static async detectEventConflicts(restaurantId, eventDate, eventType) {
+    static async detectEventConflicts(businessId, eventDate, eventType) {
         try {
             if (eventType !== 'closure' && eventType !== 'holiday') {
                 return { hasConflicts: false, conflicts: [] };
@@ -143,12 +143,12 @@ class ConflictDetectionService {
             
             // Obtener reservas en la fecha del evento
             const { data: reservations, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     id, customer_name, reservation_time, party_size,
                     customer_phone, table_id, tables(name, zone)
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('reservation_date', eventDate)
                 .in('status', ['confirmada', 'sentada', 'pendiente']);
             
@@ -176,13 +176,13 @@ class ConflictDetectionService {
     /**
      * ✅ VALIDAR DISPONIBILIDAD ANTES DE CREAR RESERVA
      */
-    static async validateReservationAvailability(restaurantId, reservationDate, reservationTime, partySize, tableId = null) {
+    static async validateReservationAvailability(businessId, reservationDate, reservationTime, partySize, tableId = null) {
         try {
             // 1. Verificar que hay availability_slots para esa fecha/hora
             let availabilityQuery = supabase
                 .from('availability_slots')
                 .select('id, table_id, status, start_time, end_time')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('slot_date', reservationDate)
                 .eq('status', 'free')
                 .lte('start_time', reservationTime)
@@ -198,7 +198,7 @@ class ConflictDetectionService {
             // 2. Verificar capacidad de mesa si se especifica
             if (tableId) {
                 const { data: table, error: tableError } = await supabase
-                    .from('tables')
+                    .from('resources')
                     .select('capacity, is_active, status')
                     .eq('id', tableId)
                     .single();
@@ -250,7 +250,7 @@ class ConflictDetectionService {
     /**
      * 🔄 DETECTAR NECESIDAD DE REGENERAR DISPONIBILIDADES
      */
-    static async detectAvailabilityUpdateNeeds(restaurantId, changeType, changeData) {
+    static async detectAvailabilityUpdateNeeds(businessId, changeType, changeData) {
         try {
             const needsUpdate = {
                 required: false,
@@ -296,3 +296,4 @@ class ConflictDetectionService {
 }
 
 export default ConflictDetectionService;
+

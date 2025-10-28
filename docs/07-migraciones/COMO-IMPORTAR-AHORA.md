@@ -52,7 +52,7 @@ Success. No rows returned
 ✅ availability_slots  ← Esta era la que fallaba
 ✅ customers
 ✅ reservations
-✅ restaurants
+✅ businesses
 ✅ tables
 ✅ ... (52 tablas más)
 ```

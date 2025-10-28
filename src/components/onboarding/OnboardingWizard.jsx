@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
+import { useAuthContext } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import {
   Heart, Sparkles, Scissors, Dumbbell, Flower2, 
-  Stethoscope, Brain, PawPrint, Activity, User
+  Stethoscope, Brain, PawPrint, Activity, User, LogOut
 } from 'lucide-react';
 
 // 🔟 Verticales para autónomos profesionales
@@ -48,82 +49,81 @@ const VERTICALS = [
   {
     id: 'centro_estetica',
     name: 'Centro de Estética',
-    icon: Sparkles,
+    icon: Flower2,
     color: 'bg-pink-500',
-    description: 'Tratamientos de estética y belleza',
-    defaultServices: ['Facial', 'Depilación láser', 'Tratamiento corporal'],
-    defaultResources: ['Cabina 1', 'Cabina 2', 'Cabina 3']
+    description: 'Tratamientos estéticos y belleza',
+    defaultServices: ['Limpieza facial', 'Depilación', 'Tratamiento corporal'],
+    defaultResources: ['Cabina 1', 'Cabina 2']
   },
   {
     id: 'peluqueria_barberia',
     name: 'Peluquería / Barbería',
     icon: Scissors,
-    color: 'bg-amber-500',
-    description: 'Servicios de peluquería y barbería',
-    defaultServices: ['Corte', 'Tinte', 'Peinado', 'Barba'],
+    color: 'bg-orange-500',
+    description: 'Cortes y peinados',
+    defaultServices: ['Corte', 'Tinte', 'Barba', 'Peinado'],
     defaultResources: ['Sillón 1', 'Sillón 2', 'Sillón 3']
   },
   {
     id: 'centro_unas',
     name: 'Centro de Uñas',
-    icon: Flower2,
-    color: 'bg-rose-500',
+    icon: Heart,
+    color: 'bg-red-500',
     description: 'Manicura y pedicura',
-    defaultServices: ['Manicura', 'Pedicura', 'Uñas acrílicas', 'Uñas gel'],
-    defaultResources: ['Mesa 1', 'Mesa 2', 'Mesa 3']
+    defaultServices: ['Manicura', 'Pedicura', 'Uñas acrílicas'],
+    defaultResources: ['Mesa 1', 'Mesa 2']
   },
   {
     id: 'entrenador_personal',
     name: 'Entrenador Personal',
     icon: Dumbbell,
-    color: 'bg-orange-500',
+    color: 'bg-green-500',
     description: 'Entrenamiento personalizado',
-    defaultServices: ['Sesión 1:1', 'Sesión grupal', 'Evaluación'],
-    defaultResources: ['Sala privada', 'Sala grupal']
+    defaultServices: ['Sesión 1 hora', 'Sesión 30 min', 'Plan mensual'],
+    defaultResources: ['Zona funcional', 'Zona cardio']
   },
   {
     id: 'yoga_pilates',
     name: 'Yoga / Pilates',
-    icon: Heart,
-    color: 'bg-green-500',
+    icon: Activity,
+    color: 'bg-teal-500',
     description: 'Clases de yoga y pilates',
-    defaultServices: ['Clase yoga', 'Clase pilates', 'Sesión privada'],
-    defaultResources: ['Sala 1', 'Sala 2']
+    defaultServices: ['Clase grupal', 'Clase privada', 'Paquete 10 clases'],
+    defaultResources: ['Sala principal', 'Sala privada']
   },
   {
     id: 'veterinario',
-    name: 'Veterinaria',
+    name: 'Veterinario',
     icon: PawPrint,
-    color: 'bg-teal-500',
-    description: 'Clínica veterinaria',
-    defaultServices: ['Consulta', 'Vacunación', 'Cirugía', 'Emergencia'],
-    defaultResources: ['Consultorio 1', 'Consultorio 2', 'Quirófano']
+    color: 'bg-amber-500',
+    description: 'Cuidado veterinario',
+    defaultServices: ['Consulta general', 'Vacunación', 'Cirugía'],
+    defaultResources: ['Consulta 1', 'Quirófano']
   }
 ];
 
 export default function OnboardingWizard({ onComplete }) {
   const navigate = useNavigate();
+  const { user, fetchBusinessInfo } = useAuthContext();
+  
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-
-  // Datos del formulario
+  const [selectedVertical, setSelectedVertical] = useState(null);
   const [businessData, setBusinessData] = useState({
     name: '',
-    vertical: null,
     phone: '',
-    email: '',
+    email: user?.email || '',
     address: '',
     city: '',
     postalCode: '',
+    vertical: '',
     services: [],
     resources: []
   });
 
-  const selectedVertical = VERTICALS.find(v => v.id === businessData.vertical);
-
-  // Paso 1: Seleccionar vertical
   const selectVertical = (verticalId) => {
     const vertical = VERTICALS.find(v => v.id === verticalId);
+    setSelectedVertical(vertical);
     setBusinessData({
       ...businessData,
       vertical: verticalId,
@@ -133,113 +133,161 @@ export default function OnboardingWizard({ onComplete }) {
     setStep(2);
   };
 
-  // Paso 2: Datos del negocio
   const handleBusinessInfo = (e) => {
     e.preventDefault();
     setStep(3);
   };
 
-  // Paso 3: Confirmar y crear
   const handleComplete = async () => {
     setLoading(true);
+    console.log('🟢 INICIANDO CREACIÓN DE NEGOCIO');
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
       if (!user) {
-        toast.error('No hay usuario autenticado');
-        return;
+        throw new Error('No hay usuario autenticado');
       }
+      
+      console.log('✅ Usuario:', user.id);
 
-      // 1. Crear el negocio
+      // 1. CREAR NEGOCIO DIRECTAMENTE EN SUPABASE
+      const businessPayload = {
+        name: businessData.name,
+        vertical_type: businessData.vertical,
+        phone: businessData.phone,
+        email: businessData.email || user.email,
+        address: businessData.address,
+        city: businessData.city,
+        postal_code: businessData.postalCode,
+        active: true,
+        settings: {
+          schedule: {
+            monday: { open: '09:00', close: '20:00', closed: false },
+            tuesday: { open: '09:00', close: '20:00', closed: false },
+            wednesday: { open: '09:00', close: '20:00', closed: false },
+            thursday: { open: '09:00', close: '20:00', closed: false },
+            friday: { open: '09:00', close: '20:00', closed: false },
+            saturday: { open: '10:00', close: '14:00', closed: false },
+            sunday: { open: '00:00', close: '00:00', closed: true }
+          }
+        }
+      };
+
+      console.log('📤 Insertando negocio...');
       const { data: business, error: businessError } = await supabase
         .from('businesses')
-        .insert([{
-          name: businessData.name,
-          vertical: businessData.vertical,
-          phone: businessData.phone,
-          email: businessData.email || user.email,
-          address: businessData.address,
-          city: businessData.city,
-          postal_code: businessData.postalCode,
-          settings: {
-            operating_hours: {
-              monday: { open: '09:00', close: '20:00', closed: false },
-              tuesday: { open: '09:00', close: '20:00', closed: false },
-              wednesday: { open: '09:00', close: '20:00', closed: false },
-              thursday: { open: '09:00', close: '20:00', closed: false },
-              friday: { open: '09:00', close: '20:00', closed: false },
-              saturday: { open: '10:00', close: '14:00', closed: false },
-              sunday: { open: '00:00', close: '00:00', closed: true }
-            }
-          }
-        }])
+        .insert([businessPayload])
         .select()
         .single();
 
-      if (businessError) throw businessError;
+      if (businessError) {
+        console.error('❌ Error creando negocio:', businessError);
+        throw businessError;
+      }
 
-      // 2. Crear relación usuario-negocio
+      console.log('✅ Negocio creado:', business.id);
+
+      // 2. CREAR MAPPING
+      console.log('📤 Creando mapping...');
       const { error: mappingError } = await supabase
         .from('user_business_mapping')
         .insert([{
           auth_user_id: user.id,
           business_id: business.id,
-          role: 'owner'
+          role: 'owner',
+          active: true
         }]);
 
-      if (mappingError) throw mappingError;
+      if (mappingError) {
+        console.error('❌ Error creando mapping:', mappingError);
+        throw mappingError;
+      }
 
-      // 3. Crear servicios predefinidos
-      const servicesData = businessData.services.map((serviceName, index) => ({
-        business_id: business.id,
-        name: serviceName,
-        duration_minutes: 60,
-        price: 0,
-        active: true,
-        display_order: index + 1
-      }));
+      console.log('✅ Mapping creado');
 
-      const { error: servicesError } = await supabase
-        .from('services')
-        .insert(servicesData);
+      // 3. CREAR SERVICIOS
+      if (businessData.services.length > 0) {
+        console.log('📤 Creando servicios...');
+        const servicesData = businessData.services.map((serviceName, index) => ({
+          business_id: business.id,
+          name: serviceName,
+          duration_minutes: 60,
+          price: 0,
+          is_available: true,
+          display_order: index + 1
+        }));
 
-      if (servicesError) throw servicesError;
+        const { error: servicesError } = await supabase
+          .from('services')
+          .insert(servicesData);
 
-      // 4. Crear recursos predefinidos
-      const resourcesData = businessData.resources.map((resourceName, index) => ({
-        business_id: business.id,
-        name: resourceName,
-        type: 'room',
-        capacity: 1,
-        active: true,
-        display_order: index + 1
-      }));
+        if (servicesError) {
+          console.warn('⚠️ Error creando servicios:', servicesError);
+        } else {
+          console.log('✅ Servicios creados');
+        }
+      }
 
-      const { error: resourcesError } = await supabase
-        .from('resources')
-        .insert(resourcesData);
+      // 4. CREAR RECURSOS
+      if (businessData.resources.length > 0) {
+        console.log('📤 Creando recursos...');
+        const resourcesData = businessData.resources.map((resourceName, index) => ({
+          business_id: business.id,
+          name: resourceName,
+          type: 'room',
+          capacity: 1,
+          is_active: true,
+          display_order: index + 1
+        }));
 
-      if (resourcesError) throw resourcesError;
+        const { error: resourcesError } = await supabase
+          .from('resources')
+          .insert(resourcesData);
 
+        if (resourcesError) {
+          console.warn('⚠️ Error creando recursos:', resourcesError);
+        } else {
+          console.log('✅ Recursos creados');
+        }
+      }
+
+      console.log('🎉 NEGOCIO CREADO EXITOSAMENTE');
       toast.success('¡Negocio creado exitosamente!');
       
-      // Disparar evento para actualizar contexto
-      window.dispatchEvent(new CustomEvent('force-business-reload'));
-      
-      if (onComplete) onComplete(business);
-      navigate('/dashboard');
+      // 5. Recargar contexto y redirigir
+      await fetchBusinessInfo(user.id, true);
+      setTimeout(() => {
+        navigate('/dashboard');
+      }, 1000);
 
     } catch (error) {
-      console.error('Error creando negocio:', error);
+      console.error('💥 ERROR FATAL:', error);
       toast.error(`Error: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.href = '/login';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 flex items-center justify-center p-4">
       <div className="max-w-4xl w-full">
+        {/* Botón de Logout */}
+        <div className="flex justify-end mb-4">
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 px-4 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-white rounded-lg transition-all"
+          >
+            <LogOut className="w-4 h-4" />
+            Salir
+          </button>
+        </div>
+        
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
@@ -486,4 +534,5 @@ export default function OnboardingWizard({ onComplete }) {
     </div>
   );
 }
+
 

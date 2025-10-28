@@ -16,7 +16,7 @@ const TestComponent = () => {
       <div data-testid="is-ready">{authContext.isReady.toString()}</div>
       <div data-testid="user-email">{authContext.user?.email || 'no-user'}</div>
       <div data-testid="restaurant-name">{authContext.restaurant?.name || 'no-restaurant'}</div>
-      <div data-testid="restaurant-id">{authContext.restaurantId || 'no-id'}</div>
+      <div data-testid="restaurant-id">{authContext.businessId || 'no-id'}</div>
       <div data-testid="notifications-count">{authContext.notifications?.length || 0}</div>
       <div data-testid="unread-count">{authContext.unreadCount || 0}</div>
       <button 
@@ -319,7 +319,7 @@ describe('AuthContext - Migración Automática', () => {
     // Mock successful restaurant creation
     mockSupabase.rpc.mockResolvedValue({
       data: {
-        restaurant_id: 'new-restaurant',
+        business_id: 'new-restaurant',
         restaurant_name: 'Restaurante de test'
       },
       error: null
@@ -509,3 +509,4 @@ describe('AuthContext - Integración', () => {
     ConsoleErrorSpy.mockRestore();
   });
 });
+

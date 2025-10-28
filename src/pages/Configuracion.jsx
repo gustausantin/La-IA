@@ -281,7 +281,7 @@ const Configuracion = () => {
             if (!currentBusinessId) {
                 console.error("⚠️ No se pudo determinar el Restaurant ID");
                 console.log("📋 Información de depuración:", {
-                    contexto: { restaurantId, restaurant },
+                    contexto: { businessId, restaurant },
                     usuario: authUser.id
                 });
                 setLoading(false);
@@ -427,9 +427,9 @@ const Configuracion = () => {
     }, []);
 
     const handleSave = async (section) => {
-        // Determinar restaurantId de forma robusta
-        let effectiveRestaurantId = restaurantId;
-        if (!effectiveRestaurantId) {
+        // Determinar businessId de forma robusta
+        let effectivebusinessId = businessId;
+        if (!effectivebusinessId) {
             const { data: { user } } = await supabase.auth.getUser();
             if (user) {
                 const { data: mapping } = await supabase
@@ -437,10 +437,10 @@ const Configuracion = () => {
                     .select('business_id')
                     .eq('auth_user_id', user.id)
                     .maybeSingle();
-                effectiveRestaurantId = mapping?.business_id || null;
+                effectivebusinessId = mapping?.business_id || null;
             }
         }
-        if (!effectiveRestaurantId) {
+        if (!effectivebusinessId) {
             toast.error("No se encontró el ID del restaurante");
             return;
         }
@@ -451,16 +451,16 @@ const Configuracion = () => {
             if (section === "Información General") {
                 // Obtener configuración actual para hacer merge
                 const { data: currentData } = await supabase
-                    .from("restaurants")
+                    .from("businesses")
                     .select("settings")
-                    .eq("id", effectiveRestaurantId)
+                    .eq("id", effectivebusinessId)
                     .single();
                     
                 const currentSettings = currentData?.settings || {};
                 
                 // Guardar campos directos + campos en settings
                 const { error } = await supabase
-                    .from("restaurants")
+                    .from("businesses")
                     .update({
                         name: settings.name,
                         email: settings.email,
@@ -480,7 +480,7 @@ const Configuracion = () => {
                         },
                         updated_at: new Date().toISOString()
                     })
-                    .eq("id", effectiveRestaurantId);
+                    .eq("id", effectivebusinessId);
 
                 if (error) throw error;
             } else if (section === "Canales de comunicación") {
@@ -546,16 +546,16 @@ const Configuracion = () => {
                 if (updatedChannels?.reservations_email && !updatedChannels.reservations_email.forward_to) {
                         updatedChannels.reservations_email = {
                             ...updatedChannels.reservations_email,
-                        forward_to: `reservas-${effectiveRestaurantId}@${hostnameBase}`
+                        forward_to: `reservas-${effectivebusinessId}@${hostnameBase}`
                         };
                     }
                 } catch {}
 
                 // Primero obtener los settings actuales de la BD
                 const { data: currentData } = await supabase
-                    .from('restaurants')
+                    .from('businesses')
                     .select('settings')
-                    .eq('id', effectiveRestaurantId)
+                    .eq('id', effectivebusinessId)
                     .single();
                 
                 const currentSettings = currentData?.settings || {};
@@ -567,13 +567,13 @@ const Configuracion = () => {
                 };
                 
                 const { data, error } = await supabase
-                    .from('restaurants')
+                    .from('businesses')
                     .update({
                         channels: updatedChannels,  // Columna channels
                         settings: updatedSettings,   // ✅ NUEVO: También actualizar settings
                         updated_at: new Date().toISOString()
                     })
-                    .eq('id', effectiveRestaurantId)
+                    .eq('id', effectivebusinessId)
                     .select();
                 
                 if (error) throw error;
@@ -587,7 +587,7 @@ const Configuracion = () => {
                     const { data: existing } = await supabase
                         .from('channel_credentials')
                         .select('id')
-                        .eq('restaurant_id', effectiveRestaurantId)
+                        .eq('business_id', effectivebusinessId)
                         .eq('channel', 'twilio_whatsapp')
                         .maybeSingle();
                     
@@ -606,7 +606,7 @@ const Configuracion = () => {
                         await supabase
                             .from('channel_credentials')
                             .insert({
-                                restaurant_id: effectiveRestaurantId,
+                                business_id: effectivebusinessId,
                                 channel: 'twilio_whatsapp',
                                 channel_identifier: whatsappNumber,
                                 is_active: true,
@@ -620,15 +620,15 @@ const Configuracion = () => {
                     await supabase
                         .from('channel_credentials')
                         .update({ is_active: false })
-                        .eq('restaurant_id', effectiveRestaurantId)
+                        .eq('business_id', effectivebusinessId)
                         .eq('channel', 'twilio_whatsapp');
                 }
             } else if (section === "Configuración del Agente") {
                 // Guardar configuración del agente en settings
                 const { data: currentData } = await supabase
-                    .from("restaurants")
+                    .from("businesses")
                     .select("settings")
-                    .eq("id", effectiveRestaurantId)
+                    .eq("id", effectivebusinessId)
                     .single();
                     
                 const currentSettings = currentData?.settings || {};
@@ -638,7 +638,7 @@ const Configuracion = () => {
                 delete agentData.lastname;
                 
                 const { error } = await supabase
-                    .from("restaurants")
+                    .from("businesses")
                     .update({
                         settings: {
                             ...currentSettings,
@@ -646,7 +646,7 @@ const Configuracion = () => {
                         },
                         updated_at: new Date().toISOString()
                     })
-                    .eq("id", effectiveRestaurantId);
+                    .eq("id", effectivebusinessId);
 
                 if (error) throw error;
             } else if (section === "Configuración de notificaciones") {
@@ -670,7 +670,7 @@ const Configuracion = () => {
                 };
 
                 const { error } = await callRpcSafe('update_restaurant_notifications', {
-                    p_restaurant_id: effectiveRestaurantId,
+                    p_business_id: effectivebusinessId,
                     p_notifications: updatedNotifications
                 });
                 if (error) {
@@ -696,9 +696,9 @@ const Configuracion = () => {
                 
                 // Recargar los datos del restaurante desde Supabase
                 const { data: updatedRestaurant, error: fetchError } = await supabase
-                    .from('restaurants')
+                    .from('businesses')
                     .select('*')
-                    .eq('id', effectiveRestaurantId)
+                    .eq('id', effectivebusinessId)
                     .single();
                 
                 if (!fetchError && updatedRestaurant) {
@@ -1229,13 +1229,13 @@ const Configuracion = () => {
                                                                     }));
                                                                     
                                                                     // Si se desactiva, enviar email de confirmación
-                                                                    if (!newEnabled && restaurantId) {
+                                                                    if (!newEnabled && businessId) {
                                                                         try {
                                                                             console.log('🔔 Enviando email de confirmación de desactivación...');
                                                                             const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/agent-deactivated`, {
                                                                                 method: 'POST',
                                                                                 headers: { 'Content-Type': 'application/json' },
-                                                                                body: JSON.stringify({ restaurant_id: restaurantId })
+                                                                                body: JSON.stringify({ business_id: businessId })
                                                                             });
                                                                             const result = await response.json();
                                                                             if (result.success) {
@@ -2276,4 +2276,5 @@ const Configuracion = () => {
 };
 
 export default Configuracion;
+
 

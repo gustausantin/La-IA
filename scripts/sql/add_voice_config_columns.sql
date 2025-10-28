@@ -73,7 +73,7 @@ SELECT
   rs.voice_provider,
   rs.voice_id,
   rs.voice_gender
-FROM restaurants r
+FROM businesses r
 LEFT JOIN restaurant_settings rs ON r.id = rs.restaurant_id
 WHERE r.active = true
 LIMIT 10;

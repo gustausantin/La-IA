@@ -48,7 +48,7 @@ BEGIN
     END IF;
     
     -- Crear el restaurante
-    INSERT INTO restaurants (
+    INSERT INTO businesses (
         name,
         email,
         phone,
@@ -142,7 +142,7 @@ BEGIN
     )
     INTO restaurant_info
     FROM user_restaurant_mapping urm
-    JOIN restaurants r ON urm.restaurant_id = r.id
+    JOIN businesses r ON urm.restaurant_id = r.id
     WHERE urm.auth_user_id = user_id
     AND r.active = true;
     

@@ -334,7 +334,7 @@ DECLARE
   restaurant_record RECORD;
 BEGIN
   FOR restaurant_record IN 
-    SELECT id FROM restaurants
+    SELECT id FROM businesses
   LOOP
     PERFORM create_default_templates_for_restaurant(restaurant_record.id);
   END LOOP;
@@ -355,7 +355,7 @@ SELECT
   mt.category,
   mt.channel,
   mt.is_active
-FROM restaurants r
+FROM businesses r
 JOIN message_templates mt ON mt.restaurant_id = r.id
 ORDER BY r.name, mt.category, mt.name;
 */
@@ -366,7 +366,7 @@ SELECT
   r.id,
   r.name as restaurant_name,
   COUNT(mt.id) as template_count
-FROM restaurants r
+FROM businesses r
 LEFT JOIN message_templates mt ON mt.restaurant_id = r.id
 GROUP BY r.id, r.name
 ORDER BY template_count DESC;

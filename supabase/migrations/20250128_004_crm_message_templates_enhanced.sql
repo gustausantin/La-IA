@@ -18,7 +18,7 @@ ADD COLUMN IF NOT EXISTS conversion_rate NUMERIC DEFAULT 0.00; -- Tasa de conver
 -- 2. CREAR TABLA template_variables (variables disponibles)
 CREATE TABLE IF NOT EXISTS template_variables (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     variable_name VARCHAR NOT NULL, -- ej: first_name, last_visit_at, fav_item
     variable_type VARCHAR NOT NULL CHECK (variable_type IN ('text', 'date', 'number', 'currency', 'list')),
@@ -43,7 +43,7 @@ SELECT
     'María',
     'customer',
     'customers.first_name'
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 INSERT INTO template_variables (restaurant_id, variable_name, variable_type, description, example_value, category, data_source)
@@ -55,7 +55,7 @@ SELECT
     'María García López',
     'customer',
     'customers.name'
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 INSERT INTO template_variables (restaurant_id, variable_name, variable_type, description, example_value, category, data_source)
@@ -67,7 +67,7 @@ SELECT
     '15 de enero 2025',
     'customer',
     'customers.last_visit_at'
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 INSERT INTO template_variables (restaurant_id, variable_name, variable_type, description, example_value, category, data_source)
@@ -79,7 +79,7 @@ SELECT
     '8',
     'customer',
     'customers.visits_count'
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 INSERT INTO template_variables (restaurant_id, variable_name, variable_type, description, example_value, category, data_source)
@@ -91,7 +91,7 @@ SELECT
     '€285.50',
     'customer',
     'customers.total_spent'
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 INSERT INTO template_variables (restaurant_id, variable_name, variable_type, description, example_value, category, data_source)
@@ -102,8 +102,8 @@ SELECT
     'Nombre del restaurante',
     'Restaurante La Buena Mesa',
     'restaurant',
-    'restaurants.name'
-FROM restaurants r
+    'businesses.name'
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 -- 4. INSERTAR PLANTILLAS PREDEFINIDAS
@@ -132,7 +132,7 @@ Como cliente especial, tienes un **20% de descuento** en tu próxima visita. Sol
 *{{restaurant_name}} - Donde cada comida es especial* ❤️',
     ARRAY['first_name', 'restaurant_name', 'last_visit_at', 'days_since_last_visit'],
     ARRAY['reactivacion', 'email', 'descuento']
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 INSERT INTO message_templates (restaurant_id, name, category, template_type, channel, subject, content, body_markdown, variables, tags)
@@ -157,7 +157,7 @@ Eres oficialmente **cliente VIP** de {{restaurant_name}} tras **{{visits_count}}
 **¡Gracias por tu fidelidad!** ❤️',
     ARRAY['first_name', 'restaurant_name', 'visits_count'],
     ARRAY['vip', 'whatsapp', 'bienvenida']
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 -- 5. CREAR ÍNDICES

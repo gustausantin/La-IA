@@ -33,7 +33,7 @@ BEGIN
         COALESCE((settings->>'reservation_duration')::INTEGER, 90) as reservation_duration,
         settings->'calendar_schedule' as calendar_schedule
     INTO v_slot_duration, v_reservation_duration, v_calendar_schedule
-    FROM restaurants
+    FROM businesses
     WHERE id = p_restaurant_id;
 
     -- Para cada mesa activa

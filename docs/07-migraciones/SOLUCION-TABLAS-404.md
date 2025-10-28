@@ -1,6 +1,6 @@
 # 🔧 SOLUCIÓN: Errores 404 en tablas
 
-**Problema:** El código busca tablas antiguas (`restaurants`, `user_restaurant_mapping`) pero Supabase tiene las nuevas (`businesses`, `user_business_mapping`).
+**Problema:** El código busca tablas antiguas (`businesses`, `user_restaurant_mapping`) pero Supabase tiene las nuevas (`businesses`, `user_business_mapping`).
 
 **Error típico:**
 ```
@@ -14,7 +14,7 @@ hint: "Perhaps you meant the table 'public.user_business_mapping'"
 
 ### **1. AuthContext actualizado** ✅
 - ✅ Cambiadas todas las referencias de `user_restaurant_mapping` → `user_business_mapping`
-- ✅ Cambiadas todas las referencias de `restaurants` → `businesses`
+- ✅ Cambiadas todas las referencias de `businesses` → `businesses`
 - ✅ Campos actualizados: `restaurant_id` → `business_id`
 
 ### **2. Crear vistas SQL de compatibilidad** 🚀
@@ -34,7 +34,7 @@ Para evitar cambiar 25 archivos manualmente, creamos **vistas SQL** que actúan 
 SELECT table_name, table_type 
 FROM information_schema.tables 
 WHERE table_schema = 'public' 
-  AND table_name IN ('restaurants', 'user_restaurant_mapping')
+  AND table_name IN ('businesses', 'user_restaurant_mapping')
 ORDER BY table_name;
 ```
 
@@ -42,7 +42,7 @@ Deberías ver:
 ```
 table_name              | table_type
 -----------------------|------------
-restaurants            | VIEW
+businesses            | VIEW
 user_restaurant_mapping| VIEW
 ```
 
@@ -52,16 +52,16 @@ user_restaurant_mapping| VIEW
 
 Crea 2 vistas que funcionan como **puentes** entre el código antiguo y las nuevas tablas:
 
-### **Vista 1: `restaurants`**
+### **Vista 1: `businesses`**
 ```sql
-restaurants (vista) 
+businesses (vista) 
     ↓
 businesses (tabla real)
 ```
 
 Cuando el código hace:
 ```javascript
-.from('restaurants').select('*')
+.from('businesses').select('*')
 ```
 
 En realidad está consultando:
@@ -96,7 +96,7 @@ user_business_mapping (tabla real)
 
 ### **Opción B: Migrar todo el código (LENTO)**
 Cambiar manualmente 25 archivos para usar las nuevas tablas:
-- `businesses` en lugar de `restaurants`
+- `businesses` en lugar de `businesses`
 - `user_business_mapping` en lugar de `user_restaurant_mapping`
 
 ---

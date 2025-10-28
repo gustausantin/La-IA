@@ -59,7 +59,7 @@ DECLARE
     v_restaurant RECORD;
 BEGIN
     FOR v_restaurant IN 
-        SELECT id FROM restaurants WHERE active = true
+        SELECT id FROM businesses WHERE active = true
     LOOP
         PERFORM cleanup_and_regenerate_availability(
             v_restaurant.id,

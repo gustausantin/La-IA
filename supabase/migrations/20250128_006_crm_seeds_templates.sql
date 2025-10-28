@@ -270,7 +270,7 @@
         restaurant_record RECORD;
     BEGIN
         FOR restaurant_record IN 
-            SELECT id FROM restaurants WHERE active = true
+            SELECT id FROM businesses WHERE active = true
         LOOP
             -- Insertar plantillas base
             PERFORM insert_base_templates_for_restaurant(restaurant_record.id);
@@ -298,10 +298,10 @@
     END;
     $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-    -- Aplicar trigger a la tabla restaurants
-    DROP TRIGGER IF EXISTS trigger_create_base_crm_templates ON restaurants;
+    -- Aplicar trigger a la tabla businesses
+    DROP TRIGGER IF EXISTS trigger_create_base_crm_templates ON businesses;
     CREATE TRIGGER trigger_create_base_crm_templates
-        AFTER INSERT ON restaurants
+        AFTER INSERT ON businesses
         FOR EACH ROW
         EXECUTE FUNCTION create_base_crm_templates_for_new_restaurant();
 

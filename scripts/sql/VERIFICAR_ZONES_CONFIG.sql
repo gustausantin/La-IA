@@ -2,7 +2,7 @@
 -- SCRIPT DE VERIFICACIÓN: Configuración de Zonas
 -- Fecha: 19 Octubre 2025
 -- Propósito: Verificar que la configuración de zonas
---           se guardó correctamente en restaurants.settings
+--           se guardó correctamente en businesses.settings
 -- =====================================================
 
 -- =====================================================
@@ -30,7 +30,7 @@ SELECT
     ) AS zonas_activas_nombres,
     
     updated_at
-FROM restaurants
+FROM businesses
 WHERE active = TRUE
 ORDER BY name;
 
@@ -46,7 +46,7 @@ SELECT
     (r.settings->'zones'->zone_key->>'icon')::TEXT AS icono,
     (r.settings->'zones'->zone_key->>'description')::TEXT AS descripcion,
     (r.settings->'zones'->zone_key->>'sort_order')::INTEGER AS orden
-FROM restaurants r,
+FROM businesses r,
      LATERAL jsonb_object_keys(r.settings->'zones') AS zone_key
 WHERE r.active = TRUE
 ORDER BY r.name, (r.settings->'zones'->zone_key->>'sort_order')::INTEGER;
@@ -66,7 +66,7 @@ SELECT
         WHEN r.settings->'zones'->t.zone::TEXT IS NULL THEN '⚠️ No configurada'
         ELSE '❌ Inactiva'
     END AS estado_zona
-FROM restaurants r
+FROM businesses r
 JOIN tables t ON t.restaurant_id = r.id
 WHERE r.active = TRUE
   AND t.is_active = TRUE
@@ -84,7 +84,7 @@ SELECT
     t.zone AS zona,
     t.capacity AS capacidad,
     '⚠️ ALERTA: Mesa en zona INACTIVA' AS advertencia
-FROM restaurants r
+FROM businesses r
 JOIN tables t ON t.restaurant_id = r.id
 WHERE r.active = TRUE
   AND t.is_active = TRUE
@@ -103,7 +103,7 @@ SELECT
     t.zone AS zona,
     t.capacity AS capacidad,
     '⚠️ ALERTA: Zona NO configurada en settings' AS advertencia
-FROM restaurants r
+FROM businesses r
 JOIN tables t ON t.restaurant_id = r.id
 WHERE r.active = TRUE
   AND t.is_active = TRUE
@@ -166,7 +166,7 @@ SELECT
     -- Zona por defecto
     r.settings->>'default_zone' AS zona_defecto
     
-FROM restaurants r
+FROM businesses r
 WHERE r.active = TRUE
 ORDER BY r.name;
 

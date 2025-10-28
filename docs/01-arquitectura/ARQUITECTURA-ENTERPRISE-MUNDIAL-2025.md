@@ -260,8 +260,8 @@ CREATE INDEX CONCURRENTLY idx_reservations_phone_restaurant
   ON reservations (customer_phone, restaurant_id);
 
 -- GIN indexes para búsquedas en JSONB
-CREATE INDEX CONCURRENTLY idx_restaurants_settings_gin 
-  ON restaurants USING GIN (settings);
+CREATE INDEX CONCURRENTLY idx_businesses_settings_gin 
+  ON businesses USING GIN (settings);
 
 CREATE INDEX CONCURRENTLY idx_agent_messages_metadata_gin 
   ON agent_messages USING GIN (metadata);
@@ -455,7 +455,7 @@ export class CacheInvalidation {
     
     // Purge CDN
     await this.cdnClient.purge([
-      `/api/restaurants/${restaurantId}`,
+      `/api/businesses/${restaurantId}`,
       `/api/reservations/${restaurantId}/*`
     ]);
   }

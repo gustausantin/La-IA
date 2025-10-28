@@ -101,10 +101,10 @@ export const sendNewReservationNotification = async (reservationId) => {
     
     // 1. Obtener datos de la reserva
     const { data: reservation, error: reservationError } = await supabase
-      .from('reservations')
+      .from('appointments')
       .select(`
         *,
-        restaurant:restaurants(
+        restaurant:businesses(
           id,
           name,
           email,
@@ -200,10 +200,10 @@ export const sendCancelledReservationNotification = async (reservationId) => {
     
     // 1. Obtener datos de la reserva
     const { data: reservation, error: reservationError } = await supabase
-      .from('reservations')
+      .from('appointments')
       .select(`
         *,
-        restaurant:restaurants(
+        restaurant:businesses(
           id,
           name,
           email,

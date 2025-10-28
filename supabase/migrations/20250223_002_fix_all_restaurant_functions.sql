@@ -6,8 +6,8 @@
 
 -- ========== PARTE 1: ESTRUCTURA DE TABLAS ==========
 
--- 1.1 Asegurar que la tabla restaurants tiene TODAS las columnas necesarias
-ALTER TABLE restaurants 
+-- 1.1 Asegurar que la tabla businesses tiene TODAS las columnas necesarias
+ALTER TABLE businesses 
 ADD COLUMN IF NOT EXISTS channels JSONB DEFAULT '{}'::jsonb,
 ADD COLUMN IF NOT EXISTS notifications JSONB DEFAULT '{}'::jsonb,
 ADD COLUMN IF NOT EXISTS settings JSONB DEFAULT '{}'::jsonb,
@@ -15,13 +15,13 @@ ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT timezone('utc', now()),
 ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT timezone('utc', now());
 
 -- 1.2 Crear índices para mejorar performance
-CREATE INDEX IF NOT EXISTS idx_restaurants_channels ON restaurants USING GIN (channels);
-CREATE INDEX IF NOT EXISTS idx_restaurants_notifications ON restaurants USING GIN (notifications);
-CREATE INDEX IF NOT EXISTS idx_restaurants_settings ON restaurants USING GIN (settings);
-CREATE INDEX IF NOT EXISTS idx_restaurants_email ON restaurants(email);
-CREATE INDEX IF NOT EXISTS idx_restaurants_active ON restaurants(active);
+CREATE INDEX IF NOT EXISTS idx_businesses_channels ON businesses USING GIN (channels);
+CREATE INDEX IF NOT EXISTS idx_businesses_notifications ON businesses USING GIN (notifications);
+CREATE INDEX IF NOT EXISTS idx_businesses_settings ON businesses USING GIN (settings);
+CREATE INDEX IF NOT EXISTS idx_businesses_email ON businesses(email);
+CREATE INDEX IF NOT EXISTS idx_businesses_active ON businesses(active);
 
--- 1.3 Trigger para updated_at en restaurants
+-- 1.3 Trigger para updated_at en businesses
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -30,9 +30,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS update_restaurants_updated_at ON restaurants;
-CREATE TRIGGER update_restaurants_updated_at 
-BEFORE UPDATE ON restaurants 
+DROP TRIGGER IF EXISTS update_businesses_updated_at ON businesses;
+CREATE TRIGGER update_businesses_updated_at 
+BEFORE UPDATE ON businesses 
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- 1.4 Asegurar que user_restaurant_mapping tiene todas las columnas
@@ -78,7 +78,7 @@ BEGIN
     END IF;
 
     -- Actualizar con validación de existencia
-    UPDATE restaurants
+    UPDATE businesses
     SET channels = COALESCE(p_channels, '{}'::jsonb),
         updated_at = timezone('utc', now())
     WHERE id = p_restaurant_id;
@@ -137,7 +137,7 @@ BEGIN
         );
     END IF;
 
-    UPDATE restaurants
+    UPDATE businesses
     SET notifications = COALESCE(p_notifications, '{}'::jsonb),
         updated_at = timezone('utc', now())
     WHERE id = p_restaurant_id;
@@ -184,7 +184,7 @@ BEGIN
     IF v_restaurant_id IS NULL THEN
         -- Intentar buscar por email si no hay mapping
         SELECT r.id INTO v_restaurant_id
-        FROM restaurants r
+        FROM businesses r
         JOIN auth.users u ON u.email = r.email
         WHERE u.id = user_id
         AND r.active = true
@@ -230,7 +230,7 @@ BEGIN
         'mapping_created_at', urm.created_at
     )
     INTO restaurant_info
-    FROM restaurants r
+    FROM businesses r
     LEFT JOIN user_restaurant_mapping urm ON urm.restaurant_id = r.id AND urm.auth_user_id = user_id
     WHERE r.id = v_restaurant_id
     AND r.active = true;
@@ -255,15 +255,15 @@ DECLARE
     v_error TEXT;
 BEGIN
     -- Validar que el restaurant existe
-    IF NOT EXISTS (SELECT 1 FROM restaurants WHERE id = p_restaurant_id) THEN
+    IF NOT EXISTS (SELECT 1 FROM businesses WHERE id = p_restaurant_id) THEN
         RETURN jsonb_build_object(
             'success', false,
             'error', 'Restaurant not found'
         );
     END IF;
     
-    -- Actualizar valores por defecto en restaurants si están vacíos
-    UPDATE restaurants
+    -- Actualizar valores por defecto en businesses si están vacíos
+    UPDATE businesses
     SET 
         channels = CASE 
             WHEN channels IS NULL OR channels = '{}'::jsonb 
@@ -330,12 +330,12 @@ $$;
 -- ========== PARTE 3: POLÍTICAS RLS ==========
 
 -- 3.1 Habilitar RLS
-ALTER TABLE restaurants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE businesses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_restaurant_mapping ENABLE ROW LEVEL SECURITY;
 
--- 3.2 Políticas para restaurants
-DROP POLICY IF EXISTS "Users can view their own restaurant" ON restaurants;
-CREATE POLICY "Users can view their own restaurant" ON restaurants
+-- 3.2 Políticas para businesses
+DROP POLICY IF EXISTS "Users can view their own restaurant" ON businesses;
+CREATE POLICY "Users can view their own restaurant" ON businesses
     FOR SELECT USING (
         id IN (
             SELECT restaurant_id 
@@ -349,8 +349,8 @@ CREATE POLICY "Users can view their own restaurant" ON restaurants
         )
     );
 
-DROP POLICY IF EXISTS "Users can update their own restaurant" ON restaurants;
-CREATE POLICY "Users can update their own restaurant" ON restaurants
+DROP POLICY IF EXISTS "Users can update their own restaurant" ON businesses;
+CREATE POLICY "Users can update their own restaurant" ON businesses
     FOR UPDATE USING (
         id IN (
             SELECT restaurant_id 
@@ -360,8 +360,8 @@ CREATE POLICY "Users can update their own restaurant" ON restaurants
         )
     );
 
-DROP POLICY IF EXISTS "Users can insert their own restaurant" ON restaurants;
-CREATE POLICY "Users can insert their own restaurant" ON restaurants
+DROP POLICY IF EXISTS "Users can insert their own restaurant" ON businesses;
+CREATE POLICY "Users can insert their own restaurant" ON businesses
     FOR INSERT WITH CHECK (
         NOT EXISTS (
             SELECT 1 FROM user_restaurant_mapping 
@@ -390,7 +390,7 @@ BEGIN
     GRANT EXECUTE ON FUNCTION create_restaurant_securely(JSONB, JSONB) TO authenticated;
     
     -- Permisos para tablas (SELECT necesario para RLS)
-    GRANT SELECT, UPDATE ON restaurants TO authenticated;
+    GRANT SELECT, UPDATE ON businesses TO authenticated;
     GRANT SELECT, INSERT, UPDATE ON user_restaurant_mapping TO authenticated;
 EXCEPTION
     WHEN OTHERS THEN
@@ -419,15 +419,15 @@ BEGIN
     
     -- Verificar columnas
     SELECT 
-        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'restaurants' AND column_name = 'channels'),
-        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'restaurants' AND column_name = 'notifications'),
-        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'restaurants' AND column_name = 'updated_at')
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'businesses' AND column_name = 'channels'),
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'businesses' AND column_name = 'notifications'),
+        EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'businesses' AND column_name = 'updated_at')
     INTO v_has_channels, v_has_notifications, v_has_updated_at;
     
     -- Verificar políticas RLS
     SELECT COUNT(*) INTO v_policies_count
     FROM pg_policies
-    WHERE tablename IN ('restaurants', 'user_restaurant_mapping');
+    WHERE tablename IN ('businesses', 'user_restaurant_mapping');
     
     -- Construir resultado
     result := jsonb_build_object(
@@ -454,7 +454,7 @@ BEGIN
                     'channels_not_null', channels IS NOT NULL,
                     'notifications_not_null', notifications IS NOT NULL
                 )
-                FROM restaurants
+                FROM businesses
                 WHERE id = v_restaurant_id
             )
         );

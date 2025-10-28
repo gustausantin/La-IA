@@ -88,7 +88,7 @@ La-IA App es una plataforma SaaS multi-tenant diseñada para revolucionar la ges
 
 ```
 ┌─────────────────┐
-│   restaurants   │ (Tenant principal)
+│   businesses   │ (Tenant principal)
 └────────┬────────┘
          │
          ├──────────┬──────────┬──────────┬──────────┐
@@ -111,7 +111,7 @@ La-IA App es una plataforma SaaS multi-tenant diseñada para revolucionar la ges
 
 ### **Tablas Principales**
 
-#### **1. `restaurants`**
+#### **1. `businesses`**
 **Propósito:** Tenant principal, un registro por restaurante
 
 | Columna | Tipo | Descripción |
@@ -131,8 +131,8 @@ La-IA App es una plataforma SaaS multi-tenant diseñada para revolucionar la ges
 | `updated_at` | TIMESTAMPTZ | Última actualización |
 
 **Índices:**
-- `idx_restaurants_owner_id` en `owner_id`
-- `idx_restaurants_email` en `email`
+- `idx_businesses_owner_id` en `owner_id`
+- `idx_businesses_email` en `email`
 
 **RLS:** Habilitado - Solo el `owner_id` puede ver/editar
 
@@ -144,7 +144,7 @@ La-IA App es una plataforma SaaS multi-tenant diseñada para revolucionar la ges
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | UUID | PK |
-| `restaurant_id` | UUID | FK a `restaurants` |
+| `restaurant_id` | UUID | FK a `businesses` |
 | `table_number` | INTEGER | Número de mesa |
 | `name` | TEXT | Nombre (ej: "Mesa VIP") |
 | `capacity` | INTEGER | Capacidad (personas) |
@@ -166,7 +166,7 @@ La-IA App es una plataforma SaaS multi-tenant diseñada para revolucionar la ges
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | UUID | PK |
-| `restaurant_id` | UUID | FK a `restaurants` |
+| `restaurant_id` | UUID | FK a `businesses` |
 | `first_name` | TEXT | Nombre |
 | `last_name1` | TEXT | Primer apellido |
 | `last_name2` | TEXT | Segundo apellido (opcional) |
@@ -203,7 +203,7 @@ La-IA App es una plataforma SaaS multi-tenant diseñada para revolucionar la ges
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | UUID | PK |
-| `restaurant_id` | UUID | FK a `restaurants` |
+| `restaurant_id` | UUID | FK a `businesses` |
 | `customer_id` | UUID | FK a `customers` (nullable) |
 | `table_id` | UUID | FK a `tables` (nullable, legacy) |
 | `reservation_date` | DATE | Fecha de la reserva |
@@ -267,7 +267,7 @@ La-IA App es una plataforma SaaS multi-tenant diseñada para revolucionar la ges
 | Columna | Tipo | Descripción |
 |---------|------|-------------|
 | `id` | UUID | PK |
-| `restaurant_id` | UUID | FK a `restaurants` |
+| `restaurant_id` | UUID | FK a `businesses` |
 | `name` | TEXT | Nombre del template |
 | `category` | TEXT | Categoría (recordatorio, marketing, grupo_grande, etc.) |
 | `segment` | TEXT | Segmento objetivo (all, nuevo, habitual, vip) |
@@ -361,7 +361,7 @@ src/
 2. Supabase Auth → signInWithPassword()
 3. AuthContext → fetchRestaurantInfo()
 4. Query: user_restaurant_mapping → restaurant_id
-5. Query: restaurants → restaurant data
+5. Query: businesses → restaurant data
 6. Context actualizado → App renderiza
 7. Redirect → /dashboard-agente
 ```
@@ -544,13 +544,13 @@ ON {table_name}
 FOR ALL
 USING (restaurant_id IN (
   SELECT r.id 
-  FROM restaurants r
+  FROM businesses r
   WHERE r.owner_id = auth.uid()
 ));
 ```
 
 **Tablas con RLS:**
-- ✅ `restaurants`
+- ✅ `businesses`
 - ✅ `tables`
 - ✅ `customers`
 - ✅ `reservations`

@@ -10,7 +10,7 @@ BEGIN
     -- 1. CREAR TABLA CRM_SETTINGS
     CREATE TABLE IF NOT EXISTS crm_settings (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+        restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
         
         -- Factores AIVI v2
         aivi_factor_recency DECIMAL(3,2) DEFAULT 0.8, -- Factor de recencia (0.0-1.0)
@@ -66,7 +66,7 @@ BEGIN
             CREATE POLICY "Users can view their restaurant's CRM settings" ON crm_settings
                 FOR SELECT USING (
                     restaurant_id IN (
-                        SELECT r.id FROM restaurants r 
+                        SELECT r.id FROM businesses r 
                         WHERE r.owner_id = auth.uid()
                     )
                 );
@@ -80,7 +80,7 @@ BEGIN
             CREATE POLICY "Users can manage their restaurant's CRM settings" ON crm_settings
                 FOR ALL USING (
                     restaurant_id IN (
-                        SELECT r.id FROM restaurants r 
+                        SELECT r.id FROM businesses r 
                         WHERE r.owner_id = auth.uid()
                     )
                 );
@@ -91,7 +91,7 @@ BEGIN
     -- 4. CONFIGURACIÓN INICIAL PARA RESTAURANTES EXISTENTES
     INSERT INTO crm_settings (restaurant_id)
     SELECT r.id
-    FROM restaurants r
+    FROM businesses r
     WHERE NOT EXISTS (
         SELECT 1 FROM crm_settings cs 
         WHERE cs.restaurant_id = r.id

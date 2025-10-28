@@ -28,7 +28,7 @@ COMMENT ON COLUMN customers.interaction_count IS 'Total de interacciones de mark
 
 CREATE TABLE IF NOT EXISTS message_templates (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Identificación y categorización
     name TEXT NOT NULL,
@@ -76,7 +76,7 @@ CREATE POLICY "message_templates_tenant_isolation" ON message_templates
 
 CREATE TABLE IF NOT EXISTS automation_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Identificación
     name TEXT NOT NULL,
@@ -130,7 +130,7 @@ CREATE POLICY "automation_rules_tenant_isolation" ON automation_rules
 
 CREATE TABLE IF NOT EXISTS scheduled_messages (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Referencias
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
@@ -192,7 +192,7 @@ CREATE POLICY "scheduled_messages_tenant_isolation" ON scheduled_messages
 
 CREATE TABLE IF NOT EXISTS interaction_logs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Referencias
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
@@ -243,7 +243,7 @@ CREATE POLICY "interaction_logs_tenant_isolation" ON interaction_logs
 
 CREATE TABLE IF NOT EXISTS channel_credentials (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Channel identification
     channel TEXT NOT NULL CHECK (channel IN ('twilio_whatsapp', 'sendgrid_email', 'resend_email', 'n8n_webhook')),

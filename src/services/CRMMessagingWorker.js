@@ -84,7 +84,7 @@ export class CRMMessagingWorker {
           customer:customer_id(*),
           template:template_id(*),
           automation_rule:automation_rule_id(*),
-          restaurant:restaurant_id(*)
+          restaurant:business_id(*)
         `)
         .eq('status', 'planned')
         .lte('scheduled_for', now)
@@ -122,7 +122,7 @@ export class CRMMessagingWorker {
       // 2. Verificar elegibilidad en tiempo real
       const eligibility = await CRMEligibilityService.checkEligibility(
         message.customer_id,
-        message.restaurant_id,
+        message.business_id,
         message.automation_rule_id
       );
       
@@ -193,7 +193,7 @@ export class CRMMessagingWorker {
   async sendWhatsAppMessage(message) {
     try {
       // 1. Obtener credenciales de Twilio para el restaurante
-      const credentials = await this.getChannelCredentials(message.restaurant_id, 'twilio_whatsapp');
+      const credentials = await this.getChannelCredentials(message.business_id, 'twilio_whatsapp');
       
       if (!credentials) {
         throw new Error('Credenciales de Twilio WhatsApp no configuradas');
@@ -237,7 +237,7 @@ export class CRMMessagingWorker {
   async sendEmailMessage(message) {
     try {
       // 1. Obtener credenciales de email para el restaurante
-      const credentials = await this.getChannelCredentials(message.restaurant_id, 'sendgrid_email');
+      const credentials = await this.getChannelCredentials(message.business_id, 'sendgrid_email');
       
       if (!credentials) {
         throw new Error('Credenciales de email no configuradas');
@@ -273,12 +273,12 @@ export class CRMMessagingWorker {
   /**
    * Obtiene credenciales del canal para un restaurante
    */
-  async getChannelCredentials(restaurantId, channel) {
+  async getChannelCredentials(businessId, channel) {
     try {
       const { data, error } = await supabase
         .from('channel_credentials')
         .select('credentials, config')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('channel', channel)
         .eq('is_active', true)
         .single();
@@ -408,7 +408,7 @@ export class CRMMessagingWorker {
   async createInteractionLog(message, interactionType, result) {
     try {
       const logData = {
-        restaurant_id: message.restaurant_id,
+        business_id: message.business_id,
         customer_id: message.customer_id,
         scheduled_message_id: message.id,
         interaction_type: interactionType,
@@ -458,7 +458,7 @@ export class CRMMessagingWorker {
   /**
    * Obtiene estadísticas del worker
    */
-  async getWorkerStats(restaurantId, hours = 24) {
+  async getWorkerStats(businessId, hours = 24) {
     try {
       const startTime = new Date();
       startTime.setHours(startTime.getHours() - hours);
@@ -466,7 +466,7 @@ export class CRMMessagingWorker {
       const { data: messages, error } = await supabase
         .from('scheduled_messages')
         .select('status, channel_final, created_at, retry_count')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .gte('created_at', startTime.toISOString());
       
       if (error) throw error;
@@ -498,3 +498,4 @@ export class CRMMessagingWorker {
 export const messagingWorker = new CRMMessagingWorker();
 
 export default CRMMessagingWorker;
+

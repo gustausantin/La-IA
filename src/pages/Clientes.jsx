@@ -102,7 +102,7 @@ const calculateRealTimeSegment = (customer) => {
 // Componente principal
 export default function Clientes() {
     const navigate = useNavigate();
-    const { restaurant, restaurantId, isReady } = useAuthContext();
+    const { restaurant, businessId, isReady } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [customers, setCustomers] = useState([]);
     const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -122,8 +122,8 @@ export default function Clientes() {
         try {
             setLoading(true);
             
-            if (!restaurantId) {
-                console.log('📋 Clientes: Sin restaurantId');
+            if (!businessId) {
+                console.log('📋 Clientes: Sin businessId');
                 setCustomers([]);
                 setLoading(false);
                 return;
@@ -132,12 +132,12 @@ export default function Clientes() {
             const { data: customers, error } = await supabase
                 .from("customers")
                 .select(`
-                    id, restaurant_id, name, email, phone, first_name, last_name1, last_name2, birthday,
+                    id, business_id, name, email, phone, first_name, last_name1, last_name2, birthday,
                     segment_auto, segment_manual, visits_count, last_visit_at, total_spent, avg_ticket,
                     churn_risk_score, predicted_ltv, consent_email, consent_sms, consent_whatsapp,
                     preferences, tags, notes, created_at, updated_at, is_active
                 `)
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .eq("is_active", true)  // ✅ Solo clientes activos
                 .order("created_at", { ascending: false });
 
@@ -167,7 +167,7 @@ export default function Clientes() {
         } finally {
             setLoading(false);
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Editar cliente
     const handleEditCustomer = (customer) => {
@@ -317,10 +317,10 @@ export default function Clientes() {
 
     // Effects
     useEffect(() => {
-        if (isReady && restaurantId) {
+        if (isReady && businessId) {
             loadCustomers();
         }
-    }, [isReady, restaurantId, loadCustomers]);
+    }, [isReady, businessId, loadCustomers]);
 
     // Pantallas de carga y error
     if (!isReady) {
@@ -338,7 +338,7 @@ export default function Clientes() {
         );
     }
 
-    if (!restaurantId) {
+    if (!businessId) {
         return (
             <div className="min-h-screen bg-gray-50 px-4 py-4">
                 <div className="max-w-[85%] mx-auto">
@@ -915,7 +915,7 @@ export default function Clientes() {
                 <CustomerModal
                 customer={selectedCustomer}
                 isOpen={showCustomerModal}
-                restaurantId={restaurantId}
+                businessId={businessId}
                 mode={modalMode}
                     onClose={() => {
                     setShowCustomerModal(false);
@@ -952,4 +952,5 @@ export default function Clientes() {
         </div>
     );
 };
+
 

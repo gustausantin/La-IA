@@ -15,7 +15,7 @@ He creado el **esquema completamente nuevo** optimizado para autónomos multi-ve
 #### **Tablas Principales:**
 - ✅ `business_verticals` - Catálogo de 10 sectores
 - ✅ `service_templates` - 38 servicios predefinidos
-- ✅ `businesses` - Negocios (antes "restaurants")
+- ✅ `businesses` - Negocios (antes "businesses")
 - ✅ `resources` - Recursos (antes "tables" - sillas/camillas/consultorios)
 - ✅ `services` - Servicios del negocio (antes "menu_items")
 - ✅ `appointments` - Citas (antes "reservations")
@@ -64,7 +64,7 @@ He creado el **esquema completamente nuevo** optimizado para autónomos multi-ve
 
 | Concepto Anterior | Concepto Nuevo | Descripción |
 |------------------|----------------|-------------|
-| `restaurants` | `businesses` | Negocios de autónomos |
+| `businesses` | `businesses` | Negocios de autónomos |
 | `tables` | `resources` | Sillas/Camillas/Consultorios |
 | `menu_items` | `services` | Servicios ofrecidos |
 | `reservations` | `appointments` | Citas/Sesiones |
@@ -177,7 +177,7 @@ Si todo va bien, verás:
 ## 🚀 PRÓXIMOS PASOS (DESPUÉS DE MIGRAR BD)
 
 ### **1. Adaptar Frontend** (2-3 días)
-- Renombrar stores (`restaurantStore` → `businessStore`)
+- Renombrar stores (`businessestore` → `businessStore`)
 - Adaptar servicios API
 - Cambiar terminología en UI
 

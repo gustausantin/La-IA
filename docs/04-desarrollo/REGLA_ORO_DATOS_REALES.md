@@ -36,7 +36,7 @@ const occupancyRate = 85; // ← PROHIBIDO
 #### 3. **Configuración del Usuario**
 ```javascript
 // ✅ CORRECTO: Leer configuración real
-const duration = restaurantSettings?.reservation_duration || 90;
+const duration = businessesettings?.reservation_duration || 90;
 
 // ❌ INCORRECTO: Hardcodear valor
 const duration = 90; // ← PROHIBIDO (debe leerse de settings)
@@ -57,8 +57,8 @@ const weatherData = { temp: 25, status: 'sunny' }; // ← PROHIBIDO
 
 | Componente | Dato | Origen | Estado |
 |------------|------|---------|---------|
-| AvailabilityManager | `restaurantSettings` | `restaurants.settings` | ✅ REAL |
-| Reservas | `policySettings` | `restaurants.settings` | ✅ REAL |
+| AvailabilityManager | `businessesettings` | `businesses.settings` | ✅ REAL |
+| Reservas | `policySettings` | `businesses.settings` | ✅ REAL |
 | Dashboard | `reservationCount` | `COUNT(reservations)` | ✅ REAL |
 | Mesas | `tableStats` | `tables + reservations` | ✅ REAL |
 
@@ -114,8 +114,8 @@ console.log('📊 Datos cargados desde:', {
 #### 3. **Comentarios Obligatorios**
 ```javascript
 // ✅ CORRECTO: Documentar origen
-// Datos reales desde restaurants.settings.reservation_duration
-const duration = restaurantSettings?.reservation_duration || 90;
+// Datos reales desde businesses.settings.reservation_duration
+const duration = businessesettings?.reservation_duration || 90;
 ```
 
 ### 📋 CHECKLIST ANTES DE CUALQUIER COMMIT

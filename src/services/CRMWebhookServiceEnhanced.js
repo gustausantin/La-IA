@@ -12,13 +12,13 @@ export class CRMWebhookServiceEnhanced {
   /**
    * Dispara webhook para evento de reserva completada
    */
-  static async triggerReservationWebhook(reservationId, restaurantId, eventType = 'reservation_completed') {
+  static async triggerReservationWebhook(reservationId, businessId, eventType = 'reservation_completed') {
     try {
       console.log('🔔 Disparando webhook de reserva:', { reservationId, eventType });
       
       // Obtener datos completos de la reserva
       const { data: reservation, error: reservationError } = await supabase
-        .from('reservations')
+        .from('appointments')
         .select(`
           *,
           customer:customer_id(*),
@@ -35,7 +35,7 @@ export class CRMWebhookServiceEnhanced {
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('id, name, email, phone')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
       
       // Preparar payload del webhook
@@ -70,7 +70,7 @@ export class CRMWebhookServiceEnhanced {
       };
       
       // Enviar webhook
-      await this.sendWebhook(restaurantId, 'reservation', webhookPayload);
+      await this.sendWebhook(businessId, 'reservation', webhookPayload);
       
       console.log('✅ Webhook de reserva enviado exitosamente');
       
@@ -82,7 +82,7 @@ export class CRMWebhookServiceEnhanced {
   /**
    * Dispara webhook para cambio de segmento de cliente
    */
-  static async triggerSegmentChangeWebhook(customerId, restaurantId, previousSegment, newSegment) {
+  static async triggerSegmentChangeWebhook(customerId, businessId, previousSegment, newSegment) {
     try {
       console.log('🔔 Disparando webhook de cambio de segmento:', { customerId, previousSegment, newSegment });
       
@@ -101,7 +101,7 @@ export class CRMWebhookServiceEnhanced {
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('id, name, email, phone')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
       
       // Preparar payload del webhook
@@ -125,7 +125,7 @@ export class CRMWebhookServiceEnhanced {
       };
       
       // Enviar webhook
-      await this.sendWebhook(restaurantId, 'customer_segment', webhookPayload);
+      await this.sendWebhook(businessId, 'customer_segment', webhookPayload);
       
       console.log('✅ Webhook de cambio de segmento enviado exitosamente');
       
@@ -137,7 +137,7 @@ export class CRMWebhookServiceEnhanced {
   /**
    * Dispara webhook para mensaje enviado
    */
-  static async triggerMessageWebhook(messageId, restaurantId, eventType = 'message_sent') {
+  static async triggerMessageWebhook(messageId, businessId, eventType = 'message_sent') {
     try {
       console.log('🔔 Disparando webhook de mensaje:', { messageId, eventType });
       
@@ -161,7 +161,7 @@ export class CRMWebhookServiceEnhanced {
       const { data: restaurant } = await supabase
         .from('businesses')
         .select('id, name, email, phone')
-        .eq('id', restaurantId)
+        .eq('id', businessId)
         .single();
       
       // Preparar payload del webhook
@@ -196,7 +196,7 @@ export class CRMWebhookServiceEnhanced {
       };
       
       // Enviar webhook
-      await this.sendWebhook(restaurantId, 'message', webhookPayload);
+      await this.sendWebhook(businessId, 'message', webhookPayload);
       
       console.log('✅ Webhook de mensaje enviado exitosamente');
       
@@ -208,13 +208,13 @@ export class CRMWebhookServiceEnhanced {
   /**
    * Envía webhook a endpoints configurados
    */
-  static async sendWebhook(restaurantId, webhookType, payload) {
+  static async sendWebhook(businessId, webhookType, payload) {
     try {
       // Obtener configuración de webhooks para el restaurante
       const { data: webhookConfigs, error } = await supabase
         .from('channel_credentials')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('channel', 'n8n_webhook')
         .eq('is_active', true);
       
@@ -394,7 +394,7 @@ export class CRMWebhookServiceEnhanced {
       await supabase
         .from('interaction_logs')
         .insert([{
-          restaurant_id: message.restaurant_id,
+          business_id: message.business_id,
           customer_id: message.customer_id,
           scheduled_message_id: message.id,
           interaction_type: newStatus === 'delivered' ? 'message_delivered' : 'message_failed',
@@ -465,7 +465,7 @@ export class CRMWebhookServiceEnhanced {
         await supabase
           .from('interaction_logs')
           .insert([{
-            restaurant_id: message.restaurant_id,
+            business_id: message.business_id,
             customer_id: message.customer_id,
             scheduled_message_id: message.id,
             interaction_type: newStatus === 'delivered' ? 'message_delivered' : 'message_failed',
@@ -488,14 +488,14 @@ export class CRMWebhookServiceEnhanced {
    */
   static async handleN8NWebhook(payload, headers) {
     try {
-      const { action, restaurant_id, customer_id, data } = payload;
+      const { action, business_id, customer_id, data } = payload;
       
       switch (action) {
         case 'update_customer_consent':
-          await this.updateCustomerConsent(restaurant_id, customer_id, data);
+          await this.updateCustomerConsent(business_id, customer_id, data);
           break;
         case 'trigger_custom_message':
-          await this.triggerCustomMessage(restaurant_id, customer_id, data);
+          await this.triggerCustomMessage(business_id, customer_id, data);
           break;
         default:
           console.log(`⚠️ Acción no reconocida desde N8N: ${action}`);
@@ -512,7 +512,7 @@ export class CRMWebhookServiceEnhanced {
   /**
    * Actualiza consentimiento de cliente desde webhook externo
    */
-  static async updateCustomerConsent(restaurantId, customerId, consentData) {
+  static async updateCustomerConsent(businessId, customerId, consentData) {
     try {
       const updateData = {};
       
@@ -532,7 +532,7 @@ export class CRMWebhookServiceEnhanced {
         .from('customers')
         .update(updateData)
         .eq('id', customerId)
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
       
       console.log(`✅ Consentimientos actualizados para cliente ${customerId}`);
       
@@ -560,12 +560,12 @@ export class CRMWebhookServiceEnhanced {
   /**
    * Obtiene estadísticas de webhooks
    */
-  static async getWebhookStats(restaurantId, days = 7) {
+  static async getWebhookStats(businessId, days = 7) {
     try {
       const { data: configs, error } = await supabase
         .from('channel_credentials')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('channel', 'n8n_webhook');
       
       if (error) throw error;
@@ -591,3 +591,4 @@ export const triggerReservationWebhook = CRMWebhookServiceEnhanced.triggerReserv
 export const triggerSegmentChangeWebhook = CRMWebhookServiceEnhanced.triggerSegmentChangeWebhook;
 
 export default CRMWebhookServiceEnhanced;
+

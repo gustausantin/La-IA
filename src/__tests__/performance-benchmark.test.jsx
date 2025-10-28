@@ -52,7 +52,7 @@ describe('🚀 PERFORMANCE BENCHMARKS - Silicon Valley Standards', () => {
     loading: false,
     status: 'unauthenticated', // Unauthenticated para mostrar login
     restaurant: null,
-    restaurantId: null,
+    businessId: null,
     notifications: [],
     login: vi.fn(),
     register: vi.fn(),

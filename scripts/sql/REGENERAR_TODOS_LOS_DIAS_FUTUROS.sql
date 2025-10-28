@@ -32,7 +32,7 @@ BEGIN
     
     FOR v_restaurant IN 
         SELECT id, name 
-        FROM restaurants 
+        FROM businesses 
         WHERE active = true
         ORDER BY name
     LOOP
@@ -72,7 +72,7 @@ SELECT
     COUNT(DISTINCT a.slot_date) as dias_con_slots,
     MIN(a.slot_date) as primer_dia,
     MAX(a.slot_date) as ultimo_dia
-FROM restaurants r
+FROM businesses r
 LEFT JOIN availability_slots a ON r.id = a.restaurant_id
     AND a.slot_date >= CURRENT_DATE
     AND a.slot_date <= CURRENT_DATE + INTERVAL '30 days'
@@ -100,7 +100,7 @@ SELECT
     a.end_time as ultimo_slot_fin,
     COUNT(*) as mesas_disponibles
 FROM ultimo_slot u
-JOIN restaurants r ON u.restaurant_id = r.id
+JOIN businesses r ON u.restaurant_id = r.id
 JOIN availability_slots a ON a.restaurant_id = u.restaurant_id
     AND a.start_time = u.max_start_time
     AND a.slot_date = CURRENT_DATE

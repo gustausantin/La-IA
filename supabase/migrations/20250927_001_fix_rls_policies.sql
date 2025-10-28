@@ -6,14 +6,14 @@
 -- =====================================================
 
 -- LIMPIAR POLÍTICAS PROBLEMÁTICAS (sin desactivar RLS)
-DROP POLICY IF EXISTS "Users can view their own restaurant" ON restaurants;
-DROP POLICY IF EXISTS "Users can update their own restaurant" ON restaurants;
-DROP POLICY IF EXISTS "Users can insert their own restaurant" ON restaurants;
+DROP POLICY IF EXISTS "Users can view their own restaurant" ON businesses;
+DROP POLICY IF EXISTS "Users can update their own restaurant" ON businesses;
+DROP POLICY IF EXISTS "Users can insert their own restaurant" ON businesses;
 DROP POLICY IF EXISTS "Users can view their own mapping" ON user_restaurant_mapping;
 
--- POLÍTICAS CORRECTAS PARA RESTAURANTS
+-- POLÍTICAS CORRECTAS PARA businesses
 -- Permitir ver restaurantes propios (por mapping o email)
-CREATE POLICY "restaurants_select_policy" ON restaurants
+CREATE POLICY "businesses_select_policy" ON businesses
     FOR SELECT USING (
         -- Usuario autenticado puede ver su restaurant via mapping
         id IN (
@@ -30,7 +30,7 @@ CREATE POLICY "restaurants_select_policy" ON restaurants
     );
 
 -- Permitir actualizar restaurantes propios
-CREATE POLICY "restaurants_update_policy" ON restaurants
+CREATE POLICY "businesses_update_policy" ON businesses
     FOR UPDATE USING (
         id IN (
             SELECT restaurant_id 
@@ -43,7 +43,7 @@ CREATE POLICY "restaurants_update_policy" ON restaurants
     );
 
 -- Permitir crear restaurantes (solo usuarios autenticados)
-CREATE POLICY "restaurants_insert_policy" ON restaurants
+CREATE POLICY "businesses_insert_policy" ON businesses
     FOR INSERT WITH CHECK (
         auth.role() = 'authenticated'
     );
@@ -74,7 +74,7 @@ CREATE POLICY "mapping_update_policy" ON user_restaurant_mapping
     );
 
 -- OTORGAR PERMISOS EXPLÍCITOS
-GRANT SELECT, INSERT, UPDATE ON restaurants TO authenticated, anon;
+GRANT SELECT, INSERT, UPDATE ON businesses TO authenticated, anon;
 GRANT SELECT, INSERT, UPDATE ON user_restaurant_mapping TO authenticated, anon;
 
 -- MENSAJE DE CONFIRMACIÓN

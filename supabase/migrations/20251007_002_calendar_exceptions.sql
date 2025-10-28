@@ -6,7 +6,7 @@
 -- 1. Crear tabla calendar_exceptions
 CREATE TABLE IF NOT EXISTS calendar_exceptions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     exception_date DATE NOT NULL,
     is_open BOOLEAN NOT NULL DEFAULT true,
     reason TEXT,
@@ -37,7 +37,7 @@ CREATE POLICY "Users can view their restaurant exceptions"
     FOR SELECT
     USING (
         restaurant_id IN (
-            SELECT id FROM restaurants 
+            SELECT id FROM businesses 
             WHERE id = restaurant_id
         )
     );
@@ -48,7 +48,7 @@ CREATE POLICY "Users can create exceptions for their restaurant"
     FOR INSERT
     WITH CHECK (
         restaurant_id IN (
-            SELECT id FROM restaurants 
+            SELECT id FROM businesses 
             WHERE id = restaurant_id
         )
     );
@@ -59,7 +59,7 @@ CREATE POLICY "Users can update their restaurant exceptions"
     FOR UPDATE
     USING (
         restaurant_id IN (
-            SELECT id FROM restaurants 
+            SELECT id FROM businesses 
             WHERE id = restaurant_id
         )
     );
@@ -70,7 +70,7 @@ CREATE POLICY "Users can delete their restaurant exceptions"
     FOR DELETE
     USING (
         restaurant_id IN (
-            SELECT id FROM restaurants 
+            SELECT id FROM businesses 
             WHERE id = restaurant_id
         )
     );

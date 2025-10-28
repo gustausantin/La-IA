@@ -92,7 +92,7 @@ const CRMSimple = () => {
                         total_spent
                     )
                 `)
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('status', 'pending')
                 .order('created_at', { ascending: false })
                 .limit(10);
@@ -121,7 +121,7 @@ const CRMSimple = () => {
             const { data: interacciones } = await supabase
                 .from('customer_interactions')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('created_at', weekAgo.toISOString());
 
             const mensajesEnviados = interacciones?.length || 0;
@@ -156,7 +156,7 @@ const CRMSimple = () => {
             const { data: conversations, error: convError } = await supabase
                 .from('agent_conversations')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('status', 'resolved')
                 .gte('created_at', format(thirtyDaysAgo, 'yyyy-MM-dd'))
                 .order('created_at', { ascending: true });
@@ -227,7 +227,7 @@ const CRMSimple = () => {
             const { data: problematic, error: probError } = await supabase
                 .from('agent_conversations')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('created_at', format(sevenDaysAgo, 'yyyy-MM-dd'))
                 .or('sentiment.eq.negative,metadata->>escalation_needed.eq.true')
                 .order('created_at', { ascending: false })
@@ -312,7 +312,7 @@ const CRMSimple = () => {
 
             // Guardar interacción
             await supabase.from('customer_interactions').insert({
-                restaurant_id: restaurant.id,
+                business_id: restaurant.id,
                 customer_id: alerta.metadata.customer_id,
                 channel: alerta.telefono ? 'whatsapp' : 'email',
                 interaction_type: alerta.tipo,
@@ -775,4 +775,5 @@ const CRMSimple = () => {
 };
 
 export default CRMSimple;
+
 

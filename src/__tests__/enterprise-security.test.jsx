@@ -19,7 +19,7 @@ describe('🔒 SEGURIDAD ENTERPRISE - Nivel Bancario', () => {
     status: 'unauthenticated',
     notifications: [],
     restaurant: null,
-    restaurantId: null,
+    businessId: null,
     login: vi.fn(),
     register: vi.fn(),
     logout: vi.fn(),
@@ -78,7 +78,7 @@ describe('🔒 SEGURIDAD ENTERPRISE - Nivel Bancario', () => {
       renderSecureLogin({ login: mockLogin });
       
       const sqlInjectionPayloads = [
-        "admin'; DROP TABLE restaurants; --",
+        "admin'; DROP TABLE businesses; --",
         "' OR '1'='1",
         "' UNION SELECT * FROM users --",
         "'; DELETE FROM users; --",

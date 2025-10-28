@@ -34,7 +34,7 @@ describe('🌍 TESTS DE NIVEL MUNDIAL - Restaurant Management App', () => {
       loading: false,
       status: 'unauthenticated', // Cambiar a unauthenticated para que muestre login
       restaurant: null, // Sin restaurant para que vaya a login
-      restaurantId: null,
+      businessId: null,
       notifications: [],
       login: vi.fn(),
       register: vi.fn(),
@@ -143,7 +143,7 @@ describe('🌍 TESTS DE NIVEL MUNDIAL - Restaurant Management App', () => {
       renderWorldClassApp({ user: null, status: 'unauthenticated' });
       
       // Intentar inyección SQL
-      const maliciousInput = "'; DROP TABLE restaurants; --";
+      const maliciousInput = "'; DROP TABLE businesses; --";
       
       const emailInput = screen.queryByPlaceholderText('tu@email.com');
       if (emailInput) {

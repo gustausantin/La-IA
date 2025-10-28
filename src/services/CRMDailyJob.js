@@ -20,7 +20,7 @@ export async function runDailyCRMJob() {
     
     const jobResults = {
         job_started_at: jobStart.toISOString(),
-        restaurants_processed: 0,
+        businesses_processed: 0,
         customers_updated: 0,
         segments_changed: 0,
         automations_sent: 0,
@@ -44,7 +44,7 @@ export async function runDailyCRMJob() {
         const automationResult = await runGlobalCRMAutomations();
         
         if (automationResult.success) {
-            jobResults.restaurants_processed = automationResult.restaurants_processed;
+            jobResults.businesses_processed = automationResult.businesses_processed;
             jobResults.automations_sent = automationResult.results?.reduce(
                 (total, r) => total + (r.stats?.successful_sends || 0), 0
             ) || 0;
@@ -73,7 +73,7 @@ export async function runDailyCRMJob() {
         
         console.log(`✅ Job diario CRM completado en ${jobResults.duration_minutes} minutos`);
         console.log(`📊 Resultados:`, {
-            restaurantes: jobResults.restaurants_processed,
+            restaurantes: jobResults.businesses_processed,
             clientes_actualizados: jobResults.customers_updated,
             cambios_segmento: jobResults.segments_changed,
             automatizaciones_enviadas: jobResults.automations_sent,
@@ -112,8 +112,8 @@ async function updateAllCustomerSegmentation() {
         // Obtener todos los clientes activos
         const { data: customers, error: customersError } = await supabase
             .from('customers')
-            .select('id, restaurant_id, segment_auto, last_visit_at, visits_count')
-            .order('restaurant_id');
+            .select('id, business_id, segment_auto, last_visit_at, visits_count')
+            .order('business_id');
             
         if (customersError) {
             result.errors.push(`Error obteniendo clientes: ${customersError.message}`);
@@ -126,13 +126,13 @@ async function updateAllCustomerSegmentation() {
         for (const customer of customers || []) {
             try {
                 // 1. Recomputar estadísticas
-                const statsResult = await recomputeCustomerStats(customer.id, customer.restaurant_id);
+                const statsResult = await recomputeCustomerStats(customer.id, customer.business_id);
                 
                 if (statsResult.success) {
                     result.customers_updated++;
                     
                     // 2. Recomputar segmento
-                    const segmentResult = await recomputeSegment(customer.id, customer.restaurant_id);
+                    const segmentResult = await recomputeSegment(customer.id, customer.business_id);
                     
                     if (segmentResult.success && segmentResult.segmentChanged) {
                         result.segments_changed++;
@@ -216,26 +216,26 @@ async function generateDailyMetrics() {
         console.log('📈 Generando métricas diarias');
         
         // Obtener todos los restaurantes activos
-        const { data: restaurants, error: restaurantsError } = await supabase
+        const { data: businesses, error: businessesError } = await supabase
             .from('businesses')
             .select('id, name')
             .eq('active', true);
             
-        if (restaurantsError) {
-            result.errors.push(`Error obteniendo restaurantes: ${restaurantsError.message}`);
+        if (businessesError) {
+            result.errors.push(`Error obteniendo restaurantes: ${businessesError.message}`);
             return result;
         }
         
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
         // Generar métricas para cada restaurante
-        for (const restaurant of restaurants || []) {
+        for (const restaurant of businesses || []) {
             try {
                 // Obtener estadísticas del día
                 const { data: customers, error: customersError } = await supabase
                     .from('customers')
                     .select('segment_auto, created_at, total_spent, visits_count')
-                    .eq('restaurant_id', restaurant.id);
+                    .eq('business_id', restaurant.id);
                     
                 if (customersError) {
                     result.errors.push(`Métricas restaurante ${restaurant.id}: ${customersError.message}`);
@@ -244,7 +244,7 @@ async function generateDailyMetrics() {
                 
                 // Calcular métricas
                 const metrics = {
-                    restaurant_id: restaurant.id,
+                    business_id: restaurant.id,
                     date: today,
                     total_customers: customers?.length || 0,
                     new_customers: customers?.filter(c => 
@@ -265,13 +265,13 @@ async function generateDailyMetrics() {
                 const { error: analyticsError } = await supabase
                     .from('analytics')
                     .upsert({
-                        restaurant_id: restaurant.id,
+                        business_id: restaurant.id,
                         type: 'crm_daily',
                         date: today,
                         value: metrics.total_customers,
                         metadata: metrics
                     }, {
-                        onConflict: 'restaurant_id,type,date'
+                        onConflict: 'business_id,type,date'
                     });
                     
                 if (analyticsError) {
@@ -303,7 +303,7 @@ async function logJobExecution(jobResults) {
         const { error } = await supabase
             .from('analytics')
             .insert({
-                restaurant_id: null, // Job global
+                business_id: null, // Job global
                 type: 'crm_daily_job',
                 date: new Date().toISOString().split('T')[0],
                 value: jobResults.customers_updated,
@@ -324,15 +324,15 @@ async function logJobExecution(jobResults) {
 /**
  * EJECUTAR MANUALMENTE EL JOB PARA UN RESTAURANTE ESPECÍFICO
  */
-export async function runCRMJobForRestaurant(restaurantId) {
+export async function runCRMJobForRestaurant(businessId) {
     try {
-        console.log(`🏪 Ejecutando job CRM para restaurante ${restaurantId}`);
+        console.log(`🏪 Ejecutando job CRM para restaurante ${businessId}`);
         
         // 1. Actualizar clientes del restaurante
         const { data: customers, error: customersError } = await supabase
             .from('customers')
             .select('id')
-            .eq('restaurant_id', restaurantId);
+            .eq('business_id', businessId);
             
         if (customersError) {
             console.error('❌ Error obteniendo clientes:', customersError);
@@ -344,11 +344,11 @@ export async function runCRMJobForRestaurant(restaurantId) {
         
         // 2. Procesar cada cliente
         for (const customer of customers || []) {
-            const statsResult = await recomputeCustomerStats(customer.id, restaurantId);
+            const statsResult = await recomputeCustomerStats(customer.id, businessId);
             if (statsResult.success) {
                 customersUpdated++;
                 
-                const segmentResult = await recomputeSegment(customer.id, restaurantId);
+                const segmentResult = await recomputeSegment(customer.id, businessId);
                 if (segmentResult.success && segmentResult.segmentChanged) {
                     segmentsChanged++;
                 }
@@ -357,11 +357,11 @@ export async function runCRMJobForRestaurant(restaurantId) {
         
         // 3. Ejecutar automatizaciones
         const { runCRMAutomations } = await import('./CRMAutomationService');
-        const automationResult = await runCRMAutomations(restaurantId);
+        const automationResult = await runCRMAutomations(businessId);
         
         const result = {
             success: true,
-            restaurant_id: restaurantId,
+            business_id: businessId,
             customers_updated: customersUpdated,
             segments_changed: segmentsChanged,
             automations: automationResult
@@ -447,3 +447,4 @@ export default {
     runCRMJobForRestaurant,
     getCRMHealthStatus
 };
+

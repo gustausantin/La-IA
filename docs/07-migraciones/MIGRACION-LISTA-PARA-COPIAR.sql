@@ -973,10 +973,10 @@ CREATE TABLE IF NOT EXISTS restaurant_shifts (
 );
 
 -- =====================================================
--- TABLA: restaurants
+-- TABLA: businesses
 -- Descripción: Información principal de restaurantes
 -- =====================================================
-CREATE TABLE IF NOT EXISTS restaurants (
+CREATE TABLE IF NOT EXISTS businesses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255),

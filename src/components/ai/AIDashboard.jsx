@@ -31,7 +31,7 @@ import { conversationalAI } from '../../services/ConversationalAI';
  */
 
 const AIDashboard = memo(() => {
-  const { businessId: restaurantId } = useAuthContext();
+  const { businessId: businessId } = useAuthContext();
   const [aiStatus, setAiStatus] = useState({
     mlEngine: 'active',
     conversationalAI: 'active',
@@ -84,7 +84,7 @@ const AIDashboard = memo(() => {
   };
 
   const getAIPerformanceMetrics = async () => {
-    if (!restaurantId) return {
+    if (!businessId) return {
       accuracy: 0,
       responseTime: 0,
       learningRate: 0,
@@ -101,9 +101,9 @@ const AIDashboard = memo(() => {
       try {
         // Obtener reservas del día
         const { data: todayReservations } = await supabase
-          .from('reservations')
+          .from('appointments')
           .select('*')
-          .eq('restaurant_id', restaurantId)
+          .eq('business_id', businessId)
           .gte('created_at', `${today}T00:00:00`)
           .lt('created_at', `${today}T23:59:59`);
 
@@ -129,7 +129,7 @@ const AIDashboard = memo(() => {
       const { data: conversations } = await supabase
         .from('agent_conversations')
         .select('booking_created, satisfaction_score')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .gte('started_at', `${today}T00:00:00`)
         .lt('started_at', `${today}T23:59:59`);
 
@@ -628,3 +628,4 @@ const AIDashboardSkeleton = () => (
 AIDashboard.displayName = 'AIDashboard';
 
 export default AIDashboard;
+

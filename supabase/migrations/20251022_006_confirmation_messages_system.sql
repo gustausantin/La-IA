@@ -9,7 +9,7 @@
 CREATE TABLE IF NOT EXISTS confirmation_messages (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Tipo de mensaje
     message_type TEXT NOT NULL CHECK (message_type IN ('24h', '4h', '2h', 'immediate')),
@@ -49,11 +49,11 @@ WHERE status = 'sent';
 ALTER TABLE confirmation_messages ENABLE ROW LEVEL SECURITY;
 
 -- Policy: Los restaurantes solo ven sus propios mensajes
-CREATE POLICY "Restaurants can view their own confirmation messages"
+CREATE POLICY "businesses can view their own confirmation messages"
 ON confirmation_messages
 FOR SELECT
 USING (restaurant_id = auth.uid() OR restaurant_id IN (
-    SELECT id FROM restaurants WHERE owner_id = auth.uid()
+    SELECT id FROM businesses WHERE owner_id = auth.uid()
 ));
 
 -- Policy: Sistema puede insertar

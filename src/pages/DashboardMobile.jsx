@@ -26,7 +26,7 @@ import { usePullToRefresh } from '../hooks/useGestures';
 import toast from 'react-hot-toast';
 
 const DashboardMobile = () => {
-  const { restaurantId, restaurant } = useAuthContext();
+  const { businessId, restaurant } = useAuthContext();
   const navigate = useNavigate();
 
   const [stats, setStats] = useState({
@@ -48,7 +48,7 @@ const DashboardMobile = () => {
   });
 
   const loadDashboardData = async () => {
-    if (!restaurantId) return;
+    if (!businessId) return;
 
     setLoading(true);
     try {
@@ -56,9 +56,9 @@ const DashboardMobile = () => {
       
       // Today's stats
       const { data: todayData } = await supabase
-        .from('reservations')
+        .from('appointments')
         .select('status, party_size')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .gte('date', `${today}T00:00:00`)
         .lte('date', `${today}T23:59:59`);
 
@@ -71,13 +71,13 @@ const DashboardMobile = () => {
 
       // Upcoming reservations
       const { data: upcoming } = await supabase
-        .from('reservations')
+        .from('appointments')
         .select(`
           *,
           customer:customers(name, phone),
           table:tables(name)
         `)
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .gte('date', new Date().toISOString())
         .in('status', ['confirmed', 'pending'])
         .order('date', { ascending: true })
@@ -101,7 +101,7 @@ const DashboardMobile = () => {
 
   useEffect(() => {
     loadDashboardData();
-  }, [restaurantId]);
+  }, [businessId]);
 
   return (
     <div 
@@ -295,4 +295,5 @@ const DashboardMobile = () => {
 };
 
 export default DashboardMobile;
+
 

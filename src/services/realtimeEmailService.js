@@ -534,7 +534,7 @@ export const startRealtimeEmailListener = () => {
       {
         event: 'INSERT',
         schema: 'public',
-        table: 'reservations',
+        table: 'appointments',
       },
       async (payload) => {
         console.log('🆕 Nueva reserva detectada:', payload.new.id);
@@ -553,7 +553,7 @@ export const startRealtimeEmailListener = () => {
           const { data: restaurant } = await supabase
             .from('businesses')
             .select('*')
-            .eq('id', payload.new.restaurant_id)
+            .eq('id', payload.new.business_id)
             .single();
           
           if (restaurant) {
@@ -576,7 +576,7 @@ export const startRealtimeEmailListener = () => {
       {
         event: 'UPDATE',
         schema: 'public',
-        table: 'reservations',
+        table: 'appointments',
       },
       async (payload) => {
         console.log('🔔 UPDATE detectado:', payload.new.id);
@@ -585,7 +585,7 @@ export const startRealtimeEmailListener = () => {
           const { data: restaurant } = await supabase
             .from('businesses')
             .select('*')
-            .eq('id', payload.new.restaurant_id)
+            .eq('id', payload.new.business_id)
             .single();
           
           if (!restaurant) {
@@ -667,4 +667,5 @@ export const startRealtimeEmailListener = () => {
   
   return channel;
 };
+
 

@@ -5,8 +5,8 @@
 -- con código antiguo mientras migramos gradualmente
 -- =====================================================
 
--- 1. Crear vista "restaurants" que apunta a "businesses"
-CREATE OR REPLACE VIEW restaurants AS
+-- 1. Crear vista "businesses" que apunta a "businesses"
+CREATE OR REPLACE VIEW businesses AS
 SELECT 
   id,
   name,
@@ -34,9 +34,9 @@ SELECT
 FROM user_business_mapping;
 
 -- 3. Hacer las vistas actualizables (para INSERT/UPDATE)
--- Vista restaurants
-CREATE OR REPLACE RULE restaurants_insert AS
-  ON INSERT TO restaurants DO INSTEAD
+-- Vista businesses
+CREATE OR REPLACE RULE businesses_insert AS
+  ON INSERT TO businesses DO INSTEAD
   INSERT INTO businesses (
     id, name, email, phone, address, city, postal_code, 
     vertical_type, settings, active
@@ -49,8 +49,8 @@ CREATE OR REPLACE RULE restaurants_insert AS
     id, name, email, phone, address, city, postal_code,
     vertical_type::text AS cuisine_type, settings, active, created_at, updated_at;
 
-CREATE OR REPLACE RULE restaurants_update AS
-  ON UPDATE TO restaurants DO INSTEAD
+CREATE OR REPLACE RULE businesses_update AS
+  ON UPDATE TO businesses DO INSTEAD
   UPDATE businesses SET
     name = NEW.name,
     email = NEW.email,
@@ -92,7 +92,7 @@ CREATE OR REPLACE RULE user_restaurant_mapping_update AS
 -- =====================================================
 -- ✅ RESULTADO
 -- =====================================================
--- Ahora tu código puede usar "restaurants" y "user_restaurant_mapping"
+-- Ahora tu código puede usar "businesses" y "user_restaurant_mapping"
 -- y funcionará perfectamente porque son vistas que apuntan
 -- a las tablas reales "businesses" y "user_business_mapping"
 --
@@ -105,6 +105,6 @@ SELECT
   table_type 
 FROM information_schema.tables 
 WHERE table_schema = 'public' 
-  AND table_name IN ('restaurants', 'user_restaurant_mapping')
+  AND table_name IN ('businesses', 'user_restaurant_mapping')
 ORDER BY table_name;
 

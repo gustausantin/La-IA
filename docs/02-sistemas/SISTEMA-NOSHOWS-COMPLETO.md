@@ -244,7 +244,7 @@ CREATE TABLE customer_confirmations (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
     reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Datos del envío
     sent_at TIMESTAMPTZ NOT NULL,

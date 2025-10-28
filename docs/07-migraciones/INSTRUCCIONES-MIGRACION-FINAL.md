@@ -54,7 +54,7 @@
 ✅ availability_slots
 ✅ customers
 ✅ reservations
-✅ restaurants
+✅ businesses
 ✅ tables
 ✅ ... (y 53 más)
 ```

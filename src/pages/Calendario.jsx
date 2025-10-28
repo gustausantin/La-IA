@@ -90,10 +90,10 @@ const daysOfWeek = [
 ];
 
 export default function Calendario() {
-    const { business: restaurant, businessId: restaurantId, isReady, addNotification } = useAuthContext();
+    const { business: restaurant, businessId: businessId, isReady, addNotification } = useAuthContext();
     const { channelStats } = useChannelStats();
     const { occupancy: occupancyData } = useOccupancy(7);
-    const changeDetection = useAvailabilityChangeDetection(restaurantId);
+    const changeDetection = useAvailabilityChangeDetection(businessId);
     const { isModalOpen, modalChangeReason, modalChangeDetails, showRegenerationModal, closeModal } = useRegenerationModal();
 
     // Estados principales
@@ -137,8 +137,8 @@ export default function Calendario() {
 
     // Inicializar datos - SOLO UNA VEZ
     useEffect(() => {
-        if (restaurantId) {
-            console.log('🚀 INICIALIZANDO CALENDARIO - Restaurant ID:', restaurantId);
+        if (businessId) {
+            console.log('🚀 INICIALIZANDO CALENDARIO - Restaurant ID:', businessId);
             
             // TEST DE VERIFICACIÓN DE DÍAS
             console.log('🧪 TEST: Verificando getDay() con fechas conocidas:');
@@ -156,7 +156,7 @@ export default function Calendario() {
             initializeData();
             loadEvents();
         }
-    }, [restaurantId]); // SOLO cuando cambia restaurantId, NO al navegar meses
+    }, [businessId]); // SOLO cuando cambia businessId, NO al navegar meses
 
     // DEBUG: Verificar schedule en cada render
     useEffect(() => {
@@ -189,15 +189,15 @@ export default function Calendario() {
     }, []);
 
     const initializeData = async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
         
         setLoading(true);
         try {
-            // Cargar horarios desde restaurants.settings (donde están realmente guardados)
+            // Cargar horarios desde businesses.settings (donde están realmente guardados)
             const { data: restaurantData, error: scheduleError } = await supabase
-                .from("restaurants")
+                .from("businesses")
                 .select("settings")
-                .eq("id", restaurantId)
+                .eq("id", businessId)
                 .single();
 
             if (scheduleError) {
@@ -208,7 +208,7 @@ export default function Calendario() {
             const { data: exceptions, error: exceptionsError } = await supabase
                 .from("calendar_exceptions")
                 .select("*")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .eq("is_open", true); // Solo días que deben estar abiertos
 
             if (exceptionsError) {
@@ -326,9 +326,9 @@ export default function Calendario() {
             let activeChannels = 0;
             try {
                 const { data: restaurantData, error: restaurantError } = await supabase
-                    .from("restaurants")
+                    .from("businesses")
                     .select("settings")
-                    .eq("id", restaurantId)
+                    .eq("id", businessId)
                     .single();
                 
                 if (restaurantError) throw restaurantError;
@@ -350,9 +350,9 @@ export default function Calendario() {
                 const sevenDaysLater = format(addDays(new Date(), 7), 'yyyy-MM-dd');
                 
                 const { data: reservationsData, error: reservationsError } = await supabase
-                    .from("reservations")
+                    .from('appointments')
                     .select("id")
-                    .eq("restaurant_id", restaurantId)
+                    .eq("business_id", businessId)
                     .gte("reservation_date", today)
                     .lte("reservation_date", sevenDaysLater)
                     .not('status', 'in', '(cancelled,completed)');
@@ -375,7 +375,7 @@ export default function Calendario() {
                 const { data: eventsData, error: eventsError } = await supabase
                     .from("special_events")
                     .select("id")
-                    .eq("restaurant_id", restaurantId)
+                    .eq("business_id", businessId)
                     .gte("event_date", today)
                     .lte("event_date", thirtyDaysLater);
                 
@@ -399,7 +399,7 @@ export default function Calendario() {
         } catch (error) {
             console.error("Error calculando estadísticas:", error);
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // SOLUCIÓN DEFINITIVA - MATEMÁTICAMENTE IMPOSIBLE QUE FALLE
     const getDaySchedule = useCallback((date) => {
@@ -496,13 +496,13 @@ export default function Calendario() {
 
     // Cargar eventos especiales
     const loadEvents = async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
         
         try {
             const { data, error } = await supabase
                 .from('special_events')
                 .select('*')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .order('event_date');
             
             if (error) throw error;
@@ -539,7 +539,7 @@ export default function Calendario() {
                 const { error: exceptionDeleteError } = await supabase
                     .from('calendar_exceptions')
                     .delete()
-                    .eq('restaurant_id', restaurantId)
+                    .eq('business_id', businessId)
                     .eq('exception_date', event.event_date)
                     .eq('is_open', false);
                 
@@ -596,7 +596,7 @@ export default function Calendario() {
     // Guardar evento especial
     const handleSaveEvent = async (e) => {
         e.preventDefault();
-        if (!selectedDay || !restaurantId) return;
+        if (!selectedDay || !businessId) return;
         
         try {
             const eventDate = format(selectedDay, 'yyyy-MM-dd');
@@ -668,7 +668,7 @@ export default function Calendario() {
             }
             
             const eventData = {
-                restaurant_id: restaurantId,
+                business_id: businessId,
                 event_date: eventDate,
                 title: eventForm.title,
                 description: eventForm.description || '',
@@ -681,7 +681,7 @@ export default function Calendario() {
             // 🔥 GUARDAR TAMBIÉN EN calendar_exceptions para que el backend lo respete
             if (eventForm.closed) {
                 const exceptionData = {
-                    restaurant_id: restaurantId,
+                    business_id: businessId,
                     exception_date: eventDate,
                     is_open: false,  // ← DÍA CERRADO
                     open_time: null,
@@ -693,7 +693,7 @@ export default function Calendario() {
                 const { error: exceptionError } = await supabase
                     .from('calendar_exceptions')
                     .upsert(exceptionData, {
-                        onConflict: 'restaurant_id,exception_date'
+                        onConflict: 'business_id,exception_date'
                     });
                 
                 if (exceptionError) {
@@ -834,7 +834,7 @@ export default function Calendario() {
 
     // Guardar horario semanal
     const saveWeeklySchedule = async () => {
-        if (!restaurantId) {
+        if (!businessId) {
             toast.error("Error: No hay restaurante configurado");
             return;
         }
@@ -956,9 +956,9 @@ export default function Calendario() {
 
             // GUARDADO ROBUSTO EN SUPABASE
             const { data: currentRestaurant, error: fetchError } = await supabase
-                .from("restaurants")
+                .from("businesses")
                 .select("settings")
-                .eq("id", restaurantId)
+                .eq("id", businessId)
                 .single();
 
             if (fetchError && fetchError.code !== 'PGRST116') {
@@ -970,7 +970,7 @@ export default function Calendario() {
 
             // Actualizar con estructura completa
             const { error } = await supabase
-                .from("restaurants")
+                .from("businesses")
                 .update({
                     settings: {
                         ...currentSettings,
@@ -979,7 +979,7 @@ export default function Calendario() {
                     },
                     updated_at: new Date().toISOString()
                 })
-                .eq("id", restaurantId);
+                .eq("id", businessId);
 
             if (error) {
                 console.error("❌ Error Supabase:", error);
@@ -995,7 +995,7 @@ export default function Calendario() {
                     detail: { 
                         scheduleData: calendar_schedule, 
                         operatingHours: operating_hours,
-                        restaurantId 
+                        businessId 
                     } 
                 }));
             } catch (eventError) {
@@ -1656,4 +1656,5 @@ export default function Calendario() {
         </CalendarioErrorBoundary>
     );
 }
+
 

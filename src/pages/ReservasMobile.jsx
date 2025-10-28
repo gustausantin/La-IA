@@ -24,7 +24,7 @@ import { useDevice } from '../hooks/useDevice';
 import toast from 'react-hot-toast';
 
 const ReservasMobile = () => {
-  const { restaurantId } = useAuthContext();
+  const { businessId } = useAuthContext();
   const navigate = useNavigate();
   const device = useDevice();
 
@@ -46,20 +46,20 @@ const ReservasMobile = () => {
 
   // Load reservations
   const loadReservations = async () => {
-    if (!restaurantId) return;
+    if (!businessId) return;
 
     setLoading(true);
     try {
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       
       const { data, error } = await supabase
-        .from('reservations')
+        .from('appointments')
         .select(`
           *,
           customer:customers(name, phone, email),
           table:tables(name)
         `)
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .gte('date', `${dateStr}T00:00:00`)
         .lte('date', `${dateStr}T23:59:59`)
         .order('date', { ascending: true });
@@ -85,7 +85,7 @@ const ReservasMobile = () => {
 
   useEffect(() => {
     loadReservations();
-  }, [restaurantId, selectedDate]);
+  }, [businessId, selectedDate]);
 
   // Filter reservations
   useEffect(() => {
@@ -142,7 +142,7 @@ const ReservasMobile = () => {
   const handleConfirm = async (reservation) => {
     try {
       const { error } = await supabase
-        .from('reservations')
+        .from('appointments')
         .update({ status: 'confirmed' })
         .eq('id', reservation.id);
 
@@ -320,4 +320,5 @@ const ReservasMobile = () => {
 };
 
 export default ReservasMobile;
+
 

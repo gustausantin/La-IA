@@ -253,7 +253,7 @@ SELECT
   rs.voice_provider,
   rs.voice_id,
   rs.voice_gender
-FROM restaurants r
+FROM businesses r
 LEFT JOIN restaurant_settings rs ON r.id = rs.restaurant_id
 WHERE r.id = 'restaurant-id'
   AND r.active = true;
@@ -436,7 +436,7 @@ ADD COLUMN IF NOT EXISTS voice_gender TEXT DEFAULT 'female';
 
 ### **Tablas Involucradas:**
 
-1. **`restaurants`** - Datos del restaurante
+1. **`businesses`** - Datos del restaurante
 2. **`restaurant_settings`** - Configuración de voz
 3. **`customers`** - Clientes que llaman
 4. **`agent_conversations`** - Historial de llamadas
@@ -533,7 +533,7 @@ SELECT
   rs.voice_provider,
   rs.voice_id,
   rs.voice_gender
-FROM restaurants r
+FROM businesses r
 LEFT JOIN restaurant_settings rs ON r.id = rs.restaurant_id
 WHERE r.id = 'restaurant-id';
 
@@ -610,7 +610,7 @@ SELECT
   rs.voice_id,
   rs.voice_gender
 FROM agent_conversations c
-JOIN restaurants r ON c.restaurant_id = r.id
+JOIN businesses r ON c.restaurant_id = r.id
 LEFT JOIN restaurant_settings rs ON r.id = rs.restaurant_id
 WHERE c.channel = 'voice'
   AND c.created_at > NOW() - INTERVAL '30 days'

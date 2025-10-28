@@ -82,7 +82,7 @@ Propósito: Buffer temporal para agregar mensajes fragmentados de WhatsApp
 
 Columnas utilizadas:
 ├── id (uuid, PK)
-├── restaurant_id (uuid, FK → restaurants.id) ⭐ Multi-tenant
+├── restaurant_id (uuid, FK → businesses.id) ⭐ Multi-tenant
 ├── buffer_key (varchar, UNIQUE) - Clave: {phone}_{timestamp_window}
 ├── customer_phone (varchar)
 ├── customer_name (varchar)
@@ -107,7 +107,7 @@ Propósito: Gestión de clientes del restaurante
 
 Columnas utilizadas en workflows:
 ├── id (uuid, PK)
-├── restaurant_id (uuid, FK → restaurants.id) ⭐ Multi-tenant
+├── restaurant_id (uuid, FK → businesses.id) ⭐ Multi-tenant
 ├── name (varchar, NOT NULL)
 ├── phone (varchar)
 ├── email (varchar)
@@ -132,7 +132,7 @@ Propósito: Registro de conversaciones del agente IA
 
 Columnas utilizadas:
 ├── id (uuid, PK)
-├── restaurant_id (uuid, FK → restaurants.id) ⭐ Multi-tenant
+├── restaurant_id (uuid, FK → businesses.id) ⭐ Multi-tenant
 ├── customer_id (uuid, FK → customers.id)
 ├── customer_phone (varchar, NOT NULL)
 ├── customer_name (varchar)
@@ -159,7 +159,7 @@ Propósito: Mensajes individuales de cada conversación
 Columnas utilizadas:
 ├── id (uuid, PK)
 ├── conversation_id (uuid, FK → agent_conversations.id)
-├── restaurant_id (uuid, FK → restaurants.id) ⭐ Multi-tenant
+├── restaurant_id (uuid, FK → businesses.id) ⭐ Multi-tenant
 ├── direction (varchar) - CHECK: 'inbound', 'outbound'
 ├── sender (varchar) - CHECK: 'customer', 'agent', 'system'
 ├── message_text (text, NOT NULL)
@@ -178,7 +178,7 @@ Propósito: Gestión de reservas del restaurante
 
 Columnas principales:
 ├── id (uuid, PK)
-├── restaurant_id (uuid, FK → restaurants.id) ⭐ Multi-tenant
+├── restaurant_id (uuid, FK → businesses.id) ⭐ Multi-tenant
 ├── customer_id (uuid, FK → customers.id)
 ├── customer_name (varchar, NOT NULL)
 ├── customer_phone (varchar)
@@ -780,7 +780,7 @@ CLASSIFIER_WORKFLOW_ID=workflow-id-classifier
 #### **Restaurant ID:**
 ```sql
 -- Ejecutar en Supabase SQL Editor:
-SELECT id, name FROM restaurants LIMIT 1;
+SELECT id, name FROM businesses LIMIT 1;
 ```
 Copia el `id` → `DEFAULT_RESTAURANT_ID`
 
@@ -819,7 +819,7 @@ Configuración:
 ```bash
 # Test Supabase
 curl -X GET \
-  "{{ SUPABASE_URL }}/rest/v1/restaurants?select=id,name&limit=1" \
+  "{{ SUPABASE_URL }}/rest/v1/businesses?select=id,name&limit=1" \
   -H "apikey: {{ SUPABASE_ANON_KEY }}" \
   -H "Authorization: Bearer {{ SUPABASE_SERVICE_KEY }}"
 

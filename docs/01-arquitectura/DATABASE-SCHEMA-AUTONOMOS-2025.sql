@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS service_templates (
 
 -- =====================================================
 -- TABLA: businesses
--- Descripción: Negocios de autónomos (antes "restaurants")
+-- Descripción: Negocios de autónomos (antes "businesses")
 -- =====================================================
 CREATE TABLE IF NOT EXISTS businesses (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -63,7 +63,7 @@ const TEMPLATE_CATEGORIES = {
 };
 
 export default function PlantillasCRM() {
-    const { restaurant, restaurantId } = useAuthContext();
+    const { restaurant, businessId } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [templates, setTemplates] = useState([]);
     const [editingTemplate, setEditingTemplate] = useState(null);
@@ -74,14 +74,14 @@ export default function PlantillasCRM() {
 
     // Cargar plantillas desde Supabase
     const loadTemplates = async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             setLoading(true);
             const { data, error } = await supabase
                 .from("message_templates")
                 .select("*")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .order("category", { ascending: true })
                 .order("name", { ascending: true});
 
@@ -136,7 +136,7 @@ export default function PlantillasCRM() {
         try {
             const { error } = await supabase.rpc('set_active_template', {
                 p_template_id: template.id,
-                p_restaurant_id: restaurantId
+                p_business_id: businessId
             });
 
             if (error) throw error;
@@ -194,7 +194,7 @@ export default function PlantillasCRM() {
             const { error } = await supabase
                 .from("message_templates")
                 .insert({
-                    restaurant_id: restaurantId,
+                    business_id: businessId,
                     name: `${template.name} (Copia)`,
                     category: template.category,
                     subject: template.subject,
@@ -251,7 +251,7 @@ export default function PlantillasCRM() {
 
     useEffect(() => {
         loadTemplates();
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Agrupar plantillas por categoría
     const templatesByCategory = templates.reduce((acc, template) => {
@@ -663,3 +663,4 @@ export default function PlantillasCRM() {
         </div>
     );
 }
+

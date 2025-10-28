@@ -28,8 +28,8 @@ import ConfirmActionModal from './ConfirmActionModal';
 import ResultModal from './ResultModal';
 
 const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
-    const { businessId: restaurantId } = useAuthContext();
-    const changeDetection = useAvailabilityChangeDetection(restaurantId);
+    const { businessId: businessId } = useAuthContext();
+    const changeDetection = useAvailabilityChangeDetection(businessId);
     const [loading, setLoading] = useState(false);
     const [showNoSlotsModal, setShowNoSlotsModal] = useState(false);
     const [noSlotsReason, setNoSlotsReason] = useState(null);
@@ -46,7 +46,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     
     // 🚨 Forzar verificación del estado cuando se monta el componente
     useEffect(() => {
-        if (restaurantId) {
+        if (businessId) {
             console.log('🔍 AvailabilityManager montado - verificando estado de regeneración...');
             console.log('🔍 needsRegeneration:', changeDetection.needsRegeneration);
             console.log('🔍 changeType:', changeDetection.changeType);
@@ -57,20 +57,20 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             setShowRegenerationModal(false);
             setRegenerationResult(null);
         }
-    }, [restaurantId, changeDetection.needsRegeneration, changeDetection.changeType, autoTriggerRegeneration]);
+    }, [businessId, changeDetection.needsRegeneration, changeDetection.changeType, autoTriggerRegeneration]);
     
     const [availabilityStats, setAvailabilityStats] = useState(null);
     const [conflictingReservations, setConflictingReservations] = useState([]);
     const [showDetails, setShowDetails] = useState(false);
     const [showAvailabilityGrid, setShowAvailabilityGrid] = useState(false);
     const [availabilityGrid, setAvailabilityGrid] = useState([]);
-    const [restaurantSettings, setRestaurantSettings] = useState(null);
+    const [businessesettings, setbusinessesettings] = useState(null);
     const [showConflictModal, setShowConflictModal] = useState(false);
     const [conflictData, setConflictData] = useState(null);
     const [generationSuccess, setGenerationSuccess] = useState(() => {
         // Cargar estado persistente del localStorage
         try {
-            const saved = localStorage.getItem(`generationSuccess_${restaurantId}`);
+            const saved = localStorage.getItem(`generationSuccess_${businessId}`);
             return saved ? JSON.parse(saved) : null;
         } catch {
             return null;
@@ -107,12 +107,12 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     };
 
     // Cargar configuración del restaurante
-    const loadRestaurantSettings = async () => {
+    const loadbusinessesettings = async () => {
         try {
             const { data, error } = await supabase
                 .from('businesses')
                 .select('settings')
-                .eq('id', restaurantId)
+                .eq('id', businessId)
                 .single();
 
             if (error) throw error;
@@ -127,7 +127,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 reservation_duration: settings.reservation_duration || 90
             };
             
-            setRestaurantSettings(processedSettings);
+            setbusinessesettings(processedSettings);
             
             // Actualizar fechas según configuración
             if (processedSettings.advance_booking_days) {
@@ -147,7 +147,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             const { data, error } = await supabase
                 .from('calendar_exceptions')
                 .select('*')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('exception_date', format(new Date(), 'yyyy-MM-dd'))
                 .order('exception_date', { ascending: true });
 
@@ -163,16 +163,16 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     // Cargar estadísticas de disponibilidad - SOLO DATOS REALES
     const loadAvailabilityStats = async () => {
         try {
-            console.log('📊 Loading REAL availability stats for restaurant:', restaurantId);
+            console.log('📊 Loading REAL availability stats for restaurant:', businessId);
             
-            if (!restaurantId) {
+            if (!businessId) {
                 console.warn('⚠️ Restaurant ID required for REAL stats');
                 return;
             }
 
             // Usar la nueva función del store que garantiza datos REALES
             const { useReservationStore } = await import('../stores/reservationStore.js');
-            const stats = await useReservationStore.getState().getAvailabilityStats(restaurantId);
+            const stats = await useReservationStore.getState().getAvailabilityStats(businessId);
             
             console.log('✅ REAL availability stats loaded:', stats);
             setAvailabilityStats(stats);
@@ -188,9 +188,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     // 📊 Calcular estadísticas de DÍAS basadas en CONFIGURACIÓN (no solo slots generados)
     const loadDayStats = async () => {
         try {
-            console.log('📊 Calculando estadísticas de DÍAS para restaurant:', restaurantId);
+            console.log('📊 Calculando estadísticas de DÍAS para restaurant:', businessId);
             
-            if (!restaurantId) {
+            if (!businessId) {
                 console.warn('⚠️ Restaurant ID required');
                 return;
             }
@@ -199,7 +199,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             const { data: restaurantData, error: restError } = await supabase
                 .from('businesses')
                 .select('settings')
-                .eq('id', restaurantId)
+                .eq('id', businessId)
                 .single();
 
             if (restError) throw restError;
@@ -218,7 +218,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // Query optimizado: obtener fechas DISTINTAS (no todos los slots)
             const { data: slotsData, error: slotsError } = await supabase
                 .rpc('get_unique_slot_dates', {
-                    p_restaurant_id: restaurantId,
+                    p_business_id: businessId,
                     p_from_date: today
                 });
 
@@ -237,7 +237,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             const { data: closedDays, error: closedError } = await supabase
                 .from('special_events')
                 .select('event_date')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('is_closed', true)
                 .gte('event_date', today)
                 .lte('event_date', endDate);
@@ -269,9 +269,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // ⚠️ CRÍTICO: NO filtrar por endDate porque puede haber reservas futuras
             // que protegen días aunque estén fuera del rango de configuración
             const { data: reservations, error: resError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('reservation_date, status')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('reservation_date', today);  // Solo desde hoy en adelante
 
             if (resError) throw resError;
@@ -346,7 +346,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     const detectConflicts = async (startDate, endDate) => {
         try {
             const { data, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     id,
                     reservation_date,
@@ -357,7 +357,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                     status,
                     tables(name)
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('reservation_date', startDate)
                 .lte('reservation_date', endDate)
                 .in('status', ['confirmed', 'pending']);
@@ -377,7 +377,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     // Las reservas son SAGRADAS y solo se eliminan manualmente desde Reservas.jsx
     // 🗑️ BORRAR DISPONIBILIDADES: Elimina slots sin reservas, preserva ocupados
     const handleSmartCleanup = async () => {
-        if (!restaurantId) {
+        if (!businessId) {
             toast.error('❌ Falta ID del restaurante');
             return;
         }
@@ -401,7 +401,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             const { data: settings } = await supabase
                 .from('businesses')
                 .select('settings')
-                .eq('id', restaurantId)
+                .eq('id', businessId)
                 .single();
             
             const advanceDays = settings?.settings?.advance_booking_days || 20;
@@ -417,16 +417,16 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
     // 📊 Preparar datos de días protegidos para el modal
     const prepareProtectedDaysData = async () => {
-        if (!restaurantId) return [];
+        if (!businessId) return [];
 
         try {
             const today = format(new Date(), 'yyyy-MM-dd');
             
             // Obtener TODAS las reservas futuras agrupadas por día
             const { data: reservations, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('reservation_date, customer_name, status')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('reservation_date', today)
                 .not('status', 'in', '(cancelled,completed)');  // Solo activas
             
@@ -463,41 +463,41 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
     // 🗑️ Ejecutar borrado después de confirmar
     const executeDelete = async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             setLoading(true);
             toast.loading('🗑️ Borrando disponibilidades...', { id: 'cleanup' });
 
             const today = format(new Date(), 'yyyy-MM-dd');
-            const advanceDays = restaurantSettings?.advance_booking_days || 30;
+            const advanceDays = businessesettings?.advance_booking_days || 30;
             const endDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
 
             console.log('🗑️ BORRAR DISPONIBILIDADES:');
-            console.log('   🏪 Restaurante:', restaurantId);
+            console.log('   🏪 Restaurante:', businessId);
             console.log('🔍 QUERY PARAMETERS:', {
                 today,
                 endDate,
                 advanceDays,
-                restaurantId
+                businessId
             });
 
             // 🎯 PASO 1: Consultar reservas ANTES de borrar (para contar días protegidos)
             
             // Debug: Todas las reservas
             const { data: allReservationsDebug } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('id, reservation_date, status, customer_name')
-                .eq('restaurant_id', restaurantId);
+                .eq('business_id', businessId);
 
             console.log('📊 TODAS las reservas del restaurante:', allReservationsDebug);
             
             // ⚠️ TODAS las reservas futuras (SIN filtrar por endDate)
             // CRÍTICO: Incluir reservas fuera del rango porque también protegen días
             const { data: reservationsDataBefore, error: resError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('id, reservation_date, status, customer_name')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('reservation_date', today);  // Solo desde hoy, SIN límite superior
 
             if (resError) {
@@ -528,7 +528,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
             // 🎯 PASO 2: Ejecutar borrado
             const { data, error } = await supabase.rpc('borrar_disponibilidades_simple', {
-                p_restaurant_id: restaurantId
+                p_business_id: businessId
             });
 
             if (error) {
@@ -547,7 +547,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 setAvailabilityGrid([]);
                 
                 try {
-                    localStorage.removeItem(`generationSuccess_${restaurantId}`);
+                    localStorage.removeItem(`generationSuccess_${businessId}`);
                 } catch (error) {
                     console.warn('No se pudo limpiar localStorage:', error);
                 }
@@ -562,7 +562,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 // Días eliminados = Total - Protegidos
                 const daysDeleted = totalDays - daysProtected;
 
-                const duration = restaurantSettings?.reservation_duration || 60;
+                const duration = businessesettings?.reservation_duration || 60;
                 const endDateFormatted = format(addDays(new Date(), advanceDays), 'dd/MM/yyyy');
 
                 // Mostrar modal con terminología de DÍAS
@@ -620,9 +620,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // 2. Buscar reservas activas en esos días de la semana
             const { data: reservations, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('id, customer_name, customer_phone, reservation_date, reservation_time, party_size, status')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .in('status', ['pending', 'confirmed', 'pending_approval'])
                 .gte('reservation_date', format(new Date(), 'yyyy-MM-dd'));
             
@@ -677,7 +677,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     // Esta función SOLO regenera availability_slots PROTEGIENDO reservas existentes
     // Las reservas son SAGRADAS y solo se eliminan manualmente desde Reservas.jsx
     const smartRegeneration = async (changeType = 'general', changeData = {}) => {
-        if (!restaurantId) {
+        if (!businessId) {
             toast.error('❌ No se encontró el ID del restaurante');
             return;
         }
@@ -687,7 +687,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
         const { data: freshSettings, error: settingsError } = await supabase
             .from('businesses')
             .select('settings')
-            .eq('id', restaurantId)
+            .eq('id', businessId)
             .single();
         
         if (settingsError) {
@@ -696,7 +696,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             return;
         }
         
-        const currentSettings = freshSettings?.settings || restaurantSettings;
+        const currentSettings = freshSettings?.settings || businessesettings;
         console.log('🔍 Settings actualizados:', currentSettings);
         console.log('🔍 Operating hours que se usarán en regeneración:', currentSettings?.operating_hours);
 
@@ -708,13 +708,13 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             toast.loading('Regeneración inteligente en proceso...', { id: 'smart-generating' });
             
             const today = format(new Date(), 'yyyy-MM-dd');
-            const advanceDays = restaurantSettings?.advance_booking_days || 30;
+            const advanceDays = businessesettings?.advance_booking_days || 30;
             const endDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
 
 
             // Usar cleanup_and_regenerate_availability ya que regenerate_availability_smart no existe
             const { data, error } = await supabase.rpc('cleanup_and_regenerate_availability', {
-                p_restaurant_id: restaurantId,
+                p_business_id: businessId,
                 p_start_date: today,
                 p_end_date: endDate
             });
@@ -736,7 +736,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // Mostrar resultados detallados
             const results = data; // RPC devuelve objeto directo
-            const duration = restaurantSettings?.reservation_duration || 90;
+            const duration = businessesettings?.reservation_duration || 90;
             const endDateFormatted = format(addDays(new Date(), advanceDays), 'dd/MM/yyyy');
             
             console.log('🔍 Resultado de regeneración:', results);
@@ -761,7 +761,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // Guardar en localStorage
             try {
-                localStorage.setItem(`generationSuccess_${restaurantId}`, JSON.stringify(successData));
+                localStorage.setItem(`generationSuccess_${businessId}`, JSON.stringify(successData));
             } catch (error) {
                 console.warn('No se pudo guardar en localStorage:', error);
             }
@@ -778,22 +778,22 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 today,
                 endDate,
                 advanceDays,
-                restaurantId
+                businessId
             });
             
             // Obtener TODAS las reservas primero (para debug)
             const { data: allReservations } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('id, reservation_date, status, customer_name')
-                .eq('restaurant_id', restaurantId);
+                .eq('business_id', businessId);
 
             console.log('📊 TODAS las reservas del restaurante:', allReservations);
             
             // TODAS las reservas en el rango (sin filtrar por status)
             const { data: reservationsData, error: reservationsError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('id, reservation_date, status, customer_name')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('reservation_date', today)
                 .lte('reservation_date', endDate);
 
@@ -862,7 +862,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     useEffect(() => {
         // ✅ FIX: Verificar también needsRegeneration para evitar modal repetido sin cambios pendientes
         if (autoTriggerRegeneration && 
-            restaurantId && 
+            businessId && 
             !loading && 
             !autoTriggerShown && 
             changeDetection.needsRegeneration) {
@@ -876,7 +876,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             }, 500);
             return () => clearTimeout(timer);
         }
-    }, [autoTriggerRegeneration, restaurantId, loading, autoTriggerShown, changeDetection.needsRegeneration]);
+    }, [autoTriggerRegeneration, businessId, loading, autoTriggerShown, changeDetection.needsRegeneration]);
 
     // 🔒 REGLA SAGRADA: NUNCA ELIMINAR RESERVAS
     // Esta función SOLO genera availability_slots - JAMÁS toca la tabla 'reservations'
@@ -898,7 +898,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             const { data: restaurantData, error: settingsError } = await supabase
                 .from('businesses')
                 .select('settings')
-                .eq('id', restaurantId)
+                .eq('id', businessId)
                 .single();
 
             if (!settingsError && restaurantData?.settings?.operating_hours) {
@@ -944,7 +944,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             let advanceDays, duration, today, endDate;
             
             try {
-                await useReservationStore.getState().loadReservationPolicy(restaurantId);
+                await useReservationStore.getState().loadReservationPolicy(businessId);
                 const settings = useReservationStore.getState().settings;
                 console.log('✅ Política cargada:', settings);
                 
@@ -975,9 +975,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // Verificar si hay mesas activas
             const { data: tablesData, error: tablesError } = await supabase
-                .from('tables')
+                .from('resources')
                 .select('id, name, capacity, is_active')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('is_active', true);
             
             if (!tablesData || tablesData.length === 0) {
@@ -987,9 +987,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             }
             
             // USAR FUNCIÓN SIMPLIFICADA (sin turnos)
-            // Si no hay restaurantId, pasar null para que la función lo detecte
+            // Si no hay businessId, pasar null para que la función lo detecte
             const { data, error } = await supabase.rpc('generate_availability_slots_simple', {
-                p_restaurant_id: restaurantId || null,
+                p_business_id: businessId || null,
                 p_start_date: today,
                 p_end_date: endDate
             });
@@ -1119,7 +1119,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             const { count: totalSlotsCount, error: countError } = await supabase
                 .from('availability_slots')
                 .select('id', { count: 'exact', head: true })
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('slot_date', format(new Date(), 'yyyy-MM-dd'));
             
             const totalSlots = countError ? 0 : (totalSlotsCount || 0);
@@ -1141,7 +1141,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // Persistir éxito
             setGenerationSuccess(successData);
-            localStorage.setItem(`generationSuccess_${restaurantId}`, JSON.stringify(successData));
+            localStorage.setItem(`generationSuccess_${businessId}`, JSON.stringify(successData));
             
             // NO mostrar toast adicional - ya se mostró arriba
             
@@ -1149,7 +1149,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // Guardar en localStorage para persistencia
             try {
-                localStorage.setItem(`generationSuccess_${restaurantId}`, JSON.stringify(successData));
+                localStorage.setItem(`generationSuccess_${businessId}`, JSON.stringify(successData));
             } catch (error) {
                 // Silencioso - no es crítico
             }
@@ -1162,7 +1162,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // 🎯 Obtener estadísticas REALES
             const reservationStore2 = await import('../stores/reservationStore.js');
-            const realStats = await reservationStore2.useReservationStore.getState().getAvailabilityStats(restaurantId);
+            const realStats = await reservationStore2.useReservationStore.getState().getAvailabilityStats(businessId);
             
             // 🎯 Mostrar modal con datos REALES
             setRegenerationResult({
@@ -1191,7 +1191,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     // Limpiar disponibilidades
     // 🧹 SOLO LIMPIEZA: Elimina slots sin reservas, preserva con reservas, NO regenera
     const smartCleanupOnly = async () => {
-        if (!restaurantId) {
+        if (!businessId) {
             toast.error('❌ Falta ID del restaurante');
             return;
         }
@@ -1214,14 +1214,14 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             toast.loading('🧹 Limpieza inteligente...', { id: 'smart-cleanup-only' });
 
             const today = format(new Date(), 'yyyy-MM-dd');
-            const advanceDays = restaurantSettings?.advance_booking_days || 30;
+            const advanceDays = businessesettings?.advance_booking_days || 30;
             const endDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
 
             console.log('🧹 SOLO LIMPIEZA INTELIGENTE:');
             console.log('   📅 Período:', today, 'hasta', endDate);
 
             const { data, error } = await supabase.rpc('smart_cleanup_availability', {
-                p_restaurant_id: restaurantId,
+                p_business_id: businessId,
                 p_start_date: today,
                 p_end_date: endDate
             });
@@ -1249,7 +1249,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 
                 // Limpiar localStorage
                 try {
-                    localStorage.removeItem(`generationSuccess_${restaurantId}`);
+                    localStorage.removeItem(`generationSuccess_${businessId}`);
                 } catch (error) {
                     console.warn('No se pudo limpiar localStorage:', error);
                 }
@@ -1260,7 +1260,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 
                 // 🎯 Obtener estadísticas REALES de la BD
                 const reservationStore4 = await import('../stores/reservationStore.js');
-                const realStats = await reservationStore4.useReservationStore.getState().getAvailabilityStats(restaurantId);
+                const realStats = await reservationStore4.useReservationStore.getState().getAvailabilityStats(businessId);
                 
                 // Mostrar modal con datos REALES
                 setRegenerationResult({
@@ -1292,7 +1292,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
     // 🔄 LIMPIEZA + REGENERACIÓN: Elimina slots sin reservas, preserva con reservas, regenera nuevos
     const smartCleanupAndRegenerate = async () => {
-        if (!restaurantId || !restaurantSettings) {
+        if (!businessId || !businessesettings) {
             toast.error('❌ Faltan datos de configuración');
             return;
         }
@@ -1314,16 +1314,16 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             toast.loading('🧠 Limpieza inteligente + regeneración...', { id: 'smart-cleanup' });
 
             const today = format(new Date(), 'yyyy-MM-dd');
-            const advanceDays = restaurantSettings?.advance_booking_days || 30;
+            const advanceDays = businessesettings?.advance_booking_days || 30;
             const endDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
-            const duration = restaurantSettings?.reservation_duration || 90;
+            const duration = businessesettings?.reservation_duration || 90;
 
             console.log('🧠 LIMPIEZA + REGENERACIÓN INTELIGENTE:');
             console.log('   📅 Período:', today, 'hasta', endDate);
             console.log('   🕒 Duración:', duration, 'minutos');
 
             const { data, error } = await supabase.rpc('cleanup_and_regenerate_availability', {
-                p_restaurant_id: restaurantId,
+                p_business_id: businessId,
                 p_start_date: today,
                 p_end_date: endDate
             });
@@ -1374,7 +1374,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
                 // Guardar en localStorage
                 try {
-                    localStorage.setItem(`generationSuccess_${restaurantId}`, JSON.stringify(successData));
+                    localStorage.setItem(`generationSuccess_${businessId}`, JSON.stringify(successData));
                 } catch (error) {
                     console.warn('No se pudo guardar en localStorage:', error);
                 }
@@ -1411,7 +1411,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                     table_id,
                     tables(name, capacity, zone)
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('slot_date', generationSettings.startDate)
                 .lte('slot_date', generationSettings.endDate)
                 .order('slot_date', { ascending: true })
@@ -1450,13 +1450,13 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             setLoadingDayView(true);
             
             console.log('🔍 Buscando disponibilidades para:', {
-                restaurant_id: restaurantId,
+                business_id: businessId,
                 date: date
             });
             
             // MOSTRAR EL RESTAURANT ID PARA DEBUG
-            console.log('🏪 TU RESTAURANT ID ES:', restaurantId);
-            console.log('📋 Copia este ID para usar en SQL:', restaurantId);
+            console.log('🏪 TU RESTAURANT ID ES:', businessId);
+            console.log('📋 Copia este ID para usar en SQL:', businessId);
             
             const { data, error } = await supabase
                 .from('availability_slots')
@@ -1472,7 +1472,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                     metadata,
                     tables(name, capacity, zone)
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('slot_date', date)
                 // ✅ MOSTRAR TODOS LOS SLOTS (libres y ocupados)
                 .order('start_time', { ascending: true })
@@ -1539,12 +1539,12 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
         }
     };
 
-    // Cargar estado persistente cuando cambie el restaurantId
+    // Cargar estado persistente cuando cambie el businessId
     useEffect(() => {
-        if (restaurantId) {
+        if (businessId) {
             // Cargar estado persistente específico del restaurante
             try {
-                const saved = localStorage.getItem(`generationSuccess_${restaurantId}`);
+                const saved = localStorage.getItem(`generationSuccess_${businessId}`);
                 if (saved) {
                     setGenerationSuccess(JSON.parse(saved));
                 }
@@ -1552,13 +1552,13 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 // Silencioso - no es crítico
             }
             
-            loadRestaurantSettings();
+            loadbusinessesettings();
             loadAvailabilityStats().then(() => {
                 // Cargar estadísticas de días después de las stats normales
                 loadDayStats();
             });
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Actualizar generationSuccess cuando cambien las estadísticas reales
     useEffect(() => {
@@ -1585,12 +1585,12 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                     totalOccupied: availabilityStats.occupied || 0,
                     totalReserved: availabilityStats.occupied || 0
                 };
-                localStorage.setItem(`generationSuccess_${restaurantId}`, JSON.stringify(updatedData));
+                localStorage.setItem(`generationSuccess_${businessId}`, JSON.stringify(updatedData));
             } catch (error) {
                 // Silencioso - no es crítico
             }
         }
-    }, [availabilityStats, generationSuccess, restaurantId]);
+    }, [availabilityStats, generationSuccess, businessId]);
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
@@ -2139,10 +2139,10 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                                                     const dayOfWeek = new Date(exceptionDate).getDay();
                                                     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
                                                     const dayName = dayNames[dayOfWeek];
-                                                    const dayConfig = restaurantSettings?.operating_hours?.[dayName];
+                                                    const dayConfig = businessesettings?.operating_hours?.[dayName];
                                                     
                                                     exceptionsToCreate.push({
-                                                        restaurant_id: restaurantId,
+                                                        business_id: businessId,
                                                         exception_date: exceptionDate,
                                                         is_open: true, // Forzar abierto para proteger la reserva
                                                         open_time: dayConfig?.open || '09:00', // Usar horario del día
@@ -2161,7 +2161,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                                             const { error: exceptionsError } = await supabase
                                                 .from('calendar_exceptions')
                                                 .upsert(exceptionsToCreate, {
-                                                    onConflict: 'restaurant_id,exception_date',
+                                                    onConflict: 'business_id,exception_date',
                                                     ignoreDuplicates: false
                                                 });
                                             
@@ -2177,7 +2177,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                                         
                                         // 🔄 PASO 2: REGENERAR o GENERAR DISPONIBILIDADES (ahora respetará las excepciones)
                                         const today = format(new Date(), 'yyyy-MM-dd');
-                                        const advanceDays = restaurantSettings?.advance_booking_days || 30;
+                                        const advanceDays = businessesettings?.advance_booking_days || 30;
                                         const endDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
 
                                         let data, error;
@@ -2185,7 +2185,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                                         if (conflictData.isGenerating) {
                                             // Viene de generateAvailability - usar función simple
                                             const result = await supabase.rpc('generate_availability_slots_simple', {
-                                                p_restaurant_id: restaurantId,
+                                                p_business_id: businessId,
                                                 p_start_date: today,
                                                 p_end_date: endDate
                                             });
@@ -2194,7 +2194,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                                         } else {
                                             // Viene de smartRegeneration - usar función de limpieza
                                             const result = await supabase.rpc('cleanup_and_regenerate_availability', {
-                                                p_restaurant_id: restaurantId,
+                                                p_business_id: businessId,
                                                 p_start_date: today,
                                                 p_end_date: endDate
                                             });
@@ -2211,13 +2211,13 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                                         const successData = {
                                             slotsCreated: data?.slots_created || data?.affected_count || 0,
                                             dateRange: `HOY hasta ${format(addDays(new Date(), advanceDays), 'dd/MM/yyyy')}`,
-                                            duration: restaurantSettings?.reservation_duration || 90,
+                                            duration: businessesettings?.reservation_duration || 90,
                                             timestamp: new Date().toLocaleString(),
                                             protectedReservations: conflictData.conflicts.reduce((sum, c) => sum + c.reservations.length, 0)
                                         };
                                         
                                         setGenerationSuccess(successData);
-                                        localStorage.setItem(`generationSuccess_${restaurantId}`, JSON.stringify(successData));
+                                        localStorage.setItem(`generationSuccess_${businessId}`, JSON.stringify(successData));
                                         
                                         // Recargar estadísticas y excepciones
                                         await loadCalendarExceptions();
@@ -2489,4 +2489,5 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 };
 
 export default AvailabilityManager;
+
 

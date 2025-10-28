@@ -104,7 +104,7 @@ const occupiedSlots = activeReservations * slotsPerReservation;
 
 ---
 
-### 7. ✅ `src/stores/restaurantStore.js`
+### 7. ✅ `src/stores/businessestore.js`
 **Estado:** APROBADO
 
 **Hallazgos:**

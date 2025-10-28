@@ -54,7 +54,7 @@ export default function BaseConocimientoContent() {
       const { data, error } = await supabase
         .from('restaurant_knowledge_files')
         .select('*')
-        .eq('restaurant_id', restaurant.id)
+        .eq('business_id', restaurant.id)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -117,7 +117,7 @@ export default function BaseConocimientoContent() {
       const { data: fileRecord, error: dbError } = await supabase
         .from('restaurant_knowledge_files')
         .insert({
-          restaurant_id: restaurant.id,
+          business_id: restaurant.id,
           category,
           file_name: file.name,
           file_path: filePath,
@@ -170,7 +170,7 @@ export default function BaseConocimientoContent() {
         .from('restaurant_knowledge_files')
         .delete({ count: 'exact' })
         .eq('id', fileId)
-        .eq('restaurant_id', restaurant.id);
+        .eq('business_id', restaurant.id);
       
       // Ignorar error 404 (PGRST116 = no rows found)
       if (dbError && dbError.code !== 'PGRST116') {
@@ -354,4 +354,5 @@ export default function BaseConocimientoContent() {
     </div>
   );
 }
+
 

@@ -12,12 +12,12 @@ export class CRMIntegrationService {
   /**
    * Envía mensaje por WhatsApp usando Twilio
    */
-  static async sendWhatsAppMessage(restaurantId, messageData) {
+  static async sendWhatsAppMessage(businessId, messageData) {
     try {
       console.log('📱 Enviando WhatsApp via Twilio:', messageData);
       
       // 1. Obtener credenciales de Twilio
-      const credentials = await this.getChannelCredentials(restaurantId, 'twilio_whatsapp');
+      const credentials = await this.getChannelCredentials(businessId, 'twilio_whatsapp');
       
       if (!credentials) {
         throw new Error('Credenciales de Twilio WhatsApp no configuradas');
@@ -65,12 +65,12 @@ export class CRMIntegrationService {
   /**
    * Envía email usando SendGrid
    */
-  static async sendEmailMessage(restaurantId, messageData) {
+  static async sendEmailMessage(businessId, messageData) {
     try {
       console.log('📧 Enviando Email via SendGrid:', messageData);
       
       // 1. Obtener credenciales de SendGrid
-      const credentials = await this.getChannelCredentials(restaurantId, 'sendgrid_email');
+      const credentials = await this.getChannelCredentials(businessId, 'sendgrid_email');
       
       if (!credentials) {
         throw new Error('Credenciales de SendGrid no configuradas');
@@ -133,18 +133,18 @@ export class CRMIntegrationService {
   /**
    * Obtiene credenciales del canal para un restaurante
    */
-  static async getChannelCredentials(restaurantId, channel) {
+  static async getChannelCredentials(businessId, channel) {
     try {
       const { data, error } = await supabase
         .from('channel_credentials')
         .select('credentials, config, is_active')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('channel', channel)
         .eq('is_active', true)
         .single();
       
       if (error || !data) {
-        console.log(`⚠️ No hay credenciales activas para ${channel} en restaurant ${restaurantId}`);
+        console.log(`⚠️ No hay credenciales activas para ${channel} en restaurant ${businessId}`);
         return null;
       }
       
@@ -160,10 +160,10 @@ export class CRMIntegrationService {
   /**
    * Guarda o actualiza credenciales de un canal
    */
-  static async saveChannelCredentials(restaurantId, channel, credentials, config = {}) {
+  static async saveChannelCredentials(businessId, channel, credentials, config = {}) {
     try {
       const credentialData = {
-        restaurant_id: restaurantId,
+        business_id: businessId,
         channel: channel,
         credentials: credentials, // Se encriptará en producción
         config: config,
@@ -176,7 +176,7 @@ export class CRMIntegrationService {
       const { data, error } = await supabase
         .from('channel_credentials')
         .upsert(credentialData, {
-          onConflict: 'restaurant_id,channel'
+          onConflict: 'business_id,channel'
         })
         .select()
         .single();
@@ -195,16 +195,16 @@ export class CRMIntegrationService {
   /**
    * Prueba las credenciales de un canal
    */
-  static async testChannelCredentials(restaurantId, channel) {
+  static async testChannelCredentials(businessId, channel) {
     try {
       console.log(`🧪 Probando credenciales para ${channel}...`);
       
       let result;
       
       if (channel === 'twilio_whatsapp') {
-        result = await this.testTwilioCredentials(restaurantId);
+        result = await this.testTwilioCredentials(businessId);
       } else if (channel === 'sendgrid_email') {
-        result = await this.testSendGridCredentials(restaurantId);
+        result = await this.testSendGridCredentials(businessId);
       } else {
         throw new Error(`Canal no soportado: ${channel}`);
       }
@@ -217,7 +217,7 @@ export class CRMIntegrationService {
           last_test_success: result.success,
           last_test_error: result.success ? null : result.error
         })
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .eq('channel', channel);
       
       return result;
@@ -231,9 +231,9 @@ export class CRMIntegrationService {
   /**
    * Prueba credenciales de Twilio
    */
-  static async testTwilioCredentials(restaurantId) {
+  static async testTwilioCredentials(businessId) {
     try {
-      const credentials = await this.getChannelCredentials(restaurantId, 'twilio_whatsapp');
+      const credentials = await this.getChannelCredentials(businessId, 'twilio_whatsapp');
       
       if (!credentials) {
         return { success: false, error: 'No hay credenciales configuradas' };
@@ -265,9 +265,9 @@ export class CRMIntegrationService {
   /**
    * Prueba credenciales de SendGrid
    */
-  static async testSendGridCredentials(restaurantId) {
+  static async testSendGridCredentials(businessId) {
     try {
-      const credentials = await this.getChannelCredentials(restaurantId, 'sendgrid_email');
+      const credentials = await this.getChannelCredentials(businessId, 'sendgrid_email');
       
       if (!credentials) {
         return { success: false, error: 'No hay credenciales configuradas' };
@@ -420,7 +420,7 @@ export class CRMIntegrationService {
   /**
    * Obtiene estadísticas de integraciones
    */
-  static async getIntegrationStats(restaurantId, days = 7) {
+  static async getIntegrationStats(businessId, days = 7) {
     try {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - days);
@@ -429,7 +429,7 @@ export class CRMIntegrationService {
       const { data: messages, error } = await supabase
         .from('scheduled_messages')
         .select('channel_final, status, provider_response, created_at')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .gte('created_at', startDate.toISOString());
       
       if (error) throw error;
@@ -458,3 +458,4 @@ export class CRMIntegrationService {
 }
 
 export default CRMIntegrationService;
+

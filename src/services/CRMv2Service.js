@@ -6,11 +6,11 @@ import { supabase } from '../lib/supabase';
  */
 
 // 1. MATCHING AUTOMÁTICO DE RESERVAS ↔ TICKETS
-export async function suggestReceiptMatches(restaurantId, reservationId = null) {
+export async function suggestReceiptMatches(businessId, reservationId = null) {
     try {
         const { data, error } = await supabase
             .rpc('crm_v2_suggest_receipt_matches', {
-                p_restaurant_id: restaurantId,
+                p_business_id: businessId,
                 p_reservation_id: reservationId
             });
 
@@ -137,11 +137,11 @@ export async function queueMessage(customerId, templateId, ruleId = null, delayM
 }
 
 // 7. EJECUTAR REGLAS DE AUTOMATIZACIÓN
-export async function executeAutomationRules(restaurantId, segment = null) {
+export async function executeAutomationRules(businessId, segment = null) {
     try {
         const { data, error } = await supabase
             .rpc('crm_v2_execute_automation_rules', {
-                p_restaurant_id: restaurantId,
+                p_business_id: businessId,
                 p_segment: segment
             });
 
@@ -158,12 +158,12 @@ export async function executeAutomationRules(restaurantId, segment = null) {
 }
 
 // 8. OBTENER RESUMEN DE SEGMENTACIÓN
-export async function getSegmentOverview(restaurantId) {
+export async function getSegmentOverview(businessId) {
     try {
         const { data, error } = await supabase
             .from('crm_segment_overview')
             .select('*')
-            .eq('restaurant_id', restaurantId);
+            .eq('business_id', businessId);
 
         if (error) throw error;
 
@@ -182,12 +182,12 @@ export async function getSegmentOverview(restaurantId) {
 }
 
 // 9. OBTENER FEATURES DE CLIENTES
-export async function getCustomerFeatures(restaurantId, limit = 100) {
+export async function getCustomerFeatures(businessId, limit = 100) {
     try {
         const { data, error } = await supabase
             .from('analytics_customer_features')
             .select('*')
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .order('calculated_at', { ascending: false })
             .limit(limit);
 
@@ -208,12 +208,12 @@ export async function getCustomerFeatures(restaurantId, limit = 100) {
 }
 
 // 10. GESTIÓN DE CONFIGURACIÓN CRM
-export async function getCRMSettings(restaurantId) {
+export async function getCRMSettings(businessId) {
     try {
         const { data, error } = await supabase
             .from('crm_settings')
             .select('*')
-            .eq('restaurant_id', restaurantId)
+            .eq('business_id', businessId)
             .maybeSingle();
 
         if (error) throw error;
@@ -232,12 +232,12 @@ export async function getCRMSettings(restaurantId) {
     }
 }
 
-export async function updateCRMSettings(restaurantId, settings) {
+export async function updateCRMSettings(businessId, settings) {
     try {
         const { data, error } = await supabase
             .from('crm_settings')
             .upsert({
-                restaurant_id: restaurantId,
+                business_id: businessId,
                 ...settings,
                 updated_at: new Date().toISOString()
             })
@@ -367,3 +367,4 @@ export default {
     isVIP,
     DEFAULT_TEMPLATES
 };
+

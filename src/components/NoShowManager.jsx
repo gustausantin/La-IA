@@ -191,7 +191,7 @@ const NoShowManager = () => {
             const { data: templates, error } = await supabase
                 .from('crm_templates')
                 .select('*')
-                .eq('restaurant_id', restaurant?.id)
+                .eq('business_id', restaurant?.id)
                 .eq('type', 'noshow')
                 .eq('active', true)
                 .order('priority', { ascending: true });
@@ -255,7 +255,7 @@ const NoShowManager = () => {
                 : new Date().toISOString().split('T')[0];
 
             const actionData = {
-                restaurant_id: restaurant?.id,
+                business_id: restaurant?.id,
                 reservation_id: action.reservation.id || null, // Puede ser NULL
                 customer_id: null, // Por ahora NULL, se puede vincular después
                 customer_name: action.reservation.customer_name || 'Cliente Sin Nombre',
@@ -318,7 +318,7 @@ const NoShowManager = () => {
             const { data: existingConversation } = await supabase
                 .from('conversations')
                 .select('id')
-                .eq('restaurant_id', restaurant?.id)
+                .eq('business_id', restaurant?.id)
                 .eq('customer_phone', action.reservation.customer_phone)
                 .eq('status', 'open')
                 .limit(1);
@@ -332,7 +332,7 @@ const NoShowManager = () => {
                 const { data: newConversation, error } = await supabase
                     .from('conversations')
                     .insert({
-                        restaurant_id: restaurant?.id,
+                        business_id: restaurant?.id,
                         customer_name: action.reservation.customer_name,
                         customer_phone: action.reservation.customer_phone,
                         customer_email: null,
@@ -452,7 +452,7 @@ const NoShowManager = () => {
             const { data: noShowsData, error: noShowsError } = await supabase
                 .from('noshow_actions')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('reservation_date', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
                 .order('reservation_date', { ascending: false });
 
@@ -462,7 +462,7 @@ const NoShowManager = () => {
 
             // 1. Reservas de hoy y mañana para análisis de riesgo
             const { data: upcomingReservations, error: reservationsError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     *,
                     customers (
@@ -473,7 +473,7 @@ const NoShowManager = () => {
                         total_spent
                     )
                 `)
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .in('status', ['confirmed', 'pending'])
                 .gte('reservation_date', new Date().toISOString().split('T')[0])
                 .lte('reservation_date', new Date(Date.now() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0])
@@ -492,7 +492,7 @@ const NoShowManager = () => {
             try {
                 const { data: stats, error: statsError } = await supabase
                     .rpc('get_customer_noshow_stats', {
-                        p_restaurant_id: restaurant.id
+                        p_business_id: restaurant.id
                     });
                 if (!statsError) customerStats = stats || [];
             } catch (error) {
@@ -502,7 +502,7 @@ const NoShowManager = () => {
             try {
                 const { data: metrics, error: metricsError } = await supabase
                     .rpc('get_restaurant_noshow_metrics', {
-                        p_restaurant_id: restaurant.id,
+                        p_business_id: restaurant.id,
                         p_days_back: 30
                     });
                 if (!metricsError) restaurantMetrics = metrics;
@@ -513,7 +513,7 @@ const NoShowManager = () => {
             try {
                 const { data: preds, error: predictionsError } = await supabase
                     .rpc('predict_upcoming_noshows', {
-                        p_restaurant_id: restaurant.id,
+                        p_business_id: restaurant.id,
                         p_days_ahead: 7
                     });
                 if (!predictionsError) predictions = preds || [];
@@ -594,7 +594,7 @@ const NoShowManager = () => {
                 const { data: weeklyActions } = await supabase
                     .from('noshow_actions')
                     .select('final_outcome')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
 
                 const weeklyPreventedReal = weeklyActions?.filter(action => 
@@ -605,7 +605,7 @@ const NoShowManager = () => {
                 const { data: recentNoShowsData } = await supabase
                     .from('noshow_actions')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .order('created_at', { ascending: false })
                     .limit(5);
                 
@@ -614,23 +614,23 @@ const NoShowManager = () => {
 
                 // CALCULAR RESERVAS DE HOY CON ALTO RIESGO - DESDE SUPABASE
                 const { data: todayReservations } = await supabase
-                    .from('reservations')
+                    .from('appointments')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .eq('reservation_date', new Date().toISOString().split('T')[0]);
 
                 // USAR EXACTAMENTE LA MISMA LÓGICA QUE EL DASHBOARD - DESDE NOSHOW_ACTIONS
                 const { data: todayNoShowActions } = await supabase
                     .from('noshow_actions')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .eq('reservation_date', new Date().toISOString().split('T')[0]);
                 
                 // Obtener SOLO alto riesgo para coherencia con Dashboard
                 const { data: todayHighRiskActions } = await supabase
                     .from('noshow_actions')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .eq('reservation_date', new Date().toISOString().split('T')[0])
                     .eq('risk_level', 'high');
 
@@ -947,3 +947,4 @@ const NoShowManager = () => {
 };
 
 export default NoShowManager;
+

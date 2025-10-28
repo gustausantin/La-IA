@@ -30,7 +30,7 @@ BEGIN
     -- Mostrar valores actuales (para debug)
     FOR restaurant IN 
         SELECT id, name, (settings->>'min_advance_hours') as current_value
-        FROM restaurants
+        FROM businesses
         WHERE settings ? 'min_advance_hours'
     LOOP
         RAISE NOTICE '  Restaurant: % | min_advance_hours actual: %', 
@@ -42,7 +42,7 @@ END $$;
 -- MIGRACIÓN: Renombrar min_advance_hours → min_advance_minutes
 -- =====================================================
 
-UPDATE restaurants
+UPDATE businesses
 SET settings = settings 
     - 'min_advance_hours'  -- Eliminar clave antigua
     || jsonb_build_object(
@@ -63,7 +63,7 @@ BEGIN
     
     FOR restaurant IN 
         SELECT id, name, (settings->>'min_advance_minutes') as new_value
-        FROM restaurants
+        FROM businesses
         WHERE settings ? 'min_advance_minutes'
     LOOP
         RAISE NOTICE '  Restaurant: % | min_advance_minutes nuevo: % min', 
@@ -75,7 +75,7 @@ END $$;
 -- ✅ COMENTARIOS
 -- =====================================================
 
-COMMENT ON COLUMN restaurants.settings IS 
+COMMENT ON COLUMN businesses.settings IS 
 'JSONB con configuración del restaurante. 
 Claves relevantes:
 - min_advance_minutes: Minutos mínimos de antelación para reservas (INTEGER)

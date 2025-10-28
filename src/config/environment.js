@@ -19,9 +19,13 @@ const loadEnvironmentConfig = async () => {
     const envModule = await import(`./environment.${environment}.js`);
     return envModule.config;
   } catch (error) {
+    // ✅ NO HAY FALLBACK: FORZAR USO DE VARIABLES DE ENTORNO
+    if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+      throw new Error('❌ FALTAN VARIABLES DE ENTORNO: Verifica que .env existe y tiene VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY');
+    }
     return {
-      SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL || 'https://ktsqwvhqamedpmzkzjaz.supabase.co',
-      SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt0c3F3dmhxYW1lZHBtemt6amF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQzNzY3NzEsImV4cCI6MjA2OTk1Mjc3MX0.Y-zMa2F5a7UVT-efldv0sZjLAgmCfeEmhxfP7kgGzNY',
+      SUPABASE_URL: import.meta.env.VITE_SUPABASE_URL,
+      SUPABASE_ANON_KEY: import.meta.env.VITE_SUPABASE_ANON_KEY,
       DEBUG: isDevelopment,
       LOG_LEVEL: isDevelopment ? 'debug' : 'error'
     };

@@ -66,10 +66,10 @@ Recibirás un mensaje de confirmación 24 horas antes.
     'whatsapp' as channel,
     true as is_active,
     'aprobacion_grupo' as template_type
-FROM restaurants
+FROM businesses
 WHERE NOT EXISTS (
     SELECT 1 FROM message_templates 
-    WHERE message_templates.restaurant_id = restaurants.id 
+    WHERE message_templates.restaurant_id = businesses.id 
     AND message_templates.name = 'Aprobación Grupo Grande'
 );
 
@@ -109,10 +109,10 @@ Motivo: {{rejection_reason}}
     'whatsapp' as channel,
     true as is_active,
     'rechazo_grupo' as template_type
-FROM restaurants
+FROM businesses
 WHERE NOT EXISTS (
     SELECT 1 FROM message_templates 
-    WHERE message_templates.restaurant_id = restaurants.id 
+    WHERE message_templates.restaurant_id = businesses.id 
     AND message_templates.name = 'Rechazo Grupo Grande'
 );
 
@@ -152,10 +152,10 @@ Responde:
     'whatsapp' as channel,
     true as is_active,
     'confirmacion_24h' as template_type
-FROM restaurants
+FROM businesses
 WHERE NOT EXISTS (
     SELECT 1 FROM message_templates 
-    WHERE message_templates.restaurant_id = restaurants.id 
+    WHERE message_templates.restaurant_id = businesses.id 
     AND message_templates.name = 'Confirmación 24h Antes'
 );
 

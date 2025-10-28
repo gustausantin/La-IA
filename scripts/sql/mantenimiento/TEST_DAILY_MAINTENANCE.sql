@@ -30,7 +30,7 @@ SELECT daily_availability_maintenance();
 --   "success": true,
 --   "executed_at": "2025-10-08T16:45:00Z",
 --   "date_reference": "2025-10-08",
---   "restaurants_processed": 1,
+--   "businesses_processed": 1,
 --   "total_slots_deleted": 24,
 --   "total_slots_created": 24,
 --   "errors": [],
@@ -72,7 +72,7 @@ SELECT
     COUNT(DISTINCT a.slot_date) as dias_totales,
     COUNT(*) as slots_totales
 FROM availability_slots a
-JOIN restaurants r ON r.id = a.restaurant_id
+JOIN businesses r ON r.id = a.restaurant_id
 GROUP BY r.name;
 
 
@@ -105,7 +105,7 @@ SELECT
         THEN '✅ CORRECTO'
         ELSE '⚠️ REVISAR'
     END as estado
-FROM restaurants r
+FROM businesses r
 LEFT JOIN availability_slots a ON a.restaurant_id = r.id
 GROUP BY r.id, r.name, r.settings;
 

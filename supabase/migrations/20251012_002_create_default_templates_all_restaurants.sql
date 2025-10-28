@@ -81,7 +81,7 @@ DECLARE
   restaurant_record RECORD;
 BEGIN
   FOR restaurant_record IN 
-    SELECT id FROM restaurants
+    SELECT id FROM businesses
   LOOP
     PERFORM create_default_templates_for_restaurant(restaurant_record.id);
   END LOOP;
@@ -101,10 +101,10 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS on_restaurant_created_create_templates ON restaurants;
+DROP TRIGGER IF EXISTS on_restaurant_created_create_templates ON businesses;
 
 CREATE TRIGGER on_restaurant_created_create_templates
-  AFTER INSERT ON restaurants
+  AFTER INSERT ON businesses
   FOR EACH ROW
   EXECUTE FUNCTION trigger_create_default_templates();
 
@@ -121,7 +121,7 @@ SELECT
   r.id,
   r.name as restaurant_name,
   COUNT(mt.id) as template_count
-FROM restaurants r
+FROM businesses r
 LEFT JOIN message_templates mt ON mt.restaurant_id = r.id 
   AND mt.name IN ('Recordatorio 24h antes', 'Recordatorio 4h antes')
 GROUP BY r.id, r.name

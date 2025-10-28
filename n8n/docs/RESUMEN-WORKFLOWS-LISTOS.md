@@ -340,7 +340,7 @@ ORDER BY created_at DESC LIMIT 1;
 | 4️⃣ Agente Reservas | 🔜 PENDIENTE | reservations, availability_slots, tables | - |
 | 5️⃣ Agente Modificación | 🔜 PENDIENTE | reservations, availability_slots | - |
 | 6️⃣ Agente Cancelación | 🔜 PENDIENTE | reservations, availability_slots | - |
-| 7️⃣ Agente FAQ | 🔜 PENDIENTE | restaurants (info) | - |
+| 7️⃣ Agente FAQ | 🔜 PENDIENTE | businesses (info) | - |
 
 ---
 

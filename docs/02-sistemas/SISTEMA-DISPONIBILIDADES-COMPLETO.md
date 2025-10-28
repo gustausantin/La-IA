@@ -56,7 +56,7 @@ Tabla que almacena todos los slots de disponibilidad.
 ```sql
 CREATE TABLE availability_slots (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id),
+    restaurant_id UUID NOT NULL REFERENCES businesses(id),
     slot_date DATE NOT NULL,
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
@@ -92,7 +92,7 @@ Días especiales (festivos, cierres, eventos).
 ```sql
 CREATE TABLE calendar_exceptions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id),
+    restaurant_id UUID NOT NULL REFERENCES businesses(id),
     exception_date DATE NOT NULL,
     exception_type TEXT NOT NULL, -- 'closed', 'holiday', 'special_event'
     reason TEXT,
@@ -109,7 +109,7 @@ Horarios de operación semanales.
 ```sql
 CREATE TABLE restaurant_operating_hours (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id),
+    restaurant_id UUID NOT NULL REFERENCES businesses(id),
     day_of_week INTEGER NOT NULL CHECK (day_of_week >= 0 AND day_of_week <= 6),
     is_closed BOOLEAN DEFAULT FALSE,
     shifts JSONB DEFAULT '[]', -- Array de turnos
@@ -335,7 +335,7 @@ BEGIN
     FOR v_restaurant IN 
         SELECT r.id, r.name, 
                COALESCE(rs.advance_booking_days, 30) as advance_days
-        FROM restaurants r
+        FROM businesses r
         LEFT JOIN restaurant_settings rs ON r.id = rs.restaurant_id
         WHERE r.is_active = TRUE
     LOOP
@@ -448,7 +448,7 @@ WHERE restaurant_id = p_restaurant_id
 
 ```sql
 CREATE TABLE restaurant_settings (
-    restaurant_id UUID PRIMARY KEY REFERENCES restaurants(id),
+    restaurant_id UUID PRIMARY KEY REFERENCES businesses(id),
     advance_booking_days INT DEFAULT 30, -- Ventana de reservas
     slot_duration_default INT DEFAULT 90, -- Duración por defecto (min)
     max_party_size INT DEFAULT 12,

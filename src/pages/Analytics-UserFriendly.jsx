@@ -123,7 +123,7 @@ const SimplePredictions = {
 };
 
 export default function Analytics() {
-    const { restaurant, restaurantId, isReady } = useAuthContext();
+    const { restaurant, businessId, isReady } = useAuthContext();
     
     // Estados principales
     const [loading, setLoading] = useState(true);
@@ -149,16 +149,16 @@ export default function Analytics() {
     
     // Cargar datos del usuario
     const loadUserData = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
         
         try {
             setLoading(true);
             
             // Calcular métricas desde reservas existentes
             const { data: reservationsData, error } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select('*')
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .order('created_at', { ascending: true });
 
             // Usar SOLO datos reales de reservas - SIN SIMULACIÓN
@@ -250,7 +250,7 @@ export default function Analytics() {
         } finally {
             setLoading(false);
         }
-    }, [restaurantId]);
+    }, [businessId]);
     
     useEffect(() => {
         if (isReady) {
@@ -572,3 +572,4 @@ export default function Analytics() {
         </div>
     );
 }
+

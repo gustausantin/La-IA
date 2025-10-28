@@ -108,7 +108,7 @@ He realizado una auditoría extrema leyendo:
 
 ### CONCEPTOS A ADAPTAR 🔧
 **Mapeo Restaurant → Autónomos:**
-- `restaurants` → `businesses`
+- `businesses` → `businesses`
 - `tables` → `resources` (sillas, camillas, salas)
 - `capacity` → `resource_count`
 - `shifts` → `availability_windows`
@@ -164,7 +164,7 @@ La-IA/
 4. **Simplificar base de datos:**
    ```sql
    -- ANTES (Restaurante):
-   restaurants → tables → table_combinations → capacity
+   businesses → tables → table_combinations → capacity
    
    -- DESPUÉS (Autónomos):
    businesses → resources → services → appointments

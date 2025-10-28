@@ -118,7 +118,7 @@
 ### **🛠️ Compatibilidad TPV España:**
 ```bash
 ✅ Lightspeed Restaurant (API + CSV)
-✅ Square for Restaurants (API + CSV)  
+✅ Square for businesses (API + CSV)  
 ✅ Revel Systems (API + CSV)
 ✅ Toast POS (CSV Export)
 ✅ TPVs Locales/Genéricos (CSV)

@@ -14,7 +14,7 @@ const createMockAuthContext = (overrides = {}) => ({
     name: 'Mi Restaurante',
     email: 'test@restaurant.com'
   },
-  restaurantId: '1',
+  businessId: '1',
   notifications: [],
   ...overrides,
 });

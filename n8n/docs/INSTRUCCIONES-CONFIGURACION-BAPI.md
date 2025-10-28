@@ -53,12 +53,12 @@ https://app.bland.ai
 ```
 
 ### **3. Supabase Configurado**
-- Tabla `restaurants` con columna `channels` JSONB
+- Tabla `businesses` con columna `channels` JSONB
 - Estructura: `channels.voice.phone_number`
 
 ### **4. Twilio Voice Number**
 - Número comprado en Twilio
-- Configurado en `restaurants.channels.voice.phone_number`
+- Configurado en `businesses.channels.voice.phone_number`
 
 ---
 
@@ -473,7 +473,7 @@ curl -X POST https://tu-n8n.com/webhook/bapi-voice-gateway \
 **Causa:** El teléfono de `call.to` no coincide con `channels.voice.phone_number` en Supabase.
 
 **Solución:**
-1. Ve a Supabase → `restaurants`
+1. Ve a Supabase → `businesses`
 2. Verifica que `channels` tiene esta estructura:
    ```json
    {

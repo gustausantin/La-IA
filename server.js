@@ -42,6 +42,98 @@ app.post('/api/register', (req, res) => {
   registerHandler(req, res);
 });
 
+// ✅ ENDPOINT PARA CREAR NEGOCIO (con SERVICE_ROLE_KEY)
+app.post('/api/create-business', async (req, res) => {
+  try {
+    const { businessData, userId } = req.body;
+
+    // Cliente con SERVICE_ROLE_KEY (bypasea RLS)
+    const { createClient } = await import('@supabase/supabase-js');
+    const supabaseAdmin = createClient(
+      process.env.SUPABASE_URL,
+      process.env.SUPABASE_SERVICE_ROLE_KEY,
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
+      }
+    );
+
+    console.log('🔵 API: Creando negocio con SERVICE_ROLE_KEY');
+
+    // 1. Crear negocio
+    const { data: business, error: businessError } = await supabaseAdmin
+      .from('businesses')
+      .insert([businessData])
+      .select()
+      .single();
+
+    if (businessError) {
+      console.error('❌ Error creando negocio:', businessError);
+      return res.status(400).json({ error: businessError.message });
+    }
+
+    console.log('✅ Negocio creado:', business.id);
+
+    // 2. Crear mapping
+    const { error: mappingError } = await supabaseAdmin
+      .from('user_business_mapping')
+      .insert([{
+        auth_user_id: userId,
+        business_id: business.id,
+        role: 'owner',
+        active: true
+      }]);
+
+    if (mappingError) {
+      console.error('❌ Error creando mapping:', mappingError);
+      return res.status(400).json({ error: mappingError.message });
+    }
+
+    console.log('✅ Mapping creado');
+
+    // 3. Crear servicios
+    if (businessData.services && businessData.services.length > 0) {
+      const servicesData = businessData.services.map((serviceName, index) => ({
+        business_id: business.id,
+        name: serviceName,
+        duration_minutes: 60,
+        price: 0,
+        active: true,
+        display_order: index + 1
+      }));
+
+      await supabaseAdmin.from('services').insert(servicesData);
+      console.log('✅ Servicios creados:', servicesData.length);
+    }
+
+    // 4. Crear recursos
+    if (businessData.resources && businessData.resources.length > 0) {
+      const resourcesData = businessData.resources.map((resourceName, index) => ({
+        business_id: business.id,
+        name: resourceName,
+        type: 'room',
+        capacity: 1,
+        active: true,
+        display_order: index + 1
+      }));
+
+      await supabaseAdmin.from('resources').insert(resourcesData);
+      console.log('✅ Recursos creados:', resourcesData.length);
+    }
+
+    return res.json({ 
+      success: true, 
+      business 
+    });
+
+  } catch (error) {
+    console.error('💥 Error fatal en API:', error);
+    return res.status(500).json({ error: error.message });
+  }
+});
+
 // ========================================
 // EMAIL SENDING ENDPOINT
 // Usado por Supabase Edge Function para enviar emails vía SMTP
@@ -49,14 +141,14 @@ app.post('/api/register', (req, res) => {
 // Endpoint para registrar actividad del agente (health check)
 app.post('/api/agent-heartbeat', async (req, res) => {
   try {
-    const { restaurant_id } = req.body;
+    const { business_id } = req.body;
     
-    if (!restaurant_id) {
-      return res.status(400).json({ error: 'restaurant_id required' });
+    if (!business_id) {
+      return res.status(400).json({ error: 'business_id required' });
     }
     
     const { registerAgentActivity } = await import('./src/services/systemNotificationService.js');
-    registerAgentActivity(restaurant_id);
+    registerAgentActivity(business_id);
     
     res.json({ success: true, timestamp: new Date().toISOString() });
   } catch (error) {
@@ -68,10 +160,10 @@ app.post('/api/agent-heartbeat', async (req, res) => {
 // Endpoint para notificar desactivación de agente
 app.post('/api/agent-deactivated', async (req, res) => {
   try {
-    const { restaurant_id } = req.body;
+    const { business_id } = req.body;
     
-    if (!restaurant_id) {
-      return res.status(400).json({ error: 'restaurant_id required' });
+    if (!business_id) {
+      return res.status(400).json({ error: 'business_id required' });
     }
     
     // Obtener datos del restaurante
@@ -81,9 +173,9 @@ app.post('/api/agent-deactivated', async (req, res) => {
     );
     
     const { data: restaurant } = await supabase
-      .from('restaurants')
+      .from('businesses')
       .select('*')
-      .eq('id', restaurant_id)
+      .eq('id', business_id)
       .single();
     
     if (!restaurant) {
@@ -103,14 +195,14 @@ app.post('/api/agent-deactivated', async (req, res) => {
 // Endpoint para reportar errores críticos
 app.post('/api/report-error', async (req, res) => {
   try {
-    const { restaurant_id, error_type, error_message } = req.body;
+    const { business_id, error_type, error_message } = req.body;
     
-    if (!restaurant_id || !error_type) {
-      return res.status(400).json({ error: 'restaurant_id and error_type required' });
+    if (!business_id || !error_type) {
+      return res.status(400).json({ error: 'business_id and error_type required' });
     }
     
     const { trackError } = await import('./src/services/systemNotificationService.js');
-    await trackError(restaurant_id, error_type, error_message || 'Error desconocido');
+    await trackError(business_id, error_type, error_message || 'Error desconocido');
     
     res.json({ success: true });
   } catch (error) {
@@ -210,7 +302,7 @@ const findAvailablePort = (startPort) => {
 };
 
 // Iniciar servidor en puerto fijo
-const PORT = 5000;
+const PORT = 3000;
 
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`✅ API Server running on http://0.0.0.0:${PORT}`);
@@ -321,3 +413,4 @@ app.on('error', (error) => {
   console.error('❌ Error iniciando servidor:', error);
   process.exit(1);
 });
+

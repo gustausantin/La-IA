@@ -67,7 +67,7 @@ export default function NoShowControlNuevo() {
             // 1. Obtener métricas generales
             const { data: metrics, error: metricsError } = await supabase
                 .rpc('get_restaurant_noshow_metrics', {
-                    p_restaurant_id: restaurant.id
+                    p_business_id: restaurant.id
                 });
 
             if (metricsError) {
@@ -90,7 +90,7 @@ export default function NoShowControlNuevo() {
             // 2. Obtener reservas con riesgo HOY (VERSIÓN DINÁMICA)
             const { data: predictions, error: predError } = await supabase
                 .rpc('predict_upcoming_noshows_v2', {
-                    p_restaurant_id: restaurant.id,
+                    p_business_id: restaurant.id,
                     p_days_ahead: 0  // 0 = solo HOY, 1 = HOY + MAÑANA
                 });
             
@@ -110,7 +110,7 @@ export default function NoShowControlNuevo() {
             const { data: actions, error: actionsError } = await supabase
                 .from('noshow_actions')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .gte('created_at', format(subDays(new Date(), 30), 'yyyy-MM-dd'))
                 .order('created_at', { ascending: true });
             
@@ -136,7 +136,7 @@ export default function NoShowControlNuevo() {
             const { data: recentActionsData, error: recentActionsError } = await supabase
                 .from('noshow_actions')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .order('created_at', { ascending: false })
                 .limit(10);
             
@@ -806,7 +806,7 @@ export default function NoShowControlNuevo() {
                                 
                                 // 1. Actualizar estado de la reserva
                                 const { error: updateError } = await supabase
-                                    .from('reservations')
+                                    .from('appointments')
                                     .update({ status: 'confirmed' })
                                     .eq('id', reservation.reservation_id);
                                 
@@ -816,7 +816,7 @@ export default function NoShowControlNuevo() {
                                 const { error: confirmError } = await supabase
                                     .from('customer_confirmations')
                                     .insert({
-                                        restaurant_id: restaurant.id,
+                                        business_id: restaurant.id,
                                         reservation_id: reservation.reservation_id,
                                         message_type: 'Llamada urgente',
                                         sent_at: new Date().toISOString(),
@@ -845,3 +845,4 @@ export default function NoShowControlNuevo() {
         </div>
     );
 }
+

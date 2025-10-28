@@ -4,7 +4,7 @@ import { useAuthContext } from '../contexts/AuthContext';
 import { calculateOccupancy, calculateTodayOccupancy } from '../utils/occupancyCalculator';
 
 export const useOccupancy = (period = 7) => {
-    const { restaurantId } = useAuthContext();
+    const { businessId } = useAuthContext();
     const [occupancy, setOccupancy] = useState({
         average: 0,
         today: 0,
@@ -15,7 +15,7 @@ export const useOccupancy = (period = 7) => {
     const [error, setError] = useState(null);
 
     const loadOccupancy = useCallback(async () => {
-        if (!restaurantId) {
+        if (!businessId) {
             setOccupancy({ average: 0, today: 0, details: {}, todayDetails: {} });
             setLoading(false);
             return;
@@ -25,12 +25,12 @@ export const useOccupancy = (period = 7) => {
         setError(null);
 
         try {
-            console.log('🏢 Cargando ocupación...', { restaurantId, period });
+            console.log('🏢 Cargando ocupación...', { businessId, period });
 
             // Cargar ocupación promedio y de hoy en paralelo
             const [averageResult, todayResult] = await Promise.allSettled([
-                calculateOccupancy(restaurantId, period),
-                calculateTodayOccupancy(restaurantId)
+                calculateOccupancy(businessId, period),
+                calculateTodayOccupancy(businessId)
             ]);
 
             const average = averageResult.status === 'fulfilled' 
@@ -63,7 +63,7 @@ export const useOccupancy = (period = 7) => {
         } finally {
             setLoading(false);
         }
-    }, [restaurantId, period]);
+    }, [businessId, period]);
 
     // Cargar ocupación al montar y cuando cambien las dependencias
     useEffect(() => {
@@ -72,7 +72,7 @@ export const useOccupancy = (period = 7) => {
 
     // Recargar cada 5 minutos
     useEffect(() => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         const interval = setInterval(() => {
             console.log('🔄 Recargando ocupación automáticamente...');
@@ -80,7 +80,7 @@ export const useOccupancy = (period = 7) => {
         }, 5 * 60 * 1000); // 5 minutos
 
         return () => clearInterval(interval);
-    }, [restaurantId, loadOccupancy]);
+    }, [businessId, loadOccupancy]);
 
     return {
         occupancy,

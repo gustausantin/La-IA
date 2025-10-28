@@ -54,7 +54,7 @@ const NoShowManagerProfesional = () => {
                 const { data: todayReservations } = await supabase
                     .from('noshow_actions')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .gte('reservation_date', today)
                     .lte('reservation_date', today)
                     .order('risk_score', { ascending: false });
@@ -102,7 +102,7 @@ const NoShowManagerProfesional = () => {
                 const { data: noShowActions } = await supabase
                     .from('noshow_actions')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .gte('created_at', weekAgo.toISOString());
 
                 const prevented = noShowActions?.filter(a => 
@@ -117,7 +117,7 @@ const NoShowManagerProfesional = () => {
                 const { data: todayNoShowActions } = await supabase
                     .from('noshow_actions')
                     .select('*')
-                    .eq('restaurant_id', restaurant.id)
+                    .eq('business_id', restaurant.id)
                     .eq('reservation_date', format(new Date(), 'yyyy-MM-dd'));
                 
                 setData({
@@ -153,7 +153,7 @@ const NoShowManagerProfesional = () => {
             const { data: plantillas } = await supabase
                 .from('message_templates')
                 .select('*')
-                .eq('restaurant_id', restaurant.id)
+                .eq('business_id', restaurant.id)
                 .eq('category', 'noshow_prevention')
                 .eq('is_active', true)
                 .single();
@@ -174,7 +174,7 @@ const NoShowManagerProfesional = () => {
             const { data, error } = await supabase
                 .from('noshow_actions')
                 .insert({
-                    restaurant_id: restaurant.id,
+                    business_id: restaurant.id,
                     reservation_id: reserva.id,
                     customer_id: reserva.customer_id,
                     customer_name: reserva.customer_name,
@@ -204,7 +204,7 @@ const NoShowManagerProfesional = () => {
             const { data: conversation } = await supabase
                 .from('conversations')
                 .upsert({
-                    restaurant_id: restaurant.id,
+                    business_id: restaurant.id,
                     customer_id: reserva.customer_id,
                     customer_name: reserva.customer_name,
                     customer_phone: reserva.customer_phone || '',
@@ -215,7 +215,7 @@ const NoShowManagerProfesional = () => {
                     last_message: mensajeFinal,
                     updated_at: new Date().toISOString()
                 }, {
-                    onConflict: 'restaurant_id,customer_phone',
+                    onConflict: 'business_id,customer_phone',
                     ignoreDuplicates: false
                 })
                 .select()
@@ -223,7 +223,7 @@ const NoShowManagerProfesional = () => {
 
             // Luego crear el mensaje
             await supabase.from('messages').insert({
-                restaurant_id: restaurant.id,
+                business_id: restaurant.id,
                 customer_id: reserva.customer_id,
                 customer_name: reserva.customer_name,
                 customer_phone: reserva.customer_phone || '',
@@ -240,7 +240,7 @@ const NoShowManagerProfesional = () => {
 
             // 4. CREAR SUGERENCIA CRM PARA SEGUIMIENTO
             await supabase.from('crm_suggestions').insert({
-                restaurant_id: restaurant.id,
+                business_id: restaurant.id,
                 customer_id: reserva.customer_id,
                 type: 'noshow_followup',
                 title: `Seguimiento prevención no-show: ${reserva.customer_name}`,
@@ -300,7 +300,7 @@ const NoShowManagerProfesional = () => {
             const { data, error } = await supabase
                 .from('noshow_actions')
                 .insert({
-                    restaurant_id: restaurant.id,
+                    business_id: restaurant.id,
                     reservation_id: reserva.id,
                     customer_id: reserva.customer_id,
                     customer_name: reserva.customer_name,
@@ -683,3 +683,4 @@ const NoShowManagerProfesional = () => {
 };
 
 export default NoShowManagerProfesional;
+

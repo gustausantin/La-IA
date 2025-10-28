@@ -33,7 +33,7 @@ CREATE POLICY "Users can manage reservation_tables from their restaurant"
     reservation_id IN (
       SELECT r.id 
       FROM reservations r
-      INNER JOIN restaurants rest ON rest.id = r.restaurant_id
+      INNER JOIN businesses rest ON rest.id = r.restaurant_id
       WHERE rest.owner_id = auth.uid()
     )
   );

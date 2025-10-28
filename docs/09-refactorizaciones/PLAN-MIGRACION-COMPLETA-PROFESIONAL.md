@@ -35,7 +35,7 @@ src/api/                       (1 archivo)
 
 ### **Referencias totales: 82**
 ```
-.from('restaurants')              → .from('businesses')
+.from('businesses')              → .from('businesses')
 .from('user_restaurant_mapping')  → .from('user_business_mapping')
 restaurant_id                     → business_id
 ```

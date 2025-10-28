@@ -4,11 +4,11 @@ import { format, parseISO, differenceInHours, isWithinInterval } from 'date-fns'
 
 /**
  * Calcula la ocupación promedio real del restaurante
- * @param {string} restaurantId - ID del restaurante
+ * @param {string} businessId - ID del negocio
  * @param {number} days - Número de días hacia atrás para calcular (default: 7)
  * @returns {Promise<{occupancy: number, details: object}>}
  */
-export const calculateOccupancy = async (restaurantId, days = 7) => {
+export const calculateOccupancy = async (businessId, days = 7) => {
     try {
         const today = new Date();
         const startDate = new Date(today.getTime() - days * 24 * 60 * 60 * 1000);
@@ -16,41 +16,41 @@ export const calculateOccupancy = async (restaurantId, days = 7) => {
         console.log(`📊 Calculando ocupación para ${days} días desde ${format(startDate, 'yyyy-MM-dd')}`);
 
         // 1. Obtener configuración del restaurante (horarios y mesas)
-        const { data: restaurant, error: restaurantError } = await supabase
+        const { data: business, error: businessError } = await supabase
             .from("businesses")
             .select("settings")
-            .eq("id", restaurantId)
+            .eq("id", businessId)
             .single();
 
-        if (restaurantError) throw restaurantError;
+        if (businessError) throw businessError;
 
-        const operatingHours = restaurant?.settings?.operating_hours || {};
+        const operatingHours = business?.settings?.operating_hours || {};
         
-        // 2. Obtener mesas activas (excluyendo mantenimiento)
-        const { data: tables, error: tablesError } = await supabase
-            .from("tables")
-            .select("id, capacity, status")
-            .eq("restaurant_id", restaurantId)
+        // 2. Obtener recursos (sillas/cabinas) activos
+        const { data: resources, error: resourcesError } = await supabase
+            .from("resources")
+            .select("id, capacity, status, is_active")
+            .eq("business_id", businessId)
             .eq("is_active", true)
-            .neq("status", "maintenance");
+            .eq("status", "available");
 
-        if (tablesError) throw tablesError;
+        if (resourcesError) throw resourcesError;
 
-        const totalTableCapacity = tables.reduce((sum, table) => sum + (table.capacity || 0), 0);
+        const totalResourceCapacity = resources.reduce((sum, resource) => sum + (resource.capacity || 0), 0);
         
         // 3. Obtener reservas confirmadas del período
-        const { data: reservations, error: reservationsError } = await supabase
-            .from("reservations")
+        const { data: appointments, error: appointmentsError } = await supabase
+            .from("appointments")
             .select(`
-                id, party_size, reservation_date, reservation_time, 
-                table_id, status, created_at
+                id, party_size, appointment_date, appointment_time,
+                resource_id, status, created_at
             `)
-            .eq("restaurant_id", restaurantId)
-            .gte("reservation_date", format(startDate, 'yyyy-MM-dd'))
-            .lte("reservation_date", format(today, 'yyyy-MM-dd'))
-            .in("status", ["confirmada", "completed"]);
+            .eq("business_id", businessId)
+            .gte("appointment_date", format(startDate, 'yyyy-MM-dd'))
+            .lte("appointment_date", format(today, 'yyyy-MM-dd'))
+            .in("status", ["confirmed", "completed"]);
 
-        if (reservationsError) throw reservationsError;
+        if (appointmentsError) throw appointmentsError;
 
         // 4. Calcular ocupación por día
         const dailyOccupancy = [];
@@ -89,8 +89,8 @@ export const calculateOccupancy = async (restaurantId, days = 7) => {
             }
 
             // Filtrar reservas de este día
-            const dayReservations = reservations.filter(res => 
-                res.reservation_date === format(currentDate, 'yyyy-MM-dd')
+            const dayAppointments = appointments.filter(appt => 
+                appt.appointment_date === format(currentDate, 'yyyy-MM-dd')
             );
 
             // Calcular ocupación por cada hora de operación
@@ -98,14 +98,14 @@ export const calculateOccupancy = async (restaurantId, days = 7) => {
             
             for (let hour = openHour; hour < closeHour; hour++) {
                 // Encontrar reservas que ocupan esta hora
-                const hourReservations = dayReservations.filter(res => {
-                    const resHour = parseInt(res.reservation_time?.split(':')[0] || '0');
+                const hourAppointments = dayAppointments.filter(appt => {
+                    const apptHour = parseInt(appt.appointment_time?.split(':')[0] || '0');
                     // Asumir que cada reserva dura 2 horas en promedio
-                    return resHour <= hour && hour < resHour + 2;
+                    return apptHour <= hour && hour < apptHour + 2;
                 });
 
-                const hourGuests = hourReservations.reduce((sum, res) => sum + (res.party_size || 0), 0);
-                const hourOccupancy = totalTableCapacity > 0 ? Math.min(hourGuests / totalTableCapacity, 1) : 0;
+                const hourGuests = hourAppointments.reduce((sum, appt) => sum + (appt.party_size || 0), 0);
+                const hourOccupancy = totalResourceCapacity > 0 ? Math.min(hourGuests / totalResourceCapacity, 1) : 0;
                 
                 dayOccupiedHours += hourOccupancy;
             }
@@ -115,8 +115,8 @@ export const calculateOccupancy = async (restaurantId, days = 7) => {
             dailyOccupancy.push({
                 date: format(currentDate, 'yyyy-MM-dd'),
                 occupancy: Math.round(dayOccupancyPercent),
-                reservations: dayReservations.length,
-                guests: dayReservations.reduce((sum, res) => sum + (res.party_size || 0), 0),
+                appointments: dayAppointments.length,
+                guests: dayAppointments.reduce((sum, appt) => sum + (appt.party_size || 0), 0),
                 operatingHours: operatingHoursCount
             });
 
@@ -130,9 +130,9 @@ export const calculateOccupancy = async (restaurantId, days = 7) => {
             : 0;
 
         // 6. Calcular estadísticas adicionales
-        const totalReservations = reservations.length;
-        const totalGuests = reservations.reduce((sum, res) => sum + (res.party_size || 0), 0);
-        const averagePartySize = totalReservations > 0 ? Math.round((totalGuests / totalReservations) * 10) / 10 : 0;
+        const totalAppointments = appointments.length;
+        const totalGuests = appointments.reduce((sum, appt) => sum + (appt.party_size || 0), 0);
+        const averagePartySize = totalAppointments > 0 ? Math.round((totalGuests / totalAppointments) * 10) / 10 : 0;
         
         // Buscar día más ocupado
         const busiestDay = dailyOccupancy.reduce((max, day) => 
@@ -151,11 +151,11 @@ export const calculateOccupancy = async (restaurantId, days = 7) => {
         return {
             occupancy: averageOccupancy,
             details: {
-                totalReservations,
+                totalAppointments,
                 totalGuests,
                 averagePartySize,
-                totalTableCapacity,
-                activeTables: tables.length,
+                totalResourceCapacity,
+                activeResources: resources.length,
                 busiestDay,
                 dailyOccupancy,
                 calculationPeriod: {
@@ -184,37 +184,37 @@ export const calculateOccupancy = async (restaurantId, days = 7) => {
 
 /**
  * Calcula la ocupación en tiempo real para un día específico
- * @param {string} restaurantId - ID del restaurante
+ * @param {string} businessId - ID del negocio
  * @param {Date} date - Fecha para calcular (default: hoy)
  * @returns {Promise<object>}
  */
-export const calculateTodayOccupancy = async (restaurantId, date = new Date()) => {
+export const calculateTodayOccupancy = async (businessId, date = new Date()) => {
     try {
         const dateString = format(date, 'yyyy-MM-dd');
         const dayKey = format(date, 'EEEE').toLowerCase();
         
         // Obtener horarios y reservas de hoy
-        const [restaurantRes, tablesRes, reservationsRes] = await Promise.all([
+        const [businessRes, tablesRes, reservationsRes] = await Promise.all([
             supabase
                 .from("businesses")
                 .select("settings")
-                .eq("id", restaurantId)
+                .eq("id", businessId)
                 .single(),
             supabase
-                .from("tables")
+                .from('resources')
                 .select("id, capacity, status")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .eq("is_active", true)
                 .neq("status", "maintenance"),
             supabase
-                .from("reservations")
+                .from('appointments')
                 .select("id, party_size, reservation_time, table_id, status")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .eq("reservation_date", dateString)
                 .in("status", ["confirmada", "completed"])
         ]);
 
-        const operatingHours = restaurantRes.data?.settings?.operating_hours?.[dayKey];
+        const operatingHours = businessRes.data?.settings?.operating_hours?.[dayKey];
         const tables = tablesRes.data || [];
         const reservations = reservationsRes.data || [];
 

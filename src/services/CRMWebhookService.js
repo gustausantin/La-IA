@@ -489,7 +489,7 @@ export class CRMWebhookService {
             const { error } = await supabase
                 .from('notifications')
                 .insert({
-                    restaurant_id: taskData.customer_id, // Temporal
+                    business_id: taskData.customer_id, // Temporal
                     title: taskData.title,
                     message: taskData.description,
                     type: 'crm_task',
@@ -514,7 +514,7 @@ export class CRMWebhookService {
             const { error } = await supabase
                 .from('analytics')
                 .insert({
-                    restaurant_id: payload.data?.customer?.restaurant_id || null,
+                    business_id: payload.data?.customer?.business_id || null,
                     type: `webhook_${eventType}`,
                     date: new Date().toISOString().split('T')[0],
                     value: status === 'sent' ? 1 : 0,
@@ -551,3 +551,4 @@ export const sendSMSWebhook = webhookService.sendSMS.bind(webhookService);
 export const sendWhatsAppWebhook = webhookService.sendWhatsApp.bind(webhookService);
 
 export default webhookService;
+

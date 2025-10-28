@@ -1,7 +1,7 @@
 -- =====================================================
 -- MIGRACIÓN: Configuración de Zonas Disponibles
 -- Fecha: 19 Octubre 2025
--- Propósito: Añadir configuración de zonas a restaurants.settings
+-- Propósito: Añadir configuración de zonas a businesses.settings
 -- =====================================================
 
 -- =====================================================
@@ -149,9 +149,9 @@ DECLARE
     v_zones_config JSONB;
     v_current_settings JSONB;
     v_updated_settings JSONB;
-    v_total_restaurants INTEGER := 0;
-    v_updated_restaurants INTEGER := 0;
-    v_skipped_restaurants INTEGER := 0;
+    v_total_businesses INTEGER := 0;
+    v_updated_businesses INTEGER := 0;
+    v_skipped_businesses INTEGER := 0;
 BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
@@ -162,11 +162,11 @@ BEGIN
     -- Iterar sobre todos los restaurantes activos
     FOR v_restaurant IN 
         SELECT id, name, settings
-        FROM restaurants
+        FROM businesses
         WHERE active = TRUE
         ORDER BY name
     LOOP
-        v_total_restaurants := v_total_restaurants + 1;
+        v_total_businesses := v_total_businesses + 1;
         
         RAISE NOTICE '📍 Procesando: % (ID: %)', v_restaurant.name, v_restaurant.id;
         
@@ -176,7 +176,7 @@ BEGIN
         -- Verificar si ya tiene configuración de zonas
         IF v_current_settings ? 'zones' THEN
             RAISE NOTICE '⏭️  Ya tiene configuración de zonas, SALTANDO';
-            v_skipped_restaurants := v_skipped_restaurants + 1;
+            v_skipped_businesses := v_skipped_businesses + 1;
             CONTINUE;
         END IF;
         
@@ -188,7 +188,7 @@ BEGIN
             v_updated_settings := v_current_settings || v_zones_config;
             
             -- Actualizar en BD
-            UPDATE restaurants
+            UPDATE businesses
             SET 
                 settings = v_updated_settings,
                 updated_at = NOW()
@@ -201,12 +201,12 @@ BEGIN
             RAISE NOTICE '📍 Zona por defecto: %', v_zones_config->>'default_zone';
             RAISE NOTICE '';
             
-            v_updated_restaurants := v_updated_restaurants + 1;
+            v_updated_businesses := v_updated_businesses + 1;
             
         EXCEPTION
             WHEN OTHERS THEN
                 RAISE WARNING '❌ Error procesando restaurante %: %', v_restaurant.id, SQLERRM;
-                v_skipped_restaurants := v_skipped_restaurants + 1;
+                v_skipped_businesses := v_skipped_businesses + 1;
         END;
     END LOOP;
     
@@ -215,13 +215,13 @@ BEGIN
     RAISE NOTICE '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
     RAISE NOTICE '🎉 MIGRACIÓN COMPLETADA';
     RAISE NOTICE '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-    RAISE NOTICE '📊 Total restaurantes: %', v_total_restaurants;
-    RAISE NOTICE '✅ Actualizados: %', v_updated_restaurants;
-    RAISE NOTICE '⏭️  Saltados (ya configurados): %', v_skipped_restaurants;
+    RAISE NOTICE '📊 Total restaurantes: %', v_total_businesses;
+    RAISE NOTICE '✅ Actualizados: %', v_updated_businesses;
+    RAISE NOTICE '⏭️  Saltados (ya configurados): %', v_skipped_businesses;
     RAISE NOTICE '';
     RAISE NOTICE '🔍 VERIFICACIÓN:';
     RAISE NOTICE '   SELECT name, settings->''zones'', settings->''default_zone''';
-    RAISE NOTICE '   FROM restaurants WHERE active = TRUE;';
+    RAISE NOTICE '   FROM businesses WHERE active = TRUE;';
     RAISE NOTICE '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
     RAISE NOTICE '';
     
@@ -249,7 +249,7 @@ DECLARE
 BEGIN
     -- Obtener configuración de zonas
     SELECT settings INTO v_settings
-    FROM restaurants
+    FROM businesses
     WHERE id = p_restaurant_id;
     
     IF v_settings IS NULL OR NOT (v_settings ? 'zones') THEN
@@ -287,28 +287,28 @@ GRANT EXECUTE ON FUNCTION get_active_zones(UUID) TO authenticated, anon;
 
 DO $$
 DECLARE
-    v_restaurants_without_zones INTEGER;
-    v_restaurants_with_zones INTEGER;
+    v_businesses_without_zones INTEGER;
+    v_businesses_with_zones INTEGER;
     v_total_zones_enabled INTEGER;
 BEGIN
     -- Contar restaurantes sin configuración de zonas
     SELECT COUNT(*)
-    INTO v_restaurants_without_zones
-    FROM restaurants
+    INTO v_businesses_without_zones
+    FROM businesses
     WHERE active = TRUE
       AND (settings IS NULL OR NOT (settings ? 'zones'));
     
     -- Contar restaurantes con configuración de zonas
     SELECT COUNT(*)
-    INTO v_restaurants_with_zones
-    FROM restaurants
+    INTO v_businesses_with_zones
+    FROM businesses
     WHERE active = TRUE
       AND settings ? 'zones';
     
     -- Contar total de zonas habilitadas
     SELECT COUNT(*)
     INTO v_total_zones_enabled
-    FROM restaurants,
+    FROM businesses,
          LATERAL jsonb_object_keys(settings->'zones') AS zone_key
     WHERE active = TRUE
       AND settings ? 'zones'
@@ -318,14 +318,14 @@ BEGIN
     RAISE NOTICE '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
     RAISE NOTICE '🔍 VALIDACIÓN POST-MIGRACIÓN';
     RAISE NOTICE '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
-    RAISE NOTICE '✅ Restaurantes CON zonas configuradas: %', v_restaurants_with_zones;
-    RAISE NOTICE '⚠️  Restaurantes SIN zonas configuradas: %', v_restaurants_without_zones;
+    RAISE NOTICE '✅ Restaurantes CON zonas configuradas: %', v_businesses_with_zones;
+    RAISE NOTICE '⚠️  Restaurantes SIN zonas configuradas: %', v_businesses_without_zones;
     RAISE NOTICE '📊 Total de zonas habilitadas: %', v_total_zones_enabled;
     RAISE NOTICE '';
     
-    IF v_restaurants_without_zones > 0 THEN
+    IF v_businesses_without_zones > 0 THEN
         RAISE WARNING '⚠️ Algunos restaurantes no tienen configuración de zonas.';
-        RAISE NOTICE '   Ejecuta: SELECT id, name FROM restaurants WHERE active = TRUE AND (settings IS NULL OR NOT (settings ? ''zones''));';
+        RAISE NOTICE '   Ejecuta: SELECT id, name FROM businesses WHERE active = TRUE AND (settings IS NULL OR NOT (settings ? ''zones''));';
     ELSE
         RAISE NOTICE '🎉 ¡TODOS los restaurantes activos tienen configuración de zonas!';
     END IF;
@@ -347,7 +347,7 @@ SELECT
     name,
     settings->'zones' AS zones_config,
     settings->>'default_zone' AS default_zone
-FROM restaurants
+FROM businesses
 WHERE active = TRUE
 LIMIT 1;
 
@@ -362,7 +362,7 @@ SELECT
      WHERE (r.settings->'zones'->zk->>'enabled')::BOOLEAN = TRUE
     ) AS zonas_activas,
     r.settings->>'default_zone' AS zona_defecto
-FROM restaurants r
+FROM businesses r
 WHERE r.active = TRUE
 ORDER BY r.name;
 */

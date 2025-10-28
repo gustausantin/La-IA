@@ -21,7 +21,7 @@ duration: 90
 // ✅ BIEN - Lo que debo hacer
 slotsMarked: realStats?.reserved || 0  // De BD
 daysProtected: results?.days_protected || 0  // Del SQL
-duration: restaurantSettings?.reservation_duration || 60  // De settings
+duration: businessesettings?.reservation_duration || 60  // De settings
 ```
 
 ### 2. No verificar tablas antes de usar
@@ -30,7 +30,7 @@ duration: restaurantSettings?.reservation_duration || 60  // De settings
 
 ### 3. Asumir datos en lugar de consultarlos
 - ❌ "Probablemente son 60 minutos"
-- ✅ Consultar `restaurants.settings.reservation_duration`
+- ✅ Consultar `businesses.settings.reservation_duration`
 
 ### 4. Priorizar velocidad sobre calidad
 - ❌ "Pongo un 0 para que compile rápido"
@@ -73,13 +73,13 @@ duration: restaurantSettings?.reservation_duration || 60  // De settings
 ## 🗂️ ESTRUCTURA DE DATOS CLAVE
 
 ### Tablas principales:
-- `restaurants` - Datos del restaurante + settings (JSONB)
+- `businesses` - Datos del restaurante + settings (JSONB)
 - `availability_slots` - Slots de disponibilidad
 - `reservations` - Reservas de clientes
 - `tables` - Mesas del restaurante
 - `calendar_exceptions` - Excepciones de horario
 
-### Settings importantes (restaurants.settings):
+### Settings importantes (businesses.settings):
 ```json
 {
   "operating_hours": {

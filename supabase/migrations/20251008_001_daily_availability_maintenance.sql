@@ -30,7 +30,7 @@ DECLARE
     v_new_day DATE;
     v_slots_deleted INTEGER := 0;
     v_slots_created INTEGER := 0;
-    v_restaurants_processed INTEGER := 0;
+    v_businesses_processed INTEGER := 0;
     v_total_deleted INTEGER := 0;
     v_total_created INTEGER := 0;
     v_errors TEXT[] := '{}';
@@ -45,12 +45,12 @@ BEGIN
     -- Iterar sobre todos los restaurantes activos
     FOR v_restaurant IN 
         SELECT id, name, settings
-        FROM restaurants
+        FROM businesses
     LOOP
         BEGIN
-            v_restaurants_processed := v_restaurants_processed + 1;
+            v_businesses_processed := v_businesses_processed + 1;
             RAISE NOTICE '';
-            RAISE NOTICE '🏪 [%] Procesando restaurante: %', v_restaurants_processed, v_restaurant.name;
+            RAISE NOTICE '🏪 [%] Procesando restaurante: %', v_businesses_processed, v_restaurant.name;
             
             -- Obtener configuración de días de anticipación
             v_advance_days := COALESCE(
@@ -168,13 +168,13 @@ BEGIN
         'success', TRUE,
         'executed_at', NOW(),
         'date_reference', v_today,
-        'restaurants_processed', v_restaurants_processed,
+        'businesses_processed', v_businesses_processed,
         'total_slots_deleted', v_total_deleted,
         'total_slots_created', v_total_created,
         'errors', v_errors,
         'summary', format(
             'Procesados %s restaurantes. Eliminados %s slots antiguos. Creados %s slots nuevos.',
-            v_restaurants_processed,
+            v_businesses_processed,
             v_total_deleted,
             v_total_created
         )
@@ -183,7 +183,7 @@ BEGIN
     RAISE NOTICE '';
     RAISE NOTICE '🎉 [DAILY MAINTENANCE] Completado';
     RAISE NOTICE '📊 Resumen: % restaurantes, % eliminados, % creados',
-        v_restaurants_processed, v_total_deleted, v_total_created;
+        v_businesses_processed, v_total_deleted, v_total_created;
     
     IF array_length(v_errors, 1) > 0 THEN
         RAISE NOTICE '⚠️  Errores encontrados: %', array_length(v_errors, 1);

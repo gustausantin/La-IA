@@ -12,11 +12,11 @@ import { AvailabilityService } from '../services/AvailabilityService';
 
 /**
  * Hook para manejar el wizard de reservas paso a paso
- * @param {string} restaurantId - ID del restaurante
+ * @param {string} businessId - ID del restaurante
  * @param {Object} initialData - Datos iniciales de la reserva (para edición)
  * @returns {Object} Estado y métodos del wizard
  */
-export const useReservationWizard = (restaurantId, initialData = null) => {
+export const useReservationWizard = (businessId, initialData = null) => {
   
   // ===== ESTADO DEL WIZARD =====
   const [currentStep, setCurrentStep] = useState(1);
@@ -101,7 +101,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
       const { data, error } = await supabase
         .from('customers')
         .select('*')
-        .eq('restaurant_id', restaurantId)
+        .eq('business_id', businessId)
         .in('phone', phoneVariants)
         .maybeSingle();
 
@@ -134,7 +134,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     } catch (error) {
       console.error('Error buscando cliente:', error);
     }
-  }, [restaurantId]);
+  }, [businessId]);
 
   // ===== PASO 2: VALIDAR FECHA =====
   const validateDate = useCallback(async (date) => {
@@ -147,7 +147,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     }
 
     setIsLoading(true);
-    const result = await ReservationValidationService.validateDate(restaurantId, date);
+    const result = await ReservationValidationService.validateDate(businessId, date);
     
     setValidations(prev => ({
       ...prev,
@@ -160,7 +160,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     
     setIsLoading(false);
     return result;
-  }, [restaurantId]);
+  }, [businessId]);
 
   // ===== PASO 3: VALIDAR HORA =====
   const validateTime = useCallback(async (date, time) => {
@@ -176,7 +176,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     setIsLoading(true);
     // 🔥 Pasar el ID de la reserva actual si estamos editando
     const excludeId = initialData?.id || null;
-    const result = await ReservationValidationService.validateTime(restaurantId, date, time, excludeId);
+    const result = await ReservationValidationService.validateTime(businessId, date, time, excludeId);
     
     // ❌ NO buscar alternativas en Paso 3 (aún no sabemos partySize)
     // ✅ Las alternativas se buscan SOLO en Paso 5 cuando ya tenemos todos los datos
@@ -187,7 +187,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     
     setIsLoading(false);
     return result;
-  }, [restaurantId, formData.partySize]);
+  }, [businessId, formData.partySize]);
 
   // ===== PASO 4: VALIDAR PERSONAS =====
   const validatePartySize = useCallback(async (partySize) => {
@@ -200,7 +200,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     }
 
     setIsLoading(true);
-    const result = await ReservationValidationService.validatePartySize(restaurantId, partySize);
+    const result = await ReservationValidationService.validatePartySize(businessId, partySize);
     
     setValidations(prev => ({
       ...prev,
@@ -214,7 +214,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     
     setIsLoading(false);
     return result;
-  }, [restaurantId]);
+  }, [businessId]);
 
   // ===== PASO 5: VALIDAR Y CARGAR ZONAS DISPONIBLES =====
   const validateZone = useCallback(async (partySize, date, time) => {
@@ -232,7 +232,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
       // 🔥 OBTENER MESAS REALMENTE DISPONIBLES para esta fecha/hora/personas
       const excludeId = initialData?.id || null;
       const availableTablesResult = await ReservationValidationService.getAvailableTables(
-        restaurantId,
+        businessId,
         date,
         time,
         partySize,
@@ -305,7 +305,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
       setIsLoading(false);
       return { valid: false, zones: [] };
     }
-  }, [restaurantId, initialData]);
+  }, [businessId, initialData]);
 
   // ===== PASO 6: CARGAR MESAS DISPONIBLES DE UNA ZONA =====
   const loadAvailableTables = useCallback(async (date, time, partySize, zone = null) => {
@@ -320,7 +320,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     const excludeId = initialData?.id || null;
     
     const result = await ReservationValidationService.getAvailableTables(
-      restaurantId,
+      businessId,
       date,
       time,
       partySize,
@@ -372,7 +372,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
       totalCapacity,
       message
     };
-  }, [restaurantId, initialData]);
+  }, [businessId, initialData]);
 
   // ===== VALIDAR MESA SELECCIONADA =====
   const validateTable = useCallback(async (tableId, partySize, date, time) => {
@@ -386,7 +386,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
 
     setIsLoading(true);
     const result = await ReservationValidationService.validateTable(
-      restaurantId,
+      businessId,
       tableId,
       partySize,
       date,
@@ -404,7 +404,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
     
     setIsLoading(false);
     return result;
-  }, [restaurantId]);
+  }, [businessId]);
 
   // ===== MANEJAR CAMBIO DE CAMPO =====
   const handleFieldChange = useCallback(async (field, value) => {
@@ -438,7 +438,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
             console.log('🔄 Re-validando mesa después de cambiar hora...');
             const excludeId = initialData?.id || null;
             const tableResult = await ReservationValidationService.validateTable(
-              restaurantId,
+              businessId,
               formData.tableId,
               formData.partySize,
               formData.date,
@@ -566,7 +566,7 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
         try {
           const excludeId = initialData?.id || null;
           const alternatives = await ReservationValidationService.findNearestAlternatives(
-            restaurantId,
+            businessId,
             formData.date,
             formData.time,
             formData.partySize,
@@ -742,4 +742,5 @@ export const useReservationWizard = (restaurantId, initialData = null) => {
 };
 
 export default useReservationWizard;
+
 

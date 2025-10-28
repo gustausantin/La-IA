@@ -90,7 +90,7 @@ CREATE TRIGGER trigger_normalize_phone_customers
     EXECUTE FUNCTION trigger_normalize_customer_phone();
 
 -- =====================================================
--- PASO 3: TRIGGER PARA RESTAURANTS
+-- PASO 3: TRIGGER PARA businesses
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION trigger_normalize_restaurant_phone()
@@ -107,10 +107,10 @@ BEGIN
 END;
 $$;
 
--- Crear trigger en restaurants
-DROP TRIGGER IF EXISTS trigger_normalize_phone_restaurants ON restaurants;
-CREATE TRIGGER trigger_normalize_phone_restaurants
-    BEFORE INSERT OR UPDATE OF phone ON restaurants
+-- Crear trigger en businesses
+DROP TRIGGER IF EXISTS trigger_normalize_phone_businesses ON businesses;
+CREATE TRIGGER trigger_normalize_phone_businesses
+    BEFORE INSERT OR UPDATE OF phone ON businesses
     FOR EACH ROW
     EXECUTE FUNCTION trigger_normalize_restaurant_phone();
 
@@ -146,7 +146,7 @@ CREATE TRIGGER trigger_normalize_phone_reservations
 DO $$
 DECLARE
     updated_customers INTEGER := 0;
-    updated_restaurants INTEGER := 0;
+    updated_businesses INTEGER := 0;
     updated_reservations INTEGER := 0;
 BEGIN
     RAISE NOTICE '========================================';
@@ -162,14 +162,14 @@ BEGIN
     GET DIAGNOSTICS updated_customers = ROW_COUNT;
     RAISE NOTICE '✅ Customers actualizados: %', updated_customers;
     
-    -- Normalizar restaurants
-    UPDATE restaurants
+    -- Normalizar businesses
+    UPDATE businesses
     SET phone = normalize_phone_number(phone, '+34')
     WHERE phone IS NOT NULL
       AND phone != normalize_phone_number(phone, '+34');
     
-    GET DIAGNOSTICS updated_restaurants = ROW_COUNT;
-    RAISE NOTICE '✅ Restaurants actualizados: %', updated_restaurants;
+    GET DIAGNOSTICS updated_businesses = ROW_COUNT;
+    RAISE NOTICE '✅ businesses actualizados: %', updated_businesses;
     
     -- Normalizar reservations
     UPDATE reservations
@@ -184,7 +184,7 @@ BEGIN
     RAISE NOTICE '========================================';
     RAISE NOTICE '✅ NORMALIZACIÓN COMPLETADA';
     RAISE NOTICE '========================================';
-    RAISE NOTICE 'Total actualizado: %', updated_customers + updated_restaurants + updated_reservations;
+    RAISE NOTICE 'Total actualizado: %', updated_customers + updated_businesses + updated_reservations;
 END;
 $$;
 
@@ -232,7 +232,7 @@ BEGIN
     RAISE NOTICE '📋 RESUMEN DE LA MIGRACIÓN';
     RAISE NOTICE '========================================';
     RAISE NOTICE '1. ✅ Función normalize_phone_number() creada';
-    RAISE NOTICE '2. ✅ Triggers en customers, restaurants, reservations';
+    RAISE NOTICE '2. ✅ Triggers en customers, businesses, reservations';
     RAISE NOTICE '3. ✅ Datos existentes normalizados';
     RAISE NOTICE '4. ✅ Tests ejecutados';
     RAISE NOTICE ' ';

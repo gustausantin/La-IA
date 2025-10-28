@@ -7,7 +7,7 @@
 -- 1. CREAR TABLA automation_rules
 CREATE TABLE IF NOT EXISTS automation_rules (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Configuración de la regla
     name VARCHAR NOT NULL,
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS automation_rules (
 -- 2. CREAR TABLA automation_rule_executions (auditoría)
 CREATE TABLE IF NOT EXISTS automation_rule_executions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     rule_id UUID NOT NULL REFERENCES automation_rules(id) ON DELETE CASCADE,
     customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
     
@@ -127,7 +127,7 @@ SELECT
     'send_email',
     '{"template_type": "reactivation", "subject": "¡Te echamos de menos! Vuelve y disfruta", "priority": "normal"}'::jsonb,
     30
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 INSERT INTO automation_rules (restaurant_id, name, description, rule_type, trigger_condition, action_type, action_config, cooldown_days)
@@ -140,7 +140,7 @@ SELECT
     'send_whatsapp',
     '{"template_type": "vip_welcome", "message": "¡Felicidades! Eres cliente VIP. Disfruta de beneficios exclusivos.", "priority": "high"}'::jsonb,
     90
-FROM restaurants r
+FROM businesses r
 ON CONFLICT DO NOTHING;
 
 -- 9. COMENTARIOS

@@ -7,7 +7,7 @@
 -- 1. CREAR TABLA noshow_alerts
 CREATE TABLE IF NOT EXISTS noshow_alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     reservation_id UUID NOT NULL REFERENCES reservations(id) ON DELETE CASCADE,
     customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
     

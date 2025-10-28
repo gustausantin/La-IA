@@ -6,7 +6,7 @@
 -- 1. Crear tabla de tickets de facturación
 CREATE TABLE IF NOT EXISTS billing_tickets (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+    restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
     
     -- Referencias a sistema de reservas
     reservation_id UUID REFERENCES reservations(id) ON DELETE SET NULL,
@@ -86,7 +86,7 @@ ALTER TABLE billing_tickets ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view tickets from their restaurant" ON billing_tickets
 FOR SELECT USING (
     restaurant_id IN (
-        SELECT r.id FROM restaurants r 
+        SELECT r.id FROM businesses r 
         WHERE r.owner_id = auth.uid()
     )
 );
@@ -94,7 +94,7 @@ FOR SELECT USING (
 CREATE POLICY "Users can insert tickets to their restaurant" ON billing_tickets
 FOR INSERT WITH CHECK (
     restaurant_id IN (
-        SELECT r.id FROM restaurants r 
+        SELECT r.id FROM businesses r 
         WHERE r.owner_id = auth.uid()
     )
 );
@@ -102,7 +102,7 @@ FOR INSERT WITH CHECK (
 CREATE POLICY "Users can update tickets from their restaurant" ON billing_tickets
 FOR UPDATE USING (
     restaurant_id IN (
-        SELECT r.id FROM restaurants r 
+        SELECT r.id FROM businesses r 
         WHERE r.owner_id = auth.uid()
     )
 );
@@ -296,7 +296,7 @@ INSERT INTO billing_tickets (
     source_system,
     is_processed
 ) VALUES (
-    (SELECT id FROM restaurants LIMIT 1),
+    (SELECT id FROM businesses LIMIT 1),
     'TICKET-001',
     '[
         {"name": "Paella Valenciana", "quantity": 2, "unit_price": 18.50, "total_price": 37.00, "category": "Principales"},

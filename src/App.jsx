@@ -1,7 +1,7 @@
 
 // App.jsx - Aplicación principal mejorada para La-IA
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { Suspense, lazy, useEffect } from 'react';
 import { useAuthContext } from './contexts/AuthContext';
 import { Bot, RefreshCw } from 'lucide-react';
@@ -74,6 +74,8 @@ const PageLoading = () => (
 // Componente principal de contenido
 function AppContent() {
   const { isReady, isAuthenticated, user, business } = useAuthContext();
+  const navigate = useNavigate();
+  const location = useLocation();
   
   // Debug logging
   useEffect(() => {
@@ -84,6 +86,14 @@ function AppContent() {
       timestamp: new Date().toISOString()
     });
   }, [isAuthenticated, isReady, user]);
+
+  // ✅ Redirección automática a onboarding si no tiene negocio
+  useEffect(() => {
+    if (isReady && isAuthenticated && user && !business && location.pathname !== '/onboarding') {
+      console.log('🎯 Redirigiendo a onboarding (usuario sin negocio)');
+      navigate('/onboarding', { replace: true });
+    }
+  }, [isReady, isAuthenticated, user, business, location.pathname, navigate]);
 
   // Mostrar pantalla de carga mientras se verifica la autenticación
   if (!isReady) {

@@ -52,7 +52,7 @@ export default function BaseConocimiento() {
       const { data, error } = await supabase
         .from('restaurant_knowledge_files')
         .select('*')
-        .eq('restaurant_id', restaurant.id)
+        .eq('business_id', restaurant.id)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -115,7 +115,7 @@ export default function BaseConocimiento() {
       const { data: fileRecord, error: dbError } = await supabase
         .from('restaurant_knowledge_files')
         .insert({
-          restaurant_id: restaurant.id,
+          business_id: restaurant.id,
           category,
           file_name: file.name,
           file_path: filePath,
@@ -139,7 +139,7 @@ export default function BaseConocimiento() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          restaurant_id: restaurant.id,
+          business_id: restaurant.id,
           file_path: filePath,
           file_name: file.name,
           file_type: file.type,
@@ -208,7 +208,7 @@ export default function BaseConocimiento() {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          restaurant_id: restaurant.id,
+          business_id: restaurant.id,
           file_path: file.file_path,
           file_name: file.file_name,
           file_type: file.file_type,
@@ -455,4 +455,5 @@ export default function BaseConocimiento() {
     </div>
   );
 }
+
 

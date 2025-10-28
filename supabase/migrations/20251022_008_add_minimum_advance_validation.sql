@@ -47,7 +47,7 @@ BEGIN
         0
     )
     INTO v_min_advance_minutes
-    FROM restaurants
+    FROM businesses
     WHERE id = p_restaurant_id;
     
     IF v_min_advance_minutes IS NULL THEN
@@ -273,7 +273,7 @@ BEGIN
         0
     )
     INTO v_min_advance_minutes
-    FROM restaurants
+    FROM businesses
     WHERE id = p_restaurant_id;
     
     IF v_min_advance_minutes IS NULL THEN

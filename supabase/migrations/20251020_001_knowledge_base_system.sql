@@ -19,7 +19,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE IF NOT EXISTS restaurant_knowledge_files (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   
   -- Categoría del documento
   category TEXT NOT NULL CHECK (category IN ('menu', 'services', 'other')),
@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS restaurant_knowledge_files (
   processed_at TIMESTAMPTZ, -- Cuando N8N termina de procesar
   
   -- Constraints
-  CONSTRAINT fk_restaurant_knowledge_files FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+  CONSTRAINT fk_restaurant_knowledge_files FOREIGN KEY (restaurant_id) REFERENCES businesses(id) ON DELETE CASCADE
 );
 
 -- Índices para búsqueda rápida
@@ -64,7 +64,7 @@ COMMENT ON COLUMN restaurant_knowledge_files.status IS 'Estado: processing (subi
 
 CREATE TABLE IF NOT EXISTS restaurant_knowledge_vectors (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  restaurant_id UUID NOT NULL REFERENCES restaurants(id) ON DELETE CASCADE,
+  restaurant_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
   
   -- Contenido del chunk (texto)
   content TEXT NOT NULL,
@@ -89,7 +89,7 @@ CREATE TABLE IF NOT EXISTS restaurant_knowledge_vectors (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   
   -- Constraints
-  CONSTRAINT fk_restaurant_knowledge_vectors FOREIGN KEY (restaurant_id) REFERENCES restaurants(id) ON DELETE CASCADE
+  CONSTRAINT fk_restaurant_knowledge_vectors FOREIGN KEY (restaurant_id) REFERENCES businesses(id) ON DELETE CASCADE
 );
 
 -- Índices para búsqueda rápida
@@ -174,7 +174,7 @@ ON restaurant_knowledge_files
 FOR SELECT
 USING (
   restaurant_id IN (
-    SELECT r.id FROM restaurants r
+    SELECT r.id FROM businesses r
     WHERE r.owner_id = auth.uid()
   )
 );
@@ -185,7 +185,7 @@ ON restaurant_knowledge_files
 FOR INSERT
 WITH CHECK (
   restaurant_id IN (
-    SELECT r.id FROM restaurants r
+    SELECT r.id FROM businesses r
     WHERE r.owner_id = auth.uid()
   )
 );
@@ -196,7 +196,7 @@ ON restaurant_knowledge_files
 FOR UPDATE
 USING (
   restaurant_id IN (
-    SELECT r.id FROM restaurants r
+    SELECT r.id FROM businesses r
     WHERE r.owner_id = auth.uid()
   )
 );
@@ -207,7 +207,7 @@ ON restaurant_knowledge_files
 FOR DELETE
 USING (
   restaurant_id IN (
-    SELECT r.id FROM restaurants r
+    SELECT r.id FROM businesses r
     WHERE r.owner_id = auth.uid()
   )
 );
@@ -218,7 +218,7 @@ ON restaurant_knowledge_vectors
 FOR SELECT
 USING (
   restaurant_id IN (
-    SELECT r.id FROM restaurants r
+    SELECT r.id FROM businesses r
     WHERE r.owner_id = auth.uid()
   )
 );

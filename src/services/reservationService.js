@@ -40,16 +40,16 @@ export class ReservationService {
 
   /**
    * Obtener reservas de un restaurante con datos de customers incluidos
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @param {string} startDate - Fecha inicio (YYYY-MM-DD)
    * @param {string} endDate - Fecha fin (YYYY-MM-DD)
    * @returns {Promise<Array>} Lista de reservas con datos de customers
    */
-  static async getReservationsWithCustomers(restaurantId, startDate = null, endDate = null) {
+  static async getReservationsWithCustomers(businessId, startDate = null, endDate = null) {
     try {
       const { data, error } = await supabase
         .rpc('get_reservations_with_customers', {
-          p_restaurant_id: restaurantId,
+          p_business_id: businessId,
           p_start_date: startDate,
           p_end_date: endDate
         });
@@ -72,12 +72,12 @@ export class ReservationService {
 
   /**
    * Obtener reservas de hoy con datos de customers
-   * @param {string} restaurantId - ID del restaurante
+   * @param {string} businessId - ID del restaurante
    * @returns {Promise<Array>} Reservas de hoy
    */
-  static async getTodayReservationsWithCustomers(restaurantId) {
+  static async getTodayReservationsWithCustomers(businessId) {
     const today = format(new Date(), 'yyyy-MM-dd');
-    return this.getReservationsWithCustomers(restaurantId, today, today);
+    return this.getReservationsWithCustomers(businessId, today, today);
   }
 
   /**
@@ -92,7 +92,7 @@ export class ReservationService {
       // 2. Asignar customer_id automáticamente
       
       const { data, error } = await supabase
-        .from('reservations')
+        .from('appointments')
         .insert([reservationData])
         .select()
         .single();
@@ -124,7 +124,7 @@ export class ReservationService {
       // el trigger se encargará de sincronizar con la tabla customers
       
       const { data, error } = await supabase
-        .from('reservations')
+        .from('appointments')
         .update(updates)
         .eq('id', reservationId)
         .select()
@@ -153,7 +153,7 @@ export class ReservationService {
   static async deleteReservation(reservationId) {
     try {
       const { error } = await supabase
-        .from('reservations')
+        .from('appointments')
         .delete()
         .eq('id', reservationId);
       
@@ -175,10 +175,10 @@ export class ReservationService {
    * MÉTODO LEGACY: Obtener reservas con JOIN manual (para compatibilidad)
    * @deprecated Usar getReservationsWithCustomers() en su lugar
    */
-  static async getReservationsLegacy(restaurantId, filters = {}) {
+  static async getReservationsLegacy(businessId, filters = {}) {
     try {
       let query = supabase
-        .from('reservations')
+        .from('appointments')
         .select(`
           *,
           customer:customer_id (
@@ -197,7 +197,7 @@ export class ReservationService {
             zone
           )
         `)
-        .eq('restaurant_id', restaurantId);
+        .eq('business_id', businessId);
       
       // Aplicar filtros
       if (filters.date) {
@@ -244,4 +244,5 @@ export class ReservationService {
 }
 
 export default ReservationService;
+
 

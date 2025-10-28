@@ -9,9 +9,9 @@
 ## 🚀 LOGROS PRINCIPALES
 
 ### ✅ **1. REFACTORIZACIÓN COMPLETA DEL FRONTEND**
-- Renombrado de stores: `restaurantStore` → `businessStore`
-- Renombrado de servicios: `restaurantService` → `businessService`
-- Renombrado de utilidades: `restaurantSetup` → `businessSetup`
+- Renombrado de stores: `businessestore` → `businessStore`
+- Renombrado de servicios: `businesseservice` → `businessService`
+- Renombrado de utilidades: `businessesetup` → `businessSetup`
 - Actualización de ~25 archivos
 - **0 errores de linting**
 
@@ -283,7 +283,7 @@ Actualizar componentes principales para usar `useVertical()`:
 - `src/pages/Configuracion.jsx`
 
 ### **3. Migración de Tablas**
-Cambiar queries de Supabase de `restaurants` → `businesses` cuando sea apropiado.
+Cambiar queries de Supabase de `businesses` → `businesses` cuando sea apropiado.
 
 ### **4. Testing E2E**
 - Crear negocio desde wizard
@@ -305,7 +305,7 @@ Cambiar queries de Supabase de `restaurants` → `businesses` cuando sea apropia
 
 Se ha completado exitosamente la transformación de la aplicación:
 
-- ✅ **Frontend refactorizado** (restaurants → businesses)
+- ✅ **Frontend refactorizado** (businesses → businesses)
 - ✅ **Wizard de onboarding** profesional y completo
 - ✅ **Sistema UI adaptativo** con 10 verticales
 - ✅ **0 errores**, compilación exitosa

@@ -4,8 +4,8 @@
 -- Descripción: Permite que cada restaurante use su propio número de WhatsApp vía Meta Business API
 -- =====================================================
 
--- 1. Añadir columnas a la tabla restaurants
-ALTER TABLE restaurants
+-- 1. Añadir columnas a la tabla businesses
+ALTER TABLE businesses
 ADD COLUMN IF NOT EXISTS whatsapp_phone_number_id TEXT,
 ADD COLUMN IF NOT EXISTS whatsapp_access_token TEXT,
 ADD COLUMN IF NOT EXISTS whatsapp_waba_id TEXT,
@@ -15,17 +15,17 @@ ADD COLUMN IF NOT EXISTS whatsapp_verified BOOLEAN DEFAULT FALSE,
 ADD COLUMN IF NOT EXISTS whatsapp_provider TEXT DEFAULT 'meta' CHECK (whatsapp_provider IN ('meta', 'twilio'));
 
 -- 2. Comentarios para documentación
-COMMENT ON COLUMN restaurants.whatsapp_phone_number_id IS 'Phone Number ID de WhatsApp Business API (Meta)';
-COMMENT ON COLUMN restaurants.whatsapp_access_token IS 'Access Token permanente de Meta para enviar mensajes (ENCRIPTADO en producción)';
-COMMENT ON COLUMN restaurants.whatsapp_waba_id IS 'WhatsApp Business Account ID';
-COMMENT ON COLUMN restaurants.whatsapp_business_account_id IS 'ID de la cuenta de negocio en Meta';
-COMMENT ON COLUMN restaurants.whatsapp_enabled IS 'Si el restaurante tiene WhatsApp habilitado';
-COMMENT ON COLUMN restaurants.whatsapp_verified IS 'Si el número de WhatsApp está verificado por Meta';
-COMMENT ON COLUMN restaurants.whatsapp_provider IS 'Proveedor de WhatsApp: meta (directo) o twilio';
+COMMENT ON COLUMN businesses.whatsapp_phone_number_id IS 'Phone Number ID de WhatsApp Business API (Meta)';
+COMMENT ON COLUMN businesses.whatsapp_access_token IS 'Access Token permanente de Meta para enviar mensajes (ENCRIPTADO en producción)';
+COMMENT ON COLUMN businesses.whatsapp_waba_id IS 'WhatsApp Business Account ID';
+COMMENT ON COLUMN businesses.whatsapp_business_account_id IS 'ID de la cuenta de negocio en Meta';
+COMMENT ON COLUMN businesses.whatsapp_enabled IS 'Si el restaurante tiene WhatsApp habilitado';
+COMMENT ON COLUMN businesses.whatsapp_verified IS 'Si el número de WhatsApp está verificado por Meta';
+COMMENT ON COLUMN businesses.whatsapp_provider IS 'Proveedor de WhatsApp: meta (directo) o twilio';
 
 -- 3. Índices para optimización
-CREATE INDEX IF NOT EXISTS idx_restaurants_whatsapp_enabled 
-ON restaurants(whatsapp_enabled) 
+CREATE INDEX IF NOT EXISTS idx_businesses_whatsapp_enabled 
+ON businesses(whatsapp_enabled) 
 WHERE whatsapp_enabled = TRUE;
 
 -- 4. Función para validar credenciales de WhatsApp
@@ -44,7 +44,7 @@ BEGIN
     AND whatsapp_access_token IS NOT NULL 
     AND whatsapp_enabled = TRUE
   INTO v_has_credentials
-  FROM restaurants
+  FROM businesses
   WHERE id = p_restaurant_id;
   
   RETURN COALESCE(v_has_credentials, FALSE);
@@ -60,7 +60,7 @@ GRANT EXECUTE ON FUNCTION validate_whatsapp_credentials TO service_role;
 -- =====================================================
 -- Para configurar WhatsApp para un restaurante:
 /*
-UPDATE restaurants
+UPDATE businesses
 SET 
   whatsapp_phone_number_id = '123456789012345',
   whatsapp_access_token = 'EAAxxxxxxxxxx',

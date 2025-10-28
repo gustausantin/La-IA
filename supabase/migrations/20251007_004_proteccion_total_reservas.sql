@@ -247,7 +247,7 @@ BEGIN
     -- Obtener duración de reserva
     SELECT COALESCE((settings->>'reservation_duration')::INTEGER, 90)
     INTO v_reservation_duration
-    FROM restaurants
+    FROM businesses
     WHERE id = NEW.restaurant_id;
     
     -- Marcar slots como reserved para todas las mesas de la reserva
@@ -308,7 +308,7 @@ BEGIN
         -- Obtener duración de reserva
         SELECT COALESCE((settings->>'reservation_duration')::INTEGER, 90)
         INTO v_reservation_duration
-        FROM restaurants
+        FROM businesses
         WHERE id = NEW.restaurant_id;
         
         -- Liberar slots de todas las mesas

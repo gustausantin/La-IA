@@ -46,7 +46,7 @@ DECLARE
 BEGIN
     -- 1. Obtener configuración del restaurante
     SELECT settings INTO v_settings
-    FROM restaurants
+    FROM businesses
     WHERE id = p_restaurant_id;
     
     IF v_settings IS NULL THEN
@@ -248,7 +248,7 @@ BEGIN
     
     FOR v_restaurant IN 
         SELECT id, name 
-        FROM restaurants 
+        FROM businesses 
         WHERE active = true
     LOOP
         RAISE NOTICE '';
@@ -281,7 +281,7 @@ SELECT
     MIN(a.start_time) as primer_slot,
     MAX(a.start_time) as ultimo_slot,
     STRING_AGG(DISTINCT a.zone::text, ', ' ORDER BY a.zone::text) as zonas
-FROM restaurants r
+FROM businesses r
 LEFT JOIN availability_slots a ON r.id = a.restaurant_id
     AND a.slot_date = '2025-10-22'
     AND a.status = 'free'
@@ -308,7 +308,7 @@ SELECT
     a.end_time,
     COUNT(*) as mesas_disponibles
 FROM ultimo_slot u
-JOIN restaurants r ON u.restaurant_id = r.id
+JOIN businesses r ON u.restaurant_id = r.id
 JOIN availability_slots a ON a.restaurant_id = u.restaurant_id
     AND a.start_time = u.max_start_time
     AND a.slot_date = '2025-10-22'

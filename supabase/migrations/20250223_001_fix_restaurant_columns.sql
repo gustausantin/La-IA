@@ -1,17 +1,17 @@
 -- =====================================================
--- FIX CRÍTICO: Agregar columnas channels y notifications a restaurants
+-- FIX CRÍTICO: Agregar columnas channels y notifications a businesses
 -- Fecha: 23 Febrero 2025
 -- Problema: Las funciones RPC esperan estos campos pero no existen
 -- =====================================================
 
 -- 1. Agregar columnas si no existen
-ALTER TABLE restaurants 
+ALTER TABLE businesses 
 ADD COLUMN IF NOT EXISTS channels JSONB DEFAULT '{}'::jsonb,
 ADD COLUMN IF NOT EXISTS notifications JSONB DEFAULT '{}'::jsonb;
 
 -- 2. Agregar índices para mejorar performance
-CREATE INDEX IF NOT EXISTS idx_restaurants_channels ON restaurants USING GIN (channels);
-CREATE INDEX IF NOT EXISTS idx_restaurants_notifications ON restaurants USING GIN (notifications);
+CREATE INDEX IF NOT EXISTS idx_businesses_channels ON businesses USING GIN (channels);
+CREATE INDEX IF NOT EXISTS idx_businesses_notifications ON businesses USING GIN (notifications);
 
 -- 3. Asegurar que get_user_restaurant_info existe y funciona correctamente
 CREATE OR REPLACE FUNCTION get_user_restaurant_info(user_id UUID)
@@ -40,7 +40,7 @@ BEGIN
     )
     INTO restaurant_info
     FROM user_restaurant_mapping urm
-    JOIN restaurants r ON urm.restaurant_id = r.id
+    JOIN businesses r ON urm.restaurant_id = r.id
     WHERE urm.auth_user_id = user_id
     AND r.active = true
     LIMIT 1;
@@ -87,12 +87,12 @@ BEFORE UPDATE ON user_restaurant_mapping
 FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- 8. Verificar políticas RLS básicas
-ALTER TABLE restaurants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE businesses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_restaurant_mapping ENABLE ROW LEVEL SECURITY;
 
--- Política para restaurants: usuarios pueden ver su propio restaurante
-DROP POLICY IF EXISTS "Users can view their own restaurant" ON restaurants;
-CREATE POLICY "Users can view their own restaurant" ON restaurants
+-- Política para businesses: usuarios pueden ver su propio restaurante
+DROP POLICY IF EXISTS "Users can view their own restaurant" ON businesses;
+CREATE POLICY "Users can view their own restaurant" ON businesses
     FOR SELECT USING (
         id IN (
             SELECT restaurant_id 
@@ -101,9 +101,9 @@ CREATE POLICY "Users can view their own restaurant" ON restaurants
         )
     );
 
--- Política para restaurants: usuarios pueden actualizar su propio restaurante
-DROP POLICY IF EXISTS "Users can update their own restaurant" ON restaurants;
-CREATE POLICY "Users can update their own restaurant" ON restaurants
+-- Política para businesses: usuarios pueden actualizar su propio restaurante
+DROP POLICY IF EXISTS "Users can update their own restaurant" ON businesses;
+CREATE POLICY "Users can update their own restaurant" ON businesses
     FOR UPDATE USING (
         id IN (
             SELECT restaurant_id 
@@ -131,7 +131,7 @@ BEGIN
             r.id,
             'owner'
         FROM auth.users u
-        CROSS JOIN restaurants r
+        CROSS JOIN businesses r
         WHERE NOT EXISTS (
             SELECT 1 FROM user_restaurant_mapping 
             WHERE auth_user_id = u.id
@@ -158,9 +158,9 @@ BEGIN
     FROM user_restaurant_mapping
     WHERE auth_user_id = p_user_id;
     
-    -- Contar restaurants
+    -- Contar businesses
     SELECT COUNT(*) INTO restaurant_count
-    FROM restaurants r
+    FROM businesses r
     WHERE EXISTS (
         SELECT 1 FROM user_restaurant_mapping m
         WHERE m.restaurant_id = r.id
@@ -170,13 +170,13 @@ BEGIN
     -- Verificar columnas
     SELECT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'restaurants' 
+        WHERE table_name = 'businesses' 
         AND column_name = 'channels'
     ) INTO has_channels;
     
     SELECT EXISTS (
         SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'restaurants' 
+        WHERE table_name = 'businesses' 
         AND column_name = 'notifications'
     ) INTO has_notifications;
     

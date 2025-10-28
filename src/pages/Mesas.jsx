@@ -45,11 +45,11 @@ import { useRegenerationModal } from '../hooks/useRegenerationModal';
 import RegenerationRequiredModal from '../components/RegenerationRequiredModal';
 
 // DATOS NECESARIOS DE SUPABASE:
-// - tabla: tables (id, restaurant_id, table_number, name, zone, min_capacity, max_capacity, status, notes)
+// - tabla: tables (id, business_id, table_number, name, zone, min_capacity, max_capacity, status, notes)
 // - tabla: reservations (con campos 'source' y 'channel' para identificar origen)
 // - tabla: agent_table_preferences (table_id, score, reason, updated_at)
 // - RPC: get_table_statistics(table_id, date_range)
-// - RPC: get_agent_table_insights(restaurant_id)
+// - RPC: get_agent_table_insights(business_id)
 // - real-time: suscripción a cambios en tables y reservations
 
 // ✅ Estados de mesa SIMPLIFICADOS (solo activa/inactiva)
@@ -368,9 +368,9 @@ const TableCard = ({
 
 // Componente principal
 export default function Mesas() {
-    const { business: restaurant, businessId: restaurantId, isReady, addNotification, user, fetchBusinessInfo: fetchRestaurantInfo } =
+    const { business: restaurant, businessId: businessId, isReady, addNotification, user, fetchBusinessInfo: fetchRestaurantInfo } =
         useAuthContext();
-    const changeDetection = useAvailabilityChangeDetection(restaurantId);
+    const changeDetection = useAvailabilityChangeDetection(businessId);
     const { isModalOpen, modalChangeReason, modalChangeDetails, showRegenerationModal, closeModal } = useRegenerationModal();
 
     // Estados principales
@@ -430,15 +430,15 @@ export default function Mesas() {
 
     // Función para cargar mesas
     const loadTables = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             setLoading(true);
 
             const { data, error } = await supabase
-                .from("tables")
+                .from('resources')
                 .select("*")
-                .eq("restaurant_id", restaurantId)
+                .eq("business_id", businessId)
                 .order("zone")
                 .order("table_number");
 
@@ -456,7 +456,7 @@ export default function Mesas() {
         } finally {
             setLoading(false);
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // ✅ Función eliminada: loadTodayReservations
     // La página Mesas es SOLO para configuración, no muestra reservas
@@ -464,7 +464,7 @@ export default function Mesas() {
     // ✅ Función simplificada: Solo estadísticas básicas de mesas
     // NO se muestran reservas ni métricas del agente
     const loadTableStats = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             // Estadísticas simples de mesas
@@ -501,11 +501,11 @@ export default function Mesas() {
         } catch (error) {
             console.error("Error calculating table stats:", error);
         }
-    }, [restaurantId, tables]);
+    }, [businessId, tables]);
 
     // Configurar real-time subscriptions
     useEffect(() => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         // ✅ Suscribirse SOLO a cambios en tables (no reservations)
         const subscription = supabase
@@ -516,7 +516,7 @@ export default function Mesas() {
                     event: "*",
                     schema: "public",
                     table: "tables",
-                    filter: `restaurant_id=eq.${restaurantId}`,
+                    filter: `business_id=eq.${businessId}`,
                 },
                 (payload) => {
                     loadTables();
@@ -531,15 +531,15 @@ export default function Mesas() {
                 subscription.unsubscribe();
             }
         };
-    }, [restaurantId, addNotification]); // SIN funciones de carga en dependencies
+    }, [businessId, addNotification]); // SIN funciones de carga en dependencies
 
     // Cargar datos inicial - SIN DEPENDENCY LOOPS
     useEffect(() => {
-        if (isReady && restaurantId) {
+        if (isReady && businessId) {
             setLoading(true);
             loadTables().finally(() => setLoading(false));
         }
-    }, [isReady, restaurantId]); // SOLO dependencies estables
+    }, [isReady, businessId]); // SOLO dependencies estables
     
     // Cargar configuración de zonas desde restaurant.settings
     useEffect(() => {
@@ -682,7 +682,7 @@ export default function Mesas() {
         try {
             // Detectar conflictos antes de eliminar
             const conflicts = await ConflictDetectionService.detectTableConflicts(
-                restaurantId,
+                businessId,
                 table.id,
                 'DELETE'
             );
@@ -704,14 +704,14 @@ export default function Mesas() {
             console.error('Error validando eliminación de mesa:', error);
             toast.error('Error al validar la eliminación');
         }
-    }, [restaurantId]);
+    }, [businessId]);
 
     // Función para eliminar mesa (sin validación)
     const deleteTable = useCallback(
         async (tableId) => {
             try {
                 const { error } = await supabase
-                    .from("tables")
+                    .from('resources')
                     .delete()
                     .eq("id", tableId);
 
@@ -1129,9 +1129,9 @@ export default function Mesas() {
                                 setSavingZones(true);
                                 try {
                                     const { data: currentRestaurant, error: fetchError } = await supabase
-                                        .from("restaurants")
+                                        .from("businesses")
                                         .select("settings")
-                                        .eq("id", restaurantId)
+                                        .eq("id", businessId)
                                         .single();
 
                                     if (fetchError) throw fetchError;
@@ -1144,12 +1144,12 @@ export default function Mesas() {
                                     };
 
                                     const { error: updateError } = await supabase
-                                        .from("restaurants")
+                                        .from("businesses")
                                         .update({
                                             settings: updatedSettings,
                                             updated_at: new Date().toISOString()
                                         })
-                                        .eq("id", restaurantId);
+                                        .eq("id", businessId);
 
                                     if (updateError) throw updateError;
 
@@ -1447,7 +1447,7 @@ export default function Mesas() {
                             });
                         }
                     }}
-                    restaurantId={restaurantId}
+                    businessId={businessId}
                     table={selectedTable}
                 />
             )}
@@ -1485,7 +1485,7 @@ export default function Mesas() {
                         setSelectedTable(null);
                     }}
                     table={selectedTable}
-                    restaurantId={restaurantId}
+                    businessId={businessId}
                 />
             )}
 
@@ -1507,7 +1507,7 @@ const TableModal = ({
     isOpen,
     onClose,
     onSave,
-    restaurantId,
+    businessId,
     table = null,
     zonesConfig = { zones: {}, default_zone: 'interior' }, // ✅ AÑADIDO
 }) => {
@@ -1566,9 +1566,9 @@ const TableModal = ({
             if (!table) { // Solo validar al crear nueva mesa
                 // Obtener capacidad máxima configurada
                 const { data: restaurantData } = await supabase
-                    .from("restaurants")
+                    .from("businesses")
                     .select("settings")
-                    .eq("id", restaurantId)
+                    .eq("id", businessId)
                     .single();
                 
                 const maxCapacity = restaurantData?.settings?.capacity_total || 0;
@@ -1576,9 +1576,9 @@ const TableModal = ({
                 if (maxCapacity > 0) {
                     // Calcular capacidad actual de todas las mesas
                     const { data: existingTables } = await supabase
-                        .from("tables")
+                        .from('resources')
                         .select("capacity")
-                        .eq("restaurant_id", restaurantId)
+                        .eq("business_id", businessId)
                         .eq("is_active", true);
                     
                     const currentCapacity = existingTables?.reduce((sum, t) => sum + (t.capacity || 0), 0) || 0;
@@ -1604,7 +1604,7 @@ const TableModal = ({
                 console.log('🔍 Verificando reservas activas antes de reducir capacidad...');
                 
                 const { data: activeReservations, error: reservationsError } = await supabase
-                    .from('reservations')
+                    .from('appointments')
                     .select('id, customer_name, reservation_date, reservation_time, party_size')
                     .eq('table_id', table.id)
                     .gte('reservation_date', new Date().toISOString().split('T')[0])
@@ -1644,7 +1644,7 @@ const TableModal = ({
                 zone: formData.zone,
                 capacity: parseInt(formData.capacity),
                 notes: formData.notes,
-                restaurant_id: restaurantId,
+                business_id: businessId,
                 is_active: formData.status !== "inactive",
                 status: "available",
             };
@@ -1652,7 +1652,7 @@ const TableModal = ({
             if (table) {
                 // Actualizar
                 const { error } = await supabase
-                    .from("tables")
+                    .from('resources')
                     .update(tableData)
                     .eq("id", table.id);
 
@@ -1668,7 +1668,7 @@ const TableModal = ({
             } else {
                 // Crear
                 const { error } = await supabase
-                    .from("tables")
+                    .from('resources')
                     .insert([tableData]);
 
                 if (error) throw error;
@@ -2007,7 +2007,7 @@ const ReservationModal = ({ isOpen, onClose, reservation }) => {
 };
 
 // Componente modal para estadísticas de mesa
-const TableStatsModal = ({ isOpen, onClose, table, restaurantId }) => {
+const TableStatsModal = ({ isOpen, onClose, table, businessId }) => {
     const [loading, setLoading] = useState(true);
     const [stats, setStats] = useState(null);
 
@@ -2217,4 +2217,5 @@ const TableStatsModal = ({ isOpen, onClose, table, restaurantId }) => {
         </div>
     );
 };
+
 

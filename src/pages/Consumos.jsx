@@ -13,7 +13,7 @@ import {
 import toast from 'react-hot-toast';
 
 const Consumos = () => {
-    const { restaurant, restaurantId, isReady } = useAuthContext();
+    const { restaurant, businessId, isReady } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [reservations, setReservations] = useState([]);
     const [receipts, setReceipts] = useState([]);
@@ -39,7 +39,7 @@ const Consumos = () => {
 
     // Cargar analytics de consumos
     const loadAnalytics = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             const days = dateRange === '7days' ? 7 : dateRange === '30days' ? 30 : 90;
@@ -54,7 +54,7 @@ const Consumos = () => {
                     covers_count, tip_amount, customer_id,
                     customers(name, segment_auto_v2)
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('ticket_date', startDate + ' 00:00:00')
                 .lte('ticket_date', endDate + ' 23:59:59')
                 .eq('is_processed', true)
@@ -158,7 +158,7 @@ const Consumos = () => {
             console.error('Error loading analytics:', error);
             toast.error('Error al cargar analytics de consumos');
         }
-    }, [restaurantId, dateRange]);
+    }, [businessId, dateRange]);
 
     // Función para generar consumos automáticamente - SOLO CON DATOS REALES
     const generateAutomaticReceipts = async (reservations) => {
@@ -191,7 +191,7 @@ const Consumos = () => {
             }
 
             const ticketData = {
-                restaurant_id: restaurantId,
+                business_id: businessId,
                 reservation_id: reservation.id,
                 customer_id: reservation.customer_id,
                 external_ticket_id: `TKT-${format(new Date(), 'yyyyMMdd')}-${Math.floor(Math.random() * 9999 + 1)}`,
@@ -251,7 +251,7 @@ const Consumos = () => {
             const minute = Math.floor(Math.random() * 60);
 
             const walkInData = {
-                restaurant_id: restaurantId,
+                business_id: businessId,
                 reservation_id: null,
                 external_ticket_id: `WLK-${format(new Date(), 'yyyyMMdd')}-${i + 1}`,
                 ticket_number: `#W${i + 1}`,
@@ -287,20 +287,20 @@ const Consumos = () => {
 
     // Cargar datos del día seleccionado
     const loadData = useCallback(async () => {
-        if (!restaurantId) return;
+        if (!businessId) return;
 
         try {
             setLoading(true);
 
             // Cargar reservas del día
             const { data: reservationsData, error: reservationsError } = await supabase
-                .from('reservations')
+                .from('appointments')
                 .select(`
                     id, customer_name, customer_phone, customer_email,
                     reservation_date, reservation_time, party_size, status,
                     table_number, special_requests, created_at, customer_id
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .eq('reservation_date', selectedDate)
                 .order('reservation_time');
 
@@ -315,7 +315,7 @@ const Consumos = () => {
                     total_amount, payment_method, auto_matched, confidence_score,
                     reservation_id, customer_id, items, covers_count, waiter_name
                 `)
-                .eq('restaurant_id', restaurantId)
+                .eq('business_id', businessId)
                 .gte('ticket_date', selectedDate + ' 00:00:00')
                 .lte('ticket_date', selectedDate + ' 23:59:59')
                 .order('ticket_date');
@@ -338,7 +338,7 @@ const Consumos = () => {
                             total_amount, payment_method, auto_matched, confidence_score,
                             reservation_id, customer_id, items, covers_count, waiter_name
                         `)
-                        .eq('restaurant_id', restaurantId)
+                        .eq('business_id', businessId)
                         .gte('ticket_date', selectedDate + ' 00:00:00')
                         .lte('ticket_date', selectedDate + ' 23:59:59')
                         .order('ticket_date');
@@ -427,7 +427,7 @@ const Consumos = () => {
         } finally {
             setLoading(false);
         }
-    }, [restaurantId, selectedDate]);
+    }, [businessId, selectedDate]);
 
     // Vincular reserva con ticket (actualizar reservation_id en billing_tickets)
     const linkReservationReceipt = async (reservationId, receiptId, confidence = 1.0) => {
@@ -490,21 +490,21 @@ const Consumos = () => {
 
     // Efectos
     useEffect(() => {
-        if (isReady && restaurantId) {
+        if (isReady && businessId) {
             if (activeTab === 'vinculacion') {
                 loadData();
             } else {
                 loadAnalytics();
             }
         }
-    }, [isReady, restaurantId, loadData, loadAnalytics, activeTab]);
+    }, [isReady, businessId, loadData, loadAnalytics, activeTab]);
 
     // Cargar analytics cuando cambie el rango de fechas
     useEffect(() => {
-        if (isReady && restaurantId && activeTab === 'analytics') {
+        if (isReady && businessId && activeTab === 'analytics') {
             loadAnalytics();
         }
-    }, [dateRange, isReady, restaurantId, loadAnalytics, activeTab]);
+    }, [dateRange, isReady, businessId, loadAnalytics, activeTab]);
 
     // Funciones auxiliares
     const getMatchForReservation = (reservationId) => {
@@ -968,4 +968,5 @@ const Consumos = () => {
 };
 
 export default Consumos;
+
 

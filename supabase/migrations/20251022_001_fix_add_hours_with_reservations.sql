@@ -46,7 +46,7 @@ DECLARE
 BEGIN
     -- 1. Obtener configuración del restaurante
     SELECT settings INTO v_settings
-    FROM restaurants
+    FROM businesses
     WHERE id = p_restaurant_id;
     
     IF v_settings IS NULL THEN

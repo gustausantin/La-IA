@@ -405,7 +405,7 @@ SELECT
   ) as pct_conversion,
   ROUND(AVG((ac.metadata->'classification'->>'confidence')::numeric * 100), 1) as avg_confidence,
   COUNT(CASE WHEN ac.metadata->'classification'->>'sentiment' = 'negative' THEN 1 END) as negativos
-FROM restaurants r
+FROM businesses r
 LEFT JOIN agent_conversations ac ON ac.restaurant_id = r.id
   AND ac.created_at > NOW() - INTERVAL '30 days'
 GROUP BY r.id, r.name
