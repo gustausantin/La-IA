@@ -245,37 +245,37 @@ export default function BaseConocimiento() {
     }
   };
 
-  // Componente: Upload Zone
+  // Componente: Upload Zone - RESPONSIVE MOBILE-FIRST
   const FileUploadZone = ({ category, title, description, icon: Icon }) => {
     const files = getCategoryFiles(category);
     const limit = LIMITS[category].max;
     const canUpload = files.length < limit;
     
     return (
-      <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 mb-6">
-        {/* Header */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-            <Icon className="w-6 h-6 text-purple-600" />
+      <div className="bg-white rounded-lg sm:rounded-xl p-4 sm:p-6 shadow-sm border border-gray-200 mb-4 sm:mb-6">
+        {/* Header - Responsive */}
+        <div className="flex items-start sm:items-center gap-3 mb-4">
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
           </div>
-          <div className="flex-1">
-            <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
-            <p className="text-sm text-gray-500">{description}</p>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{title}</h3>
+            <p className="text-xs sm:text-sm text-gray-500 line-clamp-2">{description}</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-500">
-              {files.length} / {limit} archivos
+          <div className="text-right flex-shrink-0">
+            <p className="text-xs text-gray-500 font-medium">
+              {files.length}/{limit}
             </p>
-            <p className="text-xs text-gray-400">Máx. {LIMITS[category].maxSizeMB}MB</p>
+            <p className="text-xs text-gray-400 hidden sm:block">Máx. {LIMITS[category].maxSizeMB}MB</p>
           </div>
         </div>
         
-        {/* Upload Area */}
+        {/* Upload Area - Touch-Friendly */}
         {canUpload && (
           <label className={`
-            block border-2 border-dashed rounded-lg p-6 text-center cursor-pointer
-            transition-colors duration-200
-            ${uploading ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-purple-300 hover:border-purple-500 hover:bg-purple-50'}
+            block border-2 border-dashed rounded-lg p-4 sm:p-6 text-center cursor-pointer
+            transition-colors duration-200 min-h-[120px] flex flex-col items-center justify-center
+            ${uploading ? 'border-gray-200 bg-gray-50 cursor-not-allowed' : 'border-purple-300 hover:border-purple-500 hover:bg-purple-50 active:scale-[0.99]'}
           `}>
             <input
               type="file"
@@ -290,12 +290,12 @@ export default function BaseConocimiento() {
                 }
               }}
             />
-            <FileUp className={`w-8 h-8 mx-auto mb-2 ${uploading ? 'text-gray-400' : 'text-purple-600'}`} />
-            <p className="text-sm font-medium text-gray-700">
-              {uploading ? 'Subiendo...' : 'Click para subir archivo'}
+            <FileUp className={`w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-2 ${uploading ? 'text-gray-400' : 'text-purple-600'}`} />
+            <p className="text-sm sm:text-base font-medium text-gray-700">
+              {uploading ? 'Subiendo...' : 'Toca para subir archivo'}
             </p>
-            <p className="text-xs text-gray-500 mt-1">
-              PDF, DOCX, DOC o TXT
+            <p className="text-xs sm:text-sm text-gray-500 mt-1">
+              PDF, DOCX, DOC o TXT (máx. {LIMITS[category].maxSizeMB}MB)
             </p>
           </label>
         )}
@@ -307,7 +307,7 @@ export default function BaseConocimiento() {
           </div>
         )}
         
-        {/* Lista de archivos */}
+        {/* Lista de archivos - Responsive */}
         {files.length > 0 && (
           <div className="mt-4 space-y-2">
             {files.map(file => (
@@ -324,29 +324,30 @@ export default function BaseConocimiento() {
     );
   };
 
-  // Componente: File Item
+  // Componente: File Item - RESPONSIVE MOBILE-FIRST
   const FileItem = ({ file, onDelete, onReprocess }) => {
     const getStatusBadge = () => {
       switch(file.status) {
         case 'completed':
           return (
-            <span className="flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full">
-              <CheckCircle className="w-3 h-3" />
-              Procesado
+            <span className="flex items-center gap-1 text-xs text-green-700 bg-green-100 px-2 py-1 rounded-full whitespace-nowrap">
+              <CheckCircle className="w-3 h-3 flex-shrink-0" />
+              <span className="hidden sm:inline">Procesado</span>
+              <span className="sm:hidden">OK</span>
             </span>
           );
         case 'processing':
           return (
-            <span className="flex items-center gap-1 text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded-full">
-              <Loader className="w-3 h-3 animate-spin" />
-              Procesando...
+            <span className="flex items-center gap-1 text-xs text-blue-700 bg-blue-100 px-2 py-1 rounded-full whitespace-nowrap">
+              <Loader className="w-3 h-3 animate-spin flex-shrink-0" />
+              <span className="hidden sm:inline">Procesando...</span>
             </span>
           );
         case 'failed':
           return (
-            <span className="flex items-center gap-1 text-xs text-red-700 bg-red-100 px-2 py-1 rounded-full">
-              <AlertCircle className="w-3 h-3" />
-              Error
+            <span className="flex items-center gap-1 text-xs text-red-700 bg-red-100 px-2 py-1 rounded-full whitespace-nowrap">
+              <AlertCircle className="w-3 h-3 flex-shrink-0" />
+              <span className="hidden sm:inline">Error</span>
             </span>
           );
         default:
@@ -355,45 +356,48 @@ export default function BaseConocimiento() {
     };
     
     return (
-      <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
-        <FileText className="w-5 h-5 text-gray-600 flex-shrink-0" />
+      <div className="flex items-start sm:items-center gap-2 sm:gap-3 p-3 sm:p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <FileText className="w-5 h-5 text-gray-600 flex-shrink-0 mt-0.5 sm:mt-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-900 truncate">{file.file_name}</p>
-          <div className="flex items-center gap-2 text-xs text-gray-500">
-            <span className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 mt-1">
+            <span className="flex items-center gap-1 whitespace-nowrap">
               <Calendar className="w-3 h-3" />
-              {format(new Date(file.created_at), 'dd MMM yyyy', { locale: es })}
+              <span className="hidden sm:inline">{format(new Date(file.created_at), 'dd MMM yyyy', { locale: es })}</span>
+              <span className="sm:hidden">{format(new Date(file.created_at), 'dd/MM', { locale: es })}</span>
             </span>
             {file.processed_at && (
-              <span className="flex items-center gap-1">
+              <span className="flex items-center gap-1 whitespace-nowrap">
                 <Clock className="w-3 h-3" />
                 {format(new Date(file.processed_at), 'HH:mm', { locale: es })}
               </span>
             )}
-            <span>{(file.file_size / 1024).toFixed(0)} KB</span>
+            <span className="whitespace-nowrap">{(file.file_size / 1024).toFixed(0)} KB</span>
           </div>
           {file.error_message && (
-            <p className="text-xs text-red-600 mt-1">{file.error_message}</p>
+            <p className="text-xs text-red-600 mt-1 line-clamp-2">{file.error_message}</p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2">
           {getStatusBadge()}
-          {file.status === 'failed' && (
+          <div className="flex items-center gap-1">
+            {file.status === 'failed' && (
+              <button
+                onClick={onReprocess}
+                className="text-blue-600 hover:text-blue-700 p-2 hover:bg-blue-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+                title="Reprocesar"
+              >
+                <Loader className="w-5 h-5" />
+              </button>
+            )}
             <button
-              onClick={onReprocess}
-              className="text-blue-600 hover:text-blue-700 p-1"
-              title="Reprocesar"
+              onClick={onDelete}
+              className="text-red-600 hover:text-red-700 p-2 hover:bg-red-50 rounded-lg transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+              title="Eliminar"
             >
-              <Loader className="w-4 h-4" />
+              <Trash2 className="w-5 h-5" />
             </button>
-          )}
-          <button
-            onClick={onDelete}
-            className="text-red-600 hover:text-red-700 p-1"
-            title="Eliminar"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          </div>
         </div>
       </div>
     );
@@ -401,29 +405,31 @@ export default function BaseConocimiento() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Loader className="w-8 h-8 animate-spin text-purple-600" />
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader className="w-8 h-8 sm:w-10 sm:h-10 animate-spin text-purple-600" />
       </div>
     );
   }
 
   return (
-    <div className="max-w-[85%] mx-auto px-4 py-4">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">📚 Base de Conocimiento</h1>
-        <p className="text-gray-600">
-          Sube documentos para que tu Agente IA pueda responder preguntas sobre tu restaurante
+    <div className="w-full max-w-5xl mx-auto">
+      {/* Header - Responsive */}
+      <div className="mb-4 sm:mb-6 md:mb-8">
+        <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-900 mb-2">
+          📚 Base de Conocimiento
+        </h1>
+        <p className="text-sm sm:text-base text-gray-600">
+          Sube documentos para que tu Agente IA pueda responder preguntas sobre tu negocio
         </p>
       </div>
       
-      {/* Info Alert */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 flex gap-3">
+      {/* Info Alert - Responsive */}
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 sm:p-4 mb-4 sm:mb-6 flex gap-2 sm:gap-3">
         <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-        <div className="text-sm text-blue-800">
-          <p className="font-medium mb-1">¿Cómo funciona?</p>
+        <div className="text-xs sm:text-sm text-blue-800">
+          <p className="font-semibold mb-2">¿Cómo funciona?</p>
           <ul className="list-disc list-inside space-y-1 text-blue-700">
-            <li>Sube tus menús, políticas o información del restaurante</li>
+            <li>Sube tus menús, políticas o información del negocio</li>
             <li>El sistema procesará automáticamente los documentos (1-2 minutos)</li>
             <li>Tu Agente IA podrá responder preguntas sobre el contenido</li>
             <li>Formatos soportados: PDF, Word (.docx/.doc) y TXT</li>
@@ -431,7 +437,7 @@ export default function BaseConocimiento() {
         </div>
       </div>
       
-      {/* Upload Zones */}
+      {/* Upload Zones - Responsive */}
       <FileUploadZone
         category="menu"
         title="🍽️ Menú y Carta"
@@ -441,7 +447,7 @@ export default function BaseConocimiento() {
       
       <FileUploadZone
         category="services"
-        title="🏢 Servicios del Restaurante"
+        title="🏢 Servicios del Negocio"
         description="Políticas, servicios disponibles, información importante..."
         icon={Info}
       />

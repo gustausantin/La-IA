@@ -84,13 +84,13 @@ export default function Confirm() {
   const getIcon = () => {
     switch (status) {
       case 'processing':
-        return <RefreshCw className="w-16 h-16 text-blue-600 animate-spin" />;
+        return <RefreshCw className="w-12 h-12 sm:w-16 sm:h-16 text-blue-600 animate-spin" />;
       case 'success':
-        return <CheckCircle2 className="w-16 h-16 text-green-600" />;
+        return <CheckCircle2 className="w-12 h-12 sm:w-16 sm:h-16 text-green-600" />;
       case 'error':
-        return <AlertCircle className="w-16 h-16 text-red-600" />;
+        return <AlertCircle className="w-12 h-12 sm:w-16 sm:h-16 text-red-600" />;
       default:
-        return <RefreshCw className="w-16 h-16 text-gray-400" />;
+        return <RefreshCw className="w-12 h-12 sm:w-16 sm:h-16 text-gray-400" />;
     }
   };
 
@@ -106,17 +106,17 @@ export default function Confirm() {
   };
 
   return (
-    <div className={`min-h-screen flex items-center justify-center p-2 ${getBackgroundColor()}`}>
-      <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
-        <div className="flex justify-center mb-6">
+    <div className={`min-h-screen flex items-center justify-center p-4 sm:p-6 ${getBackgroundColor()}`}>
+      <div className="max-w-md w-full bg-white rounded-lg sm:rounded-xl shadow-lg p-6 sm:p-8 text-center">
+        <div className="flex justify-center mb-4 sm:mb-6">
           {getIcon()}
         </div>
         
-        <h1 className="text-lg font-bold text-gray-900 mb-4">
+        <h1 className="text-lg sm:text-xl font-bold text-gray-900 mb-3 sm:mb-4">
           Confirmación de Email
         </h1>
         
-        <p className="text-gray-600 mb-6 whitespace-pre-line">
+        <p className="text-sm sm:text-base text-gray-600 mb-6 whitespace-pre-line leading-relaxed">
           {message}
         </p>
 
@@ -124,19 +124,19 @@ export default function Confirm() {
           <div className="space-y-4">
             <button
               onClick={() => navigate('/login')}
-              className="w-full bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 transition-colors"
+              className="w-full bg-purple-600 text-white py-3 sm:py-4 px-4 sm:px-6 rounded-lg hover:bg-purple-700 active:scale-[0.99] transition-all font-medium text-sm sm:text-base min-h-[44px]"
             >
               Volver al Login
             </button>
             
-            <p className="text-sm text-gray-500">
+            <p className="text-xs sm:text-sm text-gray-500">
               ¿Necesitas ayuda? Contacta con soporte: support@la-ia.app
             </p>
           </div>
         )}
 
         {status === 'success' && (
-          <div className="text-sm text-gray-500">
+          <div className="text-xs sm:text-sm text-gray-500">
             Serás redirigido automáticamente en unos segundos...
           </div>
         )}

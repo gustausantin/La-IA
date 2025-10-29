@@ -719,43 +719,43 @@ export default function DashboardAgenteV2() {
                     </div>
                 </div>
 
-                {/* 1. HERO SECTION - KPIs CRÍTICOS DEL DÍA (Colores sobrios) */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+                {/* 1. HERO SECTION - KPIs CRÍTICOS DEL DÍA - RESPONSIVE */}
+                <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                     {/* Reservas de Hoy */}
-                    <div className="bg-white rounded-xl p-3 shadow-sm border-2 border-blue-200">
-                        <div className="flex items-center justify-between mb-1">
-                            <Target className="w-4 h-4 text-blue-600" />
+                    <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border-2 border-blue-200">
+                        <div className="flex items-center justify-between mb-2">
+                            <Target className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
                             {renderDiff(dashboardData.reservationsDiff)}
                         </div>
-                        <div className="text-lg font-bold text-gray-900">{dashboardData.reservationsToday}</div>
-                        <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Reservas de Hoy</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">vs ayer: {dashboardData.reservationsYesterday}</div>
+                        <div className="text-2xl sm:text-3xl font-bold text-gray-900">{dashboardData.reservationsToday}</div>
+                        <div className="text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">Reservas Hoy</div>
+                        <div className="text-xs text-gray-400 mt-1">Ayer: {dashboardData.reservationsYesterday}</div>
                     </div>
 
                     {/* Ocupación */}
-                    <div className="bg-white rounded-xl p-3 shadow-sm border-2 border-purple-200">
-                        <div className="flex items-center justify-between mb-1">
-                            <Users className="w-4 h-4 text-purple-600" />
+                    <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border-2 border-purple-200">
+                        <div className="flex items-center justify-between mb-2">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600" />
                             {renderDiff(dashboardData.occupancyDiff, true)}
                         </div>
-                        <div className="text-lg font-bold text-gray-900">{dashboardData.occupancyPercent}%</div>
-                        <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Ocupación</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">vs ayer: {dashboardData.occupancyYesterday}%</div>
+                        <div className="text-2xl sm:text-3xl font-bold text-gray-900">{dashboardData.occupancyPercent}%</div>
+                        <div className="text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">Ocupación</div>
+                        <div className="text-xs text-gray-400 mt-1">Ayer: {dashboardData.occupancyYesterday}%</div>
                     </div>
 
                     {/* Clientes Nuevos */}
-                    <div className="bg-white rounded-xl p-3 shadow-sm border-2 border-green-200">
-                        <div className="flex items-center justify-between mb-1">
-                            <Users className="w-4 h-4 text-green-600" />
+                    <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border-2 border-green-200">
+                        <div className="flex items-center justify-between mb-2">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-green-600" />
                             {renderDiff(dashboardData.newCustomersDiff)}
                         </div>
-                        <div className="text-lg font-bold text-gray-900">{dashboardData.newCustomersToday}</div>
-                        <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Clientes Nuevos</div>
-                        <div className="text-[10px] text-gray-400 mt-0.5">vs ayer: {dashboardData.newCustomersYesterday}</div>
+                        <div className="text-2xl sm:text-3xl font-bold text-gray-900">{dashboardData.newCustomersToday}</div>
+                        <div className="text-xs sm:text-sm font-medium text-gray-500 uppercase tracking-wide mt-1">Nuevos</div>
+                        <div className="text-xs text-gray-400 mt-1">Ayer: {dashboardData.newCustomersYesterday}</div>
                     </div>
 
                     {/* Alertas No-Show */}
-                    <div className="bg-white rounded-xl p-3 shadow-sm border-2 border-orange-200">
+                    <div className="bg-white rounded-lg sm:rounded-xl p-3 sm:p-4 shadow-sm border-2 border-orange-200">
                         <div className="flex items-center justify-between mb-1">
                             <AlertTriangle className="w-4 h-4 text-orange-600" />
                         </div>
