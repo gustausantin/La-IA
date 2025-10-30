@@ -3,8 +3,8 @@ import { devtools, persist } from 'zustand/middleware';
 import { log } from '../utils/logger.js';
 
 /**
- * Store para el flujo de onboarding de 5 pasos
- * Gestiona todo el estado del onboarding hasta que se guarda en Supabase
+ * Store para el flujo de onboarding de 4 PASOS (WOW-First)
+ * Filosofía: Gancho rápido → Demo → Dashboard con Copilot
  */
 export const useOnboardingStore = create()(
   devtools(
@@ -15,55 +15,46 @@ export const useOnboardingStore = create()(
         isLoading: false,
         error: null,
         
-        // === PASO 1: PERFIL Y VERTICAL ===
-        businessName: '',
-        businessPhone: '',
+        // === PASO 1: IDENTIDAD RÁPIDA ===
         selectedVertical: null, // { id, name, icon, color, ... }
-        verticalConfig: null, // Configuración desde get-vertical-onboarding-config
+        businessName: '',
         
-        // === PASO 2: HORARIO BASE (con soporte para múltiples bloques) ===
-        businessHours: {
-          monday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-          tuesday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-          wednesday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-          thursday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-          friday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-          saturday: { isOpen: true, timeBlocks: [{ openTime: '10:00', closeTime: '14:00' }] },
-          sunday: { isOpen: false, timeBlocks: [] }
+        // Configuración de demo (se carga al seleccionar vertical)
+        demoConfig: {
+          defaultServiceName: '',
+          defaultServiceDuration: 60,
+          serviceIcon: null
         },
         
-        // === PASO 3: ASISTENTE IA ===
-        assistantName: 'María',
-        assistantVoice: 'female', // 'female' | 'male'
-        testCallCompleted: false,
-        testCallTranscript: null,
+        // === PASO 2: PERSONALIDAD DEL ASISTENTE ===
+        assistantName: '',
+        assistantVoice: null, // ID de ElevenLabs
         
-        // === PASO 4: CONEXIÓN Y ALERTAS ===
-        assignedPhone: null, // Número asignado del pool (ej: '+34931204462')
-        whatsappNumber: '',
-        phoneOperator: '', // 'movistar', 'vodafone', 'orange', etc.
-        connectionVerified: false,
-        
-        // === PASO 5: CONFIRMACIÓN ===
-        confirmationComplete: false,
-        
-        // === DATOS ADICIONALES ===
-        businessData: {
-          email: '',
-          address: '',
-          city: '',
-          postalCode: '',
+        // === PASO 3: DEMO INTERACTIVA ===
+        demo: {
+          slots: {}, // { "10:00": "libre", "10:45": "ocupado", ... }
+          whatsapp: '',
+          demoPhone: null,
+          completed: false,
+          sessionId: null
         },
+        
+        // === PASO 4: FINALIZACIÓN (no requiere datos, solo UI) ===
+        onboardingComplete: false,
         
         // === ACCIONES GENERALES ===
         setStep: (step) => {
-          log.info(`📍 Onboarding: Paso ${step}`);
+          log.info(`📍 Onboarding: Paso ${step} de 4`);
           set({ currentStep: step, error: null });
+        },
+        
+        setCurrentStep: (step) => {
+          set({ currentStep: step });
         },
         
         nextStep: () => {
           const { currentStep } = get();
-          if (currentStep < 5) {
+          if (currentStep < 4) {
             set({ currentStep: currentStep + 1, error: null });
           }
         },
@@ -88,208 +79,113 @@ export const useOnboardingStore = create()(
           set({ error: null });
         },
         
-        // === PASO 1: PERFIL Y VERTICAL ===
-        setBusinessName: (name) => {
-          set({ businessName: name });
-        },
-        
-        setBusinessPhone: (phone) => {
-          set({ businessPhone: phone });
-        },
-        
+        // === PASO 1: IDENTIDAD RÁPIDA ===
         setSelectedVertical: (vertical) => {
           log.info('🎯 Vertical seleccionado:', vertical?.name);
           set({ selectedVertical: vertical });
         },
         
-        setVerticalConfig: (config) => {
-          log.info('⚙️ Configuración de vertical cargada:', config);
-          set({ verticalConfig: config });
+        setBusinessName: (name) => {
+          set({ businessName: name });
         },
         
-        // === PASO 2: HORARIO BASE ===
-        setBusinessHours: (hours) => {
-          set({ businessHours: hours });
+        setDemoConfig: (config) => {
+          set({ demoConfig: config });
         },
         
-        updateDayHours: (day, hours) => {
-          const { businessHours } = get();
-          // Migrar estructura antigua a nueva si es necesario
-          const migratedHours = hours.timeBlocks ? hours : {
-            isOpen: hours.isOpen,
-            timeBlocks: hours.openTime ? [{ openTime: hours.openTime, closeTime: hours.closeTime }] : []
-          };
-          set({
-            businessHours: {
-              ...businessHours,
-              [day]: migratedHours
-            }
-          });
-        },
-        
-        applyToWeekdays: (hours) => {
-          const { businessHours } = get();
-          const weekdays = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'];
-          const newHours = { ...businessHours };
-          weekdays.forEach(day => {
-            newHours[day] = { ...hours };
-          });
-          set({ businessHours: newHours });
-        },
-        
-        // Gestión de bloques horarios múltiples
-        addTimeBlock: (day) => {
-          const { businessHours } = get();
-          const dayData = businessHours[day];
-          // Migrar si es necesario
-          const currentBlocks = dayData.timeBlocks || (dayData.openTime ? [{ openTime: dayData.openTime, closeTime: dayData.closeTime }] : [{ openTime: '09:00', closeTime: '20:00' }]);
-          
-          set({
-            businessHours: {
-              ...businessHours,
-              [day]: {
-                isOpen: dayData.isOpen,
-                timeBlocks: [...currentBlocks, { openTime: '16:00', closeTime: '20:00' }]
-              }
-            }
-          });
-        },
-        
-        removeTimeBlock: (day, blockIndex) => {
-          const { businessHours } = get();
-          const dayData = businessHours[day];
-          const currentBlocks = dayData.timeBlocks || [];
-          const newBlocks = currentBlocks.filter((_, index) => index !== blockIndex);
-          
-          set({
-            businessHours: {
-              ...businessHours,
-              [day]: {
-                isOpen: dayData.isOpen,
-                timeBlocks: newBlocks.length > 0 ? newBlocks : [{ openTime: '09:00', closeTime: '20:00' }]
-              }
-            }
-          });
-        },
-        
-        updateTimeBlock: (day, blockIndex, field, value) => {
-          const { businessHours } = get();
-          const dayData = businessHours[day];
-          // Migrar si es necesario
-          const currentBlocks = dayData.timeBlocks || (dayData.openTime ? [{ openTime: dayData.openTime, closeTime: dayData.closeTime }] : [{ openTime: '09:00', closeTime: '20:00' }]);
-          const newBlocks = [...currentBlocks];
-          newBlocks[blockIndex] = {
-            ...newBlocks[blockIndex],
-            [field]: value
-          };
-          
-          set({
-            businessHours: {
-              ...businessHours,
-              [day]: {
-                isOpen: dayData.isOpen,
-                timeBlocks: newBlocks
-              }
-            }
-          });
-        },
-        
-        // === PASO 3: ASISTENTE IA ===
+        // === PASO 2: ASISTENTE ===
         setAssistantName: (name) => {
           set({ assistantName: name });
         },
         
-        setAssistantVoice: (voice) => {
-          log.info('🎤 Voz seleccionada:', voice);
-          set({ assistantVoice: voice });
+        setAssistantVoice: (voiceId) => {
+          log.info('🎤 Voz seleccionada:', voiceId);
+          set({ assistantVoice: voiceId });
         },
         
-        setTestCallCompleted: (completed) => {
-          set({ testCallCompleted: completed });
+        // === PASO 3: DEMO ===
+        setDemoSlots: (slots) => {
+          set({ demo: { ...get().demo, slots } });
         },
         
-        setTestCallTranscript: (transcript) => {
-          set({ testCallTranscript: transcript });
+        setDemoWhatsapp: (whatsapp) => {
+          set({ demo: { ...get().demo, whatsapp } });
         },
         
-        // === PASO 4: CONEXIÓN Y ALERTAS ===
-        setAssignedPhone: (phone) => {
-          log.info('📞 Número asignado:', phone);
-          set({ assignedPhone: phone });
+        setDemoPhone: (phone) => {
+          set({ demo: { ...get().demo, demoPhone: phone } });
         },
         
-        setWhatsappNumber: (number) => {
-          set({ whatsappNumber: number });
+        setDemoCompleted: (completed) => {
+          set({ demo: { ...get().demo, completed } });
         },
         
-        setPhoneOperator: (operator) => {
-          set({ phoneOperator: operator });
+        setDemoSessionId: (sessionId) => {
+          set({ demo: { ...get().demo, sessionId } });
         },
         
-        setConnectionVerified: (verified) => {
-          log.info(verified ? '✅ Conexión verificada' : '❌ Conexión no verificada');
-          set({ connectionVerified: verified });
+        updateDemoSlot: (time, status) => {
+          const { demo } = get();
+          set({
+            demo: {
+              ...demo,
+              slots: {
+                ...demo.slots,
+                [time]: status
+              }
+            }
+          });
         },
         
-        // === PASO 5: CONFIRMACIÓN ===
-        setConfirmationComplete: (complete) => {
-          set({ confirmationComplete: complete });
+        // === PASO 4: FINALIZACIÓN ===
+        setOnboardingComplete: (complete) => {
+          set({ onboardingComplete: complete });
         },
         
-        // === DATOS ADICIONALES ===
-        setBusinessData: (data) => {
-          set({ businessData: { ...get().businessData, ...data } });
-        },
-        
-        // === UTILIDADES ===
+        // === VALIDACIONES ===
         isStepValid: (step) => {
           const state = get();
           
           switch (step) {
             case 1:
-              return state.businessName && 
-                     state.businessPhone && 
-                     state.selectedVertical &&
-                     state.businessData.address &&
-                     state.businessData.city &&
-                     state.businessData.postalCode;
+              // Paso 1: Vertical + Nombre del negocio
+              return state.selectedVertical && state.businessName.trim().length >= 3;
+            
             case 2:
-              return true; // El horario siempre tiene valores por defecto
+              // Paso 2: Nombre del asistente + Voz
+              return state.assistantName.trim().length >= 2 && state.assistantVoice;
+            
             case 3:
-              return state.assistantName && state.assistantVoice;
+              // Paso 3: Demo completada (o al menos configurada)
+              return (
+                Object.keys(state.demo.slots).length >= 4 && // Al menos 4 slots configurados
+                state.demo.whatsapp.trim().length >= 9 // WhatsApp válido
+              );
+            
             case 4:
-              return state.connectionVerified; // Debe confirmar el desvío (checkbox obligatorio)
-            case 5:
+              // Paso 4: Siempre válido (solo es UI informativa)
               return true;
+            
             default:
               return false;
           }
         },
         
+        // === UTILIDADES ===
         getAllData: () => {
           const state = get();
           return {
-            // Perfil y Vertical
-            businessName: state.businessName,
-            businessPhone: state.businessPhone,
+            // Paso 1
             vertical: state.selectedVertical?.id,
-            verticalConfig: state.verticalConfig,
+            businessName: state.businessName,
+            demoConfig: state.demoConfig,
             
-            // Horario
-            businessHours: state.businessHours,
-            
-            // Asistente
+            // Paso 2
             assistantName: state.assistantName,
             assistantVoice: state.assistantVoice,
             
-            // Conexión
-            assignedPhone: state.assignedPhone,
-            whatsappNumber: state.whatsappNumber,
-            phoneOperator: state.phoneOperator,
-            connectionVerified: state.connectionVerified,
-            
-            // Datos adicionales
-            ...state.businessData
+            // Paso 3
+            demo: state.demo,
           };
         },
         
@@ -300,56 +196,39 @@ export const useOnboardingStore = create()(
             currentStep: 1,
             isLoading: false,
             error: null,
-            businessName: '',
-            businessPhone: '',
             selectedVertical: null,
-            verticalConfig: null,
-            businessHours: {
-              monday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-              tuesday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-              wednesday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-              thursday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-              friday: { isOpen: true, timeBlocks: [{ openTime: '09:00', closeTime: '20:00' }] },
-              saturday: { isOpen: true, timeBlocks: [{ openTime: '10:00', closeTime: '14:00' }] },
-              sunday: { isOpen: false, timeBlocks: [] }
+            businessName: '',
+            demoConfig: {
+              defaultServiceName: '',
+              defaultServiceDuration: 60,
+              serviceIcon: null
             },
-            assistantName: 'María',
-            assistantVoice: 'female',
-            testCallCompleted: false,
-            testCallTranscript: null,
-            assignedPhone: null,
-            whatsappNumber: '',
-            phoneOperator: '',
-            connectionVerified: false,
-            confirmationComplete: false,
-            businessData: {
-              email: '',
-              address: '',
-              city: '',
-              postalCode: '',
-            }
+            assistantName: '',
+            assistantVoice: null,
+            demo: {
+              slots: {},
+              whatsapp: '',
+              demoPhone: null,
+              completed: false,
+              sessionId: null
+            },
+            onboardingComplete: false
           });
         },
       }),
       {
-        name: 'onboarding-storage',
+        name: 'onboarding-storage-v2', // Nuevo nombre para evitar conflictos
         partialize: (state) => ({
-          // Solo persistir datos del usuario, no el estado de la UI
-          businessName: state.businessName,
-          businessPhone: state.businessPhone,
+          // Persistir solo datos del usuario
           selectedVertical: state.selectedVertical,
-          verticalConfig: state.verticalConfig,
-          businessHours: state.businessHours,
+          businessName: state.businessName,
+          demoConfig: state.demoConfig,
           assistantName: state.assistantName,
           assistantVoice: state.assistantVoice,
-          assignedPhone: state.assignedPhone,
-          whatsappNumber: state.whatsappNumber,
-          phoneOperator: state.phoneOperator,
-          businessData: state.businessData,
+          demo: state.demo,
           currentStep: state.currentStep,
         }),
       }
     )
   )
 );
-

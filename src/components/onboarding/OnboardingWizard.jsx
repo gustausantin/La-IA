@@ -13,12 +13,11 @@ import {
 } from 'lucide-react';
 import { getVerticalOnboardingConfig, createBusinessWithOnboarding } from '../../services/onboardingService';
 
-// Componentes de cada paso
-import Step1ProfileVertical from './steps/Step1ProfileVertical';
-import Step2Schedule from './steps/Step2Schedule';
-import Step3Assistant from './steps/Step3Assistant';
-import Step4Connection from './steps/Step4Connection';
-import Step5Confirmation from './steps/Step5Confirmation';
+// Componentes de cada paso (NUEVO FLUJO DE 4 PASOS)
+import Step1Identity from './steps/Step1Identity';
+import Step2Assistant from './steps/Step2Assistant';
+import Step3DemoInteractiva from './steps/Step3DemoInteractiva';
+import Step4GoToApp from './steps/Step4GoToApp';
 
 // 🔟 Verticales para autónomos profesionales con iconos modernos
 const VERTICALS = [
@@ -152,77 +151,75 @@ export default function OnboardingWizard() {
     window.location.href = '/login';
   };
 
-  // Renderizar el paso actual
+  // Renderizar el paso actual (4 pasos)
   const renderStep = () => {
     switch (currentStep) {
       case 1:
-        return <Step1ProfileVertical verticals={VERTICALS} />;
+        return <Step1Identity verticals={VERTICALS} />;
       case 2:
-        return <Step2Schedule />;
+        return <Step2Assistant />;
       case 3:
-        return <Step3Assistant />;
+        return <Step3DemoInteractiva />;
       case 4:
-        return <Step4Connection />;
-      case 5:
-        return <Step5Confirmation />;
+        return <Step4GoToApp />;
       default:
         return null;
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 flex items-center justify-center p-3 sm:p-6">
-      <div className="max-w-5xl w-full">
+    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 flex items-center justify-center p-2 sm:p-4">
+      <div className="max-w-3xl w-full">
         {/* Botón de Logout mejorado */}
-        <div className="flex justify-end mb-3 sm:mb-4">
+        <div className="flex justify-end mb-2">
           <button
             onClick={handleLogout}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-red-600 bg-white border-2 border-red-200 rounded-xl hover:bg-red-50 hover:border-red-400 transition-all shadow-sm hover:shadow-md active:scale-95"
+            className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-400 transition-all shadow-sm active:scale-95"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
             <span>Salir</span>
           </button>
         </div>
         
         {/* Header */}
-        <div className="text-center mb-6 sm:mb-8 px-2">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 bg-clip-text text-transparent mb-3">
+        <div className="text-center mb-4 sm:mb-6 px-2">
+          <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 bg-clip-text text-transparent mb-2">
             ¡Bienvenido a La-IA! 🎉
           </h1>
-          <p className="text-base sm:text-lg text-gray-600 font-medium">
-            Configura tu negocio en 5 simples pasos
+          <p className="text-sm text-gray-600 font-medium">
+            Tu demo personalizada en solo 4 pasos
           </p>
         </div>
 
-        {/* Progress Bar - Sin etiquetas, más limpio */}
-        <div className="mb-6 sm:mb-8 px-2">
-          <div className="flex items-center justify-center gap-2 max-w-3xl mx-auto">
-            {[1, 2, 3, 4, 5].map((s) => (
+        {/* Progress Bar - 4 pasos */}
+        <div className="mb-4 px-2">
+          <div className="flex items-center justify-center gap-1.5 max-w-xl mx-auto">
+            {[1, 2, 3, 4].map((s) => (
               <div key={s} className="flex items-center flex-1">
-                <div className={`w-full h-2.5 rounded-full transition-all duration-500 ${
+                <div className={`w-full h-2 rounded-full transition-all duration-500 ${
                   currentStep >= s 
                     ? 'bg-gradient-to-r from-purple-600 to-blue-600' 
                     : 'bg-gray-200'
                 }`}>
-                  <div className={`w-3 h-3 rounded-full -mt-0.5 transition-all duration-500 ${
+                  <div className={`w-2.5 h-2.5 rounded-full -mt-0.5 transition-all duration-500 ${
                     currentStep >= s 
-                      ? 'bg-white border-4 border-purple-600 shadow-lg' 
+                      ? 'bg-white border-2 border-purple-600 shadow-md' 
                       : 'bg-gray-300'
                   }`} />
                 </div>
-                {s < 5 && <div className="w-1" />}
+                {s < 4 && <div className="w-0.5" />}
               </div>
             ))}
           </div>
-          <div className="flex justify-center items-center gap-2 mt-4">
-            <div className="text-xs sm:text-sm font-semibold text-purple-600 bg-purple-50 px-3 py-1 rounded-full">
-              Paso {currentStep} de 5
+          <div className="flex justify-center items-center gap-2 mt-2.5">
+            <div className="text-[10px] sm:text-xs font-semibold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full">
+              Paso {currentStep} de 4
             </div>
           </div>
         </div>
 
         {/* Contenido según paso */}
-        <div className="bg-white rounded-lg sm:rounded-xl md:rounded-2xl shadow-xl p-4 sm:p-6 md:p-8">
+        <div className="bg-white rounded-lg shadow-lg p-4 sm:p-5">
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
               <X className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
@@ -242,23 +239,23 @@ export default function OnboardingWizard() {
                 </div>
 
         {/* Navigation Buttons */}
-        <div className="flex flex-col sm:flex-row gap-3 mt-6 px-2">
+        <div className="flex flex-col sm:flex-row gap-2 mt-4 px-2">
           {currentStep > 1 && (
                 <button
               onClick={prevStep}
               disabled={isLoading}
-              className="flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm hover:shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-3.5 h-3.5" />
                   Atrás
                 </button>
           )}
           
-          {currentStep < 5 && (
+          {currentStep < 4 && (
                 <button
               onClick={nextStep}
               disabled={isLoading || !isStepValid(currentStep)}
-              className="flex-1 flex items-center justify-center gap-2 px-6 py-3 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl hover:from-purple-700 hover:to-blue-700 transition-all shadow-lg hover:shadow-xl active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? (
                 <>
