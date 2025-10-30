@@ -50,6 +50,12 @@ const PWAInstaller = () => {
 
   // Registrar Service Worker
   const registerServiceWorker = async () => {
+    // 🔥 NO registrar Service Worker en desarrollo (localhost)
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      console.log('⚠️ PWA: Service Worker deshabilitado en modo desarrollo');
+      return;
+    }
+    
     if ('serviceWorker' in navigator) {
       try {
         console.log('🔧 PWA: Registrando Service Worker...');

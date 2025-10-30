@@ -1,6 +1,6 @@
 // Service Worker para La-IA PWA
 // Versión del cache - cambiar para forzar actualización
-const CACHE_NAME = 'la-ia-pwa-v1.0.3-fixed';
+const CACHE_NAME = 'la-ia-pwa-v1.0.4-audio-fix';
 const OFFLINE_URL = '/offline.html';
 
 // Archivos esenciales para funcionalidad offline
