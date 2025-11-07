@@ -83,7 +83,10 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     const [generationSettings, setGenerationSettings] = useState({
         startDate: format(new Date(), 'yyyy-MM-dd'), // Siempre desde hoy
         endDate: format(addDays(new Date(), 30), 'yyyy-MM-dd'),
-        overwriteExisting: false
+        overwriteExisting: false,
+        // 🆕 CONFIGURACIÓN SIMPLIFICADA DE DISPONIBILIDADES
+        advanceBookingDays: 90, // Días de antelación máxima (cuántos días hacia el futuro)
+        minAdvanceMinutes: 120  // Minutos de antelación mínima (ej: 120 = 2 horas)
     });
 
     // Obtener última ejecución del mantenimiento automático
@@ -1557,8 +1560,34 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 // Cargar estadísticas de días después de las stats normales
                 loadDayStats();
             });
+
+            // 🆕 Cargar configuración de disponibilidades desde la BD
+            loadAvailabilityConfig();
         }
     }, [businessId]);
+
+    // 🆕 Cargar configuración de disponibilidades
+    const loadAvailabilityConfig = async () => {
+        try {
+            const { data, error } = await supabase
+                .from('businesses')
+                .select('settings')
+                .eq('id', businessId)
+                .single();
+
+            if (error) throw error;
+
+            if (data?.settings) {
+                setGenerationSettings(prev => ({
+                    ...prev,
+                    advanceBookingDays: data.settings.advance_booking_days || 90,
+                    minAdvanceMinutes: data.settings.min_advance_minutes || 120
+                }));
+            }
+        } catch (error) {
+            console.error('Error cargando configuración de disponibilidades:', error);
+        }
+    };
 
     // Actualizar generationSuccess cuando cambien las estadísticas reales
     useEffect(() => {
@@ -1607,6 +1636,127 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 
             </div>
 
+            {/* 🆕 CONFIGURACIÓN SIMPLIFICADA DE DISPONIBILIDADES */}
+            <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+                <div className="flex items-center gap-2 mb-3">
+                    <Settings className="w-4 h-4 text-purple-600" />
+                    <h3 className="text-sm font-bold text-purple-900">
+                        ⚙️ Configuración de Disponibilidades
+                    </h3>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {/* Campo 1: Días de antelación máxima */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                            📅 Días de antelación máxima
+                        </label>
+                        <input
+                            type="number"
+                            value={generationSettings.advanceBookingDays}
+                            onChange={(e) => setGenerationSettings(prev => ({
+                                ...prev,
+                                advanceBookingDays: parseInt(e.target.value) || 90
+                            }))}
+                            min="7"
+                            max="365"
+                            step="1"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        <p className="text-xs text-gray-600 mt-1">
+                            Cuántos días hacia el futuro se pueden hacer reservas (ej: 90 días)
+                        </p>
+                    </div>
+
+                    {/* Campo 2: Minutos de antelación mínima */}
+                    <div>
+                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                            ⏰ Minutos de antelación mínima
+                        </label>
+                        <input
+                            type="number"
+                            value={generationSettings.minAdvanceMinutes}
+                            onChange={(e) => setGenerationSettings(prev => ({
+                                ...prev,
+                                minAdvanceMinutes: parseInt(e.target.value) || 120
+                            }))}
+                            min="0"
+                            max="1440"
+                            step="15"
+                            className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        />
+                        <p className="text-xs text-gray-600 mt-1">
+                            Tiempo mínimo en MINUTOS para aceptar una reserva (ej: 120 = 2 horas)
+                        </p>
+                    </div>
+                </div>
+
+                {/* Info adicional */}
+                <div className="mt-3 p-2 bg-white/80 rounded-lg border border-purple-200">
+                    <div className="flex items-start gap-2">
+                        <Info className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="text-xs text-purple-900 font-semibold">
+                                💡 ¿Cómo funciona?
+                            </p>
+                            <p className="text-xs text-purple-800 mt-1 leading-tight">
+                                • <strong>Días máximos:</strong> Si pones 90, solo se aceptan reservas hasta dentro de 90 días.<br/>
+                                • <strong>Minutos mínimos:</strong> Si pones 120 (2h), no se aceptan reservas con menos de 2 horas de antelación.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Botón Guardar */}
+                <div className="mt-3">
+                    <button
+                        onClick={async () => {
+                            try {
+                                setLoading(true);
+                                toast.loading('Guardando configuración...', { id: 'save-config' });
+
+                                // Obtener configuración actual
+                                const { data: currentData, error: fetchError } = await supabase
+                                    .from('businesses')
+                                    .select('settings')
+                                    .eq('id', businessId)
+                                    .single();
+
+                                if (fetchError) throw fetchError;
+
+                                // Actualizar settings
+                                const updatedSettings = {
+                                    ...(currentData?.settings || {}),
+                                    advance_booking_days: generationSettings.advanceBookingDays,
+                                    min_advance_minutes: generationSettings.minAdvanceMinutes
+                                };
+
+                                const { error } = await supabase
+                                    .from('businesses')
+                                    .update({ settings: updatedSettings })
+                                    .eq('id', businessId);
+
+                                if (error) throw error;
+
+                                toast.dismiss('save-config');
+                                toast.success('✅ Configuración guardada correctamente');
+
+                            } catch (error) {
+                                console.error('Error guardando configuración:', error);
+                                toast.dismiss('save-config');
+                                toast.error('❌ Error: ' + error.message);
+                            } finally {
+                                setLoading(false);
+                            }
+                        }}
+                        disabled={loading}
+                        className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md disabled:opacity-50"
+                    >
+                        {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                        {loading ? 'Guardando...' : 'Guardar Configuración'}
+                    </button>
+                </div>
+            </div>
 
             {/* Panel de Estado de Disponibilidades - CONDICIONAL */}
             

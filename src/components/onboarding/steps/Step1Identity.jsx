@@ -122,19 +122,28 @@ export default function Step1Identity({ verticals }) {
         /* SECCIÓN 2: Formulario con Vertical Seleccionado */
         <div className="space-y-4">
           {/* Mostrar el vertical seleccionado */}
-          <div className="p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-300 rounded-lg flex items-center gap-3">
-            <div className={`p-2 rounded-lg bg-gradient-to-br ${selectedVertical.color} shadow-sm`}>
-              {typeof selectedVertical.icon === 'function' ? (
-                <selectedVertical.icon className="w-5 h-5 text-white" strokeWidth={2.5} />
-              ) : (
-                <div className="w-5 h-5 bg-white rounded" />
-              )}
+          <div className="p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-300 rounded-lg">
+            <div className="flex items-center gap-3 mb-2">
+              <div className={`p-2 rounded-lg bg-gradient-to-br ${selectedVertical.color} shadow-sm`}>
+                {typeof selectedVertical.icon === 'function' ? (
+                  <selectedVertical.icon className="w-5 h-5 text-white" strokeWidth={2.5} />
+                ) : (
+                  <div className="w-5 h-5 bg-white rounded" />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-[10px] text-purple-700 font-medium">Sector seleccionado:</p>
+                <p className="text-sm font-bold text-gray-900">{selectedVertical.name}</p>
+              </div>
+              <CheckCircle2 className="w-5 h-5 text-green-600" />
             </div>
-            <div className="flex-1">
-              <p className="text-[10px] text-purple-700 font-medium">Sector seleccionado:</p>
-              <p className="text-sm font-bold text-gray-900">{selectedVertical.name}</p>
-            </div>
-            <CheckCircle2 className="w-5 h-5 text-green-600" />
+            {/* Botón para cambiar el vertical */}
+            <button
+              onClick={() => setSelectedVertical(null)}
+              className="w-full text-xs text-purple-600 hover:text-purple-800 font-medium py-1 transition-colors"
+            >
+              ¿Cambiar de sector?
+            </button>
           </div>
 
           {/* Nombre del negocio */}

@@ -38,6 +38,9 @@ const NoShowControl = lazy(() => import('./pages/NoShowControlNuevo'));
 // 🤖 Dashboard del Agente IA
 const DashboardAgente = lazy(() => import('./pages/DashboardAgente'));
 
+// 🎯 Dashboard Nuevo - Feed de Acciones Mobile-First
+const DashboardNuevo = lazy(() => import('./pages/DashboardNuevo'));
+
 // 🎯 Wizard de Onboarding para nuevos usuarios
 const OnboardingWizard = lazy(() => import('./components/onboarding/OnboardingWizard'));
 
@@ -73,7 +76,7 @@ const PageLoading = () => (
 
 // Componente principal de contenido
 function AppContent() {
-  const { isReady, isAuthenticated, user, business } = useAuthContext();
+  const { isReady, isAuthenticated, user, business, loadingBusiness } = useAuthContext();
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -89,11 +92,17 @@ function AppContent() {
 
   // ✅ Redirección automática a onboarding si no tiene negocio
   useEffect(() => {
+    // ⚠️ NO redirigir si aún estamos cargando el negocio
+    if (loadingBusiness) {
+      console.log('⏳ Esperando a que termine de cargar el negocio...');
+      return;
+    }
+    
     if (isReady && isAuthenticated && user && !business && location.pathname !== '/onboarding') {
       console.log('🎯 Redirigiendo a onboarding (usuario sin negocio)');
       navigate('/onboarding', { replace: true });
     }
-  }, [isReady, isAuthenticated, user, business, location.pathname, navigate]);
+  }, [isReady, isAuthenticated, user, business, loadingBusiness, location.pathname, navigate]);
 
   // Mostrar pantalla de carga mientras se verifica la autenticación
   if (!isReady) {
@@ -131,6 +140,16 @@ function AppContent() {
               {/* Dashboard principal */}
               <Route 
                 path="/dashboard" 
+                element={
+                  <Suspense fallback={<PageLoading />}>
+                    <DashboardNuevo />
+                  </Suspense>
+                } 
+              />
+              
+              {/* Dashboard Agente (antiguo) */}
+              <Route 
+                path="/dashboard-agente" 
                 element={
                   <Suspense fallback={<PageLoading />}>
                     <DashboardAgente />

@@ -23,34 +23,64 @@ export async function createDemoSession(config) {
   try {
     log.info('📞 Creando sesión de demo:', config);
 
-    // Llamar a la Edge Function
-    const response = await supabase.functions.invoke('create-demo-session', {
-      body: {
-        vertical: config.vertical,
-        businessName: config.businessName,
-        assistantName: config.assistantName,
-        assistantVoice: config.assistantVoice,
-        serviceName: config.serviceName,
-        serviceDuration: config.serviceDuration,
-        slots: config.slots,
-        whatsapp: config.whatsapp
-      }
+    // Llamar al webhook de N8N directamente
+    const N8N_WEBHOOK_URL = 'https://gustausantin.app.n8n.cloud/webhook/39f89f4c-b3d4-428c-b6c7-79a121b15034';
+    
+    // Generar session_id temporal
+    const sessionId = `${config.assistantName.toUpperCase()}-${Date.now()}`;
+    
+    // Construir blockedSlots como objeto
+    const blockedSlotsObj = {};
+    config.blockedSlots.forEach(slot => {
+      const key = `${slot.day}-${slot.hour}`;
+      blockedSlotsObj[key] = 'ocupado';
     });
 
-    if (response.error) {
-      log.error('❌ Error en Edge Function:', response.error);
-      throw response.error;
+    // Extraer solo el Voice ID de ElevenLabs (última parte después del último _)
+    // Ej: "Male_2_Danny_wnKyx1zkUEUnfURKiuaP" → "wnKyx1zkUEUnfURKiuaP"
+    const extractVoiceId = (fullId) => {
+      if (!fullId) return 'RgXx32WYOGrd7gFNifSf'; // Default Female 1
+      const parts = fullId.split('_');
+      return parts[parts.length - 1]; // Última parte
+    };
+
+    const payload = {
+      is_active: true,
+      session_id_temporal: sessionId,
+      vertical: config.vertical,
+      business_name: config.businessName,
+      assistant_name: config.assistantName,
+      assistant_voice_id: extractVoiceId(config.assistantVoice), // ✅ Solo el Voice ID
+      demo_config: {
+        selectedService: {
+          name: config.selectedService.name,
+          duration: config.selectedService.duration,
+          price: config.selectedService.price || 0
+        },
+        blockedSlots: blockedSlotsObj
+      },
+      demo_whatsapp_contact: config.whatsappNumber || '+34000000000'
+    };
+
+    const response = await fetch(N8N_WEBHOOK_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      throw new Error(`Error HTTP: ${response.status}`);
     }
 
-    const { data } = response;
-
-    log.info('✅ Sesión de demo creada:', data.sessionId);
+    log.info('✅ Sesión de demo creada:', sessionId);
 
     return {
       success: true,
-      demoPhone: data.demoPhone,
-      sessionId: data.sessionId,
-      expiresAt: data.expiresAt
+      demoPhoneNumber: '+34 931 204 462',  // Número fijo de demo
+      sessionId: sessionId,
+      expiresAt: new Date(Date.now() + 30 * 60 * 1000).toISOString()  // 30 min
     };
   } catch (error) {
     log.error('❌ Error creando sesión de demo:', error);

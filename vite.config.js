@@ -133,19 +133,28 @@ export default defineConfig({
   // ===== DEV SERVER ENTERPRISE =====
   server: {
     host: "0.0.0.0",
-    port: 3000,
+    port: 5173,
     strictPort: true,
     
     // ===== HMR CONFIGURATION - FIX WEBSOCKET =====
     hmr: {
-      port: 3000,
+      port: 5173,
       host: 'localhost',
-      clientPort: 3000,
+      clientPort: 5173,
+    },
+    
+    // ===== PROXY para llamadas a API backend =====
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3000',
+        changeOrigin: true,
+        secure: false,
+      }
     },
     
     // ===== SECURITY HEADERS ENTERPRISE =====
     headers: {
-      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' https://*.supabase.co; font-src 'self' data:; connect-src 'self' *.supabase.co *.n8n.cloud wss: ws:;",
+      'Content-Security-Policy': "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; media-src 'self' https://*.supabase.co; font-src 'self' data:; connect-src 'self' http://localhost:* http://127.0.0.1:* https://*.supabase.co wss://*.supabase.co ws://localhost:* ws://127.0.0.1:* https://*.n8n.cloud;",
       'X-Content-Type-Options': 'nosniff',
       'X-Frame-Options': 'DENY',
       'X-XSS-Protection': '1; mode=block',

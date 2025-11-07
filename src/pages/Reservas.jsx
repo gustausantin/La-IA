@@ -58,6 +58,7 @@ import { useAvailabilityChangeDetection } from '../hooks/useAvailabilityChangeDe
 import { OccupancyHeatMap } from "../components/reservas/OccupancyHeatMap";
 import { OccupancyMetrics } from "../components/reservas/OccupancyMetrics";
 import { useOccupancyData } from "../hooks/useOccupancyData";
+import CalendarioReservas from "../components/calendario/CalendarioReservas";
 
 // 📧 FUNCIÓN PARA ENVIAR MENSAJE NO-SHOW
 const sendNoShowMessage = async (reservation) => {
@@ -620,6 +621,7 @@ export default function Reservas() {
         }
     }, [location]);
     const [tables, setTables] = useState([]);
+    const [resources, setResources] = useState([]); // 🆕 Recursos/Profesionales para el calendario
     const [policySettings, setPolicySettings] = useState({
         min_party_size: 1,
         max_party_size: 20,
@@ -996,15 +998,61 @@ export default function Reservas() {
                 .select("*")
                 .eq("business_id", businessId)
                 .eq("is_active", true)
-                .order("zone")
-                .order("table_number");
+                .order("name");
 
             if (error) throw error;
             setTables(data || []);
             console.log("✅ Mesas cargadas en Reservas:", data?.length || 0);
         } catch (error) {
             console.error("❌ Error cargando mesas:", error);
-            toast.error("Error al cargar las mesas");
+            // No mostrar error al usuario si no hay mesas
+            setTables([]);
+        }
+    }, [businessId]);
+
+    // 🆕 Cargar recursos/profesionales para el calendario
+    const loadResources = useCallback(async () => {
+        if (!businessId) return;
+
+        try {
+            // Intentar cargar desde tabla 'staff' o 'professionals' si existe
+            const { data: staffData, error: staffError } = await supabase
+                .from('staff')
+                .select("id, name, email, role, avatar_url")
+                .eq("business_id", businessId)
+                .eq("is_active", true)
+                .order("name");
+
+            if (staffError) {
+                // Si no existe tabla staff, usar recursos (mesas/camillas/boxes) como "profesionales"
+                console.log("⚠️ Tabla 'staff' no existe, usando recursos como profesionales");
+                const { data: resourcesData, error: resourcesError } = await supabase
+                    .from('resources')
+                    .select("id, name, capacity")
+                    .eq("business_id", businessId)
+                    .eq("is_active", true)
+                    .order("name")
+                    .limit(5); // Máximo 5 para no saturar el calendario
+
+                if (resourcesError) throw resourcesError;
+                
+                // Convertir recursos a formato de "profesionales"
+                const mappedResources = (resourcesData || []).map(r => ({
+                    id: r.id,
+                    name: r.name,
+                    type: 'resource'
+                }));
+                
+                setResources(mappedResources);
+                console.log("✅ Recursos cargados como profesionales:", mappedResources.length);
+            } else {
+                setResources(staffData || []);
+                console.log("✅ Profesionales cargados:", staffData?.length || 0);
+            }
+        } catch (error) {
+            console.error("❌ Error cargando recursos/profesionales:", error);
+            // No mostrar error al usuario, simplemente no mostrar columnas
+            setResources([]);
         }
     }, [businessId]);
 
@@ -1167,6 +1215,49 @@ export default function Reservas() {
         // Si hay mesas activas, proceder normalmente
         setShowCreateModal(true);
     }, [tables, navigate]);
+
+    // 🆕 Handler para mover reservas (Drag & Drop)
+    const handleReservationMove = useCallback(async (reserva, { newDate, newTime, newResourceId }) => {
+        try {
+            console.log('🔄 Moviendo reserva:', {
+                id: reserva.id,
+                from: `${reserva.reservation_date} ${reserva.reservation_time}`,
+                to: `${newDate} ${newTime}`,
+                resource: newResourceId
+            });
+
+            const updates = {
+                reservation_date: newDate,
+                reservation_time: newTime,
+            };
+
+            // Solo actualizar resource si cambió
+            if (newResourceId && newResourceId !== 'default') {
+                // Verificar si es tabla o recurso
+                if (reserva.table_id) {
+                    updates.table_id = newResourceId;
+                } else if (reserva.resource_id) {
+                    updates.resource_id = newResourceId;
+                }
+            }
+
+            const { error } = await supabase
+                .from('appointments')
+                .update(updates)
+                .eq('id', reserva.id);
+
+            if (error) throw error;
+
+            toast.success(`✅ Reserva movida a ${format(parseISO(newDate), "dd/MM")} ${newTime}`);
+            
+            // Recargar reservas
+            await loadReservations();
+
+        } catch (error) {
+            console.error('❌ Error moviendo reserva:', error);
+            toast.error('Error al mover la reserva: ' + error.message);
+        }
+    }, [loadReservations]);
 
     // Configurar real-time subscriptions
     useEffect(() => {
@@ -1371,6 +1462,7 @@ export default function Reservas() {
             Promise.all([
                 loadReservations(),
                 loadTables(),
+                loadResources(), // 🆕 Cargar recursos/profesionales
                 autoCompleteReservations(), // 🤖 Auto-completar reservas de ayer
                 loadPolicySettings()
             ]).finally(() => setLoading(false));
@@ -1937,7 +2029,7 @@ export default function Reservas() {
                             })}
                         </p>
                         
-                        {/* Sistema de Pestañas */}
+                        {/* Sistema de Pestañas - SOLO 2 PESTAÑAS */}
                         <div className="flex gap-3 mt-4">
                             <button
                                 onClick={() => setActiveTab('reservas')}
@@ -1950,16 +2042,6 @@ export default function Reservas() {
                                 📅 Reservas
                             </button>
                             <button
-                                onClick={() => setActiveTab('ocupacion')}
-                                className={`px-6 py-2.5 rounded-lg font-medium transition-all text-sm shadow-sm ${
-                                    activeTab === 'ocupacion'
-                                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:border-blue-300'
-                                }`}
-                            >
-                                📊 Ocupación
-                            </button>
-                            <button
                                 onClick={() => setActiveTab('disponibilidades')}
                                 className={`px-6 py-2.5 rounded-lg font-medium transition-all text-sm shadow-sm ${
                                     activeTab === 'disponibilidades'
@@ -1969,16 +2051,6 @@ export default function Reservas() {
                             >
                                 ⚡ Generar Disponibilidad
                             </button>
-                            <button
-                                onClick={() => setActiveTab('politica')}
-                                className={`px-6 py-2.5 rounded-lg font-medium transition-all text-sm shadow-sm ${
-                                    activeTab === 'politica'
-                                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:border-blue-300'
-                                }`}
-                            >
-                                ⚙️ Política de Reservas
-                            </button>
                         </div>
                     </div>
 
@@ -1986,15 +2058,8 @@ export default function Reservas() {
                         <button
                             onClick={async () => {
                                 setLoading(true);
-                                if (activeTab === 'ocupacion') {
-                                    // Si estamos en Ocupación, recargar datos de ocupación
-                                    await reloadOccupancy();
-                                    toast.success("Datos de ocupación actualizados");
-                                } else {
-                                    // Si estamos en Reservas, recargar reservas
-                                    await loadReservations();
-                                    toast.success("Datos de reservas actualizados");
-                                }
+                                await loadReservations();
+                                toast.success("Datos actualizados");
                                 setLoading(false);
                             }}
                             disabled={loading}
@@ -2020,6 +2085,27 @@ export default function Reservas() {
 
             {/* Contenido según pestaña activa */}
             {activeTab === 'reservas' && (
+                <div className="space-y-4">
+                    {/* 🚀 NUEVO CALENDARIO PROFESIONAL */}
+                    <CalendarioReservas 
+                        reservations={reservations}
+                        resources={resources} // ✅ Recursos/profesionales desde BD
+                        onReservationClick={(reserva) => {
+                            setViewingReservation(reserva);
+                            setShowDetailsModal(true);
+                        }}
+                        onSlotClick={(slot) => {
+                            handleCreateReservation();
+                        }}
+                        onReservationMove={handleReservationMove} // 🆕 Drag & Drop
+                        onRefresh={loadReservations}
+                        loading={loading}
+                    />
+                </div>
+            )}
+
+            {/* 🗂️ SECCIÓN ANTIGUA DE RESERVAS (Oculta temporalmente) */}
+            {activeTab === 'reservas_old' && (
                 <>
                     {/* 🆕 Nuevo sistema de vistas principales */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 mb-2">
@@ -2576,212 +2662,11 @@ export default function Reservas() {
                 </div>
             )}
 
-            {/* Pestaña de Política de Reservas */}
-            {activeTab === 'politica' && (
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-                    <div className="flex items-center gap-2 mb-3">
-                        <Settings className="w-4 h-4 text-blue-600" />
-                        <div>
-                            <h2 className="text-sm font-bold text-gray-900">
-                                Política de Reservas
-                            </h2>
-                            <p className="text-xs text-gray-600">
-                                Configuración que rige las disponibilidades y reservas
-                            </p>
-                        </div>
-                    </div>
+            {/* ❌ Pestaña de Política de Reservas ELIMINADA - Configuración movida a "Generar Disponibilidad" */}
+            {/* ❌ Pestaña de Ocupación ELIMINADA - Funcionalidad fusionada en Reservas */}
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-3">
-                            <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Configuración Principal</h3>
-                            
-                            <div>
-                                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                    Tamaño mínimo de grupo
-                                </label>
-                                <input
-                                    type="number"
-                                    value={policySettings.min_party_size}
-                                    onChange={(e) => setPolicySettings(prev => ({
-                                        ...prev,
-                                        min_party_size: parseInt(e.target.value) || 1
-                                    }))}
-                                    min="1"
-                                    max="20"
-                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                    Tamaño máximo de grupo
-                                </label>
-                                <input
-                                    type="number"
-                                    value={policySettings.max_party_size}
-                                    onChange={(e) => setPolicySettings(prev => ({
-                                        ...prev,
-                                        max_party_size: parseInt(e.target.value) || 20
-                                    }))}
-                                    min="1"
-                                    max="50"
-                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <p className="text-[10px] text-gray-500 mt-0.5">
-                                    Máximo de personas por reserva individual
-                                </p>
-                            </div>
-
-                            <div>
-                                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                    Días de antelación máxima
-                                </label>
-                                <input
-                                    type="number"
-                                    value={policySettings.advance_booking_days}
-                                    onChange={(e) => setPolicySettings(prev => ({
-                                        ...prev,
-                                        advance_booking_days: parseInt(e.target.value) || 30
-                                    }))}
-                                    min="1"
-                                    max="365"
-                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <p className="text-[10px] text-gray-500 mt-0.5">
-                                    Cuántos días hacia adelante se pueden hacer reservas
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="space-y-3">
-                            <h3 className="text-xs font-semibold text-gray-900 uppercase tracking-wide">Duración y Tiempos</h3>
-                            
-                            <div>
-                                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                    Duración estándar de reserva (minutos)
-                                </label>
-                                <select 
-                                    value={policySettings.reservation_duration}
-                                    onChange={(e) => setPolicySettings(prev => ({
-                                        ...prev,
-                                        reservation_duration: parseInt(e.target.value) || 90
-                                    }))}
-                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                >
-                                    <option value="60">60 minutos</option>
-                                    <option value="90">90 minutos</option>
-                                    <option value="120">120 minutos</option>
-                                </select>
-                                <p className="text-[10px] text-gray-500 mt-0.5">
-                                    Tiempo estimado que cada mesa estará ocupada
-                                </p>
-                            </div>
-
-                            {/* Buffer eliminado - versión 2 */}
-
-                            <div>
-                                <label className="block text-[10px] font-medium text-gray-500 uppercase tracking-wide mb-1">
-                                    ⏰ Minutos mínimos de antelación
-                                </label>
-                                <input
-                                    type="number"
-                                    value={policySettings.min_advance_hours}
-                                    onChange={(e) => setPolicySettings(prev => ({
-                                        ...prev,
-                                        min_advance_hours: parseInt(e.target.value) || 0
-                                    }))}
-                                    min="0"
-                                    max="1440"
-                                    step="15"
-                                    className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                />
-                                <p className="text-[10px] text-gray-500 mt-0.5">
-                                    Tiempo mínimo en MINUTOS para hacer una reserva (ej: 60 = 1 hora, 120 = 2 horas)
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-4 p-2 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-purple-200">
-                        <div className="flex items-start gap-2">
-                            <CheckCircle2 className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
-                            <div>
-                                <div className="text-xs font-semibold text-purple-900">
-                                    💡 Configuración Integrada
-                                </div>
-                                <div className="text-[10px] text-purple-800 mt-0.5 leading-tight">
-                                    Esta configuración se aplica automáticamente cuando generas disponibilidades. 
-                                    Los cambios aquí afectan directamente a cómo se crean los slots de reserva.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="mt-4">
-                        <button 
-                            onClick={async () => {
-                                try {
-                                    setSavingPolicy(true);
-                                    
-                                    // Obtener configuración actual
-                                    const { data: currentData, error: fetchError } = await supabase
-                                        .from('businesses')
-                                        .select('settings')
-                                        .eq('id', businessId)
-                                        .single();
-                                    
-                                    if (fetchError) throw fetchError;
-                                    
-                                    // Actualizar settings con nueva configuración
-                                    const updatedSettings = {
-                                        ...(currentData?.settings || {}),
-                                        min_party_size: policySettings.min_party_size,
-                                        max_party_size: policySettings.max_party_size,
-                                        advance_booking_days: policySettings.advance_booking_days, // Corregido nombre
-                                        reservation_duration: policySettings.reservation_duration, // Corregido nombre
-                                        min_advance_hours: policySettings.min_advance_hours
-                                    };
-                                    
-                                    console.log('🔧 Guardando configuración:', updatedSettings);
-                                    
-                                    const { error } = await supabase
-                                        .from('businesses')
-                                        .update({ 
-                                            settings: updatedSettings
-                                        })
-                                        .eq('id', businessId);
-                                    
-                                    if (error) throw error;
-                                    
-                                    toast.success('✅ Política de Reservas guardada correctamente');
-                                    
-                                    // 🚨 VERIFICAR SI EXISTEN SLOTS ANTES DE MOSTRAR MODAL
-                                    changeDetection.checkExistingSlots().then(slotsExist => {
-                                        if (slotsExist) {
-                                            changeDetection.onPolicyChange(updatedSettings);
-                                            showRegenerationModal('policy_changed', 'Política de reservas modificada');
-                                        }
-                                    });
-                                    
-                                } catch (error) {
-                                    console.error('Error guardando política:', error);
-                                    toast.error('❌ Error al guardar: ' + error.message);
-                                } finally {
-                                    setSavingPolicy(false);
-                                }
-                            }}
-                            disabled={savingPolicy}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white text-sm font-medium rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md disabled:opacity-50"
-                        >
-                            {savingPolicy ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            {savingPolicy ? 'Guardando...' : 'Guardar Política de Reservas'}
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* 🔥 PESTAÑA DE OCUPACIÓN - HEAT MAP PROFESIONAL */}
-            {activeTab === 'ocupacion' && (
+            {/* 🚀 NUEVA PESTAÑA DE RESERVAS - CALENDARIO PROFESIONAL */}
+            {activeTab === 'reservas' && false && (
                 <div className="space-y-3">
                     {/* Controles compactos en una línea */}
                     <div className="bg-blue-50 rounded-lg border border-blue-200 p-2">

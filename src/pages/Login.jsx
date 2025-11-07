@@ -181,11 +181,11 @@ export default function Login() {
 
       if (authData.user) {
         // ✅ REGISTRO EXITOSO - Login automático
-        setMessage(`✅ ¡Cuenta creada exitosamente! Redirigiendo...`);
+        setMessage(`✅ ¡Bienvenido! Tu cuenta ha sido creada exitosamente`);
         
-        // Auto-login después de registro
+        // Auto-login después de registro (SIN mostrar "Bienvenido de vuelta")
         setTimeout(async () => {
-          const result = await login(email, password);
+          const result = await login(email, password, { skipWelcomeMessage: true });
           if (!result.success) {
             setError("Cuenta creada pero error al iniciar sesión. Intenta hacer login manualmente.");
           }
@@ -208,63 +208,63 @@ export default function Login() {
   // Componente principal de beneficios - COMPLETAMENTE REDISEÑADO
   const AgentBenefits = () => (
     <div className="lg:block hidden relative">
-      <div className="relative overflow-hidden bg-gradient-to-br from-purple-600 via-purple-700 to-blue-600 p-2 rounded-2xl text-white h-full min-h-screen">
+      <div className="relative overflow-hidden bg-gradient-to-br from-purple-600 via-purple-700 to-blue-600 p-3 rounded-xl text-white h-full min-h-screen">
         {/* Elementos decorativos de fondo */}
-        <div className="absolute inset-0 opacity-30">
+        <div className="absolute inset-0 opacity-20">
           <div className="w-full h-full bg-white/5" style={{
             backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Ccircle cx='30' cy='30' r='4'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`
           }} />
         </div>
-        <div className="absolute top-20 right-20 w-32 h-32 bg-white/10 rounded-full blur-xl" />
-        <div className="absolute bottom-20 left-20 w-24 h-24 bg-blue-300/20 rounded-full blur-lg" />
+        <div className="absolute top-10 right-10 w-20 h-20 bg-white/10 rounded-full blur-xl" />
+        <div className="absolute bottom-10 left-10 w-16 h-16 bg-blue-300/20 rounded-full blur-lg" />
         
-        <div className="relative z-10">
+        <div className="relative z-10 space-y-3">
           {/* Header mejorado */}
-          <div className="flex items-center gap-4 mb-6">
+          <div className="flex items-center gap-2">
             <div className="relative">
-              <div className="w-16 h-16 bg-white/20 backdrop-blur-xl rounded-2xl flex items-center justify-center">
-                <Bot className="w-8 h-8 text-white" />
+              <div className="w-12 h-12 bg-white/20 backdrop-blur-xl rounded-xl flex items-center justify-center">
+                <Bot className="w-6 h-6 text-white" />
               </div>
-              <div className="absolute -top-1 -right-1 w-6 h-6 bg-green-400 rounded-full flex items-center justify-center">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
+              <div className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-green-400 rounded-full flex items-center justify-center">
+                <div className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />
               </div>
             </div>
           <div>
-              <h2 className="text-base font-black bg-gradient-to-r from-white to-purple-100 bg-clip-text text-transparent">
+              <h2 className="text-sm font-black bg-gradient-to-r from-white to-purple-100 bg-clip-text text-transparent">
                 Tu Agente IA 24/7
               </h2>
-              <p className="text-white/90 font-semibold text-sm">Recepcionista virtual inteligente</p>
+              <p className="text-white/90 font-semibold text-xs">Recepcionista virtual inteligente</p>
             </div>
         </div>
 
           {/* Features grid rediseñado */}
-          <div className="grid grid-cols-1 gap-2 mb-6">
+          <div className="grid grid-cols-1 gap-1.5">
           <FeatureCard
-              icon={<MessageCircle className="w-6 h-6 text-white" />}
+              icon={<MessageCircle className="w-5 h-5 text-white" />}
             title="Multi-Canal"
             description="WhatsApp, llamadas, Instagram, web. Un agente, todos los canales."
           />
           <FeatureCard
-              icon={<Zap className="w-6 h-6 text-white" />}
+              icon={<Zap className="w-5 h-5 text-white" />}
             title="Respuesta Instantánea"
             description="0 segundos de espera. Tu agente responde al instante, siempre."
           />
           <FeatureCard
-              icon={<TrendingUp className="w-6 h-6 text-white" />}
+              icon={<TrendingUp className="w-5 h-5 text-white" />}
             title="Más Citas"
             description="Aumenta tus citas un 35% capturando clientes 24/7."
           />
           <FeatureCard
-              icon={<Shield className="w-6 h-6 text-white" />}
+              icon={<Shield className="w-5 h-5 text-white" />}
             title="Sin Errores"
             description="Olvídate de citas duplicadas o errores de comunicación."
           />
         </div>
 
           {/* Testimonials rediseñados */}
-          <div className="space-y-3 mb-6">
-            <h3 className="font-black text-base mb-4 flex items-center gap-2">
-              <Heart className="w-5 h-5 text-pink-300 fill-pink-300" />
+          <div className="space-y-2">
+            <h3 className="font-black text-sm flex items-center gap-1.5">
+              <Heart className="w-4 h-4 text-pink-300 fill-pink-300" />
             Lo que dicen nuestros clientes
           </h3>
           <TestimonialCard
@@ -282,15 +282,15 @@ export default function Login() {
         </div>
 
           {/* Oferta especial rediseñada */}
-          <div className="relative overflow-hidden bg-gradient-to-r from-yellow-400/20 to-orange-400/20 backdrop-blur-xl border border-yellow-300/30 rounded-2xl p-2">
+          <div className="relative overflow-hidden bg-gradient-to-r from-yellow-400/20 to-orange-400/20 backdrop-blur-xl border border-yellow-300/30 rounded-xl p-3">
             <div className="absolute inset-0 bg-gradient-to-br from-yellow-300/10 to-transparent" />
             <div className="relative z-10 text-center">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Sparkles className="w-6 h-6 text-yellow-300" />
-                <p className="text-yellow-100 font-bold text-sm">🎁 Oferta especial</p>
+              <div className="flex items-center justify-center gap-1.5 mb-1.5">
+                <Sparkles className="w-5 h-5 text-yellow-300" />
+                <p className="text-yellow-100 font-bold text-xs">🎁 Oferta especial</p>
               </div>
-              <p className="text-lg font-black text-white mb-1">14 días GRATIS</p>
-              <p className="text-white/90 font-semibold">Sin tarjeta de crédito</p>
+              <p className="text-base font-black text-white mb-1">14 días GRATIS</p>
+              <p className="text-white/90 font-semibold text-xs">Sin tarjeta de crédito</p>
             </div>
           </div>
         </div>
@@ -305,92 +305,81 @@ export default function Login() {
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23a855f7' fill-opacity='0.03'%3E%3Ccircle cx='20' cy='20' r='2'/%3E%3C/g%3E%3C/svg%3E")`
       }} />
       
-      {/* Panel izquierdo - Formularios REDISEÑADO */}
-      <div className="flex-1 flex items-center justify-center p-2 relative z-10">
-        <div className="max-w-md w-full space-y-8">
-          {/* Header principal rediseñado */}
-          <div className="text-center">
-            <div className="flex items-center justify-center gap-4 mb-6">
-              <div className="relative">
-                <div className="w-16 h-16 bg-gradient-to-br from-purple-600 to-blue-600 rounded-2xl flex items-center justify-center shadow-2xl">
-                  <Bot className="w-8 h-8 text-white" />
-                </div>
-                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-400 rounded-full flex items-center justify-center shadow-lg">
-                  <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                </div>
-              </div>
-              <div className="text-left">
-                <h1 className="text-lg font-black bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                  La-IA
-                </h1>
-                <p className="text-gray-600 text-sm font-semibold">Powered by AI</p>
+      {/* Panel izquierdo - Formularios GLASSMORPHISM */}
+      <div className="flex-1 flex items-center justify-center p-4 relative z-10">
+        <div className="max-w-md w-full">
+          {/* Header con glass effect */}
+          <div className="text-center mb-6">
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 via-purple-500 to-blue-600 rounded-3xl shadow-2xl mb-4 relative">
+              <Bot className="w-8 h-8 text-white" />
+              <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-400 rounded-full border-2 border-white shadow-lg">
+                <div className="w-full h-full rounded-full bg-green-500 animate-ping opacity-75"></div>
               </div>
             </div>
-            <p className="text-gray-700 text-base font-bold mb-2">
-              Sistema Inteligente de Gestión
-            </p>
-            <p className="text-gray-500 text-sm font-medium">
-              Automatiza tu negocio con IA avanzada
-            </p>
+            <h1 className="text-2xl font-black bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">La-IA</h1>
+            <p className="text-sm text-gray-600 font-medium">Sistema Inteligente de Gestión</p>
           </div>
 
-          {/* Contenedor principal del formulario */}
-          <div className="relative overflow-hidden bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl shadow-2xl p-2">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 to-blue-50/30" />
-            <div className="relative z-10">
-              
-              {/* Toggle Login/Registro REDISEÑADO */}
-              <div className="flex mb-8 bg-gradient-to-r from-purple-100 to-blue-100 rounded-2xl p-1.5 shadow-inner">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLogin(true);
-                    setError("");
-                    setMessage("");
-                  }}
-                  className={`flex-1 py-3 px-6 rounded-xl text-sm font-bold transition-all duration-300 ${
-                    isLogin
-                      ? "bg-white text-purple-600 shadow-lg transform scale-105"
-                      : "text-purple-500 hover:text-purple-700"
-                  }`}
-                >
-                  Iniciar Sesión
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setIsLogin(false);
-                    setError("");
-                    setMessage("");
-                  }}
-                  className={`flex-1 py-3 px-6 rounded-xl text-sm font-bold transition-all duration-300 ${
-                    !isLogin
-                      ? "bg-white text-purple-600 shadow-lg transform scale-105"
-                      : "text-purple-500 hover:text-purple-700"
-                  }`}
-                >
-                  Crear Cuenta
-                </button>
-              </div>
+          {/* Contenedor formulario GLASS */}
+          <div className="relative backdrop-blur-xl bg-white/90 rounded-3xl shadow-2xl border border-white/50 overflow-hidden">
+            {/* Efecto brillo */}
+            <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 via-transparent to-blue-50/50"></div>
+            
+            {/* Toggle Login/Registro MODERN */}
+            <div className="relative grid grid-cols-2 p-2 bg-gray-50/50">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin(true);
+                  setError("");
+                  setMessage("");
+                }}
+                className={`relative py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
+                  isLogin
+                    ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/30"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
+                }`}
+              >
+                Iniciar Sesión
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsLogin(false);
+                  setError("");
+                  setMessage("");
+                }}
+                className={`relative py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
+                  !isLogin
+                    ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/30"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
+                }`}
+              >
+                Crear Cuenta
+              </button>
+            </div>
 
-              {/* Mensajes rediseñados */}
+            {/* Contenido del formulario */}
+            <div className="relative p-6">
+
+              {/* Mensajes */}
             {error && (
-                <div className="mb-6 p-2 bg-red-50 border-l-4 border-red-400 rounded-xl">
-                  <p className="text-red-700 text-sm font-semibold">{error}</p>
+                <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 rounded-lg">
+                  <p className="text-red-700 text-sm font-medium">{error}</p>
                   {showResendButton && (
                     <button
                       onClick={handleResendConfirmation}
                       disabled={resendLoading}
-                      className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors duration-200 flex items-center gap-2"
+                      className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold rounded-lg transition-colors duration-200 flex items-center gap-1.5"
                     >
                       {resendLoading ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                           Enviando...
                         </>
                       ) : (
                         <>
-                          📧 Reenviar Email de Confirmación
+                          📧 Reenviar Email
                         </>
                       )}
                     </button>
@@ -399,22 +388,22 @@ export default function Login() {
             )}
 
             {message && (
-                <div className="mb-6 p-2 bg-green-50 border-l-4 border-green-400 rounded-xl">
-                  <p className="text-green-700 text-sm font-semibold whitespace-pre-line">{message}</p>
+                <div className="mb-4 p-3 bg-green-50 border-l-4 border-green-500 rounded-lg">
+                  <p className="text-green-700 text-sm font-medium whitespace-pre-line">{message}</p>
                   {showResendButton && (
                     <button
                       onClick={handleResendConfirmation}
                       disabled={resendLoading}
-                      className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-sm font-semibold rounded-lg transition-colors duration-200 flex items-center gap-2"
+                      className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold rounded-lg transition-colors duration-200 flex items-center gap-1.5"
                     >
                       {resendLoading ? (
                         <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                           Enviando...
                         </>
                       ) : (
                         <>
-                          📧 Reenviar Email de Confirmación
+                          📧 Reenviar Email
                         </>
                       )}
                     </button>
@@ -422,11 +411,11 @@ export default function Login() {
               </div>
             )}
 
-              {/* Formulario de Login REDISEÑADO */}
+              {/* Formulario de Login GLASSMORPHISM */}
             {isLogin ? (
-                <form onSubmit={handleLogin} className="space-y-6">
+                <form onSubmit={handleLogin} className="space-y-5">
                 <div>
-                    <label htmlFor="email" className="block text-sm font-bold text-gray-700 mb-2">
+                    <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
                     Email
                   </label>
                   <input
@@ -435,13 +424,13 @@ export default function Login() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 font-medium bg-white/50 backdrop-blur"
+                      className="w-full px-4 py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
                     placeholder="tu@email.com"
                   />
                 </div>
 
                 <div>
-                    <label htmlFor="password" className="block text-sm font-bold text-gray-700 mb-2">
+                    <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
                     Contraseña
                   </label>
                   <input
@@ -450,7 +439,7 @@ export default function Login() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 font-medium bg-white/50 backdrop-blur"
+                      className="w-full px-4 py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
                     placeholder="••••••••"
                   />
                 </div>
@@ -458,29 +447,23 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={loading}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 px-6 rounded-xl hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-bold text-sm shadow-xl hover:shadow-2xl transform hover:scale-105"
+                    className="w-full bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 text-white py-4 rounded-2xl hover:shadow-2xl hover:shadow-purple-500/50 focus:outline-none focus:ring-4 focus:ring-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold text-sm shadow-xl hover:-translate-y-0.5"
                 >
                   {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
                 </button>
 
-                <div className="text-center">
-                    <a href="#" className="text-sm text-purple-600 hover:text-purple-700 font-semibold">
+                <div className="text-center pt-2">
+                    <a href="#" className="text-sm text-purple-600 hover:text-purple-700 font-semibold hover:underline">
                     ¿Olvidaste tu contraseña?
                   </a>
                 </div>
               </form>
             ) : (
-                /* Formulario de Registro SIMPLIFICADO */
-                <form onSubmit={handleRegister} className="space-y-6">
-                  <div className="mb-4 text-center">
-                    <p className="text-gray-600 font-semibold text-sm">
-                      Crea tu cuenta en 30 segundos
-                    </p>
-                  </div>
-
+                /* Formulario de Registro GLASSMORPHISM */
+                <form onSubmit={handleRegister} className="space-y-5">
                   <div>
-                    <label htmlFor="reg-email" className="block text-sm font-bold text-gray-700 mb-2">
-                      Email *
+                    <label htmlFor="reg-email" className="block text-sm font-semibold text-gray-700 mb-2">
+                      Email
                     </label>
                     <input
                       id="reg-email"
@@ -488,14 +471,14 @@ export default function Login() {
                       required
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 font-medium bg-white/50 backdrop-blur"
+                      className="w-full px-4 py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
                       placeholder="tu@email.com"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="reg-password" className="block text-sm font-bold text-gray-700 mb-2">
-                      Contraseña *
+                    <label htmlFor="reg-password" className="block text-sm font-semibold text-gray-700 mb-2">
+                      Contraseña
                     </label>
                     <input
                       id="reg-password"
@@ -503,14 +486,14 @@ export default function Login() {
                       required
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 font-medium bg-white/50 backdrop-blur"
+                      className="w-full px-4 py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
                       placeholder="Mínimo 6 caracteres"
                     />
                   </div>
 
                   <div>
-                    <label htmlFor="confirm-password" className="block text-sm font-bold text-gray-700 mb-2">
-                      Confirmar Contraseña *
+                    <label htmlFor="confirm-password" className="block text-sm font-semibold text-gray-700 mb-2">
+                      Confirmar Contraseña
                     </label>
                     <input
                       id="confirm-password"
@@ -518,7 +501,7 @@ export default function Login() {
                       required
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-purple-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-purple-500/20 focus:border-purple-500 transition-all duration-300 font-medium bg-white/50 backdrop-blur"
+                      className="w-full px-4 py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
                       placeholder="Repite la contraseña"
                     />
                   </div>
@@ -526,7 +509,7 @@ export default function Login() {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white py-4 px-6 rounded-xl hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-4 focus:ring-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 font-bold text-sm shadow-xl hover:shadow-2xl transform hover:scale-105 flex items-center justify-center gap-2"
+                    className="w-full bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 text-white py-4 rounded-2xl hover:shadow-2xl hover:shadow-purple-500/50 focus:outline-none focus:ring-4 focus:ring-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold text-sm shadow-xl hover:-translate-y-0.5 flex items-center justify-center gap-2"
                   >
                     {loading ? (
                       <>
@@ -534,59 +517,34 @@ export default function Login() {
                         Creando cuenta...
                       </>
                     ) : (
-                      <>
-                        <CheckCircle2 className="w-5 h-5" />
-                        Crear Cuenta Gratis
-                      </>
+                      "Crear Cuenta Gratis"
                     )}
                   </button>
-
-                  <div className="mt-4 p-3 bg-gradient-to-r from-purple-100 to-blue-100 rounded-xl border border-purple-200">
-                    <p className="text-sm text-purple-700 text-center font-bold">
-                      💡 Después del registro, podrás configurar tu negocio completo
-                    </p>
-                  </div>
                 </form>
             )}
-          </div>
+            </div>
           </div>
 
-          {/* Info adicional rediseñada */}
-          {isLogin && (
-            <div className="text-center space-y-4">
-              <p className="text-gray-600 font-medium">
-                ¿No tienes cuenta?
-                <button
-                  onClick={() => {
-                    setIsLogin(false);
-                    setError("");
-                    setMessage("");
-                  }}
-                  className="text-purple-600 hover:text-purple-700 font-bold ml-2 hover:underline"
-                >
-                  Prueba 14 días gratis
-                </button>
-              </p>
-              <div className="flex items-center justify-center gap-4 text-xs text-gray-500">
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  <span className="font-semibold">Sin tarjeta</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  <span className="font-semibold">Setup en 2 min</span>
-                </span>
-                <span className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-green-500" />
-                  <span className="font-semibold">Cancela cuando quieras</span>
-                </span>
-              </div>
-            </div>
-          )}
+          {/* Info adicional LIMPIA */}
+          <div className="text-center mt-6">
+            <p className="text-sm text-gray-600">
+              {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}
+              <button
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError("");
+                  setMessage("");
+                }}
+                className="text-purple-600 hover:text-purple-700 font-semibold ml-2"
+              >
+                {isLogin ? "Prueba 14 días gratis" : "Inicia sesión"}
+              </button>
+            </p>
+          </div>
 
           {/* Footer */}
-          <div className="text-center text-sm text-gray-500 font-medium">
-            <p>© 2024 La-IA. Sistema Inteligente de Gestión para Profesionales</p>
+          <div className="text-center text-xs text-gray-400 mt-8">
+            <p>© 2024 La-IA. Sistema Inteligente de Gestión</p>
           </div>
         </div>
       </div>

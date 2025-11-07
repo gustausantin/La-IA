@@ -82,8 +82,8 @@ export const DEMO_PACKAGES = {
 
   peluqueria_barberia: {
     services: [
-      { name: 'Corte y Peinado (Mujer)', duration: 30, price: 25, description: 'Incluye lavado con champú de tratamiento y peinado.' },
-      { name: 'Corte + Barba (Hombre)', duration: 45, price: 30, description: 'Servicio completo de corte, perfilado de barba con navaja y toalla caliente.' },
+      { name: 'Corte y Peinado', duration: 30, price: 25, description: 'Incluye lavado con champú de tratamiento y peinado.' },
+      { name: 'Corte + Barba', duration: 45, price: 30, description: 'Servicio completo de corte, perfilado de barba con navaja y toalla caliente.' },
       { name: 'Tinte Completo', duration: 90, price: 50, description: 'Aplicación de color en raíces y puntas. Usamos tinte sin amoníaco.' },
       { name: 'Mechas (Balayage/Babylights)', duration: 120, price: 80, description: 'Técnica de coloración avanzada para un resultado natural. Incluye Olaplex.' }
     ],

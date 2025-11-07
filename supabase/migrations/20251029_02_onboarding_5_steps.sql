@@ -98,8 +98,8 @@ VALUES
   -- =====================================================
   -- PELUQUERÍA / BARBERÍA (10 servicios)
   -- =====================================================
-  ('peluqueria_barberia', 'Corte Mujer', 'Corte de pelo femenino', 'Cabello', true, 1),
-  ('peluqueria_barberia', 'Corte Hombre', 'Corte de pelo masculino', 'Cabello', true, 2),
+  ('peluqueria_barberia', 'Corte y Peinado', 'Corte de pelo con peinado', 'Cabello', true, 1),
+  ('peluqueria_barberia', 'Corte + Barba', 'Corte de pelo con arreglo de barba', 'Cabello', true, 2),
   ('peluqueria_barberia', 'Corte Niño/a', 'Corte de pelo infantil', 'Cabello', false, 3),
   ('peluqueria_barberia', 'Peinar (Secador)', 'Peinado con secador', 'Cabello', true, 4),
   ('peluqueria_barberia', 'Color (Tinte Raíz)', 'Tinte de raíces', 'Color', true, 5),

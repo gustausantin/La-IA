@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOnboardingStore } from '../../../stores/onboardingStore';
 import { DEMO_PACKAGES } from '../../../config/demoPackages';
 import { createDemoSession } from '../../../services/demoService';
+import { supabase } from '../../../lib/supabase';
 import { 
   Sparkles, 
   Lock, 
@@ -26,7 +27,8 @@ import {
   Activity,
   UserCheck,
   Heart,
-  Building2
+  Building2,
+  ArrowRight
 } from 'lucide-react';
 
 /**
@@ -41,7 +43,9 @@ export default function Step3DemoInteractiva() {
     assistantName, 
     assistantVoice,
     whatsappNumber,
+    demo,
     setDemoConfig,
+    setDemoCompleted: setDemoCompletedStore,
     setCurrentStep
   } = useOnboardingStore();
 
@@ -56,6 +60,11 @@ export default function Step3DemoInteractiva() {
   const [demoPhoneNumber, setDemoPhoneNumber] = useState(null);
   const [showServicesModal, setShowServicesModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+  const [sessionId, setSessionId] = useState(null);
+  const [checkingCompletion, setCheckingCompletion] = useState(false);
+  
+  // ✅ Usar el estado del store para demoCompleted
+  const demoCompleted = demo.completed;
 
   // Cargar el paquete de demo según el vertical
   const demoPackage = DEMO_PACKAGES[vertical] || DEMO_PACKAGES.fisioterapia;
@@ -76,7 +85,7 @@ export default function Step3DemoInteractiva() {
   // Generar slots de tiempo (3 días)
   const generateTimeSlots = () => {
     const days = ['Lun', 'Mar', 'Mié'];
-    const hours = ['09:00', '10:00', '11:00', '12:00', '13:00'];
+    const hours = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00'];
     return { days, hours };
   };
 
@@ -94,15 +103,10 @@ export default function Step3DemoInteractiva() {
     );
   };
 
-  // Activar demo (MODO VISUAL - SIN WEBHOOK)
+  // Activar demo (MODO REAL - CON WEBHOOK N8N)
   const handleActivateDemo = async () => {
     setIsActivating(true);
     
-    // Simular un pequeño delay para feedback visual
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // TODO: Cuando esté listo el backend, descomentar esta línea y comentar el código de simulación
-    /*
     try {
       const response = await createDemoSession({
         vertical,
@@ -123,6 +127,7 @@ export default function Step3DemoInteractiva() {
 
       if (response.success) {
         setDemoPhoneNumber(response.demoPhoneNumber);
+        setSessionId(response.sessionId);
         setDemoActivated(true);
         setDemoConfig({
           phoneNumber: response.demoPhoneNumber,
@@ -133,9 +138,11 @@ export default function Step3DemoInteractiva() {
     } catch (error) {
       console.error('Error activando demo:', error);
       alert('Error al activar la demo. Por favor, intenta de nuevo.');
+    } finally {
+      setIsActivating(false);
     }
-    */
     
+    /*
     // SIMULACIÓN TEMPORAL (sin backend)
     const mockPhoneNumber = '+34 912 345 678';
     setDemoPhoneNumber(mockPhoneNumber);
@@ -147,6 +154,7 @@ export default function Step3DemoInteractiva() {
     });
     
     setIsActivating(false);
+    */
   };
 
   // Función para omitir la demo (navegación al Paso 4)
@@ -156,329 +164,290 @@ export default function Step3DemoInteractiva() {
     setCurrentStep(4);
   };
 
+  // Función para marcar demo como completada manualmente
+  const handleDemoCompleted = () => {
+    setDemoCompletedStore(true);
+  };
+
+  // Polling: Verificar automáticamente si se completó la demo
+  useEffect(() => {
+    if (!demoActivated || demoCompleted || !demoPhoneNumber) return;
+
+    const checkDemoCompletion = async () => {
+      try {
+        setCheckingCompletion(true);
+        
+        // Buscar reservas creadas desde este teléfono de demo
+        const { data, error } = await supabase
+          .from('reservations')
+          .select('id, created_at')
+          .eq('source', 'agent_whatsapp_demo')
+          .or(`phone.eq.${demoPhoneNumber},metadata->>demo_phone.eq.${demoPhoneNumber}`)
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (error) {
+          console.error('Error verificando demo:', error);
+          return;
+        }
+
+        if (data && data.length > 0) {
+          console.log('✅ Demo completada automáticamente detectada:', data[0]);
+          setDemoCompletedStore(true);
+        }
+      } catch (err) {
+        console.error('Error en polling:', err);
+      } finally {
+        setCheckingCompletion(false);
+      }
+    };
+
+    // Verificar cada 10 segundos
+    const interval = setInterval(checkDemoCompletion, 10000);
+    
+    // Primera verificación inmediata
+    checkDemoCompletion();
+
+    return () => clearInterval(interval);
+  }, [demoActivated, demoCompleted, demoPhoneNumber]);
+
   return (
-    <div className="space-y-4 relative">
+    <div className="max-w-3xl mx-auto space-y-6 relative">
       {/* Header con el estilo de LA-IA */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full mb-2">
-          <Sparkles className="w-6 h-6 text-purple-600" />
+        <div className="inline-flex items-center justify-center w-14 h-14 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full mb-3">
+          <Sparkles className="w-7 h-7 text-purple-600" />
         </div>
-        <h2 className="text-lg font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-          ¡A probar! Reta a {assistantName}
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
+          ¡Prueba a {assistantName}!
         </h2>
-        <p className="text-xs text-gray-600">
-          Descubre cómo <span className="font-semibold text-purple-600">{assistantName}</span> transformará tu negocio
+        <p className="text-sm text-gray-600">
+          Configura tu demo en 4 pasos y descubre cómo <span className="font-semibold text-purple-600">{assistantName}</span> transformará tu negocio
         </p>
       </div>
 
-      {/* Instrucciones (3 pasos) - COPY MEJORADO */}
-      <div className="grid grid-cols-3 gap-2 bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 p-3 rounded-xl border border-purple-200/50">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-6 h-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold rounded-full mb-1">1</div>
-          <p className="text-xs text-gray-700 font-semibold">Tu Escenario</p>
-          <p className="text-[10px] text-gray-500 mt-0.5">Prepara tu prueba</p>
+      {/* ========== PASO 1: SERVICIO ========== */}
+      <div className={`bg-white rounded-xl border border-gray-200 p-3 shadow-sm ${demoActivated ? 'opacity-60' : ''}`}>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 text-white text-sm font-bold rounded-full shadow-md">
+            1
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Elige tu servicio clave</h3>
+            <p className="text-[10px] text-gray-600">Con este servicio pondrás a {assistantName} a trabajar</p>
+          </div>
         </div>
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-6 h-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold rounded-full mb-1">2</div>
-          <p className="text-xs text-gray-700 font-semibold">Activar IA</p>
-          <p className="text-[10px] text-gray-500 mt-0.5">Desbloquea la demo</p>
-        </div>
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-6 h-6 bg-gradient-to-r from-purple-600 to-blue-600 text-white text-xs font-bold rounded-full mb-1">3</div>
-          <p className="text-xs text-gray-700 font-semibold">¡A Interactuar!</p>
-          <p className="text-[10px] text-gray-500 mt-0.5">Llama y pregunta</p>
+        <div className="grid grid-cols-2 gap-2">
+          {demoPackage.services.map((service, idx) => (
+            <button
+              key={idx}
+              onClick={() => !demoActivated && setSelectedService(service)}
+              disabled={demoActivated}
+              className={`group relative px-2.5 py-2 rounded-lg text-xs font-medium transition-all ${
+                selectedService?.name === service.name
+                  ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-200'
+                  : 'bg-gray-50 text-gray-700 border border-gray-200 hover:border-purple-300 hover:bg-purple-50'
+              } ${demoActivated ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+            >
+              <div className="font-semibold truncate">{service.name}</div>
+              <div className={`text-[10px] mt-0.5 ${selectedService?.name === service.name ? 'text-purple-100' : 'text-gray-500'}`}>
+                <Clock className="w-3 h-3 inline mr-1" />
+                {service.duration}min • {service.price}€
+              </div>
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* Dos Paneles */}
-      <div className="grid lg:grid-cols-5 gap-4">
-        {/* PANEL IZQUIERDO: Configuración */}
-        <div className={`lg:col-span-3 space-y-3 transition-opacity ${demoActivated ? 'opacity-60 pointer-events-none' : ''}`}>
-          {/* Status Badge - SOLO cuando NO está activado (el verde va solo al panel derecho) */}
-          {!demoActivated && (
-            <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold w-fit ${
-              blockedSlots.length > 0 
-                ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                : 'bg-gray-100 text-gray-600 border border-gray-200'
-            }`}>
-              {blockedSlots.length > 0 ? (
-                <>
-                  <Settings className="w-3.5 h-3.5 animate-spin" />
-                  <span>{blockedSlots.length} horarios bloqueados. ¡Casi listo!</span>
-                </>
-              ) : (
-                <>
-                  <Settings className="w-3.5 h-3.5" />
-                  <span>¡Manos a la obra! Configura tu demo</span>
-                </>
-              )}
+      {/* ========== PASO 2: AGENDA ========== */}
+      <div className={`bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-xl p-3 shadow-xl border border-indigo-900/30 ${demoActivated ? 'opacity-60' : ''}`}>
+        <div className="flex items-center gap-2 mb-2">
+          <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-500 text-white text-sm font-bold rounded-full shadow-md">
+            2
+          </div>
+          <div>
+            <h3 className="text-sm font-bold text-white">Bloquea tu agenda de prueba</h3>
+            <p className="text-[10px] text-indigo-200">Marca los huecos en rojo. {assistantName} sabrá que estás "ocupado" ahí</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-3 gap-2 text-center text-xs">
+          {days.map(day => (
+            <div key={day}>
+              <p className="font-bold text-purple-300 pb-2 text-[11px]">{day.substring(0, 3)}</p>
+              <div className="space-y-1.5">
+                {hours.map(hour => {
+                  const slotKey = `${day}-${hour}`;
+                  const isBlocked = blockedSlots.includes(slotKey);
+                  return (
+                    <button
+                      key={hour}
+                      onClick={() => toggleSlot(day, hour)}
+                      disabled={demoActivated}
+                      className={`w-full py-1.5 rounded-lg text-[11px] font-medium transition-all ${
+                        isBlocked
+                          ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/30 transform scale-105'
+                          : 'bg-gradient-to-br from-slate-700/60 to-indigo-900/40 text-indigo-100 hover:from-slate-600 hover:to-indigo-800/50 hover:scale-105 border border-indigo-700/30'
+                      } ${demoActivated ? 'cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
+                    >
+                      {hour}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          )}
+          ))}
+        </div>
+        <div className="mt-3 flex justify-center gap-4 text-[10px] text-indigo-300/70">
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 bg-gradient-to-br from-slate-700/60 to-indigo-900/40 rounded border border-indigo-700/30"></span>
+            Disponible
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-2.5 h-2.5 bg-gradient-to-r from-red-500 to-rose-600 rounded"></span>
+            Ocupado
+          </span>
+        </div>
+      </div>
 
-          {/* SECCIÓN 1: Selector de Servicio - COPY MEJORADO */}
+      {/* ========== PASO 3: ACTIVAR ========== */}
+      {!demoActivated ? (
+        <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 rounded-xl border border-purple-200/50 p-3 shadow-sm">
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 text-white text-sm font-bold rounded-full shadow-md">
+              3
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Activa tu demo</h3>
+              <p className="text-[10px] text-gray-600">Crea tu asistente IA</p>
+            </div>
+          </div>
+          <button
+            onClick={handleActivateDemo}
+            disabled={isActivating}
+            className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] flex items-center justify-center gap-2"
+          >
+            {isActivating ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Activando...</span>
+              </>
+            ) : (
+              <>
+                <Rocket className="w-4 h-4" />
+                <span className="text-sm">🚀 Activar Demostración</span>
+              </>
+            )}
+          </button>
+        </div>
+      ) : (
+        <>
+          {/* ========== PASO 3: LO QUE {ASISTENTE} SABE ========== */}
           <div className="bg-white rounded-xl border border-gray-200 p-3 shadow-sm">
-            <label className="flex items-center gap-2 text-xs font-bold text-gray-900 mb-1">
-              <List className="w-4 h-4 text-purple-600" />
-              1. Elige tu servicio clave
-            </label>
-            <p className="text-[10px] text-gray-500 mb-2 ml-6">
-              Con este servicio pondrás a {assistantName} a trabajar
-            </p>
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-indigo-600 to-purple-600 text-white text-sm font-bold rounded-full shadow-md">
+                3
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">Lo que {assistantName} ya sabe</h3>
+                <p className="text-[10px] text-gray-600">Revisa antes de llamar</p>
+              </div>
+            </div>
             <div className="grid grid-cols-2 gap-2">
-              {demoPackage.services.map((service, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => !demoActivated && setSelectedService(service)}
-                  disabled={demoActivated}
-                  className={`group relative px-2.5 py-2 rounded-lg text-xs font-medium transition-all ${
-                    selectedService?.name === service.name
-                      ? 'bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-200'
-                      : 'bg-gray-50 text-gray-700 border border-gray-200 hover:border-purple-300 hover:bg-purple-50'
-                  } ${demoActivated ? 'cursor-not-allowed' : 'cursor-pointer'}`}
-                >
-                  <div className="font-semibold truncate">{service.name}</div>
-                  <div className={`text-[10px] mt-0.5 ${selectedService?.name === service.name ? 'text-purple-100' : 'text-gray-500'}`}>
-                    <Clock className="w-3 h-3 inline mr-1" />
-                    {service.duration}min
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* SECCIÓN 2: Calendario de Slots - COPY MEJORADO */}
-          <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-xl p-3 shadow-xl border border-indigo-900/30">
-            <div className="flex items-center justify-center gap-2 mb-1">
-              <Calendar className="w-4 h-4 text-purple-400" />
-              <h3 className="text-xs font-bold text-white">2. Bloquea tu agenda de prueba</h3>
-            </div>
-            <p className="text-[10px] text-indigo-200 font-medium text-center mb-3 bg-indigo-900/30 py-1.5 px-2 rounded-lg">
-              Marca los huecos en rojo. {assistantName} sabrá que estás "ocupado" ahí
-            </p>
-            <div className="grid grid-cols-3 gap-2 text-center text-xs">
-              {days.map(day => (
-                <div key={day}>
-                  <p className="font-bold text-purple-300 pb-2 text-[11px]">{day.substring(0, 3)}</p>
-                  <div className="space-y-1.5">
-                    {hours.map(hour => {
-                      const slotKey = `${day}-${hour}`;
-                      const isBlocked = blockedSlots.includes(slotKey);
-                      return (
-                        <button
-                          key={hour}
-                          onClick={() => toggleSlot(day, hour)}
-                          disabled={demoActivated}
-                          className={`w-full py-1.5 rounded-lg text-[11px] font-medium transition-all ${
-                            isBlocked
-                              ? 'bg-gradient-to-r from-red-500 to-rose-600 text-white shadow-lg shadow-red-500/30 transform scale-105'
-                              : 'bg-gradient-to-br from-slate-700/60 to-indigo-900/40 text-indigo-100 hover:from-slate-600 hover:to-indigo-800/50 hover:scale-105 border border-indigo-700/30 hover:border-indigo-500/50 hover:shadow-md hover:shadow-indigo-500/20'
-                          } ${demoActivated ? 'cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
-                        >
-                          {hour}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-            <div className="mt-3 flex justify-center gap-4 text-[10px] text-indigo-300/70">
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 bg-gradient-to-br from-slate-700/60 to-indigo-900/40 rounded border border-indigo-700/30"></span>
-                Disponible
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2.5 h-2.5 bg-gradient-to-r from-red-500 to-rose-600 rounded"></span>
-                Ocupado
-              </span>
-            </div>
-          </div>
-
-          {/* SECCIÓN 3: Botón Activar - COPY MEJORADO */}
-          {!demoActivated && (
-            <div className="space-y-2">
               <button
-                onClick={handleActivateDemo}
-                disabled={isActivating}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-lg shadow-purple-500/30 hover:shadow-xl hover:shadow-purple-500/40 transform hover:-translate-y-0.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] flex items-center justify-center gap-2"
+                onClick={() => setShowServicesModal(true)}
+                className="flex flex-col items-center gap-1.5 bg-gradient-to-br from-purple-50 to-blue-50 border border-purple-200 text-purple-700 font-semibold py-2.5 px-2 rounded-lg hover:border-purple-400 hover:shadow-md transition-all active:scale-95 group"
               >
-                {isActivating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span className="text-sm">Activando...</span>
-                  </>
-                ) : (
-                  <>
-                    <Rocket className="w-4 h-4" />
-                    <span className="text-sm">Activar mi Demostración</span>
-                  </>
-                )}
+                <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                  <List className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-[10px]">📋 Servicios</span>
               </button>
-              <p className="text-[10px] text-gray-500 text-center px-2">
-                Esto creará tu asistente personal de IA con el escenario que acabas de definir
-              </p>
+              <button
+                onClick={() => setShowInfoModal(true)}
+                className="flex flex-col items-center gap-1.5 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 text-blue-700 font-semibold py-2.5 px-2 rounded-lg hover:border-blue-400 hover:shadow-md transition-all active:scale-95 group"
+              >
+                <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                  <HelpCircle className="w-4 h-4 text-white" />
+                </div>
+                <span className="text-[10px]">❓ Info</span>
+              </button>
             </div>
-          )}
-        </div>
 
-        {/* PANEL DERECHO: Experiencia */}
-        <div className="lg:col-span-2 space-y-3">
-          {!demoActivated ? (
-            /* Placeholder Bloqueado - COPY MEJORADO */
-            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-dashed border-gray-300 p-6 text-center h-full flex flex-col justify-center items-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 bg-white rounded-full shadow-md mb-3">
-                <Lock className="w-6 h-6 text-gray-400" />
+            {/* Ideas para la prueba - DENTRO del paso 3 */}
+            <div className="mt-2 bg-gradient-to-br from-orange-50 to-red-50 rounded-lg border border-orange-200/50 p-2">
+              <div className="flex items-center gap-1 mb-1.5">
+                <Lightbulb className="w-3.5 h-3.5 text-orange-600" />
+                <h4 className="text-[10px] font-bold text-gray-900">💡 IDEAS PARA TU PRUEBA</h4>
               </div>
-              <h3 className="text-sm font-bold text-gray-700 mb-1">Panel de Experiencia</h3>
-              <p className="text-xs text-gray-500">
-                ¡Desbloquéalo! Aquí verás cómo interactuar con <span className="font-semibold text-purple-600">{assistantName}</span>
-              </p>
+              <div className="space-y-1">
+                <div className="flex items-start gap-1 text-[9px] text-gray-700 leading-snug">
+                  <span className="text-red-600 font-bold">•</span>
+                  <p>Intenta reservar en un horario <strong className="text-red-600">ocupado</strong></p>
+                </div>
+                <div className="flex items-start gap-1 text-[9px] text-gray-700 leading-snug">
+                  <span className="text-purple-600 font-bold">•</span>
+                  <p>Pregúntale por un servicio que <strong>no sea el tuyo</strong></p>
+                </div>
+                <div className="flex items-start gap-1 text-[9px] text-gray-700 leading-snug">
+                  <span className="text-blue-600 font-bold">•</span>
+                  <p><strong>Invéntate una pregunta</strong> sobre la info</p>
+                </div>
+                <div className="flex items-start gap-1 text-[9px] text-gray-700 leading-snug">
+                  <span className="text-green-600 font-bold">•</span>
+                  <p>¡Comprueba tu <strong className="text-green-600">WhatsApp</strong> después!</p>
+                </div>
+              </div>
             </div>
-          ) : (
-            /* Controles Desbloqueados - ORDEN INTUITIVO PERFECTO */
-            <>
-              {/* [1] EL LOGRO - Banner de Éxito */}
-              <div className="bg-gradient-to-r from-emerald-500 to-green-600 rounded-xl p-4 text-white shadow-lg">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <CheckCircle2 className="w-5 h-5" />
-                  <span className="font-bold text-sm">✅ ¡{assistantName} está lista para atender!</span>
-                </div>
-                <h3 className="text-xs text-center text-emerald-50">
-                  {selectedService?.name} • {blockedSlots.length} slots bloqueados
-                </h3>
-              </div>
+          </div>
 
-              {/* [2] LA MISIÓN - Ideas para tu Prueba - REDISEÑADO */}
-              <div className="bg-gradient-to-br from-purple-50 via-indigo-50 to-blue-50 rounded-xl border border-purple-200/50 p-4 shadow-md">
-                <div className="flex items-center gap-2 mb-3">
-                  <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg shadow-md">
-                    <Lightbulb className="w-5 h-5 text-white" />
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-gray-900">¡IDEAS PARA TU PRUEBA!</h3>
-                    <p className="text-[10px] text-gray-600">
-                      Desafía a {assistantName} y descubre su potencial
-                    </p>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-start gap-3 bg-white p-3 rounded-lg border border-purple-200/50 hover:border-purple-400 transition-all group">
-                    <div className="flex items-center justify-center w-7 h-7 bg-gradient-to-br from-red-100 to-rose-100 rounded-lg flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <Clock className="w-4 h-4 text-red-600" />
-                    </div>
-                    <p className="text-xs text-gray-700 leading-relaxed pt-0.5">
-                      Intenta reservar en un horario que marcaste como <strong className="text-red-600">ocupado</strong>
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3 bg-white p-3 rounded-lg border border-purple-200/50 hover:border-purple-400 transition-all group">
-                    <div className="flex items-center justify-center w-7 h-7 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <List className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <p className="text-xs text-gray-700 leading-relaxed pt-0.5">
-                      Abre <strong className="text-purple-600">[📋 Servicios]</strong>, elige uno que <strong>no sea el tuyo</strong> y pregúntale por su precio o en qué consiste
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3 bg-white p-3 rounded-lg border border-purple-200/50 hover:border-purple-400 transition-all group">
-                    <div className="flex items-center justify-center w-7 h-7 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <HelpCircle className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <p className="text-xs text-gray-700 leading-relaxed pt-0.5">
-                      Abre <strong className="text-blue-600">[❓ Info]</strong> e <strong>invéntate una pregunta</strong> sobre esos datos (ej: "¿Tenéis parking?", "¿Trabajáis con seguros?")
-                    </p>
-                  </div>
-                  <div className="flex items-start gap-3 bg-white p-3 rounded-lg border border-purple-200/50 hover:border-purple-400 transition-all group">
-                    <div className="flex items-center justify-center w-7 h-7 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg flex-shrink-0 group-hover:scale-110 transition-transform">
-                      <MessageSquare className="w-4 h-4 text-green-600" />
-                    </div>
-                    <p className="text-xs text-gray-700 leading-relaxed pt-0.5">
-                      ¡No olvides comprobar tu <strong className="text-green-600">WhatsApp</strong> al colgar para ver la confirmación de la reserva!
-                    </p>
-                  </div>
-                </div>
+          {/* ========== PASO 4: ¡A LLAMAR! ========== */}
+          <div className="bg-gradient-to-br from-green-50 via-emerald-50 to-green-50 rounded-xl border border-green-200 p-3 shadow-sm">
+            <div className="flex items-center justify-center gap-1 mb-2">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+              <span className="text-[10px] font-bold text-green-700">✅ {assistantName} está lista!</span>
+            </div>
+            
+            <div className="flex items-center gap-2 mb-2">
+              <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-green-600 to-emerald-600 text-white text-sm font-bold rounded-full shadow-md animate-pulse">
+                4
               </div>
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">¡A interactuar!</h3>
+                <p className="text-[10px] text-gray-700">Llama o envía WhatsApp</p>
+              </div>
+            </div>
 
-              {/* [3] LA "CHULETA" - Lo que Carlota ya sabe - REDISEÑADO */}
-              <div className="bg-white rounded-xl border border-gray-200 p-4 shadow-md">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-lg shadow-md">
-                    <HelpCircle className="w-5 h-5 text-white" />
-                  </div>
-                  <div className="text-center">
-                    <h3 className="text-sm font-bold text-gray-900">LO QUE {assistantName.toUpperCase()} YA SABE</h3>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-600 text-center mb-3">
-                  Esta información es la que {assistantName} usará para responder. <strong>Haz clic para verla antes de llamar</strong> 👇
-                </p>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setShowServicesModal(true)}
-                    className="flex flex-col items-center gap-2 bg-gradient-to-br from-purple-50 to-blue-50 border-2 border-purple-200 text-purple-700 font-semibold py-3 px-3 rounded-xl hover:border-purple-400 hover:shadow-md transition-all active:scale-95 group"
-                  >
-                    <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg shadow-md group-hover:scale-110 transition-transform">
-                      <List className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-xs">Servicios</span>
-                  </button>
-                  <button
-                    onClick={() => setShowInfoModal(true)}
-                    className="flex flex-col items-center gap-2 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 text-blue-700 font-semibold py-3 px-3 rounded-xl hover:border-blue-400 hover:shadow-md transition-all active:scale-95 group"
-                  >
-                    <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg shadow-md group-hover:scale-110 transition-transform">
-                      <HelpCircle className="w-5 h-5 text-white" />
-                    </div>
-                    <span className="text-xs">Info</span>
-                  </button>
-                </div>
+            <div className="text-center mb-2 bg-white py-2 px-3 rounded-lg border border-green-200 shadow-sm">
+              <p className="text-[9px] text-gray-500 mb-0.5 uppercase tracking-wide font-semibold">📞 Número de Demo</p>
+              <div className="text-base font-black bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                {demoPhoneNumber || '+34 912 345 678'}
               </div>
+            </div>
 
-              {/* [4] LA ACCIÓN FINAL - Botones de Contacto - REDISEÑADO */}
-              <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 rounded-xl border-2 border-purple-300 p-4 shadow-xl">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <div className="flex items-center justify-center w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full shadow-lg animate-pulse">
-                    <Phone className="w-5 h-5 text-white" />
-                  </div>
+            <div className="flex flex-col gap-1.5">
+              <a
+                href={`tel:${demoPhoneNumber}`}
+                className="flex items-center justify-center gap-2 bg-gradient-to-r from-slate-800 via-gray-900 to-slate-800 text-white font-bold py-2.5 px-3 rounded-lg hover:shadow-lg hover:shadow-slate-600/30 hover:-translate-y-0.5 transition-all active:scale-95"
+              >
+                <Phone className="w-4 h-4" />
+                <span className="text-xs">📞 Llamar Ahora</span>
+              </a>
+              <a
+                href={`https://wa.me/${demoPhoneNumber?.replace(/\D/g, '')}?text=Hola,%20quiero%20hacer%20una%20reserva`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center justify-center gap-0.5 bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-600 text-white font-bold py-2.5 px-3 rounded-lg hover:shadow-lg hover:shadow-green-600/30 hover:-translate-y-0.5 transition-all active:scale-95"
+              >
+                <div className="flex items-center gap-1.5">
+                  <MessageSquare className="w-4 h-4" />
+                  <span className="text-xs">💬 WhatsApp</span>
                 </div>
-                <h3 className="text-sm font-bold text-center text-gray-900 mb-1">¡Tu Línea de Prueba está Activa!</h3>
-                <p className="text-xs text-gray-700 text-center mb-3 px-2">
-                  <strong>Ahora que sabes la misión</strong>, llama o envía un WhatsApp y pon a {assistantName} a prueba
-                </p>
-                <div className="text-center mb-4 bg-white py-3 px-4 rounded-xl border-2 border-purple-200 shadow-md">
-                  <p className="text-[9px] text-gray-500 mb-1 uppercase tracking-wide font-semibold">Número de Demo</p>
-                  <div className="text-lg font-black bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 bg-clip-text text-transparent">
-                    {demoPhoneNumber || '+34 912 345 678'}
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2.5">
-                  <a
-                    href={`tel:${demoPhoneNumber}`}
-                    className="flex items-center justify-center gap-2.5 bg-gradient-to-r from-slate-700 via-gray-800 to-slate-900 text-white font-bold py-3.5 px-5 rounded-xl hover:shadow-2xl hover:shadow-slate-500/50 hover:-translate-y-0.5 transition-all active:scale-95 group"
-                  >
-                    <div className="flex items-center justify-center w-8 h-8 bg-white/20 rounded-lg group-hover:bg-white/30 transition-all">
-                      <Phone className="w-4 h-4" />
-                    </div>
-                    <span className="text-sm">Llamar Ahora</span>
-                  </a>
-                  <a
-                    href={`https://wa.me/${demoPhoneNumber?.replace(/\D/g, '')}?text=Hola,%20quiero%20hacer%20una%20reserva`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-col items-center justify-center gap-1 bg-gradient-to-r from-emerald-500 via-green-600 to-emerald-700 text-white font-bold py-3 px-5 rounded-xl hover:shadow-2xl hover:shadow-green-500/50 hover:-translate-y-0.5 transition-all active:scale-95 group"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div className="flex items-center justify-center w-7 h-7 bg-white/20 rounded-lg group-hover:bg-white/30 transition-all">
-                        <MessageSquare className="w-4 h-4" />
-                      </div>
-                      <span className="text-sm">WhatsApp</span>
-                    </div>
-                    <span className="text-[10px] text-green-100 font-medium">(texto o audio)</span>
-                  </a>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
+                <span className="text-[9px] text-green-100 font-medium">(texto o audio)</span>
+              </a>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* MODAL: Servicios - COPY MEJORADO */}
       {showServicesModal && (
@@ -580,21 +549,57 @@ export default function Step3DemoInteractiva() {
         </div>
       )}
 
-      {/* Botón "Omitir demo" - Visible y accesible (Fast-lane para power users) */}
-      <div className="mt-8 flex justify-center">
-        <button
-          onClick={handleSkipDemo}
-          className="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 rounded-lg border border-gray-300 hover:border-gray-400 transition-all text-sm font-medium active:scale-95"
-        >
-          <span>Omitir demo</span>
-          <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-        </button>
+      {/* Botones de Navegación */}
+      <div className="mt-8 space-y-3">
+        {demoActivated && !demoCompleted && (
+          <>
+            {/* Botón: Ya completé la demo */}
+            <button
+              onClick={handleDemoCompleted}
+              className="w-full flex items-center justify-center gap-2 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold rounded-xl shadow-lg shadow-green-500/30 hover:shadow-xl hover:shadow-green-500/40 transform hover:-translate-y-0.5 transition-all active:scale-95"
+            >
+              <CheckCircle2 className="w-5 h-5" />
+              <span>✅ Ya completé la demo y recibí el WhatsApp</span>
+            </button>
+            
+            {checkingCompletion && (
+              <p className="text-xs text-gray-500 text-center flex items-center justify-center gap-2">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                Verificando automáticamente si completaste la demo...
+              </p>
+            )}
+          </>
+        )}
+
+        {demoCompleted && (
+          <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl">
+            <p className="text-sm text-green-700 font-bold text-center flex items-center justify-center gap-2">
+              <CheckCircle2 className="w-5 h-5" />
+              ¡Demo completada! Ya puedes continuar al siguiente paso
+            </p>
+          </div>
+        )}
+
+        {!demoActivated && (
+          <>
+            {/* Botón: Omitir demo (solo si NO ha activado) */}
+            <div className="flex justify-center">
+              <button
+                onClick={handleSkipDemo}
+                className="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 rounded-lg border border-gray-300 hover:border-gray-400 transition-all text-sm font-medium active:scale-95"
+              >
+                <span>Omitir demo</span>
+                <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-xs text-gray-500 text-center">
+              Ya he visto cómo funciona, quiero ir directo a mi panel
+            </p>
+          </>
+        )}
       </div>
-      <p className="text-xs text-gray-500 text-center mt-2">
-        Ya he visto cómo funciona, quiero ir directo a mi panel
-      </p>
     </div>
   );
 }

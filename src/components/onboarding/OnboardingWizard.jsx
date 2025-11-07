@@ -132,6 +132,8 @@ export default function OnboardingWizard() {
     currentStep,
     isLoading,
     error,
+    selectedVertical,
+    setSelectedVertical,
     setStep,
     nextStep,
     prevStep,
@@ -143,11 +145,24 @@ export default function OnboardingWizard() {
     reset
   } = useOnboardingStore();
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    localStorage.clear();
-    sessionStorage.clear();
-    reset(); // Limpiar estado del onboarding
+  const handleLogout = () => {
+    console.log('🚪 Cerrando sesión INMEDIATAMENTE...');
+    
+    // ✅ BRUTAL: Limpiar TODO sin esperar nada
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+      reset();
+    } catch (e) {
+      console.log('Error limpiando storage, pero continuamos:', e);
+    }
+    
+    // ✅ Cerrar sesión en Supabase SIN ESPERAR (fire and forget)
+    supabase.auth.signOut().catch(() => {});
+    
+    console.log('💥 A TOMAR POR CULO TODO - Redirigiendo al login...');
+    
+    // ✅ REDIRIGIR INMEDIATAMENTE
     window.location.href = '/login';
   };
 
@@ -170,17 +185,18 @@ export default function OnboardingWizard() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 flex items-center justify-center p-2 sm:p-4">
       <div className="max-w-3xl w-full">
-        {/* Botón de Logout mejorado */}
+        {/* Botón de Salir (Logout) */}
         <div className="flex justify-end mb-2">
           <button
             onClick={handleLogout}
             className="flex items-center gap-1.5 px-3 py-2 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-lg hover:bg-red-50 hover:border-red-400 transition-all shadow-sm active:scale-95"
+            title="Cerrar sesión y volver al login"
           >
             <X className="w-3.5 h-3.5" />
-            <span>Salir</span>
+            <span>Cerrar sesión</span>
           </button>
         </div>
-        
+
         {/* Header */}
         <div className="text-center mb-4 sm:mb-6 px-2">
           <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-pink-600 bg-clip-text text-transparent mb-2">
@@ -238,21 +254,30 @@ export default function OnboardingWizard() {
           {renderStep()}
                 </div>
 
-        {/* Navigation Buttons */}
+        {/* Navigation Buttons - SIEMPRE visibles en todos los pasos */}
         <div className="flex flex-col sm:flex-row gap-2 mt-4 px-2">
-          {currentStep > 1 && (
-                <button
-              onClick={prevStep}
-              disabled={isLoading}
-              className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <ChevronLeft className="w-3.5 h-3.5" />
-                  Atrás
-                </button>
-          )}
+          {/* Botón Atrás - SIEMPRE visible */}
+          <button
+            onClick={() => {
+              if (currentStep === 1 && selectedVertical) {
+                // En Step 1, si ya seleccionaste un vertical, volver a la selección
+                setSelectedVertical(null);
+              } else if (currentStep > 1) {
+                // En otros steps, volver al paso anterior
+                prevStep();
+              }
+            }}
+            disabled={isLoading || (currentStep === 1 && !selectedVertical)}
+            className="flex items-center justify-center gap-1.5 px-4 py-2.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 transition-all shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+            title={currentStep === 1 ? "Volver a la selección de sector" : "Volver al paso anterior"}
+          >
+            <ChevronLeft className="w-3.5 h-3.5" />
+            Atrás
+          </button>
           
+          {/* Botón Continuar - Solo en pasos 1, 2, 3 */}
           {currentStep < 4 && (
-                <button
+            <button
               onClick={nextStep}
               disabled={isLoading || !isStepValid(currentStep)}
               className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all shadow-md active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -261,14 +286,14 @@ export default function OnboardingWizard() {
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   Cargando...
-                    </>
-                  ) : (
+                </>
+              ) : (
                 <>
                   Continuar
                   <ChevronRight className="w-4 h-4" />
                 </>
-                  )}
-                </button>
+              )}
+            </button>
           )}
         </div>
       </div>

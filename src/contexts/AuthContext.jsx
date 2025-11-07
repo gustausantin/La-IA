@@ -22,6 +22,7 @@ const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [business, setBusiness] = useState(null);
   const [businessId, setBusinessId] = useState(null);
+  const [loadingBusiness, setLoadingBusiness] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [agentStatus, setAgentStatus] = useState({
     active: true, activeConversations: 0, pendingActions: 0,
@@ -35,30 +36,48 @@ const AuthProvider = ({ children }) => {
   // ✅ FUNCIÓN REAL: Cargar información del negocio
   const fetchBusinessInfo = async (userId, forceRefresh = false) => {
     console.log('🔵 INICIANDO fetchBusinessInfo para usuario:', userId);
+    setLoadingBusiness(true);
     
     try {
-      // PASO 1: Obtener business_id del mapping
+      // PASO 1: Obtener business_id del mapping (el más reciente si hay varios)
       console.log('📡 Query 1: Obteniendo business_id del mapping...');
+      console.log('🔍 Buscando mappings para userId:', userId);
+      
       const { data: mappingData, error: mappingError } = await supabase
         .from('user_business_mapping')
         .select('business_id')
         .eq('auth_user_id', userId)
         .eq('active', true)
-        .maybeSingle();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      console.log('📊 Resultado de mapping query:', { data: mappingData, error: mappingError });
 
       if (mappingError) {
         console.error('❌ Error en mapping query:', mappingError);
+        console.error('❌ Código de error:', mappingError.code);
+        console.error('❌ Mensaje:', mappingError.message);
+        console.error('❌ Detalles:', mappingError.details);
+        
+        // Si el error es PGRST116 (no rows), no es un error crítico
+        if (mappingError.code === 'PGRST116') {
+          console.log('ℹ️ No se encontró ningún mapping activo para este usuario');
+        }
+        
         setBusiness(null);
         setBusinessId(null);
+        setLoadingBusiness(false);
         return;
       }
 
-        if (!mappingData) {
-          console.log('⚠️ Usuario sin negocio asociado en mapping');
-          setBusiness(null);
-          setBusinessId(null);
-          return;
-        }
+      if (!mappingData) {
+        console.log('⚠️ Usuario sin negocio asociado en mapping (mappingData es null)');
+        setBusiness(null);
+        setBusinessId(null);
+        setLoadingBusiness(false);
+        return;
+      }
 
       console.log('✅ business_id encontrado:', mappingData.business_id);
 
@@ -75,6 +94,7 @@ const AuthProvider = ({ children }) => {
         console.error('❌ Error en businesses query:', businessError);
         setBusiness(null);
         setBusinessId(null);
+        setLoadingBusiness(false);
         return;
       }
 
@@ -82,11 +102,13 @@ const AuthProvider = ({ children }) => {
       
       setBusiness(businessData);
       setBusinessId(businessData.id);
+      setLoadingBusiness(false);
 
     } catch (err) {
       console.error('💥 Error fatal en fetchBusinessInfo:', err);
       setBusiness(null);
       setBusinessId(null);
+      setLoadingBusiness(false);
     }
   };
 
@@ -95,12 +117,13 @@ const AuthProvider = ({ children }) => {
     try {
       logger.info('🚀 Iniciando migración automática para usuario huérfano...', { userId: user.id, email: user.email });
       
-      // Crear negocio automáticamente usando los datos del usuario
+      // ⚠️ ESTA FUNCIÓN YA NO SE USA - Los usuarios van directo al onboarding
+      // Pero por si acaso, usar un vertical válido
       const { data: businessData, error: businessError } = await supabase
         .rpc('create_business_securely', {
           business_data: {
             name: `Negocio de ${user.email.split('@')[0]}`,
-            vertical_type: 'otros',
+            vertical_type: 'peluqueria_barberia', // ✅ Vertical válido por defecto
             email: user.email,
             phone: '+34 600 000 000', // Teléfono por defecto
             city: 'Madrid', // Ciudad por defecto
@@ -191,16 +214,8 @@ const AuthProvider = ({ children }) => {
       if (mappingError) {
         logger.error('❌ Error verificando mapping:', mappingError);
       } else if (!userMapping?.business_id) {
-        logger.warn('🚨 Trigger failure - ejecutando fallback de emergencia');
-        
-        try {
-          await createBusinessForOrphanUser(u);
-          await fetchBusinessInfo(u.id);
-          logger.info('✅ Fallback completado exitosamente');
-        } catch (fallbackError) {
-          logger.error('💥 Fallback falló:', fallbackError);
-          // Silencioso - el usuario será redirigido al onboarding
-        }
+        logger.info('ℹ️ Usuario sin negocio - será redirigido al onboarding');
+        // ✅ NO crear negocio automáticamente - dejar que el onboarding lo haga
       } else {
         logger.info('✅ Negocio verificado correctamente');
       }
@@ -348,7 +363,7 @@ const AuthProvider = ({ children }) => {
   }, []);
 
   // Helpers auth
-  const login = async (email, password) => {
+  const login = async (email, password, options = {}) => {
     try {
       logger.info('🔑 Iniciando login', { email });
       
@@ -364,7 +379,10 @@ const AuthProvider = ({ children }) => {
         logger.info('✅ Login completado - usuario y restaurant cargados');
       }
       
-      toast.success('¡Bienvenido de vuelta!');
+      // ✅ Solo mostrar mensaje si NO es un auto-login después de registro
+      if (!options.skipWelcomeMessage) {
+        toast.success('¡Bienvenido de vuelta!');
+      }
       return { success: true };
       
     } catch (error) {
@@ -491,6 +509,7 @@ const AuthProvider = ({ children }) => {
     isAuthenticated: status === 'signed_in',
     isReady: true, // SIEMPRE true - la app está lista inmediatamente
     loading: false, // NUNCA loading - eliminamos el concepto de loading
+    loadingBusiness, // ✅ NUEVO: Indica si estamos cargando el negocio
     user, 
     business, 
     businessId, 

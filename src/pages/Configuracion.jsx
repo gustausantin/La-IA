@@ -25,10 +25,12 @@ import {
         HelpCircle,
         Eye,
         EyeOff,
-        FileText
+        FileText,
+        Zap
 } from "lucide-react";
 import toast from "react-hot-toast";
-import BaseConocimientoContent from "../components/BaseConocimientoContent";
+// import BaseConocimientoContent from "../components/BaseConocimientoContent"; // TEMPORALMENTE DESHABILITADO
+import IntegracionesContent from "../components/configuracion/IntegracionesContent"; // 🆕 Integraciones
 
 const ToggleSwitch = ({ enabled, onChange, label }) => {
     return (
@@ -224,6 +226,11 @@ const Configuracion = () => {
             id: "documentos",
             label: "Documentos",
             icon: <FileText className="w-4 h-4" />,
+        },
+        {
+            id: "integraciones",
+            label: "Integraciones",
+            icon: <Zap className="w-4 h-4" />,
         }
     ];
 
@@ -2266,7 +2273,8 @@ const Configuracion = () => {
                                 </div>
                             </div>
                             
-                            <BaseConocimientoContent />
+                            {/* <BaseConocimientoContent /> */}
+                            {/* TEMPORALMENTE DESHABILITADO - Base de Conocimiento */}
                         </div>
                     )}
                 </div>

@@ -8,36 +8,36 @@ import { Bot, Play, Pause, CheckCircle2 } from 'lucide-react';
  * - Selección de voz con audio preview
  */
 
-// 4 Voces (2 femeninas + 2 masculinas) - NOMBRES GENÉRICOS
-// NOTA: Los nombres de archivo deben coincidir EXACTAMENTE con los de Supabase Storage
+// 4 Voces (2 femeninas + 2 masculinas) - ACTUALIZADAS NOV 2025
+// NOTA: El 'id' debe coincidir con lo que se guarda en live_demo_config
 const VOICE_OPTIONS = [
   {
-    id: 'Female 1 Susi.mp3',
+    id: 'Female_1_Eva_Dorado_RgXx32WYOGrd7gFNifSf',
     display_name: 'Femenina 1',
     description: 'Voz cálida y profesional',
     gender: 'female',
-    audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Female%201%20Susi.mp3'
+    audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Female_1_Eva_Dorado_RgXx32WYOGrd7gFNifSf.mp3.mp3'
   },
   {
-    id: 'Female 2 Eva.mp3',
+    id: 'Female_2_Susi_v3V1d2rk6528UrLKRuy8',
     display_name: 'Femenina 2',
     description: 'Voz joven y dinámica',
     gender: 'female',
-    audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Female%202%20Eva.mp3'
+    audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Female_2_Susi_v3V1d2rk6528UrLKRuy8.mp3.mp3'
   },
   {
-    id: 'Male 1 Mark.mp3',
+    id: 'Male_1_Viraj_iWNf11sz1GrUE4ppxTOL',
     display_name: 'Masculina 1',
     description: 'Voz profesional y clara',
     gender: 'male',
-    audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Male%201%20Mark.mp3'
+    audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Male_1_Viraj_iWNf11sz1GrUE4ppxTOL.mp3.mp3'
   },
   {
-    id: 'Male 2 Viraj.mp3',
+    id: 'Male_2_Danny_wnKyx1zkUEUnfURKiuaP',
     display_name: 'Masculina 2',
     description: 'Voz energética y cercana',
     gender: 'male',
-    audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Male%202%20Viraj.mp3'
+    audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Male_2_Danny_wnKyx1zkUEUnfURKiuaP.mp3.mp3'
   }
 ];
 

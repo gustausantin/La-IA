@@ -119,9 +119,9 @@ function getFallbackConfig(verticalType) {
       appointmentName: 'Cita',
       defaultDurationMinutes: 45,
       suggestedServices: [
-        { name: 'Corte Hombre', duration_minutes: 30, suggested_price: 15.00 },
-        { name: 'Corte Mujer', duration_minutes: 45, suggested_price: 25.00 },
-        { name: 'Barba', duration_minutes: 20, suggested_price: 10.00 }
+        { name: 'Corte y Peinado', duration_minutes: 30, suggested_price: 25.00 },
+        { name: 'Corte + Barba', duration_minutes: 45, suggested_price: 30.00 },
+        { name: 'Tinte Completo', duration_minutes: 90, suggested_price: 50.00 }
       ]
     },
     centro_unas: {

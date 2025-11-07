@@ -156,11 +156,8 @@ export const useOnboardingStore = create()(
               return state.assistantName.trim().length >= 2 && state.assistantVoice;
             
             case 3:
-              // Paso 3: Demo completada (o al menos configurada)
-              return (
-                Object.keys(state.demo.slots).length >= 4 && // Al menos 4 slots configurados
-                state.demo.whatsapp.trim().length >= 9 // WhatsApp válido
-              );
+              // Paso 3: Demo completada
+              return state.demo.completed === true;
             
             case 4:
               // Paso 4: Siempre válido (solo es UI informativa)

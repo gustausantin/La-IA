@@ -47,6 +47,13 @@ app.post('/api/create-business', async (req, res) => {
   try {
     const { businessData, userId } = req.body;
 
+    if (!businessData || !userId) {
+      return res.status(400).json({ error: 'businessData y userId son requeridos' });
+    }
+
+    // Extraer defaultService y defaultResource ANTES de insertar en businesses
+    const { defaultService, defaultResource, ...businessCore } = businessData;
+
     // Cliente con SERVICE_ROLE_KEY (bypasea RLS)
     const { createClient } = await import('@supabase/supabase-js');
     const supabaseAdmin = createClient(
@@ -61,11 +68,12 @@ app.post('/api/create-business', async (req, res) => {
     );
 
     console.log('🔵 API: Creando negocio con SERVICE_ROLE_KEY');
+    console.log('📦 businessCore:', businessCore);
 
-    // 1. Crear negocio
+    // 1. Crear negocio (solo los campos que existen en la tabla)
     const { data: business, error: businessError } = await supabaseAdmin
       .from('businesses')
-      .insert([businessData])
+      .insert([businessCore])
       .select()
       .single();
 
@@ -76,7 +84,21 @@ app.post('/api/create-business', async (req, res) => {
 
     console.log('✅ Negocio creado:', business.id);
 
-    // 2. Crear mapping
+    // 2. Desactivar mappings anteriores (solo puede haber 1 negocio activo por usuario)
+    const { error: deactivateError } = await supabaseAdmin
+      .from('user_business_mapping')
+      .update({ active: false })
+      .eq('auth_user_id', userId)
+      .eq('active', true);
+
+    if (deactivateError) {
+      console.error('⚠️ Error desactivando mappings anteriores:', deactivateError);
+      // No es crítico, continuamos
+    } else {
+      console.log('✅ Mappings anteriores desactivados');
+    }
+
+    // 3. Crear mapping para el nuevo negocio
     const { error: mappingError } = await supabaseAdmin
       .from('user_business_mapping')
       .insert([{
@@ -91,41 +113,52 @@ app.post('/api/create-business', async (req, res) => {
       return res.status(400).json({ error: mappingError.message });
     }
 
-    console.log('✅ Mapping creado');
+    console.log('✅ Mapping creado:', {
+      auth_user_id: userId,
+      business_id: business.id,
+      role: 'owner',
+      active: true
+    });
 
-    // 3. Crear servicios
-    if (businessData.services && businessData.services.length > 0) {
-      const servicesData = businessData.services.map((serviceName, index) => ({
+    // 3. Crear servicio por defecto (si se envió)
+    if (defaultService) {
+      const { name, duration, price } = defaultService;
+      const { error: serviceError } = await supabaseAdmin.from('services').insert([{
         business_id: business.id,
-        name: serviceName,
-        duration_minutes: 60,
-        price: 0,
-        active: true,
-        display_order: index + 1
-      }));
+        name,
+        duration_minutes: duration ?? 60,
+        price: price ?? 0,
+        is_available: true, // ✅ Columna correcta según DATABASE-SCHEMA-AUTONOMOS-2025.sql
+        requires_resource: true
+      }]);
 
-      await supabaseAdmin.from('services').insert(servicesData);
-      console.log('✅ Servicios creados:', servicesData.length);
+      if (serviceError) {
+        console.error('⚠️ Error creando servicio por defecto:', serviceError);
+      } else {
+        console.log('✅ Servicio por defecto creado:', name);
+      }
     }
 
-    // 4. Crear recursos
-    if (businessData.resources && businessData.resources.length > 0) {
-      const resourcesData = businessData.resources.map((resourceName, index) => ({
+    // 4. Crear recurso por defecto (si se envió)
+    if (defaultResource) {
+      const { name, singular } = defaultResource;
+      const { error: resourceError } = await supabaseAdmin.from('resources').insert([{
         business_id: business.id,
-        name: resourceName,
-        type: 'room',
-        capacity: 1,
-        active: true,
-        display_order: index + 1
-      }));
+        name,
+        is_active: true, // ✅ Columna correcta según DATABASE-SCHEMA-AUTONOMOS-2025.sql
+        resource_number: singular || null
+      }]);
 
-      await supabaseAdmin.from('resources').insert(resourcesData);
-      console.log('✅ Recursos creados:', resourcesData.length);
+      if (resourceError) {
+        console.error('⚠️ Error creando recurso por defecto:', resourceError);
+      } else {
+        console.log('✅ Recurso por defecto creado:', name);
+      }
     }
 
-    return res.json({ 
-      success: true, 
-      business 
+    return res.json({
+      success: true,
+      business
     });
 
   } catch (error) {

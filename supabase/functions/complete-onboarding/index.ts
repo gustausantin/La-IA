@@ -9,9 +9,9 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.4';
 // Tipos
 interface OnboardingPayload {
   businessName: string;
-  vertical: string; // ID del vertical (ej: 'peluqueria_barberia')
+  vertical: string;
   assistantName: string;
-  assistantVoice: string; // ID de ElevenLabs
+  assistantVoice: string;
   userEmail: string;
   userId: string;
 }
@@ -45,30 +45,33 @@ const DEFAULT_RESOURCES = {
 };
 
 serve(async (req) => {
-  // CORS headers
   const corsHeaders = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   };
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // Crear cliente de Supabase con el token del usuario
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    
+    // ✅ Usar SERVICE_ROLE_KEY para bypass de RLS y no validar JWT del usuario
+    const supabase = createClient(supabaseUrl, supabaseKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false
+      }
+    });
 
-    // Parsear el payload
     const payload: OnboardingPayload = await req.json();
     const { businessName, vertical, assistantName, assistantVoice, userEmail, userId } = payload;
 
     console.log('📦 Payload recibido:', payload);
 
-    // Validaciones
     if (!businessName || !vertical || !assistantName || !assistantVoice || !userId) {
       return new Response(
         JSON.stringify({ error: 'Faltan datos requeridos' }),
@@ -76,15 +79,16 @@ serve(async (req) => {
       );
     }
 
-    // === PASO 1: CREAR EL BUSINESS ===
+    // ✅ SCHEMA CORRECTO de businesses (sin owner_email)
     const businessData = {
       name: businessName,
       vertical_type: vertical,
-      owner_email: userEmail,
+      email: userEmail || null, // ✅ Usar 'email', NO 'owner_email'
+      owner_id: userId, // ✅ Usar 'owner_id' para el FK
       onboarding_completed: true,
-      onboarding_step: 4, // Completó los 4 pasos del onboarding
-      agent_status: 'OFF', // Agente apagado, esperando configuración del Copilot
-      copilot_step: 0, // Empieza el Copilot
+      onboarding_step: 4,
+      agent_status: 'OFF',
+      copilot_step: 0,
       copilot_completed: false,
       agent_config: {
         assistant_name: assistantName,
@@ -92,6 +96,8 @@ serve(async (req) => {
         prompt_version: `${vertical}_v1`,
       },
     };
+
+    console.log('💾 Insertando business:', businessData);
 
     const { data: business, error: businessError } = await supabase
       .from('businesses')
@@ -106,19 +112,22 @@ serve(async (req) => {
 
     console.log('✅ Business creado:', business.id);
 
-    // === PASO 2: CREAR USER_BUSINESS_MAPPING ===
+    // Crear mapping user-business
     const { error: mappingError } = await supabase.from('user_business_mapping').insert({
       user_id: userId,
+      auth_user_id: userId, // ✅ Ambos campos por si acaso
       business_id: business.id,
       role: 'owner',
+      active: true,
     });
 
     if (mappingError) {
       console.error('❌ Error creando mapping:', mappingError);
-      // No lanzamos error, porque el business ya está creado
+    } else {
+      console.log('✅ User-business mapping creado');
     }
 
-    // === PASO 3: CREAR SERVICIO POR DEFECTO ===
+    // Crear servicio por defecto
     const defaultService = DEFAULT_SERVICES[vertical as keyof typeof DEFAULT_SERVICES];
     if (defaultService) {
       const { error: serviceError } = await supabase.from('services').insert({
@@ -137,7 +146,7 @@ serve(async (req) => {
       }
     }
 
-    // === PASO 4: CREAR RECURSO POR DEFECTO ===
+    // Crear recurso por defecto
     const defaultResource = DEFAULT_RESOURCES[vertical as keyof typeof DEFAULT_RESOURCES];
     if (defaultResource) {
       const { error: resourceError } = await supabase.from('resources').insert({
@@ -154,7 +163,6 @@ serve(async (req) => {
       }
     }
 
-    // === RESPUESTA EXITOSA ===
     return new Response(
       JSON.stringify({
         success: true,
