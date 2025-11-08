@@ -59,6 +59,7 @@ import { OccupancyHeatMap } from "../components/reservas/OccupancyHeatMap";
 import { OccupancyMetrics } from "../components/reservas/OccupancyMetrics";
 import { useOccupancyData } from "../hooks/useOccupancyData";
 import CalendarioReservas from "../components/calendario/CalendarioReservas";
+import WaitlistModal from "../components/reservas/WaitlistModal";
 
 // 📧 FUNCIÓN PARA ENVIAR MENSAJE NO-SHOW
 const sendNoShowMessage = async (reservation) => {
@@ -586,7 +587,7 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
 
 // Componente principal
 export default function Reservas() {
-    const { business: restaurant, businessId: businessId, isReady, addNotification } =
+    const { business: restaurant, businessId: businessId, user, isReady, addNotification } =
         useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();
@@ -595,8 +596,9 @@ export default function Reservas() {
     const [loading, setLoading] = useState(true);
     const [reservations, setReservations] = useState([]);
     const [selectedReservations, setSelectedReservations] = useState(new Set());
-    const [activeTab, setActiveTab] = useState('reservas'); // 'reservas', 'disponibilidades', 'ocupacion', 'politica'
+    const [activeTab, setActiveTab] = useState('reservas'); // 'reservas', 'disponibilidades'
     const [autoTriggerRegeneration, setAutoTriggerRegeneration] = useState(false);
+    const [blockages, setBlockages] = useState([]); // 🆕 Bloqueos de horas
     
     // 🔥 NUEVO: Estado para Heat Map de Ocupación
     const [occupancyDate, setOccupancyDate] = useState(new Date());
@@ -653,6 +655,8 @@ export default function Reservas() {
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);  // ✅ NUEVO para cancelar
+    const [showWaitlistModal, setShowWaitlistModal] = useState(false); // 🆕 Modal de lista de espera
+    const [waitlistData, setWaitlistData] = useState({}); // 🆕 Datos pre-rellenados para waitlist
     const [editingReservation, setEditingReservation] = useState(null);
     const [viewingReservation, setViewingReservation] = useState(null);
     const [deletingReservation, setDeletingReservation] = useState(null);
@@ -926,6 +930,30 @@ export default function Reservas() {
         filters.channel,
         filters.source
     ]);
+
+    // 🔒 Cargar bloqueos de horas
+    const loadBlockages = useCallback(async () => {
+        if (!businessId) return;
+
+        try {
+            const { data, error } = await supabase
+                .from('resource_blockages')
+                .select('*')
+                .eq('business_id', businessId)
+                .order('blocked_date', { ascending: true });
+
+            if (error) {
+                console.error('❌ Error cargando bloqueos:', error);
+                return;
+            }
+
+            console.log('🔒 Bloqueos cargados:', data?.length || 0);
+            setBlockages(data || []);
+
+        } catch (error) {
+            console.error('❌ Error en loadBlockages:', error);
+        }
+    }, [businessId]);
 
     // Cargar mesas
     const loadTables = useCallback(async () => {
@@ -1202,6 +1230,95 @@ export default function Reservas() {
         }
     }, [loadReservations]);
 
+    // 🔒 Handler para bloquear horas
+    const handleBlockSlot = useCallback(async (blockData) => {
+        try {
+            console.log('🔒 Bloqueando slot:', blockData);
+
+            const { resource, date, time, reason } = blockData;
+
+            // Calcular hora de fin (1 hora después por defecto)
+            const startHour = parseInt(time.split(':')[0]);
+            const endTime = `${(startHour + 1).toString().padStart(2, '0')}:00`;
+
+            const blockage = {
+                business_id: businessId,
+                resource_id: resource.id !== 'default' ? resource.id : null,
+                blocked_date: date,
+                start_time: time,
+                end_time: endTime,
+                reason: reason || 'Bloqueado',
+                created_by: user?.id
+            };
+
+            const { data, error } = await supabase
+                .from('resource_blockages')
+                .insert([blockage])
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            toast.success(`🔒 Hora bloqueada: ${resource.name} - ${time}`);
+
+            // Regenerar slots automáticamente
+            try {
+                const { default: AutoSlotRegenerationService } = await import('../services/AutoSlotRegenerationService');
+                await AutoSlotRegenerationService.regenerateForDate(businessId, date);
+            } catch (regenError) {
+                console.warn('⚠️ No se pudo regenerar slots:', regenError);
+            }
+
+            // Recargar datos
+            await Promise.all([
+                loadReservations(),
+                loadBlockages()
+            ]);
+
+        } catch (error) {
+            console.error('❌ Error bloqueando slot:', error);
+            toast.error('Error al bloquear hora: ' + error.message);
+        }
+    }, [businessId, user, loadReservations, loadBlockages]);
+
+    // 🔓 Handler para desbloquear horas
+    const handleUnblockSlot = useCallback(async (blockageId) => {
+        try {
+            console.log('🔓 Desbloqueando slot:', blockageId);
+
+            const { error } = await supabase
+                .from('resource_blockages')
+                .delete()
+                .eq('id', blockageId);
+
+            if (error) throw error;
+
+            toast.success('🔓 Bloqueo eliminado correctamente');
+
+            // Recargar datos
+            await Promise.all([
+                loadReservations(),
+                loadBlockages()
+            ]);
+
+        } catch (error) {
+            console.error('❌ Error desbloqueando slot:', error);
+            toast.error('Error al eliminar bloqueo: ' + error.message);
+        }
+    }, [loadReservations, loadBlockages]);
+
+    // 🆕 Handler para agregar a lista de espera
+    const handleAddToWaitlist = useCallback(({ resource, date, time }) => {
+        console.log('📋 Abriendo modal de lista de espera:', { resource, date, time });
+        
+        setWaitlistData({
+            preferredDate: date,
+            preferredTime: time,
+            // Aquí se podrían pre-rellenar más campos si es necesario
+        });
+        setShowWaitlistModal(true);
+    }, []);
+
     // Configurar real-time subscriptions
     useEffect(() => {
         if (!businessId) return;
@@ -1406,6 +1523,7 @@ export default function Reservas() {
                 loadReservations(),
                 loadTables(),
                 loadResources(), // 🆕 Cargar recursos/profesionales
+                loadBlockages(), // 🆕 Cargar bloqueos de horas
                 loadPolicySettings()
             ]).finally(() => setLoading(false));
         }
@@ -1971,11 +2089,11 @@ export default function Reservas() {
                             })}
                         </p>
                         
-                        {/* Sistema de Pestañas - SOLO 2 PESTAÑAS */}
-                        <div className="flex gap-3 mt-4">
+                        {/* Sistema de Pestañas - MOBILE-FIRST: 2 PESTAÑAS */}
+                        <div className="flex gap-2 mt-4 overflow-x-auto scrollbar-hide pb-2">
                             <button
                                 onClick={() => setActiveTab('reservas')}
-                                className={`px-6 py-2.5 rounded-lg font-medium transition-all text-sm shadow-sm ${
+                                className={`px-4 sm:px-6 py-2.5 rounded-lg font-medium transition-all text-xs sm:text-sm shadow-sm whitespace-nowrap ${
                                     activeTab === 'reservas'
                                         ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
                                         : 'bg-white text-gray-700 border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:border-blue-300'
@@ -1985,13 +2103,13 @@ export default function Reservas() {
                             </button>
                             <button
                                 onClick={() => setActiveTab('disponibilidades')}
-                                className={`px-6 py-2.5 rounded-lg font-medium transition-all text-sm shadow-sm ${
+                                className={`px-4 sm:px-6 py-2.5 rounded-lg font-medium transition-all text-xs sm:text-sm shadow-sm whitespace-nowrap ${
                                     activeTab === 'disponibilidades'
                                         ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
                                         : 'bg-white text-gray-700 border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:border-blue-300'
                                 }`}
                             >
-                                ⚡ Generar Disponibilidad
+                                ⚡ Disponibilidad
                             </button>
                         </div>
                     </div>
@@ -2032,6 +2150,7 @@ export default function Reservas() {
                     <CalendarioReservas 
                         reservations={reservations}
                         resources={resources} // ✅ Recursos/profesionales desde BD
+                        blockages={blockages} // 🆕 Bloqueos de horas
                         onReservationClick={(reserva) => {
                             setViewingReservation(reserva);
                             setShowDetailsModal(true);
@@ -2040,11 +2159,15 @@ export default function Reservas() {
                             handleCreateReservation();
                         }}
                         onReservationMove={handleReservationMove} // 🆕 Drag & Drop
+                        onBlockSlot={handleBlockSlot} // 🆕 Bloquear horas
+                        onUnblockSlot={handleUnblockSlot} // 🆕 Desbloquear horas
+                        onAddToWaitlist={handleAddToWaitlist} // 🆕 Lista de espera
                         onRefresh={loadReservations}
                         loading={loading}
                     />
                 </div>
             )}
+
 
             {/* 🗂️ SECCIÓN ANTIGUA DE RESERVAS (Oculta temporalmente) */}
             {activeTab === 'reservas_old' && (
@@ -2780,6 +2903,22 @@ export default function Reservas() {
                 onCancel={() => {
                     setShowCancelModal(false);
                     setCancellingReservation(null);
+                }}
+            />
+
+            {/* 📋 MODAL DE LISTA DE ESPERA */}
+            <WaitlistModal
+                isOpen={showWaitlistModal}
+                onClose={() => {
+                    setShowWaitlistModal(false);
+                    setWaitlistData({});
+                }}
+                businessId={businessId}
+                prefilledData={waitlistData}
+                onSuccess={(data) => {
+                    console.log('✅ Cliente agregado a waitlist:', data);
+                    toast.success('Cliente agregado a lista de espera');
+                    // Aquí podrías recargar la lista de espera si la estás mostrando
                 }}
             />
 

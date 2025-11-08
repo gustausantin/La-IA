@@ -712,20 +712,20 @@ export default function Clientes() {
                     </div>
                 </div>
 
-                {/* Lista de clientes - TABLA COMPACTA */}
+                {/* Lista de clientes - MOBILE-FIRST: CARDS + TABLA */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                     {loading ? (
-                        <div className="p-8 text-center">
+                        <div className="p-6 sm:p-8 text-center">
                             <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
-                            <p className="text-gray-600">Cargando clientes...</p>
+                            <p className="text-sm sm:text-base text-gray-600">Cargando clientes...</p>
                         </div>
                     ) : filteredCustomers.length === 0 ? (
-                        <div className="text-center py-12">
-                            <Users className="w-16 h-16 text-gray-300 mx-auto mb-2" />
+                        <div className="text-center py-8 sm:py-12 px-4">
+                            <Users className="w-12 h-12 sm:w-16 sm:h-16 text-gray-300 mx-auto mb-2" />
                             <h3 className="text-sm font-medium text-gray-900 mb-2">
                                 {customers.length === 0 ? "No hay clientes registrados" : "No se encontraron clientes"}
                             </h3>
-                            <p className="text-gray-600 mb-6">
+                            <p className="text-xs sm:text-sm text-gray-600 mb-4 sm:mb-6">
                                 {customers.length === 0 
                                     ? "Comienza creando tu primer cliente"
                                     : "Prueba con un término de búsqueda diferente"
@@ -734,7 +734,7 @@ export default function Clientes() {
                             {customers.length === 0 && (
                                 <button
                                     onClick={handleCreateCustomer}
-                                    className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                                    className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[44px] bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
                                 >
                                     <Plus className="w-4 h-4" />
                                     Crear primer cliente
@@ -742,8 +742,101 @@ export default function Clientes() {
                             )}
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
+                        <>
+                            {/* MOBILE: Cards (visible solo en mobile) */}
+                            <div className="block md:hidden divide-y divide-gray-100">
+                                {filteredCustomers.map((customer) => {
+                                    const segmentInfo = CUSTOMER_SEGMENTS[customer.segment] || CUSTOMER_SEGMENTS.nuevo;
+                                    const segmentColor = segmentInfo.color;
+                                    const colorClasses = {
+                                        blue: 'bg-blue-100 text-blue-700',
+                                        green: 'bg-green-100 text-green-700',
+                                        purple: 'bg-purple-100 text-purple-700',
+                                        yellow: 'bg-yellow-100 text-yellow-700',
+                                        gray: 'bg-gray-100 text-gray-700',
+                                        orange: 'bg-orange-100 text-orange-700',
+                                        indigo: 'bg-indigo-100 text-indigo-700'
+                                    };
+
+                                    const daysSince = customer.last_visit_at 
+                                        ? Math.floor((new Date() - new Date(customer.last_visit_at)) / (1000 * 60 * 60 * 24))
+                                        : null;
+                                    const lastVisitText = daysSince === null 
+                                        ? 'Nunca' 
+                                        : daysSince === 0 
+                                        ? 'Hoy' 
+                                        : daysSince === 1 
+                                        ? 'Ayer' 
+                                        : `Hace ${daysSince}d`;
+
+                                    const visits = customer.visits_count || 0;
+                                    const totalSpent = customer.total_spent || 0;
+                                    const avgTicket = visits > 0 ? (totalSpent / visits).toFixed(0) : 0;
+
+                                    return (
+                                        <div
+                                            key={customer.id}
+                                            onClick={() => {
+                                                setSelectedCustomer(customer);
+                                                setModalMode('view');
+                                                setShowCustomerModal(true);
+                                            }}
+                                            className="p-3 hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer"
+                                        >
+                                            <div className="flex items-start justify-between gap-3 mb-2">
+                                                {/* Nombre y Segmento */}
+                                                <div className="flex-1 min-w-0">
+                                                    <h3 className="font-semibold text-gray-900 text-sm truncate mb-1">
+                                                        {customer.name || `${customer.first_name || ''} ${customer.last_name || ''}`.trim() || 'Sin nombre'}
+                                                    </h3>
+                                                    <div className="flex items-center gap-2 flex-wrap">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${colorClasses[segmentColor]}`}>
+                                                            <span>{segmentInfo.icon}</span>
+                                                            {segmentInfo.label}
+                                                        </span>
+                                                        {customer.phone && (
+                                                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                                <Phone className="w-3 h-3" />
+                                                                {customer.phone}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                {/* Botón editar */}
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleEditCustomer(customer);
+                                                    }}
+                                                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors flex-shrink-0"
+                                                >
+                                                    <Edit2 className="w-4 h-4 text-gray-600" />
+                                                </button>
+                                            </div>
+
+                                            {/* Métricas en grid */}
+                                            <div className="grid grid-cols-3 gap-2 text-center">
+                                                <div className="bg-gray-50 rounded-lg p-2">
+                                                    <div className="text-xs text-gray-500 mb-0.5">Visitas</div>
+                                                    <div className="text-sm font-bold text-gray-900">{visits}</div>
+                                                </div>
+                                                <div className="bg-gray-50 rounded-lg p-2">
+                                                    <div className="text-xs text-gray-500 mb-0.5">Ticket €</div>
+                                                    <div className="text-sm font-bold text-gray-900">{avgTicket}</div>
+                                                </div>
+                                                <div className="bg-gray-50 rounded-lg p-2">
+                                                    <div className="text-xs text-gray-500 mb-0.5">Última</div>
+                                                    <div className="text-xs font-semibold text-gray-900">{lastVisitText}</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+
+                            {/* DESKTOP: Tabla (visible solo en desktop) */}
+                            <div className="hidden md:block overflow-x-auto">
+                                <table className="w-full">
                                 <thead className="bg-gray-50 border-b border-gray-200">
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Cliente</th>
@@ -961,6 +1054,7 @@ export default function Clientes() {
                                 </tbody>
                             </table>
                         </div>
+                        </>
                     )}
                 </div>
             </>

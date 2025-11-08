@@ -1,5 +1,5 @@
-// CENTRO DE COMUNICACIÓN - DISEÑO MODERNO Y COMPACTO V3
-import React, { useState, useEffect, useCallback } from 'react';
+// CENTRO DE COMUNICACIÓN - DISEÑO MODERNO Y COMPACTO V4
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
@@ -9,9 +9,11 @@ import {
     RefreshCw, Instagram, Facebook, Globe, Bot, X, Send, Clock, 
     ExternalLink, MessageCircle, Users, CheckCheck,
     AlertTriangle, Shield, Check, HelpCircle, Smile, Meh, Frown,
-    Star, Tag, TrendingUp, AlertOctagon, Award, ChevronLeft
+    Star, Tag, TrendingUp, AlertOctagon, Award, ChevronLeft,
+    Package, Trash2
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { getTipologia, getAccion, calculateTipologiaMetrics, groupByTipologia } from '../utils/conversationClassifier';
 
 const CHANNELS = {
     whatsapp: { name: 'WhatsApp', icon: MessageSquare, bgClass: 'bg-green-50', iconClass: 'text-green-600', borderClass: 'border-green-200' },
@@ -86,6 +88,7 @@ export default function Comunicacion() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterChannel, setFilterChannel] = useState('all');
     const [filterStatus, setFilterStatus] = useState('all');
+    const [filterTipologia, setFilterTipologia] = useState('all'); // 🆕 Filtro por tipología
     const [stats, setStats] = useState({ 
         total: 0, 
         active: 0, 
@@ -94,7 +97,12 @@ export default function Comunicacion() {
         avgSatisfaction: 0,
         positivePercent: 0,
         escalations: 0,
-        avgQuality: 0
+        avgQuality: 0,
+        // 🆕 Por tipología
+        clientes: 0,
+        proveedores: 0,
+        incidencias: 0,
+        ruido: 0
     });
 
     const loadConversations = useCallback(async () => {
@@ -109,6 +117,9 @@ export default function Comunicacion() {
                 .order('created_at', { ascending: false });
             if (error) throw error;
             setConversations(data || []);
+            
+            // 🆕 Calcular métricas por tipología
+            const tipologiaMetrics = calculateTipologiaMetrics(data || []);
             
             // Calcular estadísticas enriquecidas
             const conversationsWithAnalysis = (data || []).filter(c => c.metadata && typeof c.metadata === 'object');
@@ -144,7 +155,9 @@ export default function Comunicacion() {
                 avgSatisfaction: parseFloat(avgSatisfaction),
                 positivePercent,
                 escalations,
-                avgQuality: parseFloat(avgQuality)
+                avgQuality: parseFloat(avgQuality),
+                // 🆕 Métricas por tipología
+                ...tipologiaMetrics
             });
         } catch (error) {
             console.error('Error:', error);
@@ -224,8 +237,32 @@ export default function Comunicacion() {
         }
         if (filterChannel !== 'all') filtered = filtered.filter(c => c.source_channel === filterChannel);
         if (filterStatus !== 'all') filtered = filtered.filter(c => c.status === filterStatus);
+        
+        // 🆕 Filtro por tipología
+        if (filterTipologia !== 'all') {
+            filtered = filtered.filter(c => {
+                const { tipologia } = getTipologia(c.interaction_type, c);
+                return tipologia === filterTipologia;
+            });
+        }
+        
         return filtered;
-    }, [conversations, searchTerm, filterChannel, filterStatus]);
+    }, [conversations, searchTerm, filterChannel, filterStatus, filterTipologia]);
+
+    // 🆕 Agrupar conversaciones por tipología y ordenar por prioridad
+    const groupedConversations = useMemo(() => {
+        const filtered = getFilteredConversations();
+        
+        // Agrupar por tipología
+        const grouped = groupByTipologia(filtered);
+        
+        // Ordenar cada grupo por fecha (más reciente primero)
+        Object.keys(grouped).forEach(key => {
+            grouped[key].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+        });
+        
+        return grouped;
+    }, [getFilteredConversations]);
 
     useEffect(() => { loadConversations(); }, [loadConversations]);
     useEffect(() => { if (selectedConversation) loadMessages(selectedConversation.id); }, [selectedConversation, loadMessages]);

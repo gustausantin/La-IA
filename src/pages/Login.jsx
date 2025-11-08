@@ -13,42 +13,42 @@ import {
   Sparkles,
 } from "lucide-react";
 
-// Componente de feature card REDISEÑADO - Layout horizontal optimizado
+// Componente de feature card MOBILE-FIRST OPTIMIZADO
 const FeatureCard = ({ icon, title, description }) => (
-  <div className="group relative overflow-hidden bg-white/10 backdrop-blur-xl border border-white/20 rounded-xl p-2 hover:bg-white/15 transition-all duration-300 hover:scale-105 hover:shadow-2xl">
+  <div className="group relative overflow-hidden bg-white/10 backdrop-blur-xl border border-white/20 rounded-lg sm:rounded-xl p-2 sm:p-3 hover:bg-white/15 transition-all duration-300 hover:scale-105 hover:shadow-2xl">
     <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
     <div className="relative z-10 flex items-start gap-2">
-      <div className="w-9 h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
+      <div className="w-8 h-8 sm:w-9 sm:h-9 bg-white/20 backdrop-blur rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
         {icon}
       </div>
-      <div className="flex-1">
-        <h4 className="font-bold text-white text-sm mb-0.5">{title}</h4>
-        <p className="text-white/90 text-xs leading-relaxed font-medium">{description}</p>
+      <div className="flex-1 min-w-0">
+        <h4 className="font-bold text-white text-xs sm:text-sm mb-0.5 line-clamp-1">{title}</h4>
+        <p className="text-white/90 text-[10px] sm:text-xs leading-relaxed font-medium line-clamp-2">{description}</p>
       </div>
     </div>
   </div>
 );
 
-// Componente de testimonial REDISEÑADO
+// Componente de testimonial MOBILE-FIRST OPTIMIZADO
 const TestimonialCard = ({ quote, author, business, savings }) => (
-  <div className="relative overflow-hidden bg-white/15 backdrop-blur-xl border border-white/30 rounded-xl p-2 hover:bg-white/20 transition-all duration-300 group">
+  <div className="relative overflow-hidden bg-white/15 backdrop-blur-xl border border-white/30 rounded-lg sm:rounded-xl p-2 sm:p-3 hover:bg-white/20 transition-all duration-300 group">
     <div className="absolute inset-0 bg-gradient-to-br from-yellow-400/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
     <div className="relative z-10">
-      <div className="flex gap-0.5 mb-2">
+      <div className="flex gap-0.5 mb-1.5 sm:mb-2">
       {[...Array(5)].map((_, i) => (
-          <Star key={i} className="w-3 h-3 fill-yellow-400 text-yellow-400 animate-pulse" style={{animationDelay: `${i * 0.1}s`}} />
+          <Star key={i} className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-yellow-400 text-yellow-400 animate-pulse" style={{animationDelay: `${i * 0.1}s`}} />
       ))}
     </div>
-      <p className="text-white/95 text-xs italic mb-2 font-medium leading-relaxed">"{quote}"</p>
-    <div className="flex items-center justify-between">
-      <div>
-          <p className="font-bold text-white text-xs">{author}</p>
-          <p className="text-white/70 text-xs">{business}</p>
+      <p className="text-white/95 text-[10px] sm:text-xs italic mb-2 font-medium leading-relaxed line-clamp-3">"{quote}"</p>
+    <div className="flex items-center justify-between gap-2">
+      <div className="min-w-0 flex-1">
+          <p className="font-bold text-white text-[10px] sm:text-xs truncate">{author}</p>
+          <p className="text-white/70 text-[10px] sm:text-xs truncate">{business}</p>
       </div>
       {savings && (
-          <div className="text-right bg-green-500/20 backdrop-blur rounded-lg px-2 py-0.5">
-            <p className="text-white/70 text-xs">Ahorro mensual</p>
-            <p className="font-bold text-green-300 text-xs">€{savings}</p>
+          <div className="text-right bg-green-500/20 backdrop-blur rounded-lg px-1.5 sm:px-2 py-0.5 flex-shrink-0">
+            <p className="text-white/70 text-[9px] sm:text-xs whitespace-nowrap">Ahorro mensual</p>
+            <p className="font-bold text-green-300 text-[10px] sm:text-xs whitespace-nowrap">€{savings}</p>
         </div>
       )}
       </div>
@@ -299,34 +299,34 @@ export default function Login() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 flex relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-purple-50/30 to-blue-50/30 flex flex-col lg:flex-row relative overflow-hidden">
       {/* Elementos decorativos de fondo */}
       <div className="absolute inset-0 opacity-40" style={{
         backgroundImage: `url("data:image/svg+xml,%3Csvg width='40' height='40' viewBox='0 0 40 40' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='%23a855f7' fill-opacity='0.03'%3E%3Ccircle cx='20' cy='20' r='2'/%3E%3C/g%3E%3C/svg%3E")`
       }} />
       
       {/* Panel izquierdo - Formularios GLASSMORPHISM */}
-      <div className="flex-1 flex items-center justify-center p-4 relative z-10">
+      <div className="flex-1 flex items-center justify-center p-3 sm:p-4 lg:p-6 relative z-10">
         <div className="max-w-md w-full">
-          {/* Header con glass effect */}
-          <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-purple-600 via-purple-500 to-blue-600 rounded-3xl shadow-2xl mb-4 relative">
-              <Bot className="w-8 h-8 text-white" />
-              <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-400 rounded-full border-2 border-white shadow-lg">
+          {/* Header con glass effect - MOBILE-FIRST */}
+          <div className="text-center mb-4 sm:mb-6">
+            <div className="inline-flex items-center justify-center w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-purple-600 via-purple-500 to-blue-600 rounded-2xl sm:rounded-3xl shadow-2xl mb-3 sm:mb-4 relative">
+              <Bot className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
+              <div className="absolute -top-0.5 -right-0.5 sm:-top-1 sm:-right-1 w-4 h-4 sm:w-5 sm:h-5 bg-green-400 rounded-full border-2 border-white shadow-lg">
                 <div className="w-full h-full rounded-full bg-green-500 animate-ping opacity-75"></div>
               </div>
             </div>
-            <h1 className="text-2xl font-black bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-2">La-IA</h1>
-            <p className="text-sm text-gray-600 font-medium">Sistema Inteligente de Gestión</p>
+            <h1 className="text-xl sm:text-2xl font-black bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-1 sm:mb-2">La-IA</h1>
+            <p className="text-xs sm:text-sm text-gray-600 font-medium">Sistema Inteligente de Gestión</p>
           </div>
 
-          {/* Contenedor formulario GLASS */}
-          <div className="relative backdrop-blur-xl bg-white/90 rounded-3xl shadow-2xl border border-white/50 overflow-hidden">
+          {/* Contenedor formulario GLASS - MOBILE-FIRST */}
+          <div className="relative backdrop-blur-xl bg-white/90 rounded-2xl sm:rounded-3xl shadow-2xl border border-white/50 overflow-hidden">
             {/* Efecto brillo */}
             <div className="absolute inset-0 bg-gradient-to-br from-purple-50/50 via-transparent to-blue-50/50"></div>
             
-            {/* Toggle Login/Registro MODERN */}
-            <div className="relative grid grid-cols-2 p-2 bg-gray-50/50">
+            {/* Toggle Login/Registro MOBILE-FIRST */}
+            <div className="relative grid grid-cols-2 p-1.5 sm:p-2 bg-gray-50/50">
               <button
                 type="button"
                 onClick={() => {
@@ -334,7 +334,7 @@ export default function Login() {
                   setError("");
                   setMessage("");
                 }}
-                className={`relative py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
+                className={`relative py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-lg sm:rounded-xl transition-all duration-300 ${
                   isLogin
                     ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/30"
                     : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
@@ -349,7 +349,7 @@ export default function Login() {
                   setError("");
                   setMessage("");
                 }}
-                className={`relative py-3 text-sm font-bold rounded-xl transition-all duration-300 ${
+                className={`relative py-2.5 sm:py-3 text-xs sm:text-sm font-bold rounded-lg sm:rounded-xl transition-all duration-300 ${
                   !isLogin
                     ? "bg-gradient-to-r from-purple-600 to-blue-600 text-white shadow-lg shadow-purple-500/30"
                     : "text-gray-600 hover:text-gray-900 hover:bg-white/50"
@@ -359,18 +359,18 @@ export default function Login() {
               </button>
             </div>
 
-            {/* Contenido del formulario */}
-            <div className="relative p-6">
+            {/* Contenido del formulario - MOBILE-FIRST */}
+            <div className="relative p-4 sm:p-6">
 
-              {/* Mensajes */}
+              {/* Mensajes - MOBILE-FIRST */}
             {error && (
-                <div className="mb-4 p-3 bg-red-50 border-l-4 border-red-500 rounded-lg">
-                  <p className="text-red-700 text-sm font-medium">{error}</p>
+                <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-red-50 border-l-4 border-red-500 rounded-lg">
+                  <p className="text-red-700 text-xs sm:text-sm font-medium">{error}</p>
                   {showResendButton && (
                     <button
                       onClick={handleResendConfirmation}
                       disabled={resendLoading}
-                      className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold rounded-lg transition-colors duration-200 flex items-center gap-1.5"
+                      className="mt-2 px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center gap-1.5 w-full sm:w-auto"
                     >
                       {resendLoading ? (
                         <>
@@ -388,13 +388,13 @@ export default function Login() {
             )}
 
             {message && (
-                <div className="mb-4 p-3 bg-green-50 border-l-4 border-green-500 rounded-lg">
-                  <p className="text-green-700 text-sm font-medium whitespace-pre-line">{message}</p>
+                <div className="mb-3 sm:mb-4 p-2.5 sm:p-3 bg-green-50 border-l-4 border-green-500 rounded-lg">
+                  <p className="text-green-700 text-xs sm:text-sm font-medium whitespace-pre-line">{message}</p>
                   {showResendButton && (
                     <button
                       onClick={handleResendConfirmation}
                       disabled={resendLoading}
-                      className="mt-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold rounded-lg transition-colors duration-200 flex items-center gap-1.5"
+                      className="mt-2 px-3 py-2 sm:py-1.5 min-h-[44px] sm:min-h-0 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white text-xs font-semibold rounded-lg transition-colors duration-200 flex items-center justify-center gap-1.5 w-full sm:w-auto"
                     >
                       {resendLoading ? (
                         <>
@@ -411,11 +411,11 @@ export default function Login() {
               </div>
             )}
 
-              {/* Formulario de Login GLASSMORPHISM */}
+              {/* Formulario de Login MOBILE-FIRST */}
             {isLogin ? (
-                <form onSubmit={handleLogin} className="space-y-5">
+                <form onSubmit={handleLogin} className="space-y-4 sm:space-y-5">
                 <div>
-                    <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label htmlFor="email" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                     Email
                   </label>
                   <input
@@ -424,13 +424,13 @@ export default function Login() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                      className="w-full px-4 py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
+                      className="w-full px-3 sm:px-4 py-3 sm:py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
                     placeholder="tu@email.com"
                   />
                 </div>
 
                 <div>
-                    <label htmlFor="password" className="block text-sm font-semibold text-gray-700 mb-2">
+                    <label htmlFor="password" className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1.5 sm:mb-2">
                     Contraseña
                   </label>
                   <input
@@ -439,7 +439,7 @@ export default function Login() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                      className="w-full px-4 py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
+                      className="w-full px-3 sm:px-4 py-3 sm:py-3.5 bg-white/80 backdrop-blur border border-purple-200 rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 focus:bg-white transition-all text-sm shadow-sm"
                     placeholder="••••••••"
                   />
                 </div>
@@ -447,13 +447,13 @@ export default function Login() {
                 <button
                   type="submit"
                   disabled={loading}
-                    className="w-full bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 text-white py-4 rounded-2xl hover:shadow-2xl hover:shadow-purple-500/50 focus:outline-none focus:ring-4 focus:ring-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold text-sm shadow-xl hover:-translate-y-0.5"
+                    className="w-full bg-gradient-to-r from-purple-600 via-purple-500 to-blue-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl hover:shadow-2xl hover:shadow-purple-500/50 focus:outline-none focus:ring-4 focus:ring-purple-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-all font-bold text-sm shadow-xl hover:-translate-y-0.5 min-h-[48px]"
                 >
                   {loading ? "Iniciando sesión..." : "Iniciar Sesión"}
                 </button>
 
-                <div className="text-center pt-2">
-                    <a href="#" className="text-sm text-purple-600 hover:text-purple-700 font-semibold hover:underline">
+                <div className="text-center pt-1 sm:pt-2">
+                    <a href="#" className="text-xs sm:text-sm text-purple-600 hover:text-purple-700 font-semibold hover:underline">
                     ¿Olvidaste tu contraseña?
                   </a>
                 </div>

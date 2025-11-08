@@ -1,5 +1,5 @@
 // CalendarioReservas.jsx - Calendario Profesional estilo Google Calendar + Booksy
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Fragment } from 'react';
 import { format, addDays, subDays, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -16,48 +16,75 @@ import {
     Search,
     X
 } from 'lucide-react';
+import QuickActionModal from './QuickActionModal';
 
-// 🎨 COLORES POR ESTADO
+// 🎨 COLORES PROFESIONALES - Paleta sobria y elegante
 const STATUS_COLORS = {
     confirmed: {
-        bg: 'bg-blue-100',
-        border: 'border-l-4 border-blue-500',
-        text: 'text-blue-900',
-        dot: 'bg-blue-500'
+        bg: 'bg-blue-50',
+        border: 'border-l-4 border-blue-600',
+        text: 'text-gray-900',
+        dot: 'bg-blue-600',
+        bgHover: 'hover:bg-blue-100'
     },
     pending: {
-        bg: 'bg-yellow-100',
-        border: 'border-l-4 border-yellow-500',
-        text: 'text-yellow-900',
-        dot: 'bg-yellow-500'
-    },
-    cancelled: {
-        bg: 'bg-red-100',
-        border: 'border-l-4 border-red-500',
-        text: 'text-red-900',
-        dot: 'bg-red-500'
-    },
-    completed: {
-        bg: 'bg-green-100',
-        border: 'border-l-4 border-green-500',
-        text: 'text-green-900',
-        dot: 'bg-green-500'
-    },
-    no_show: {
         bg: 'bg-gray-100',
         border: 'border-l-4 border-gray-500',
         text: 'text-gray-900',
-        dot: 'bg-gray-500'
+        dot: 'bg-gray-500',
+        bgHover: 'hover:bg-gray-200'
+    },
+    cancelled: {
+        bg: 'bg-red-50',
+        border: 'border-l-4 border-red-600',
+        text: 'text-gray-900',
+        dot: 'bg-red-600',
+        bgHover: 'hover:bg-red-100'
+    },
+    completed: {
+        bg: 'bg-green-50',
+        border: 'border-l-4 border-green-600',
+        text: 'text-gray-900',
+        dot: 'bg-green-600',
+        bgHover: 'hover:bg-green-100'
+    },
+    no_show: {
+        bg: 'bg-gray-200',
+        border: 'border-l-4 border-gray-600',
+        text: 'text-gray-900',
+        dot: 'bg-gray-600',
+        bgHover: 'hover:bg-gray-300'
     }
+};
+
+// 💰 ICONOS DE ESTADO (Estilo Booksy)
+const getStatusIcon = (reservation) => {
+    // Pagado
+    if (reservation.payment_status === 'paid') {
+        return <span className="text-green-600 text-xs">💰</span>;
+    }
+    // Pendiente de confirmación
+    if (reservation.status === 'pending') {
+        return <span className="text-amber-600 text-xs">⭕</span>;
+    }
+    // Cliente favorito/VIP
+    if (reservation.customer_tags?.includes('vip') || reservation.customer_tags?.includes('favorito')) {
+        return <span className="text-red-600 text-xs">❤️</span>;
+    }
+    return null;
 };
 
 export default function CalendarioReservas({ 
     reservations = [],
     resources = [], // Profesionales/Recursos (ej: Patricia Taylor, Michael Brown)
+    blockages = [], // 🆕 Bloqueos de horas
     onReservationClick = () => {},
     onSlotClick = () => {},
     onRefresh = () => {},
     onReservationMove = null, // 🆕 Callback para mover reserva
+    onBlockSlot = null, // 🆕 Callback para bloquear horas
+    onUnblockSlot = null, // 🆕 Callback para desbloquear horas
+    onAddToWaitlist = null, // 🆕 Callback para agregar a lista de espera
     loading = false
 }) {
     // Estados
@@ -73,10 +100,17 @@ export default function CalendarioReservas({
         busqueda: '' // Búsqueda por nombre de cliente
     });
     const [mostrarFiltros, setMostrarFiltros] = useState(false);
+    
+    // 📱 MOBILE: Selector de recurso único
+    const [mobileSelectedResource, setMobileSelectedResource] = useState('todos');
 
     // 🆕 DRAG & DROP
     const [draggingReservation, setDraggingReservation] = useState(null);
     const [dragOverSlot, setDragOverSlot] = useState(null);
+
+    // 🆕 QUICK ACTION MODAL
+    const [showQuickAction, setShowQuickAction] = useState(false);
+    const [selectedCell, setSelectedCell] = useState(null);
 
     // 🔍 FILTRAR RESERVAS
     const reservationsFiltradas = useMemo(() => {
@@ -131,6 +165,82 @@ export default function CalendarioReservas({
         if (vista === 'dia') setFechaActual(addDays(fechaActual, 1));
         else if (vista === 'semana') setFechaActual(addDays(fechaActual, 7));
         else setFechaActual(addDays(fechaActual, 30));
+    };
+
+    // 🎯 HANDLER DE ACCIONES DEL MODAL
+    const handleQuickAction = (actionType, data) => {
+        console.log('🎯 Acción:', actionType, data);
+        
+        switch (actionType) {
+            case 'new_reservation':
+                // Llamar al callback de crear reserva con datos pre-rellenados
+                onSlotClick({
+                    date: data.date,
+                    time: data.time,
+                    resource: data.resource
+                });
+                break;
+            
+            case 'view':
+            case 'edit':
+                // Llamar al callback de ver/editar reserva
+                onReservationClick(data.reservation);
+                break;
+            
+            case 'block_slot':
+                // ✅ Bloquear hora
+                if (onBlockSlot) {
+                    onBlockSlot(data);
+                } else {
+                    console.warn('⚠️ Callback onBlockSlot no disponible');
+                }
+                break;
+            
+            case 'remove_block':
+                // ✅ Desbloquear hora
+                if (onUnblockSlot && data.blockage) {
+                    onUnblockSlot(data.blockage.id);
+                } else {
+                    console.warn('⚠️ Callback onUnblockSlot no disponible o sin blockage');
+                }
+                break;
+            
+            case 'add_to_waitlist':
+                // 🆕 Agregar a lista de espera
+                if (onAddToWaitlist) {
+                    onAddToWaitlist(data);
+                } else {
+                    console.warn('⚠️ Callback onAddToWaitlist no disponible');
+                }
+                break;
+            
+            case 'contact':
+                // Abrir WhatsApp/Teléfono
+                if (data.reservation.customer_phone) {
+                    window.open(`https://wa.me/${data.reservation.customer_phone.replace(/\D/g, '')}`, '_blank');
+                }
+                break;
+            
+            case 'cancel':
+                // Llamar al callback de cancelar (esto ya existe en el sistema)
+                onReservationClick(data.reservation);
+                break;
+            
+            default:
+                console.warn('Acción no implementada:', actionType);
+        }
+    };
+
+    // 🖱️ HANDLER PARA CLICK EN CELDA
+    const handleCellClick = (resource, date, time, reservation = null, blockage = null) => {
+        setSelectedCell({
+            resource,
+            date,
+            time,
+            reservation,
+            blockage
+        });
+        setShowQuickAction(true);
     };
 
     return (
@@ -223,108 +333,71 @@ export default function CalendarioReservas({
                 </div>
             </div>
 
-            {/* 🔍 BARRA DE FILTROS Y BÚSQUEDA */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4">
-                <div className="flex flex-col md:flex-row gap-3">
-                    {/* Búsqueda */}
-                    <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-                        <input
-                            type="text"
-                            value={filtros.busqueda}
-                            onChange={(e) => setFiltros(prev => ({ ...prev, busqueda: e.target.value }))}
-                            placeholder="Buscar por nombre o teléfono..."
-                            className="w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        />
-                        {filtros.busqueda && (
-                            <button
-                                onClick={() => setFiltros(prev => ({ ...prev, busqueda: '' }))}
-                                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                            >
-                                <X className="w-4 h-4" />
-                            </button>
-                        )}
-                    </div>
-
-                    {/* Filtro por Recurso/Profesional */}
-                    {resources.length > 0 && (
-                        <select
-                            value={filtros.recurso}
-                            onChange={(e) => setFiltros(prev => ({ ...prev, recurso: e.target.value }))}
-                            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                        >
-                            <option value="todos">👥 Todos los profesionales</option>
-                            {resources.map(recurso => (
-                                <option key={recurso.id} value={recurso.id}>
-                                    {recurso.name}
-                                </option>
-                            ))}
-                        </select>
-                    )}
-
-                    {/* Filtro por Estado */}
+            {/* 📱 MOBILE: Selector de Recurso Único */}
+            {resources.length > 0 && (
+                <div className="lg:hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <label className="block text-xs font-medium text-gray-700 mb-2">
+                        📍 Ver recurso:
+                    </label>
                     <select
-                        value={filtros.estado}
-                        onChange={(e) => setFiltros(prev => ({ ...prev, estado: e.target.value }))}
-                        className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                        value={mobileSelectedResource}
+                        onChange={(e) => setMobileSelectedResource(e.target.value)}
+                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-medium"
                     >
-                        <option value="todos">📊 Todos los estados</option>
-                        <option value="confirmed">✅ Confirmadas</option>
-                        <option value="pending">⏳ Pendientes</option>
-                        <option value="completed">🎉 Completadas</option>
-                        <option value="cancelled">❌ Canceladas</option>
-                        <option value="no_show">⚫ No-Show</option>
+                        <option value="todos">📊 Todos los recursos</option>
+                        {resources.map(r => (
+                            <option key={r.id} value={r.id}>
+                                {r.name}
+                            </option>
+                        ))}
                     </select>
+                </div>
+            )}
 
-                    {/* Botón Limpiar Filtros */}
-                    {(filtros.busqueda || filtros.recurso !== 'todos' || filtros.estado !== 'todos') && (
-                        <button
-                            onClick={() => setFiltros({ recurso: 'todos', estado: 'todos', busqueda: '' })}
-                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-medium text-sm transition-colors flex items-center gap-2"
-                        >
-                            <X className="w-4 h-4" />
-                            Limpiar
-                        </button>
-                    )}
-                </div>
-            </div>
-
-            {/* 📊 MINI-STATS */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                <div className="bg-white rounded-lg border border-blue-200 p-3 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-gray-600 font-medium">Confirmadas</p>
-                            <p className="text-2xl font-bold text-blue-600">{stats.confirmadas}</p>
+            {/* 📊 MINI-STATS - Ocupan TODO el horizontal, MÁS BAJITAS */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full">
+                <div className="bg-white rounded-lg border border-gray-300 px-3 py-2 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-emerald-600 text-base">✓</span>
                         </div>
-                        <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs text-emerald-700 font-semibold">Confirmadas</p>
+                            <p className="text-xl font-black text-emerald-600 leading-tight">{stats.confirmadas}</p>
+                        </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-lg border border-yellow-200 p-3 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-gray-600 font-medium">Pendientes</p>
-                            <p className="text-2xl font-bold text-yellow-600">{stats.pendientes}</p>
+                <div className="bg-white rounded-lg border border-gray-300 px-3 py-2 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-amber-600 text-base">⏳</span>
                         </div>
-                        <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs text-amber-700 font-semibold">Pendientes</p>
+                            <p className="text-xl font-black text-amber-600 leading-tight">{stats.pendientes}</p>
+                        </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-lg border border-red-200 p-3 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-gray-600 font-medium">No-Shows</p>
-                            <p className="text-2xl font-bold text-red-600">{stats.noShows}</p>
+                <div className="bg-white rounded-lg border border-gray-300 px-3 py-2 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-red-600 text-base">⚠</span>
                         </div>
-                        <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs text-red-700 font-semibold">No-Shows</p>
+                            <p className="text-xl font-black text-red-600 leading-tight">{stats.noShows}</p>
+                        </div>
                     </div>
                 </div>
-                <div className="bg-white rounded-lg border border-purple-200 p-3 shadow-sm">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-xs text-gray-600 font-medium">Ocupación</p>
-                            <p className="text-2xl font-bold text-purple-600">{stats.ocupacion}%</p>
+                <div className="bg-white rounded-lg border border-gray-300 px-3 py-2 shadow-sm hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-purple-100 rounded-full flex items-center justify-center flex-shrink-0">
+                            <span className="text-purple-600 text-base">📊</span>
                         </div>
-                        <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-xs text-purple-700 font-semibold">Ocupación</p>
+                            <p className="text-xl font-black text-purple-600 leading-tight">{stats.ocupacion}%</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -335,10 +408,13 @@ export default function CalendarioReservas({
                     fecha={fechaActual}
                     reservations={reservationsFiltradas}
                     resources={resources}
+                    blockages={blockages}
+                    mobileSelectedResource={mobileSelectedResource}
                     horaInicio={horaInicio}
                     horaFin={horaFin}
                     onReservationClick={onReservationClick}
                     onSlotClick={onSlotClick}
+                    onCellClick={handleCellClick}
                     onReservationMove={onReservationMove}
                     draggingReservation={draggingReservation}
                     setDraggingReservation={setDraggingReservation}
@@ -370,6 +446,17 @@ export default function CalendarioReservas({
                     }}
                 />
             )}
+
+            {/* 🆕 QUICK ACTION MODAL */}
+            <QuickActionModal
+                isOpen={showQuickAction}
+                onClose={() => {
+                    setShowQuickAction(false);
+                    setSelectedCell(null);
+                }}
+                cellData={selectedCell}
+                onAction={handleQuickAction}
+            />
         </div>
     );
 }
@@ -379,10 +466,13 @@ function VistaDia({
     fecha, 
     reservations, 
     resources, 
+    blockages = [],
+    mobileSelectedResource = 'todos',
     horaInicio, 
     horaFin, 
     onReservationClick, 
     onSlotClick,
+    onCellClick,
     onReservationMove,
     draggingReservation,
     setDraggingReservation,
@@ -391,24 +481,37 @@ function VistaDia({
 }) {
     const fechaStr = format(fecha, 'yyyy-MM-dd');
     const reservasDelDia = reservations.filter(r => r.reservation_date === fechaStr);
+    const bloqueosDelDia = blockages.filter(b => b.blocked_date === fechaStr);
     
     // Generar horas del día
     const horas = Array.from({ length: horaFin - horaInicio + 1 }, (_, i) => horaInicio + i);
 
     // Si no hay recursos definidos, usar uno por defecto
-    const recursosDisplay = resources.length > 0 ? resources : [{ id: 'default', name: 'Todos' }];
+    let recursosDisplay = resources.length > 0 ? resources : [{ id: 'default', name: 'Todos' }];
+    
+    // 📱 MOBILE: Filtrar por recurso seleccionado
+    if (mobileSelectedResource !== 'todos') {
+        recursosDisplay = recursosDisplay.filter(r => r.id === mobileSelectedResource);
+    }
 
-    // 🆕 Handlers de Drag & Drop
+    // 📐 CÁLCULO DE ANCHO EQUITATIVO
+    // Desktop: máximo 5 recursos visibles, ancho equitativo
+    // Mobile: cada recurso tiene ancho fijo
+    const numRecursos = recursosDisplay.length;
+    const anchoRecursoMobile = 180; // px
+    const anchoRecursoDesktop = numRecursos <= 5 ? `${100 / numRecursos}%` : '240px';
+
+    // 🆕 Handlers de Drag & Drop - Mejorado para intervalos de 15 min
     const handleDragStart = (e, reserva) => {
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/html', e.currentTarget);
         setDraggingReservation(reserva);
     };
 
-    const handleDragOver = (e, hora, recursoId) => {
+    const handleDragOver = (e, hora, minuto, recursoId) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        setDragOverSlot({ hora, recursoId, fecha: fechaStr });
+        setDragOverSlot({ hora, minuto, recursoId, fecha: fechaStr });
     };
 
     const handleDragLeave = (e) => {
@@ -416,7 +519,7 @@ function VistaDia({
         setDragOverSlot(null);
     };
 
-    const handleDrop = (e, hora, recursoId) => {
+    const handleDrop = (e, hora, minuto, recursoId) => {
         e.preventDefault();
         e.stopPropagation();
         
@@ -426,7 +529,8 @@ function VistaDia({
             return;
         }
 
-        const nuevaHora = `${hora.toString().padStart(2, '0')}:00`;
+        // 🆕 MEJORADO: Hora con minutos precisos
+        const nuevaHora = `${hora.toString().padStart(2, '0')}:${minuto.toString().padStart(2, '0')}`;
         
         // Verificar si ha cambiado algo
         if (draggingReservation.reservation_time === nuevaHora && 
@@ -454,68 +558,142 @@ function VistaDia({
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-            {/* Header con recursos */}
-            <div className="grid grid-cols-[80px_1fr] border-b border-gray-200 bg-gray-50">
-                <div className="p-3 border-r border-gray-200">
-                    <Clock className="w-5 h-5 text-gray-400" />
-                </div>
-                <div className={`grid grid-cols-${recursosDisplay.length} divide-x divide-gray-200`}>
-                    {recursosDisplay.map(recurso => (
-                        <div key={recurso.id} className="p-3 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                                    {recurso.name[0]}
+        <div className="bg-white rounded-xl shadow-lg border-2 border-gray-300 overflow-hidden">
+            {/* TABLA HTML - Alineación PERFECTA garantizada */}
+            <table className="w-full border-collapse">
+                <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20">
+                    <tr className="border-b-2 border-gray-400">
+                        {/* Columna de hora */}
+                        <th className="w-20 border-r-2 border-gray-400 bg-white py-3">
+                            <Clock className="w-5 h-5 text-gray-500 mx-auto" />
+                        </th>
+                        
+                        {/* Recursos con ancho equitativo */}
+                        {recursosDisplay.map((recurso, idx) => (
+                            <th 
+                                key={recurso.id}
+                                className={`py-3 ${
+                                    idx < recursosDisplay.length - 1 ? 'border-r-2 border-gray-300' : ''
+                                }`}
+                                style={{ width: `${100 / numRecursos}%` }}
+                            >
+                                <div className="flex items-center justify-center gap-2">
+                                    <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold shadow-md">
+                                        {recurso.name[0]}
+                                    </div>
+                                    <div className="text-left">
+                                        <span className="font-bold text-gray-900 text-sm block">{recurso.name}</span>
+                                        <span className="text-xs text-gray-500">9:00 - 19:00</span>
+                                    </div>
                                 </div>
-                                <span className="font-semibold text-gray-900 text-sm">{recurso.name}</span>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
+                            </th>
+                        ))}
+                    </tr>
+                </thead>
+                
+                <tbody>
+                    {horas.map(hora => (
+                        <Fragment key={hora}>
+                            {/* Hora completa (00) */}
+                            <tr className="border-b-2 border-gray-300">
+                                {/* Celda de hora */}
+                                <td className="w-20 h-20 border-r-2 border-gray-400 bg-white align-top text-right pr-3 pt-1">
+                                    <span className="text-sm font-bold text-gray-700">
+                                        {hora.toString().padStart(2, '0')}:00
+                                    </span>
+                                </td>
 
-            {/* Timeline */}
-            <div className="max-h-[600px] overflow-y-auto">
-                {horas.map(hora => (
-                    <div key={hora} className="grid grid-cols-[80px_1fr] border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                        {/* Hora */}
-                        <div className="p-3 border-r border-gray-200 text-right">
-                            <span className="text-sm font-semibold text-gray-600">
-                                {hora.toString().padStart(2, '0')}:00
-                            </span>
-                        </div>
+                                {/* Celdas de recursos */}
+                            {recursosDisplay.map((recurso, idx) => {
+                                // 🆕 FUNCIÓN: Calcular duración de reserva en minutos
+                                const calcularDuracionReserva = (reserva) => {
+                                    // 1. Si tiene campo 'duration' directo
+                                    if (reserva.duration) return parseInt(reserva.duration);
+                                    
+                                    // 2. Si tiene 'service_duration_minutes'
+                                    if (reserva.service_duration_minutes) return parseInt(reserva.service_duration_minutes);
+                                    
+                                    // 3. Si tiene service con duration_minutes
+                                    if (reserva.service?.duration_minutes) return parseInt(reserva.service.duration_minutes);
+                                    
+                                    // 4. Default: 60 minutos
+                                    return 60;
+                                };
 
-                        {/* Slots por recurso */}
-                        <div className={`grid grid-cols-${recursosDisplay.length} divide-x divide-gray-100`}>
-                            {recursosDisplay.map(recurso => {
-                                // Buscar reservas de este recurso en esta hora
+                                // 🆕 FUNCIÓN: Verificar si esta celda está ocupada por reserva previa
+                                const esCeldaOcupadaPorReservaAnterior = (hora, minuto = 0) => {
+                                    const tiempoActual = hora * 60 + minuto; // Convertir a minutos desde medianoche
+                                    
+                                    return reservasDelDia.some(r => {
+                                        const [horaRes, minRes] = (r.reservation_time || '00:00').split(':').map(Number);
+                                        const tiempoInicio = horaRes * 60 + minRes;
+                                        const duracion = calcularDuracionReserva(r);
+                                        const tiempoFin = tiempoInicio + duracion;
+                                        
+                                        // Esta celda está en el rango de una reserva que empezó antes
+                                        return tiempoActual > tiempoInicio && tiempoActual < tiempoFin;
+                                    });
+                                };
+
+                                // Buscar reservas de este recurso en esta hora EXACTA (hora:00)
                                 const reservasEnHora = reservasDelDia.filter(r => {
-                                    const horaReserva = parseInt(r.reservation_time?.split(':')[0] || '0');
-                                    return horaReserva === hora;
+                                    const [horaReserva, minReserva] = (r.reservation_time || '00:00').split(':').map(Number);
+                                    return horaReserva === hora && minReserva === 0;
                                 });
 
+                                // 🔒 Buscar bloqueos de este recurso en esta hora
+                                const bloqueosEnHora = bloqueosDelDia.filter(b => {
+                                    // Bloqueo global (sin resource_id) o del recurso específico
+                                    const esRecursoCorrecto = !b.resource_id || b.resource_id === recurso.id;
+                                    const horaBloqueo = parseInt(b.start_time?.split(':')[0] || '0');
+                                    return esRecursoCorrecto && horaBloqueo === hora;
+                                });
+
+                                const tieneBloqueo = bloqueosEnHora.length > 0;
+                                const bloqueo = bloqueosEnHora[0]; // Tomar el primer bloqueo si hay varios
+
                                 const isDragOver = dragOverSlot?.hora === hora && 
+                                                  dragOverSlot?.minuto === 0 &&
                                                   dragOverSlot?.recursoId === recurso.id &&
                                                   dragOverSlot?.fecha === fechaStr;
 
                                 return (
-                                    <div
+                                    <td
                                         key={`${recurso.id}-${hora}`}
-                                        className={`min-h-[60px] p-2 cursor-pointer transition-all ${
-                                            isDragOver ? 'bg-blue-100 border-2 border-dashed border-blue-400' : 'hover:bg-blue-50'
+                                        className={`h-20 p-2 cursor-pointer transition-all align-top ${
+                                            idx < recursosDisplay.length - 1 ? 'border-r-2 border-gray-300' : ''
+                                        } ${
+                                            isDragOver ? 'bg-blue-100' : 
+                                            tieneBloqueo ? 'bg-red-50 hover:bg-red-100' : 
+                                            'hover:bg-blue-50'
                                         }`}
-                                        onClick={() => !reservasEnHora.length && onSlotClick({
-                                            date: fechaStr,
-                                            time: `${hora.toString().padStart(2, '0')}:00`,
-                                            resource: recurso
-                                        })}
-                                        onDragOver={(e) => handleDragOver(e, hora, recurso.id)}
+                                        onClick={() => {
+                                            const timeStr = `${hora.toString().padStart(2, '0')}:00`;
+                                            if (tieneBloqueo) {
+                                                // Celda bloqueada - abrir modal con opciones de bloqueo
+                                                onCellClick(recurso, fechaStr, timeStr, null, bloqueo);
+                                            } else if (reservasEnHora.length === 0) {
+                                                // Celda vacía - abrir modal de acciones
+                                                onCellClick(recurso, fechaStr, timeStr, null, null);
+                                            }
+                                        }}
+                                        onDragOver={(e) => handleDragOver(e, hora, 0, recurso.id)}
                                         onDragLeave={handleDragLeave}
-                                        onDrop={(e) => handleDrop(e, hora, recurso.id)}
+                                        onDrop={(e) => handleDrop(e, hora, 0, recurso.id)}
                                     >
                                         {reservasEnHora.map(reserva => {
                                             const colors = STATUS_COLORS[reserva.status] || STATUS_COLORS.confirmed;
                                             const isDragging = draggingReservation?.id === reserva.id;
+                                            const statusIcon = getStatusIcon(reserva);
+                                            
+                                            // 🆕 DURACIÓN VISUAL: Calcular altura del bloque
+                                            const duracionMinutos = calcularDuracionReserva(reserva);
+                                            const numSlots = Math.ceil(duracionMinutos / 15); // Cuántos intervalos de 15min ocupa
+                                            
+                                            // 🎨 Altura: cada slot de 15 min = 20px (h-5), más 80px para el slot principal (h-20)
+                                            // Slots adicionales: (numSlots - 1) * 20px
+                                            const alturaAdicional = (numSlots - 1) * 20; // px
+                                            const alturaTotal = 80 + alturaAdicional; // 80px base + adicionales
                                             
                                             return (
                                                 <div
@@ -525,29 +703,156 @@ function VistaDia({
                                                     onDragEnd={handleDragEnd}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        onReservationClick(reserva);
+                                                        // Celda con reserva - abrir modal con opciones de reserva
+                                                        const timeStr = `${hora.toString().padStart(2, '0')}:00`;
+                                                        onCellClick(recurso, fechaStr, timeStr, reserva, null);
                                                     }}
-                                                    className={`${colors.bg} ${colors.border} rounded-lg p-2 shadow-sm transition-all cursor-move mb-1 ${
-                                                        isDragging ? 'opacity-50 scale-95' : 'hover:shadow-md'
+                                                    className={`${colors.bg} ${colors.border} ${colors.bgHover} rounded-lg p-2.5 shadow-md transition-all cursor-move mb-1 ${
+                                                        isDragging ? 'opacity-50 scale-95 rotate-2' : 'hover:shadow-lg hover:scale-105 hover:-translate-y-0.5'
                                                     }`}
+                                                    style={{
+                                                        minHeight: `${alturaTotal}px`,
+                                                        position: 'relative',
+                                                        zIndex: 10
+                                                    }}
                                                 >
-                                                    <p className={`font-semibold text-sm ${colors.text} truncate`}>
-                                                        {reserva.customer_name}
-                                                    </p>
-                                                    <p className="text-xs text-gray-600 flex items-center gap-1">
-                                                        <Clock className="w-3 h-3" />
-                                                        {reserva.reservation_time}
-                                                    </p>
+                                                    <div className="flex items-start justify-between gap-1 mb-1">
+                                                        <p className={`font-bold text-sm ${colors.text} truncate flex-1`}>
+                                                            {reserva.customer_name}
+                                                        </p>
+                                                        {statusIcon && (
+                                                            <div className="flex-shrink-0">
+                                                                {statusIcon}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    {reserva.service_name && (
+                                                        <p className="text-xs text-gray-600 truncate mb-1">
+                                                            • {reserva.service_name}
+                                                        </p>
+                                                    )}
+                                                    <div className="flex items-center justify-between text-xs mb-1">
+                                                        <div className="flex items-center gap-1 text-gray-500">
+                                                            <Clock className="w-3 h-3" />
+                                                            {reserva.reservation_time}
+                                                        </div>
+                                                        <span className="text-gray-500 font-semibold">
+                                                            {duracionMinutos}min
+                                                        </span>
+                                                    </div>
+                                                    {/* 🆕 Indicador visual de duración */}
+                                                    {numSlots > 1 && (
+                                                        <div className="mt-2 pt-2 border-t border-gray-300">
+                                                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                                                                ⏱️ {numSlots} slots ({duracionMinutos}min)
+                                                            </p>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             );
                                         })}
-                                    </div>
+
+                                        {/* 🔒 Mostrar bloqueo si existe */}
+                                        {tieneBloqueo && (
+                                            <div
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const timeStr = `${hora.toString().padStart(2, '0')}:00`;
+                                                    onCellClick(recurso, fechaStr, timeStr, null, bloqueo);
+                                                }}
+                                                className="bg-red-100 border-l-4 border-red-500 rounded-lg p-2 shadow-sm transition-all cursor-pointer hover:shadow-md hover:scale-105"
+                                            >
+                                                <p className="font-semibold text-sm text-red-900 flex items-center gap-1">
+                                                    🚫 Bloqueado
+                                                </p>
+                                                {bloqueo.reason && (
+                                                    <p className="text-xs text-red-700 truncate">
+                                                        {bloqueo.reason}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </td>
                                 );
                             })}
-                        </div>
-                    </div>
-                ))}
-            </div>
+                            </tr>
+
+                            {/* Intervalos de 15 minutos (:15, :30, :45) */}
+                            {[15, 30, 45].map(minuto => (
+                                <tr key={`${hora}-${minuto}`} className="border-b border-gray-200">
+                                    {/* Celda de minuto */}
+                                    <td className="w-20 h-5 border-r-2 border-gray-400 bg-white text-right pr-3">
+                                        <span className="text-xs text-gray-400 font-medium">
+                                            :{minuto}
+                                        </span>
+                                    </td>
+
+                                    {/* Celdas de slots - ocultar si están ocupadas */}
+                                    {recursosDisplay.map((recurso, idx) => {
+                                        // 🆕 DURACIÓN VISUAL: Verificar si este slot está ocupado por reserva previa
+                                        const tiempoActual = hora * 60 + minuto;
+                                        
+                                        const reservaEnEsteCelda = reservasDelDia.find(r => {
+                                            const [horaRes, minRes] = (r.reservation_time || '00:00').split(':').map(Number);
+                                            const tiempoInicio = horaRes * 60 + minRes;
+                                            
+                                            // Calcular duración
+                                            let duracion = 60;
+                                            if (r.duration) duracion = parseInt(r.duration);
+                                            else if (r.service_duration_minutes) duracion = parseInt(r.service_duration_minutes);
+                                            else if (r.service?.duration_minutes) duracion = parseInt(r.service.duration_minutes);
+                                            
+                                            const tiempoFin = tiempoInicio + duracion;
+                                            
+                                            // Este slot está dentro del rango de esta reserva
+                                            return tiempoActual >= tiempoInicio && tiempoActual < tiempoFin;
+                                        });
+
+                                        const estaOcupado = !!reservaEnEsteCelda;
+                                        
+                                        // 🆕 Drag over state para intervalos de 15min
+                                        const isDragOverMinuto = dragOverSlot?.hora === hora && 
+                                                                 dragOverSlot?.minuto === minuto &&
+                                                                 dragOverSlot?.recursoId === recurso.id &&
+                                                                 dragOverSlot?.fecha === fechaStr;
+                                        
+                                        return (
+                                            <td
+                                                key={`${recurso.id}-${hora}-${minuto}`}
+                                                className={`h-5 transition-colors ${
+                                                    idx < recursosDisplay.length - 1 ? 'border-r-2 border-gray-300' : ''
+                                                } ${
+                                                    isDragOverMinuto ? 'bg-blue-100' :
+                                                    estaOcupado 
+                                                        ? 'bg-transparent pointer-events-none' 
+                                                        : 'cursor-pointer hover:bg-blue-50'
+                                                }`}
+                                                onClick={() => {
+                                                    if (!estaOcupado) {
+                                                        const timeStr = `${hora.toString().padStart(2, '0')}:${minuto}`;
+                                                        onCellClick(recurso, fechaStr, timeStr, null, null);
+                                                    }
+                                                }}
+                                                onDragOver={(e) => {
+                                                    if (!estaOcupado) {
+                                                        handleDragOver(e, hora, minuto, recurso.id);
+                                                    }
+                                                }}
+                                                onDragLeave={handleDragLeave}
+                                                onDrop={(e) => {
+                                                    if (!estaOcupado) {
+                                                        handleDrop(e, hora, minuto, recurso.id);
+                                                    }
+                                                }}
+                                            />
+                                        );
+                                    })}
+                                </tr>
+                            ))}
+                        </Fragment>
+                    ))}
+                </tbody>
+            </table>
         </div>
     );
 }
@@ -679,3 +984,5 @@ function VistaMes({ fecha, reservations, onReservationClick, onDayClick }) {
         </div>
     );
 }
+
+

@@ -13,7 +13,8 @@ import {
 export function useVertical() {
   const { business } = useAuthContext();
   
-  const vertical = business?.vertical || 'fisioterapia';
+  // ✅ FIX: La BD usa vertical_type, no vertical
+  const vertical = business?.vertical_type || business?.vertical || 'peluqueria_barberia';
 
   // Configuración por vertical
   const config = useMemo(() => {

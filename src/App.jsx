@@ -20,7 +20,7 @@ const Confirm = lazy(() => import('./pages/Confirm'));
 const Reservas = lazy(() => import('./pages/Reservas'));
 const Clientes = lazy(() => import('./pages/Clientes'));
 // const PlantillasCRM = lazy(() => import('./pages/PlantillasCRM')); // ❌ ARCHIVO NO EXISTE
-const Mesas = lazy(() => import('./pages/Mesas'));
+// const Mesas = lazy(() => import('./pages/Mesas')); // ⚠️ DEPRECADO - Ahora en Configuración > Mi Negocio > Mis Recursos
 const Calendario = lazy(() => import('./pages/Calendario'));
 const Comunicacion = lazy(() => import('./pages/Comunicacion'));
 // const Analytics = lazy(() => import('./pages/Analytics')); // Deshabilitado temporalmente
@@ -32,8 +32,8 @@ const Consumos = lazy(() => import('./pages/Consumos'));
 // const CRMv2 = lazy(() => import('./pages/CRMSimple')); // ❌ ARCHIVO NO EXISTE
 const AvailabilityTester = lazy(() => import('./components/AvailabilityTester'));
 
-// 🛡️ Sistema de No-Shows Revolucionario
-const NoShowControl = lazy(() => import('./pages/NoShowControlNuevo'));
+// 🛡️ Sistema de No-Shows SIMPLIFICADO (Versión 3.0)
+const NoShowControl = lazy(() => import('./pages/NoShowsSimple'));
 
 // 🤖 Dashboard del Agente IA
 const DashboardAgente = lazy(() => import('./pages/DashboardAgente'));
@@ -210,13 +210,10 @@ function AppContent() {
                 path="/plantillas" 
                 element={<Navigate to="/crm-inteligente" state={{ autoOpenPlantillas: true }} replace />}
               />
+              {/* ⚠️ REDIRECT: /mesas → /configuracion (Gestión movida a Configuración) */}
               <Route 
                 path="/mesas" 
-                element={
-                  <Suspense fallback={<PageLoading />}>
-                    <Mesas />
-                  </Suspense>
-                } 
+                element={<Navigate to="/configuracion?tab=negocio" state={{ fromMesas: true }} replace />}
               />
               <Route 
                 path="/calendario"

@@ -55,7 +55,7 @@ export default function Layout() {
         { name: "No-Shows", path: "/no-shows", icon: AlertTriangle, showInBottom: false },
         { name: "Comunicación", path: "/comunicacion", icon: MessageSquare, showInBottom: true },
         { name: "Horarios", path: "/calendario", icon: Calendar, showInBottom: false },
-        { name: "Mesas", path: "/mesas", icon: Briefcase, showInBottom: false },
+        // { name: "Mesas", path: "/mesas", icon: Briefcase, showInBottom: false }, // ⚠️ DEPRECADO - Ahora en Configuración
         { name: "Clientes", path: "/clientes", icon: Users, showInBottom: true },
         // { name: "CRM", path: "/crm-inteligente", icon: Brain, showInBottom: false }, // ❌ ARCHIVO NO EXISTE
         { name: "Consumos", path: "/consumos", icon: Receipt, showInBottom: false },

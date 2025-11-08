@@ -30,11 +30,14 @@ import {
     Play,
     Pause,
     Volume2,
-    CheckCircle2
+    CheckCircle2,
+    Briefcase
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useVertical } from "../hooks/useVertical";
 // import BaseConocimientoContent from "../components/BaseConocimientoContent"; // TEMPORALMENTE DESHABILITADO
 import IntegracionesContent from "../components/configuracion/IntegracionesContent"; // 🆕 Integraciones
+import RecursosContent from "../components/configuracion/RecursosContent"; // 🆕 Recursos
 
 const ToggleSwitch = ({ enabled, onChange, label }) => {
     return (
@@ -115,27 +118,51 @@ const VOICE_OPTIONS = [
 
 const Configuracion = () => {
     const { businessId, business, user } = useAuthContext();
+    const { labels } = useVertical(); // 🆕 Hook para vocabulario dinámico
     const [searchParams] = useSearchParams();
     const location = useLocation();
-    const [activeTab, setActiveTab] = useState('general');
+    const [activeTab, setActiveTab] = useState('asistente'); // 🆕 Por defecto "Mi Asistente"
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [currentPlayingVoice, setCurrentPlayingVoice] = useState(null);
     const [isPlayingAudio, setIsPlayingAudio] = useState(false);
     const audioRef = React.useRef(null);
     
+    // 🆕 IDs válidos de las nuevas pestañas
+    const validTabs = ['asistente', 'negocio', 'canales', 'integraciones', 'cuenta'];
+    
     // Leer tab de la URL o del state al cargar
     useEffect(() => {
         // Prioridad 1: state de navegación (desde navigate con state)
-        if (location.state?.activeTab && ['general', 'agent', 'channels', 'notifications', 'documentos'].includes(location.state.activeTab)) {
+        if (location.state?.activeTab && validTabs.includes(location.state.activeTab)) {
             setActiveTab(location.state.activeTab);
         }
         // Prioridad 2: parámetro de URL
         else {
             const tabFromUrl = searchParams.get('tab');
-            if (tabFromUrl && ['general', 'agent', 'channels', 'notifications', 'documentos'].includes(tabFromUrl)) {
+            if (tabFromUrl && validTabs.includes(tabFromUrl)) {
                 setActiveTab(tabFromUrl);
             }
+        }
+        // 🔄 Mapeo de tabs antiguos a nuevos (compatibilidad)
+        const legacyMapping = {
+            'general': 'negocio',
+            'agent': 'asistente',
+            'channels': 'canales',
+            'notifications': 'canales',
+            'documentos': 'cuenta'
+        };
+        const legacyTab = location.state?.activeTab || searchParams.get('tab');
+        if (legacyTab && legacyMapping[legacyTab]) {
+            setActiveTab(legacyMapping[legacyTab]);
+        }
+        
+        // 🆕 Toast informativo si viene desde /mesas (migración)
+        if (location.state?.fromMesas) {
+            toast.info('📌 La gestión de recursos se ha movido a "Mi Negocio"', {
+                duration: 5000,
+                position: 'top-center'
+            });
         }
     }, [searchParams, location.state]);
     
@@ -239,36 +266,43 @@ const Configuracion = () => {
     return { error };
   };
 
+    // 📋 Nueva estructura de configuración (Mobile-First)
     const tabs = [
         {
-            id: "general",
-            label: "General",
-            icon: <Building2 className="w-4 h-4" />,
-        },
-        {
-            id: "agent",
-            label: "Agente IA",
+            id: "asistente",
+            label: "Mi Asistente",
             icon: <Bot className="w-4 h-4" />,
+            description: "Voz, nombre y configuración del agente IA"
         },
         {
-            id: "channels",
-            label: "Canales",
+            id: "negocio",
+            label: "Mi Negocio",
+            icon: <Building2 className="w-4 h-4" />,
+            description: "Información, horarios y servicios"
+        },
+        {
+            id: "recursos",
+            label: `Mis ${labels?.resources || 'Recursos'}`,
+            icon: <Briefcase className="w-4 h-4" />,
+            description: `Gestiona tus ${labels?.resources?.toLowerCase() || 'recursos'} disponibles`
+        },
+        {
+            id: "canales",
+            label: "Canales y Alertas",
             icon: <MessageSquare className="w-4 h-4" />,
-        },
-        {
-            id: "notifications",
-            label: "Notificaciones",
-            icon: <Bell className="w-4 h-4" />,
-        },
-        {
-            id: "documentos",
-            label: "Documentos",
-            icon: <FileText className="w-4 h-4" />,
+            description: "Teléfono, WhatsApp, redes sociales y alertas"
         },
         {
             id: "integraciones",
             label: "Integraciones",
             icon: <Zap className="w-4 h-4" />,
+            description: "Google Calendar y otras integraciones"
+        },
+        {
+            id: "cuenta",
+            label: "Cuenta",
+            icon: <Users className="w-4 h-4" />,
+            description: "Plan, facturación y usuarios"
         }
     ];
 
@@ -812,50 +846,53 @@ const Configuracion = () => {
 
     return (
         <div className="min-h-screen bg-gray-50">
-            <div className="max-w-[85%] mx-auto px-4 py-4">
-                <div className="mb-3 p-3 bg-white rounded-xl shadow-sm border">
+            {/* 📱 MOBILE-FIRST: Container adaptativo */}
+            <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
+                {/* Header */}
+                <div className="mb-4 p-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl shadow-lg text-white">
                     <div className="flex items-center gap-3">
-                        <div className="bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg p-2 shadow-md">
-                            <SettingsIcon className="w-5 h-5 text-white" />
-                    </div>
+                        <div className="bg-white/20 backdrop-blur rounded-lg p-2.5">
+                            <SettingsIcon className="w-6 h-6 text-white" />
+                        </div>
                         <div>
-                            <h1 className="text-sm font-bold text-gray-900">Configuración</h1>
-                            <p className="text-xs text-gray-600">
-                        Centro de control para tu restaurante. Configura canales de comunicación y notificaciones.
-                    </p>
+                            <h1 className="text-lg sm:text-xl font-bold">Configuración</h1>
+                            <p className="text-sm text-white/90 mt-0.5">
+                                Centro de control de tu negocio
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                {/* Tabs - Homogeneizados */}
-                <div className="bg-white rounded-xl shadow-sm border p-1 mb-3">
-                    <div className="flex gap-1 overflow-x-auto">
-                            {tabs.map((tab) => (
-                                <button
-                                    key={tab.id}
-                                    onClick={() => setActiveTab(tab.id)}
+                {/* 📱 Tabs MOBILE-FIRST - Scroll horizontal en móvil */}
+                <div className="bg-white rounded-xl shadow-sm border p-1.5 mb-4">
+                    <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+                        {tabs.map((tab) => (
+                            <button
+                                key={tab.id}
+                                onClick={() => setActiveTab(tab.id)}
                                 className={`
-                                    px-6 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap 
-                                    flex items-center gap-2 transition-all
+                                    min-w-[140px] px-4 py-3 rounded-lg font-semibold text-sm whitespace-nowrap 
+                                    flex flex-col items-center gap-1.5 transition-all
                                     ${activeTab === tab.id
                                         ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md"
                                         : "text-gray-600 hover:bg-gray-100"
                                     }
                                 `}
-                                >
-                                    {tab.icon}
-                                    {tab.label}
-                                </button>
-                            ))}
+                            >
+                                {tab.icon}
+                                <span>{tab.label}</span>
+                            </button>
+                        ))}
                     </div>
                 </div>
 
-                <div className="space-y-3">
-                    {activeTab === "general" && (
-                        <div className="space-y-3">
+                <div className="space-y-4">
+                    {/* 🏢 MI NEGOCIO */}
+                    {activeTab === "negocio" && (
+                        <div className="space-y-4">
                             <SettingSection
                                 title="Información General"
-                                description="Configuración básica de tu negocio"
+                                description="Datos básicos de tu negocio"
                                 icon={<Building2 />}
                             >
                                                 <div className="space-y-2">
@@ -998,14 +1035,23 @@ const Configuracion = () => {
                                     </div>
                                 </div>
                             </SettingSection>
+
                         </div>
                     )}
 
-                    {activeTab === "agent" && (
-                        <div className="space-y-2">
+                    {/* 🏗️ MIS RECURSOS - PESTAÑA INDEPENDIENTE */}
+                    {activeTab === "recursos" && (
+                        <div className="space-y-4">
+                            <RecursosContent />
+                        </div>
+                    )}
+
+                    {/* 🤖 MI ASISTENTE */}
+                    {activeTab === "asistente" && (
+                        <div className="space-y-4">
                             <SettingSection
-                                title="Configuración del Agente IA"
-                                description="Control centralizado de tu asistente virtual"
+                                title="Configuración de tu Asistente IA"
+                                description="Personaliza el nombre, voz y comportamiento de tu agente"
                                 icon={<Bot />}
                             >
                                 <div className="space-y-2">
@@ -1484,978 +1530,388 @@ const Configuracion = () => {
                         </div>
                     )}
 
-                    {activeTab === "channels" && (
-                        <SettingSection
-                            title="Canales de Comunicación"
-                            description="Gestión de canales de comunicación con clientes"
-                            icon={<MessageSquare />}
-                        >
-                            <div className="space-y-2">
-                                {/* INFORMACIÓN DEL RESTAURANTE */}
-                                {/* Aviso ANTES de todo */}
-                                <div className="bg-amber-50 border border-amber-300 rounded-lg p-2 mb-2">
-                                    <div className="flex items-start gap-2">
-                                        <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                                        <div className="flex-1">
-                                            <h5 className="font-semibold text-xs text-gray-900 mb-1">⚠️ IMPORTANTE: Necesitarás DOS números diferentes</h5>
-                                            <div className="space-y-0.5 text-[10px] text-gray-700">
-                                                <p><strong>1️⃣ Número para canales IA:</strong> Se dedicará 100% a la inteligencia artificial.</p>
-                                                <p><strong>2️⃣ Número de emergencia:</strong> Tu móvil personal o del encargado. Para recibir alertas urgentes.</p>
-                                                <p className="text-[10px] text-amber-700 font-medium mt-1">
-                                                    💡 Si no tienes un número dedicado para los canales, ya conseguiremos uno.
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* LOS DOS NÚMEROS JUNTOS */}
-                                <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 border border-purple-200 rounded-lg p-2 shadow-sm">
-                                    <h4 className="text-xs font-semibold text-purple-900 uppercase mb-2 flex items-center gap-1.5">
-                                        <Phone className="w-3.5 h-3.5" />
-                                        📞 NÚMEROS DE TELÉFONO
-                                    </h4>
-                                    <p className="text-[10px] text-gray-700 mb-2">
-                                        Estos números se usarán automáticamente en <strong>todos los canales</strong> (WhatsApp, VAPI, Instagram, Facebook, etc.)
+                    {/* 📡 CANALES Y ALERTAS - NUEVA PÁGINA MOBILE-FIRST */}
+                    {activeTab === "canales" && (
+                        <div className="space-y-4">
+                            {/* 1️⃣ TU ASISTENTE LA-IA (Servicio que damos) */}
+                            <SettingSection
+                                title="Tu Asistente LA-IA"
+                                description="Número de teléfono y WhatsApp asignado a tu negocio"
+                                icon={<Phone />}
+                            >
+                                <div className="space-y-4">
+                                    <p className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                        💡 <strong>Este es tu número de LA-IA.</strong> Dáselo a tus clientes para que puedan llamar o escribir por WhatsApp.
                                     </p>
-                                    
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                        {/* Número 1: Canales IA */}
-                                        <div className="bg-white rounded-lg p-2 border border-blue-300">
-                                            <label className="block text-xs font-semibold text-blue-900 mb-1">
-                                                1️⃣ Número dedicado para canales IA *
-                                            </label>
+
+                                    {/* Llamadas de Voz */}
+                                    <div className="flex items-center justify-between p-4 bg-white border-2 border-blue-200 rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-blue-100 rounded-lg">
+                                                <Phone className="w-5 h-5 text-blue-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-gray-900">Llamadas de Voz</p>
+                                                <p className="text-lg font-mono font-bold text-blue-600">
+                                                    {business?.assigned_phone || '+34 9XX XXX XXX'}
+                                                </p>
+                                                <p className="text-xs text-gray-500 mt-0.5">Asignado por LA-IA</p>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-semibold text-green-700 bg-green-100 px-3 py-1.5 rounded-full">
+                                                ✅ ACTIVO
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* WhatsApp Business */}
+                                    <div className="flex items-center justify-between p-4 bg-white border-2 border-green-200 rounded-xl">
+                                        <div className="flex items-center gap-3">
+                                            <div className="p-2.5 bg-green-100 rounded-lg">
+                                                <MessageSquare className="w-5 h-5 text-green-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-gray-900">WhatsApp Business</p>
+                                                <p className="text-lg font-mono font-bold text-green-600">
+                                                    {business?.assigned_phone || '+34 9XX XXX XXX'}
+                                                </p>
+                                                <p className="text-xs text-gray-500 mt-0.5">Mismo número que voz</p>
+                                            </div>
+                                        </div>
+                                        <label className="relative inline-flex items-center cursor-pointer">
                                             <input
-                                                type="text"
-                                                value={settings.channels?.voice?.phone_number || ""}
+                                                type="checkbox"
+                                                checked={settings.channels?.whatsapp?.enabled !== false}
                                                 onChange={(e) => setSettings(prev => ({
                                                     ...prev,
                                                     channels: {
                                                         ...prev.channels,
-                                                        voice: { ...prev.channels?.voice, phone_number: e.target.value }
+                                                        whatsapp: {
+                                                            ...prev.channels?.whatsapp,
+                                                            enabled: e.target.checked
+                                                        }
                                                     }
                                                 }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono"
-                                                placeholder="+34 600 000 000"
+                                                className="sr-only peer"
                                             />
-                                            <p className="text-[10px] text-gray-600 mt-1">
-                                                📱 Este número lo verán tus clientes al interactuar con la IA (dedicado 100% a IA, no lo uses para llamadas normales)
-                                            </p>
-                                        </div>
+                                            <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-500"></div>
+                                        </label>
+                                    </div>
+                                </div>
+                            </SettingSection>
 
-                                        {/* Número 2: Emergencia */}
-                                        <div className="bg-white rounded-lg p-2 border border-red-300">
-                                            <label className="block text-xs font-semibold text-red-900 mb-1">
-                                                2️⃣ Número de emergencia (humano) *
+                            {/* 2️⃣ TUS ALERTAS PERSONALES */}
+                            <SettingSection
+                                title="Tus Alertas Personales"
+                                description="Dónde te avisamos a TI cuando hay problemas urgentes"
+                                icon={<Bell />}
+                            >
+                                <div className="space-y-3">
+                                    <p className="text-sm text-gray-700 bg-orange-50 border border-orange-200 rounded-lg p-3">
+                                        ⚠️ <strong>Tu WhatsApp personal.</strong> Te enviaremos alertas urgentes aquí (quejas, errores del sistema, etc.)
+                                    </p>
+
+                                    <div>
+                                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                            Tu móvil para alertas (WhatsApp)
+                                        </label>
+                                        <div className="flex gap-2">
+                                            <div className="flex-1 relative">
+                                                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-500 w-5 h-5" />
+                                                <input
+                                                    type="tel"
+                                                    value={settings.channels?.whatsapp?.emergency_phone || business?.alert_whatsapp || ""}
+                                                    onChange={(e) => setSettings(prev => ({
+                                                        ...prev,
+                                                        channels: {
+                                                            ...prev.channels,
+                                                            whatsapp: {
+                                                                ...prev.channels?.whatsapp,
+                                                                emergency_phone: e.target.value
+                                                            }
+                                                        }
+                                                    }))}
+                                                    className="w-full pl-11 pr-3 py-3 text-sm font-medium border-2 border-orange-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                                                    placeholder="+34 6XX XXX XXX"
+                                                />
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-gray-600 mt-1.5">
+                                            Este es TU número personal. Solo para alertas importantes.
+                                        </p>
+                                    </div>
+                                </div>
+                            </SettingSection>
+
+                            {/* 3️⃣ CANALES ADICIONALES (Centro de Mando Mobile-First) */}
+                            <SettingSection
+                                title="Canales Adicionales"
+                                description="Conecta redes sociales y chat web para que LA-IA gestione todas tus conversaciones"
+                                icon={<Globe />}
+                            >
+                                <div className="space-y-3">
+                                    <p className="text-sm text-gray-700 bg-purple-50 border border-purple-200 rounded-lg p-3">
+                                        🌐 <strong>Centro de Mando.</strong> Activa los canales que quieras y LA-IA gestionará las conversaciones automáticamente.
+                                    </p>
+
+                                    {/* Instagram DM */}
+                                    <div className={`p-4 rounded-xl border-2 transition-all ${
+                                        settings.channels?.instagram?.enabled 
+                                            ? 'border-pink-400 bg-pink-50' 
+                                            : 'border-gray-200 bg-white'
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg">
+                                                    <Instagram className="w-5 h-5 text-white" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-gray-900">Instagram DM</p>
+                                                    <p className="text-xs text-gray-600">Mensajes directos automáticos</p>
+                                                </div>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={settings.channels?.instagram?.enabled || false}
+                                                    onChange={(e) => setSettings(prev => ({
+                                                        ...prev,
+                                                        channels: {
+                                                            ...prev.channels,
+                                                            instagram: {
+                                                                ...prev.channels?.instagram,
+                                                                enabled: e.target.checked
+                                                            }
+                                                        }
+                                                    }))}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-pink-500"></div>
                                             </label>
-                                            <input
-                                                type="text"
-                                                value={settings.channels?.whatsapp?.emergency_phone || ""}
-                                                onChange={(e) => setSettings(prev => ({
-                                                    ...prev,
-                                                    channels: {
-                                                        ...prev.channels,
-                                                        whatsapp: { ...prev.channels?.whatsapp, emergency_phone: e.target.value }
-                                                    }
-                                                }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 font-mono"
-                                                placeholder="+34 600 000 000"
-                                            />
-                                            <p className="text-[10px] text-gray-600 mt-1">
-                                                🆘 Número del encargado para recibir alertas urgentes cuando la IA necesite ayuda (debe ser diferente al número de canales)
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="border-t border-gray-300 pt-2">
-                                    <h4 className="text-xs font-semibold text-gray-700 uppercase mb-2">🤖 Canales de comunicación IA</h4>
-                                </div>
-
-                                {/* VAPI - Llamadas IA */}
-                                <div className="bg-white p-2 rounded-lg border border-gray-200 hover:border-purple-300 transition-colors">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <div className="flex items-start gap-2 flex-1">
-                                            <div className="w-7 h-7 bg-gradient-to-br from-purple-500 to-purple-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                                                <Bot className="w-4 h-4 text-white" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <h4 className="font-semibold text-xs text-gray-900">VAPI - Llamadas IA</h4>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowHelpVAPI(v => !v)}
-                                                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                                                    >
-                                                        <HelpCircle className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                                <p className="text-[10px] text-gray-600 mt-0.5">Asistente telefónico inteligente</p>
-                                            </div>
-                                        </div>
-                                        <ToggleSwitch
-                                            enabled={settings.channels?.vapi?.enabled || false}
-                                            onChange={(enabled) => setSettings(prev => ({
-                                                ...prev,
-                                                channels: {
-                                                    ...prev.channels,
-                                                    vapi: { ...prev.channels?.vapi, enabled }
-                                                }
-                                            }))}
-                                        />
-                                    </div>
-                                    {showHelpVAPI && (
-                                        <div className="mb-4 p-3 rounded-lg bg-purple-50 border border-purple-200 text-sm text-gray-700">
-                                            <p className="font-medium mb-1">¿Cómo funciona?</p>
-                                            <ol className="list-decimal ml-5 space-y-1 text-xs">
-                                                <li>VAPI es nuestro asistente de voz con IA que atiende llamadas 24/7.</li>
-                                                <li>Proporciona tu API Key de VAPI para la integración.</li>
-                                                <li>Configura el número donde recibirá las llamadas.</li>
-                                                <li>Gestiona reservas, consultas y derivaciones automáticamente.</li>
-                                            </ol>
-                                        </div>
-                                    )}
-                                    {settings.channels?.vapi?.enabled && (
-                                        <div className="grid grid-cols-1 gap-3 mt-3">
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">API Key de VAPI</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type={showVAPIKey ? "text" : "password"}
-                                                        value={settings.channels?.vapi?.api_key || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            channels: {
-                                                                ...prev.channels,
-                                                                vapi: { ...prev.channels?.vapi, api_key: e.target.value }
-                                                            }
-                                                        }))}
-                                                        className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                                                        placeholder="sk_live_..."
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowVAPIKey(!showVAPIKey)}
-                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                                                    >
-                                                        {showVAPIKey ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                                    </button>
-                                                </div>
-                                                <p className="text-xs text-gray-500 mt-1">Obtén tu API Key desde tu dashboard de VAPI</p>
-                                            </div>
-                                            <div className="flex items-center gap-2 bg-purple-50 p-3 rounded-lg">
-                                                <input
-                                                    id="vapi-same-number"
-                                                    type="checkbox"
-                                                    checked={settings.channels?.vapi?.use_same_phone ?? true}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            vapi: { ...prev.channels?.vapi, use_same_phone: e.target.checked }
-                                                        }
-                                                    }))}
-                                                    className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
-                                                />
-                                                <label htmlFor="vapi-same-number" className="text-sm font-medium text-gray-700">Usar el mismo número de llamadas</label>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Número para el asistente (voz)</label>
-                                                <input
-                                                    type="text"
-                                                    value={(settings.channels?.vapi?.use_same_phone ? settings.channels?.voice?.phone_number : settings.channels?.vapi?.voice_number) || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            vapi: { ...prev.channels?.vapi, voice_number: e.target.value }
-                                                        }
-                                                    }))}
-                                                    disabled={settings.channels?.vapi?.use_same_phone}
-                                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                                    placeholder="+34 910 000 000"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* WhatsApp Business */}
-                                <div className="bg-white p-2 rounded-lg border border-gray-200 hover:border-green-300 transition-colors">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <div className="flex items-start gap-2 flex-1">
-                                            <div className="w-7 h-7 bg-gradient-to-br from-green-500 to-green-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                                                <MessageSquare className="w-4 h-4 text-white" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <h4 className="font-semibold text-xs text-gray-900">WhatsApp Business</h4>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowHelpWA(v => !v)}
-                                                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                                                    >
-                                                        <HelpCircle className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                                <p className="text-[10px] text-gray-600 mt-0.5">Canal principal de comunicación</p>
-                                            </div>
-                                        </div>
-                                        <ToggleSwitch
-                                            enabled={settings.channels?.whatsapp?.enabled || false}
-                                            onChange={(enabled) => setSettings(prev => ({
-                                                ...prev,
-                                                channels: {
-                                                    ...prev.channels,
-                                                    whatsapp: { ...prev.channels?.whatsapp, enabled }
-                                                }
-                                            }))}
-                                        />
-                                    </div>
-                                    {showHelpWA && (
-                                        <div className="mb-2 p-2 rounded-lg bg-green-50 border border-green-200 text-[10px] text-gray-700">
-                                            <p className="font-medium mb-0.5">¿Dónde consigo esto?</p>
-                                            <ol className="list-decimal ml-3 space-y-0.5 text-[10px]">
-                                                <li>Indica el número que ya usas con tus clientes.</li>
-                                                <li>Proporciona tu API Token de WhatsApp Business API.</li>
-                                                <li>Cuando activemos WhatsApp Business API te pediremos un código SMS/llamada.</li>
-                                                <li>Si prefieres número nuevo, te lo damos listo y sin cortes.</li>
-                                            </ol>
-                                        </div>
-                                    )}
-                                    {settings.channels?.whatsapp?.enabled && (
-                                        <div className="grid grid-cols-1 gap-2 mt-2">
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">API Token / Access Token</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type={showWAToken ? "text" : "password"}
-                                                        value={settings.channels?.whatsapp?.api_token || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            channels: {
-                                                                ...prev.channels,
-                                                                whatsapp: { ...prev.channels?.whatsapp, api_token: e.target.value }
-                                                            }
-                                                        }))}
-                                                        className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                                        placeholder="EAAxxxx..."
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowWAToken(!showWAToken)}
-                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                                                    >
-                                                        {showWAToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                                    </button>
-                                                </div>
-                                                <p className="text-xs text-gray-500 mt-1">Token de acceso de WhatsApp Business API</p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Business Account ID (WABA ID)</label>
-                                                <input
-                                                    type="text"
-                                                    value={settings.channels?.whatsapp?.business_account_id || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            whatsapp: { ...prev.channels?.whatsapp, business_account_id: e.target.value }
-                                                        }
-                                                    }))}
-                                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                                    placeholder="123456789012345"
-                                                />
-                                                <p className="text-xs text-gray-500 mt-1">ID de tu cuenta de WhatsApp Business</p>
-                                            </div>
-                                            <div className="flex items-center gap-2 bg-green-50 p-3 rounded-lg">
-                                                <input
-                                                    id="wa-same-number"
-                                                    type="checkbox"
-                                                    checked={settings.channels?.whatsapp?.use_same_phone ?? true}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            whatsapp: { ...prev.channels?.whatsapp, use_same_phone: e.target.checked }
-                                                        }
-                                                    }))}
-                                                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
-                                                />
-                                                <label htmlFor="wa-same-number" className="text-sm font-medium text-gray-700">Usar el mismo número de llamadas</label>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Número de teléfono para WhatsApp</label>
-                                                <input
-                                                    type="text"
-                                                    value={(settings.channels?.whatsapp?.use_same_phone ? settings.channels?.voice?.phone_number : settings.channels?.whatsapp?.phone_number) || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            whatsapp: { ...prev.channels?.whatsapp, phone_number: e.target.value }
-                                                        }
-                                                    }))}
-                                                    disabled={settings.channels?.whatsapp?.use_same_phone}
-                                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                                                    placeholder="+34 600 000 000"
-                                                />
-                                                <p className="text-xs text-gray-500 mt-1">Se usará el número configurado arriba automáticamente</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Instagram */}
-                                <div className="bg-white p-2 rounded-lg border border-gray-200 hover:border-pink-300 transition-colors">
-                                    <div className="flex items-start justify-between mb-2">
-                                        <div className="flex items-start gap-2 flex-1">
-                                            <div className="w-7 h-7 bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                                                <Instagram className="w-4 h-4 text-white" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <h4 className="font-semibold text-xs text-gray-900">Instagram</h4>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowHelpIG(v => !v)}
-                                                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                                                    >
-                                                        <HelpCircle className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                                <p className="text-[10px] text-gray-600 mt-0.5">Mensajes directos automáticos</p>
-                                            </div>
-                                        </div>
-                                        <ToggleSwitch
-                                            enabled={settings.channels?.instagram?.enabled || false}
-                                            onChange={(enabled) => setSettings(prev => ({
-                                                ...prev,
-                                                channels: {
-                                                    ...prev.channels,
-                                                    instagram: { ...prev.channels?.instagram, enabled }
-                                                }
-                                            }))}
-                                        />
-                                    </div>
-                                    {showHelpIG && (
-                                        <div className="mb-4 p-3 rounded-lg bg-pink-50 border border-pink-200 text-sm text-gray-700">
-                                            <p className="font-medium mb-1">¿Cómo conectarlo?</p>
-                                            <ol className="list-decimal ml-5 space-y-1 text-xs">
-                                                <li>Escribe tu @usuario o URL de Instagram.</li>
-                                                <li>Proporciona el Access Token de Instagram Graph API.</li>
-                                                <li>Déjanos un email para invitar a nuestro equipo como administrador.</li>
-                                                <li>Nosotros hacemos el resto y activamos los mensajes automáticos.</li>
-                                            </ol>
-                                        </div>
-                                    )}
-                                    {settings.channels?.instagram?.enabled && (
-                                        <div className="grid grid-cols-1 gap-3 mt-3">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Usuario o URL de Instagram</label>
-                                                    <input
-                                                        type="text"
-                                                        value={settings.channels?.instagram?.handle || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            channels: {
-                                                                ...prev.channels,
-                                                                instagram: { ...prev.channels?.instagram, handle: e.target.value }
-                                                            }
-                                                        }))}
-                                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                                                        placeholder="@restaurante o https://instagram.com/restaurante"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Email para invitarnos como administradores</label>
-                                                    <input
-                                                        type="email"
-                                                        value={settings.channels?.instagram?.invite_email || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            channels: {
-                                                                ...prev.channels,
-                                                                instagram: { ...prev.channels?.instagram, invite_email: e.target.value }
-                                                            }
-                                                        }))}
-                                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                                                        placeholder="ops@tu-empresa.com"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Access Token (Instagram Graph API)</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type={showIGToken ? "text" : "password"}
-                                                        value={settings.channels?.instagram?.access_token || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            channels: {
-                                                                ...prev.channels,
-                                                                instagram: { ...prev.channels?.instagram, access_token: e.target.value }
-                                                            }
-                                                        }))}
-                                                        className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                                                        placeholder="IGQVJxxxx..."
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowIGToken(!showIGToken)}
-                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                                                    >
-                                                        {showIGToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                                    </button>
-                                                </div>
-                                                <p className="text-xs text-gray-500 mt-1">Token de acceso de Instagram Graph API</p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Instagram Business Account ID</label>
-                                                <input
-                                                    type="text"
-                                                    value={settings.channels?.instagram?.business_account_id || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            instagram: { ...prev.channels?.instagram, business_account_id: e.target.value }
-                                                        }
-                                                    }))}
-                                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
-                                                    placeholder="17841xxxxxx"
-                                                />
-                                                <p className="text-xs text-gray-500 mt-1">ID de tu cuenta de Instagram Business</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Facebook Messenger */}
-                                <div className="bg-white p-5 rounded-xl border-2 border-gray-200 hover:border-blue-300 transition-colors shadow-sm">
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className="flex items-start gap-3 flex-1">
-                                            <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0">
-                                                <Facebook className="w-5 h-5 text-white" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2">
-                                                    <h4 className="font-semibold text-gray-900">Facebook Messenger</h4>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowHelpFB(v => !v)}
-                                                        className="text-gray-400 hover:text-gray-600 transition-colors"
-                                                    >
-                                                        <HelpCircle className="w-4 h-4" />
-                                                    </button>
-                                                </div>
-                                                <p className="text-sm text-gray-600 mt-0.5">Chat de página de Facebook</p>
-                                            </div>
-                                        </div>
-                                        <ToggleSwitch
-                                            enabled={settings.channels?.facebook?.enabled || false}
-                                            onChange={(enabled) => setSettings(prev => ({
-                                                ...prev,
-                                                channels: {
-                                                    ...prev.channels,
-                                                    facebook: { ...prev.channels?.facebook, enabled }
-                                                }
-                                            }))}
-                                        />
-                                    </div>
-                                    {showHelpFB && (
-                                        <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200 text-sm text-gray-700">
-                                            <p className="font-medium mb-1">¿Cómo conectarlo?</p>
-                                            <ol className="list-decimal ml-5 space-y-1 text-xs">
-                                                <li>Pega la URL de tu página de Facebook.</li>
-                                                <li>Proporciona el Page Access Token de Facebook.</li>
-                                                <li>Déjanos un email para invitar a nuestro equipo como administrador.</li>
-                                                <li>Activamos el chat y empezamos a recibir mensajes.</li>
-                                            </ol>
-                                        </div>
-                                    )}
-                                    {settings.channels?.facebook?.enabled && (
-                                        <div className="grid grid-cols-1 gap-3 mt-3">
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">URL de la página</label>
-                                                    <input
-                                                        type="url"
-                                                        value={settings.channels?.facebook?.page_url || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            channels: {
-                                                                ...prev.channels,
-                                                                facebook: { ...prev.channels?.facebook, page_url: e.target.value }
-                                                            }
-                                                        }))}
-                                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
-                                                        placeholder="https://facebook.com/tu-pagina"
-                                                    />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">Email para añadirnos como administradores</label>
-                                                    <input
-                                                        type="email"
-                                                        value={settings.channels?.facebook?.invite_email || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            channels: {
-                                                                ...prev.channels,
-                                                                facebook: { ...prev.channels?.facebook, invite_email: e.target.value }
-                                                            }
-                                                        }))}
-                                                        className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
-                                                        placeholder="ops@tu-empresa.com"
-                                                    />
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Page Access Token</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type={showFBToken ? "text" : "password"}
-                                                        value={settings.channels?.facebook?.page_access_token || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            channels: {
-                                                                ...prev.channels,
-                                                                facebook: { ...prev.channels?.facebook, page_access_token: e.target.value }
-                                                            }
-                                                        }))}
-                                                        className="w-full px-4 py-2.5 pr-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
-                                                        placeholder="EAAxxxx..."
-                                                    />
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setShowFBToken(!showFBToken)}
-                                                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                                                    >
-                                                        {showFBToken ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                                    </button>
-                                                </div>
-                                                <p className="text-xs text-gray-500 mt-1">Token de acceso de tu página de Facebook</p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Page ID</label>
-                                                <input
-                                                    type="text"
-                                                    value={settings.channels?.facebook?.page_id || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            facebook: { ...prev.channels?.facebook, page_id: e.target.value }
-                                                        }
-                                                    }))}
-                                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-600 focus:border-blue-600"
-                                                    placeholder="123456789012345"
-                                                />
-                                                <p className="text-xs text-gray-500 mt-1">ID de tu página de Facebook</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Web Chat */}
-                                <div className="bg-white p-5 rounded-xl border-2 border-gray-200 hover:border-gray-300 transition-colors shadow-sm">
-                                    <div className="flex items-start justify-between mb-4">
-                                        <div className="flex items-start gap-3 flex-1">
-                                            <div className="w-10 h-10 bg-gradient-to-br from-gray-600 to-gray-700 rounded-xl flex items-center justify-center flex-shrink-0">
-                                                <Globe className="w-5 h-5 text-white" />
-                                            </div>
-                                            <div className="flex-1">
-                                                <h4 className="font-semibold text-gray-900">Web Chat</h4>
-                                                <p className="text-sm text-gray-600 mt-0.5">Chat integrado en la web</p>
-                                            </div>
-                                        </div>
-                                        <ToggleSwitch
-                                            enabled={settings.channels?.webchat?.enabled !== false}
-                                            onChange={(enabled) => setSettings(prev => ({
-                                                ...prev,
-                                                channels: {
-                                                    ...prev.channels,
-                                                    webchat: { ...prev.channels?.webchat, enabled }
-                                                }
-                                            }))}
-                                        />
-                                    </div>
-                                    {settings.channels?.webchat?.enabled !== false && (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Dominio del sitio</label>
-                                                <input
-                                                    type="text"
-                                                    value={settings.channels?.webchat?.site_domain || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            webchat: { ...prev.channels?.webchat, site_domain: e.target.value }
-                                                        }
-                                                    }))}
-                                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                                                    placeholder="restaurante.com"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Widget Key (opcional)</label>
-                                                <input
-                                                    type="text"
-                                                    value={settings.channels?.webchat?.widget_key || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
-                                                            webchat: { ...prev.channels?.webchat, widget_key: e.target.value }
-                                                        }
-                                                    }))}
-                                                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-gray-500 focus:border-gray-500"
-                                                    placeholder="Opcional"
-                                                />
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            <div className="flex justify-end mt-6 pt-6 border-t border-gray-200">
-                                <button
-                                    onClick={() => handleSave("Canales de comunicación")}
-                                    disabled={saving}
-                                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
-                                >
-                                    {saving ? (
-                                        <RefreshCw className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Save className="w-4 h-4" />
-                                    )}
-                                    Guardar Canales
-                                </button>
-                            </div>
-                        </SettingSection>
-                    )}
-
-                    {activeTab === "notifications" && (
-                        <SettingSection
-                            title="Sistema de Notificaciones"
-                            description="Configuración completa de alertas y notificaciones automáticas"
-                            icon={<Bell />}
-                        >
-                            <div className="space-y-2">
-                                <div className="bg-blue-50 p-2 rounded-lg border border-blue-200">
-                                    <h4 className="font-semibold text-xs text-gray-900 mb-2 flex items-center gap-1.5">
-                                        <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                                        Notificaciones de Reservas
-                                    </h4>
-                                    <div className="space-y-2">
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h5 className="font-medium text-xs text-gray-900">Nueva reserva confirmada</h5>
-                                                <p className="text-[10px] text-gray-600">Notificar cuando se confirme una nueva reserva</p>
-                                            </div>
-                                            <ToggleSwitch
-                                                enabled={settings.notifications?.new_reservation ?? false}
-                                                onChange={(enabled) => setSettings(prev => ({
-                                                    ...prev,
-                                                    notifications: {
-                                                        ...prev.notifications,
-                                                        new_reservation: enabled
-                                                    }
-                                                }))}
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h5 className="font-medium text-xs text-gray-900">Reserva cancelada</h5>
-                                                <p className="text-[10px] text-gray-600">Alerta cuando se cancele una reserva</p>
-                                            </div>
-                                            <ToggleSwitch
-                                                enabled={settings.notifications?.cancelled_reservation ?? false}
-                                                onChange={(enabled) => setSettings(prev => ({
-                                                    ...prev,
-                                                    notifications: {
-                                                        ...prev.notifications,
-                                                        cancelled_reservation: enabled
-                                                    }
-                                                }))}
-                                            />
-                                        </div>
-                                        {/* Destinatarios y horario silencioso */}
-                                        <div className="space-y-2 pt-1">
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">📧 Emails para notificaciones de reservas</label>
-                                                <input
-                                                    type="text"
-                                                    value={(settings.notifications?.reservation_emails || []).join(", ")}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        notifications: {
-                                                            ...prev.notifications,
-                                                            reservation_emails: e.target.value.split(',').map(x => x.trim()).filter(Boolean)
-                                                        }
-                                                    }))}
-                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                    placeholder="reservas@restaurante.com, gerente@restaurante.com"
-                                                />
-                                                <p className="text-[10px] text-gray-500 mt-0.5">Para nueva reserva, cancelada y modificada</p>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Horario silencioso (inicio)</label>
-                                                <input
-                                                    type="time"
-                                                    value={settings.notifications?.quiet_hours?.start || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        notifications: {
-                                                            ...prev.notifications,
-                                                            quiet_hours: { ...prev.notifications?.quiet_hours, start: e.target.value }
-                                                        }
-                                                    }))}
-                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-medium text-gray-700 mb-1">Horario silencioso (fin)</label>
-                                                <input
-                                                    type="time"
-                                                    value={settings.notifications?.quiet_hours?.end || ""}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        notifications: {
-                                                            ...prev.notifications,
-                                                            quiet_hours: { ...prev.notifications?.quiet_hours, end: e.target.value }
-                                                        }
-                                                    }))}
-                                                    className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                />
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h5 className="font-medium text-xs text-gray-900">Reserva modificada</h5>
-                                                <p className="text-[10px] text-gray-600">Cambios de hora, mesa o comensales</p>
-                                            </div>
-                                            <ToggleSwitch
-                                                enabled={settings.notifications?.reservation_modified ?? false}
-                                                onChange={(enabled) => setSettings(prev => ({
-                                                    ...prev,
-                                                    notifications: {
-                                                        ...prev.notifications,
-                                                        reservation_modified: enabled
-                                                    }
-                                                }))}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-
-
-                                <div className="bg-green-50 p-2 rounded-lg border border-green-200">
-                                    <h4 className="font-semibold text-xs text-gray-900 mb-2 flex items-center gap-1.5">
-                                        <AlertCircle className="w-3.5 h-3.5 text-green-600" />
-                                        Notificaciones del Sistema
-                                    </h4>
-                                    <div className="space-y-2">
-                                        {/* Emails para notificaciones del sistema */}
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">⚙️ Emails para notificaciones del sistema</label>
-                                            <input
-                                                type="text"
-                                                value={(settings.notifications?.system_emails || []).join(", ")}
-                                                onChange={(e) => setSettings(prev => ({
-                                                    ...prev,
-                                                    notifications: {
-                                                        ...prev.notifications,
-                                                        system_emails: e.target.value.split(',').map(x => x.trim()).filter(Boolean)
-                                                    }
-                                                }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                                                placeholder="admin@restaurante.com, soporte@restaurante.com"
-                                            />
-                                            <p className="text-[10px] text-gray-500 mt-0.5">Para errores del sistema, agente offline e integraciones</p>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h5 className="font-medium text-xs text-gray-900">Agente IA desconectado</h5>
-                                                <p className="text-[10px] text-gray-600">Alerta si el agente IA deja de funcionar</p>
-                                            </div>
-                                            <ToggleSwitch
-                                                enabled={settings.notifications?.agent_offline ?? false}
-                                                onChange={(enabled) => setSettings(prev => ({
-                                                    ...prev,
-                                                    notifications: {
-                                                        ...prev.notifications,
-                                                        agent_offline: enabled
-                                                    }
-                                                }))}
-                                            />
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <div>
-                                                <h5 className="font-medium text-xs text-gray-900">Errores de integración</h5>
-                                                <p className="text-[10px] text-gray-600">Notificar errores en canales o integraciones</p>
-                                            </div>
-                                            <ToggleSwitch
-                                                enabled={settings.notifications?.integration_errors ?? false}
-                                                onChange={(enabled) => setSettings(prev => ({
-                                                    ...prev,
-                                                    notifications: {
-                                                        ...prev.notifications,
-                                                        integration_errors: enabled
-                                                    }
-                                                }))}
-                                            />
                                         </div>
                                         
-                                        {/* Nueva sección: Errores del Sistema */}
-                                        <div className="border-t border-green-200 pt-2 mt-2">
-                                            <h5 className="font-semibold text-xs text-gray-900 mb-1 flex items-center gap-1.5">
-                                                <AlertTriangle className="w-3.5 h-3.5 text-red-500" />
-                                                Errores del Sistema
-                                            </h5>
-                                            <div className="space-y-2 ml-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h6 className="font-medium text-xs text-gray-800">Fallo crítico al guardar</h6>
-                                                        <p className="text-[10px] text-gray-600">Reservas, configuración o datos de cliente no se guardan</p>
+                                        {/* Campos que aparecen al activar */}
+                                        {settings.channels?.instagram?.enabled && (
+                                            <div className="mt-3 space-y-3 pt-3 border-t border-pink-200">
+                                                {!settings.channels?.instagram?.connected && (
+                                                    <div className="bg-pink-100 border border-pink-300 rounded-lg p-3">
+                                                        <p className="text-sm text-pink-900 font-medium mb-2">
+                                                            Se requiere conexión
+                                                        </p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                toast.info('Próximamente: OAuth de Instagram');
+                                                            }}
+                                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-pink-500 to-pink-600 text-white rounded-lg hover:from-pink-600 hover:to-pink-700 font-semibold"
+                                                        >
+                                                            <Instagram className="w-4 h-4" />
+                                                            Conectar con Instagram
+                                                        </button>
                                                     </div>
-                                                    <ToggleSwitch
-                                                        enabled={settings.notifications?.system_save_errors ?? true}
-                                                        onChange={(enabled) => setSettings(prev => ({
-                                                            ...prev,
-                                                            notifications: {
-                                                                ...prev.notifications,
-                                                                system_save_errors: enabled
-                                                            }
-                                                        }))}
-                                                    />
+                                                )}
+                                                {settings.channels?.instagram?.connected && (
+                                                    <div className="bg-green-50 border border-green-300 rounded-lg p-3">
+                                                        <p className="text-sm text-green-900 font-medium mb-1">
+                                                            ✅ Conectado como: <span className="font-bold">{settings.channels?.instagram?.handle || '@tunegocio'}</span>
+                                                        </p>
+                                                        <button
+                                                            type="button"
+                                                            className="text-sm text-red-600 hover:text-red-700 font-medium"
+                                                        >
+                                                            Desconectar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Facebook Messenger */}
+                                    <div className={`p-4 rounded-xl border-2 transition-all ${
+                                        settings.channels?.facebook?.enabled 
+                                            ? 'border-blue-400 bg-blue-50' 
+                                            : 'border-gray-200 bg-white'
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg">
+                                                    <Facebook className="w-5 h-5 text-white" />
                                                 </div>
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h6 className="font-medium text-xs text-gray-800">Problema de conexión</h6>
-                                                        <p className="text-[10px] text-gray-600">Fallos de red, autenticación o timeouts</p>
-                                                    </div>
-                                                    <ToggleSwitch
-                                                        enabled={settings.notifications?.system_connection_errors ?? true}
-                                                        onChange={(enabled) => setSettings(prev => ({
-                                                            ...prev,
-                                                            notifications: {
-                                                                ...prev.notifications,
-                                                                system_connection_errors: enabled
-                                                            }
-                                                        }))}
-                                                    />
-                                                </div>
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h6 className="font-medium text-xs text-gray-800">Conflicto de reservas</h6>
-                                                        <p className="text-[10px] text-gray-600">Mesa doble-asignada u horarios solapados</p>
-                                                    </div>
-                                                    <ToggleSwitch
-                                                        enabled={settings.notifications?.system_reservation_conflicts ?? true}
-                                                        onChange={(enabled) => setSettings(prev => ({
-                                                            ...prev,
-                                                            notifications: {
-                                                                ...prev.notifications,
-                                                                system_reservation_conflicts: enabled
-                                                            }
-                                                        }))}
-                                                    />
-                                                </div>
-                                                <div className="flex items-center justify-between">
-                                                    <div>
-                                                        <h6 className="font-medium text-gray-800">Configuración incompleta</h6>
-                                                        <p className="text-xs text-gray-600">Sin mesas, horarios o setup básico</p>
-                                                    </div>
-                                                    <ToggleSwitch
-                                                        enabled={settings.notifications?.system_config_incomplete ?? true}
-                                                        onChange={(enabled) => setSettings(prev => ({
-                                                            ...prev,
-                                                            notifications: {
-                                                                ...prev.notifications,
-                                                                system_config_incomplete: enabled
-                                                            }
-                                                        }))}
-                                                    />
+                                                <div>
+                                                    <p className="font-semibold text-gray-900">Facebook Messenger</p>
+                                                    <p className="text-xs text-gray-600">Chat de tu página</p>
                                                 </div>
                                             </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={settings.channels?.facebook?.enabled || false}
+                                                    onChange={(e) => setSettings(prev => ({
+                                                        ...prev,
+                                                        channels: {
+                                                            ...prev.channels,
+                                                            facebook: {
+                                                                ...prev.channels?.facebook,
+                                                                enabled: e.target.checked
+                                                            }
+                                                        }
+                                                    }))}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
+                                            </label>
                                         </div>
+                                        
+                                        {settings.channels?.facebook?.enabled && (
+                                            <div className="mt-3 space-y-3 pt-3 border-t border-blue-200">
+                                                {!settings.channels?.facebook?.connected && (
+                                                    <div className="bg-blue-100 border border-blue-300 rounded-lg p-3">
+                                                        <p className="text-sm text-blue-900 font-medium mb-2">
+                                                            Se requiere conexión
+                                                        </p>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => {
+                                                                toast.info('Próximamente: OAuth de Facebook');
+                                                            }}
+                                                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-lg hover:from-blue-700 hover:to-blue-800 font-semibold"
+                                                        >
+                                                            <Facebook className="w-4 h-4" />
+                                                            Conectar con Facebook
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {settings.channels?.facebook?.connected && (
+                                                    <div className="bg-green-50 border border-green-300 rounded-lg p-3">
+                                                        <p className="text-sm text-green-900 font-medium mb-1">
+                                                            ✅ Conectado: <span className="font-bold">{settings.channels?.facebook?.page_url || 'Tu Página'}</span>
+                                                        </p>
+                                                        <button
+                                                            type="button"
+                                                            className="text-sm text-red-600 hover:text-red-700 font-medium"
+                                                        >
+                                                            Desconectar
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Web Chat */}
+                                    <div className={`p-4 rounded-xl border-2 transition-all ${
+                                        settings.channels?.webchat?.enabled 
+                                            ? 'border-gray-400 bg-gray-50' 
+                                            : 'border-gray-200 bg-white'
+                                    }`}>
+                                        <div className="flex items-center justify-between mb-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-gradient-to-br from-gray-600 to-gray-700 rounded-lg">
+                                                    <Globe className="w-5 h-5 text-white" />
+                                                </div>
+                                                <div>
+                                                    <p className="font-semibold text-gray-900">Chat en tu Web</p>
+                                                    <p className="text-xs text-gray-600">Widget de chat integrado</p>
+                                                </div>
+                                            </div>
+                                            <label className="relative inline-flex items-center cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={settings.channels?.webchat?.enabled || false}
+                                                    onChange={(e) => setSettings(prev => ({
+                                                        ...prev,
+                                                        channels: {
+                                                            ...prev.channels,
+                                                            webchat: {
+                                                                ...prev.channels?.webchat,
+                                                                enabled: e.target.checked
+                                                            }
+                                                        }
+                                                    }))}
+                                                    className="sr-only peer"
+                                                />
+                                                <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gray-600"></div>
+                                            </label>
+                                        </div>
+                                        
+                                        {settings.channels?.webchat?.enabled && (
+                                            <div className="mt-3 space-y-3 pt-3 border-t border-gray-200">
+                                                <div className="bg-gray-100 border border-gray-300 rounded-lg p-3">
+                                                    <p className="text-sm text-gray-900 font-medium mb-2">
+                                                        📋 Código del widget generado
+                                                    </p>
+                                                    <div className="bg-white p-2 rounded border border-gray-300 font-mono text-xs overflow-x-auto">
+                                                        &lt;script src="https://la-ia.com/widget.js" data-key="{businessId || 'TU-KEY'}"&gt;&lt;/script&gt;
+                                                    </div>
+                                                    <p className="text-xs text-gray-600 mt-2">
+                                                        Copia este código en el &lt;head&gt; de tu sitio web
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Botón guardar */}
+                                    <div className="flex justify-end pt-4 border-t border-gray-200">
+                                        <button
+                                            onClick={() => handleSave("Canales y Alertas")}
+                                            disabled={saving}
+                                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 font-semibold shadow-lg"
+                                        >
+                                            {saving ? (
+                                                <>
+                                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                                    Guardando...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-4 h-4" />
+                                                    Guardar Configuración
+                                                </>
+                                            )}
+                                        </button>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="flex justify-end mt-6 pt-6 border-t border-gray-200">
-                                <button
-                                    onClick={() => handleSave("Configuración de notificaciones")}
-                                    disabled={saving}
-                                    className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
-                                >
-                                    {saving ? (
-                                        <RefreshCw className="w-4 h-4 animate-spin" />
-                                    ) : (
-                                        <Save className="w-4 h-4" />
-                                    )}
-                                    Guardar Notificaciones
-                                </button>
-                            </div>
-                        </SettingSection>
-                    )}
-
-                    {activeTab === "documentos" && (
-                        <div className="space-y-2">
-                            {/* Info destacada */}
-                            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-2 border-blue-300 rounded-xl p-6 shadow-sm">
-                                <div className="flex gap-2">
-                                    <div className="flex-shrink-0">
-                                        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center">
-                                            <AlertCircle className="w-7 h-7 text-white" />
-                                        </div>
-                                    </div>
-                                    <div className="flex-1">
-                                        <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                            📚 Base de Conocimiento del Restaurante
-                                        </h3>
-                                        <p className="text-base text-gray-700 mb-3">
-                                            Sube documentos (menú, políticas, información) para que tu <strong>Agente IA</strong> pueda 
-                                            responder preguntas automáticamente.
-                                        </p>
-                                        <div className="bg-white rounded-lg p-4 border border-blue-200">
-                                            <p className="text-sm font-semibold text-gray-900 mb-2">🚀 ¿Cómo funciona?</p>
-                                            <ul className="space-y-1.5 text-sm text-gray-700">
-                                                <li className="flex items-start gap-2">
-                                                    <span className="text-green-600 font-bold mt-0.5">✓</span>
-                                                    <span><strong>1. Sube tus documentos</strong> (PDF, TXT, Excel, Google Docs/Sheets) en las categorías correspondientes</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <span className="text-green-600 font-bold mt-0.5">✓</span>
-                                                    <span><strong>2. Procesamiento automático</strong> (1-2 minutos) - El sistema leerá y analizará el contenido</span>
-                                                </li>
-                                                <li className="flex items-start gap-2">
-                                                    <span className="text-green-600 font-bold mt-0.5">✓</span>
-                                                    <span><strong>3. ¡Listo!</strong> El Agente IA podrá responder preguntas sobre: menú, precios, servicios, horarios, etc.</span>
-                                                </li>
-                                            </ul>
-                                        </div>
-                                        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-gray-600">
-                                            <span className="font-medium">📋 Formatos aceptados:</span>
-                                            <span className="px-2 py-1 bg-white rounded text-xs font-mono border">PDF</span>
-                                            <span className="px-2 py-1 bg-white rounded text-xs font-mono border">TXT</span>
-                                            <span className="px-2 py-1 bg-white rounded text-xs font-mono border">XLSX</span>
-                                            <span className="px-2 py-1 bg-white rounded text-xs font-mono border">XLS</span>
-                                            <span className="px-2 py-1 bg-white rounded text-xs font-mono border">Google Docs</span>
-                                            <span className="px-2 py-1 bg-white rounded text-xs font-mono border">Google Sheets</span>
-                                            <span className="text-gray-500">• Máximo 5MB por archivo</span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* <BaseConocimientoContent /> */}
-                            {/* TEMPORALMENTE DESHABILITADO - Base de Conocimiento */}
+                            </SettingSection>
                         </div>
                     )}
+
+                    {/* 🔗 INTEGRACIONES */}
+                    {activeTab === "integraciones" && (
+                        <IntegracionesContent 
+                            settings={settings}
+                            setSettings={setSettings}
+                            saving={saving}
+                            handleSave={handleSave}
+                        />
+                    )}
+
+                    {/* 💳 CUENTA Y FACTURACIÓN */}
+                    {activeTab === "cuenta" && (
+                        <div className="space-y-4">
+                            <SettingSection
+                                title="Información de la Cuenta"
+                                description="Gestiona tu plan, facturación y usuarios"
+                                icon={<Users />}
+                            >
+                                <div className="text-center py-12">
+                                    <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                                    <h3 className="text-lg font-bold text-gray-900 mb-2">
+                                        Gestión de Cuenta
+                                    </h3>
+                                    <p className="text-gray-600 mb-4">
+                                        Información del plan, facturación y usuarios
+                                    </p>
+                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-lg font-medium">
+                                        🚧 En desarrollo - Próximamente
+                                    </div>
+                                </div>
+                            </SettingSection>
+                        </div>
+                    )}
+
                 </div>
             </div>
         </div>
@@ -2463,5 +1919,3 @@ const Configuracion = () => {
 };
 
 export default Configuracion;
-
-
