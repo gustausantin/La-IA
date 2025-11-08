@@ -172,55 +172,52 @@ export default function CalendarioReservas({
                         </button>
                     </div>
 
-                    {/* Navegación de Fechas */}
+                    {/* 📅 NAVEGACIÓN DE FECHAS MEJORADA */}
                     <div className="flex items-center gap-3">
                         <button
                             onClick={irAAnterior}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="p-2 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-lg transition-all"
                         >
-                            <ChevronLeft className="w-5 h-5 text-gray-600" />
+                            <ChevronLeft className="w-5 h-5 text-gray-700" />
                         </button>
                         
                         <button
                             onClick={irAHoy}
-                            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-semibold text-sm text-gray-900 transition-colors"
+                            className="px-4 py-2 bg-gradient-to-r from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100 rounded-lg font-semibold text-sm text-gray-900 transition-all border border-blue-200"
                         >
                             Hoy
                         </button>
 
-                        <div className="text-center min-w-[200px]">
-                            <p className="font-bold text-gray-900 text-lg">
-                                {format(fechaActual, "EEEE d 'de' MMMM", { locale: es })}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                                {format(fechaActual, 'yyyy')}
-                            </p>
+                        {/* ✨ FECHA CON DISEÑO MEJORADO */}
+                        <div className="relative px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg min-w-[280px]">
+                            <div className="absolute inset-0 bg-white/10 rounded-xl"></div>
+                            <div className="relative text-center">
+                                <p className="font-bold text-white text-lg capitalize tracking-wide">
+                                    {format(fechaActual, "EEEE d 'de' MMMM", { locale: es })}
+                                </p>
+                                <p className="text-xs text-white/80 font-medium mt-0.5">
+                                    {format(fechaActual, 'yyyy')}
+                                </p>
+                            </div>
                         </div>
 
                         <button
                             onClick={irASiguiente}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="p-2 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-lg transition-all"
                         >
-                            <ChevronRight className="w-5 h-5 text-gray-600" />
+                            <ChevronRight className="w-5 h-5 text-gray-700" />
                         </button>
                     </div>
 
-                    {/* Botones de Acción */}
+                    {/* 🔄 BOTÓN ACTUALIZAR (sin Nueva Reserva duplicado) */}
                     <div className="flex items-center gap-2">
                         <button
                             onClick={onRefresh}
                             disabled={loading}
-                            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                            className="p-2 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-lg transition-all"
                             title="Actualizar"
                         >
-                            <RefreshCw className={`w-5 h-5 text-gray-600 ${loading ? 'animate-spin' : ''}`} />
-                        </button>
-                        <button
-                            onClick={() => onSlotClick({ date: format(fechaActual, 'yyyy-MM-dd'), time: '09:00' })}
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all shadow-md font-medium text-sm"
-                        >
-                            <Plus className="w-4 h-4" />
-                            Nueva Reserva
+                            <RefreshCw className={`w-5 h-5 text-gray-700 ${loading ? 'animate-spin' : ''}`} />
                         </button>
                     </div>
                 </div>

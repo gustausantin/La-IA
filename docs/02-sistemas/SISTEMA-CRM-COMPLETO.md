@@ -119,50 +119,17 @@ El **CRM Sistema Inteligente** es una solución enterprise especializada para re
 
 ## 💾 BASE DE DATOS CRM
 
-### **Tabla: `customers` (Extendida)**
+### ⚠️ **ESQUEMA ACTUALIZADO - CONSULTAR FUENTE OFICIAL:**
 
-```sql
-CREATE TABLE customers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    restaurant_id UUID NOT NULL REFERENCES businesses(id),
-    
-    -- Info básica
-    name VARCHAR NOT NULL,
-    phone VARCHAR NOT NULL,
-    email VARCHAR,
-    first_name VARCHAR,
-    last_name1 VARCHAR,
-    last_name2 VARCHAR,
-    
-    -- Segmentación
-    segment_manual VARCHAR CHECK (segment_manual IN ('nuevo', 'ocasional', 'regular', 'vip', 'inactivo', 'en_riesgo', 'alto_valor')),
-    segment_auto VARCHAR CHECK (segment_auto IN ('nuevo', 'ocasional', 'regular', 'vip', 'inactivo', 'en_riesgo', 'alto_valor')) DEFAULT 'nuevo',
-    
-    -- Métricas calculadas
-    visits_count INTEGER DEFAULT 0,
-    last_visit_at TIMESTAMPTZ,
-    avg_ticket NUMERIC DEFAULT 0.00,
-    predicted_ltv NUMERIC DEFAULT 0.00,
-    churn_risk_score INTEGER DEFAULT 0 CHECK (churn_risk_score >= 0 AND churn_risk_score <= 100),
-    
-    -- Preferencias
-    preferred_items JSONB DEFAULT '[]',
-    
-    -- Consent GDPR
-    consent_email BOOLEAN DEFAULT TRUE,
-    consent_sms BOOLEAN DEFAULT TRUE,
-    consent_whatsapp BOOLEAN DEFAULT TRUE,
-    
-    -- CRM metadata
-    last_contacted_at TIMESTAMPTZ,
-    next_action_at TIMESTAMPTZ,
-    
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
-    
-    UNIQUE(restaurant_id, phone)
-);
-```
+📄 **`docs/01-arquitectura/SCHEMA-REAL-SUPABASE-2025.sql`**
+
+**Este archivo contiene el esquema REAL extraído de Supabase el 2025-11-08.**
+
+### **Diferencias clave con documentación antigua:**
+- ✅ Usa `business_id` (NO `restaurant_id`)
+- ✅ Campo apellido: `last_name` (NO `last_name1`, `last_name2`)
+- ✅ Campo visitas: `total_visits` (NO `visits_count`)
+- ✅ Campo última visita: `last_visit_at` (correcto)
 
 ### **Tabla: `customer_interactions`**
 

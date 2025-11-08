@@ -19,14 +19,18 @@ import {
     Globe,
     Calendar,
     Users,
-        Clock,
-        AlertCircle,
-        AlertTriangle,
-        HelpCircle,
-        Eye,
-        EyeOff,
-        FileText,
-        Zap
+    Clock,
+    AlertCircle,
+    AlertTriangle,
+    HelpCircle,
+    Eye,
+    EyeOff,
+    FileText,
+    Zap,
+    Play,
+    Pause,
+    Volume2,
+    CheckCircle2
 } from "lucide-react";
 import toast from "react-hot-toast";
 // import BaseConocimientoContent from "../components/BaseConocimientoContent"; // TEMPORALMENTE DESHABILITADO
@@ -55,27 +59,59 @@ const ToggleSwitch = ({ enabled, onChange, label }) => {
 const SettingSection = ({ title, description, icon, children }) => {
     return (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-            <div className="border-b border-gray-100 p-3">
+            <div className="border-b border-gray-100 p-4">
                 <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
-                            {React.cloneElement(icon, { className: "w-4 h-4 text-white" })}
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg">
+                            {React.cloneElement(icon, { className: "w-5 h-5 text-white" })}
                         </div>
                         <div>
-                            <h3 className="text-xs font-semibold text-gray-900">
+                            <h3 className="text-base font-bold text-gray-900">
                                 {title}
                             </h3>
-                            <p className="text-[10px] text-gray-600">{description}</p>
+                            <p className="text-sm text-gray-600 mt-0.5">{description}</p>
                         </div>
                     </div>
                 </div>
             </div>
-            <div className="p-3">
+            <div className="p-4">
                 {children}
             </div>
         </div>
     );
 };
+
+// 🎙️ 4 Voces disponibles (del onboarding)
+const VOICE_OPTIONS = [
+    {
+        id: 'Female_1_Eva_Dorado_RgXx32WYOGrd7gFNifSf',
+        display_name: 'Femenina 1',
+        description: 'Voz cálida y profesional',
+        gender: 'female',
+        audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Female_1_Eva_Dorado_RgXx32WYOGrd7gFNifSf.mp3.mp3'
+    },
+    {
+        id: 'Female_2_Susi_v3V1d2rk6528UrLKRuy8',
+        display_name: 'Femenina 2',
+        description: 'Voz joven y dinámica',
+        gender: 'female',
+        audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Female_2_Susi_v3V1d2rk6528UrLKRuy8.mp3.mp3'
+    },
+    {
+        id: 'Male_1_Viraj_iWNf11sz1GrUE4ppxTOL',
+        display_name: 'Masculina 1',
+        description: 'Voz profesional y clara',
+        gender: 'male',
+        audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Male_1_Viraj_iWNf11sz1GrUE4ppxTOL.mp3.mp3'
+    },
+    {
+        id: 'Male_2_Danny_wnKyx1zkUEUnfURKiuaP',
+        display_name: 'Masculina 2',
+        description: 'Voz energética y cercana',
+        gender: 'male',
+        audio_url: 'https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/voice-demos/Male_2_Danny_wnKyx1zkUEUnfURKiuaP.mp3.mp3'
+    }
+];
 
 const Configuracion = () => {
     const { businessId, business, user } = useAuthContext();
@@ -84,6 +120,9 @@ const Configuracion = () => {
     const [activeTab, setActiveTab] = useState('general');
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [currentPlayingVoice, setCurrentPlayingVoice] = useState(null);
+    const [isPlayingAudio, setIsPlayingAudio] = useState(false);
+    const audioRef = React.useRef(null);
     
     // Leer tab de la URL o del state al cargar
     useEffect(() => {
@@ -103,7 +142,6 @@ const Configuracion = () => {
     const [settings, setSettings] = useState({
         name: "",
         description: "",
-        cuisine_type: "",
         phone: "",
         email: "",
         website: "",
@@ -318,7 +356,6 @@ const Configuracion = () => {
                     address: restaurantData.address || "",
                     city: restaurantData.city || "",
                     postal_code: restaurantData.postal_code || "",
-                    cuisine_type: restaurantData.cuisine_type || "",
                     
                     // ✅ TODO LO DEMÁS DESDE SETTINGS (JSONB)
                     contact_name: dbSettings.contact_name || "",
@@ -433,6 +470,43 @@ const Configuracion = () => {
         loadSettings();
     }, []);
 
+    // 🎙️ Función para reproducir audio de demostración de voz
+    const handlePlayVoiceDemo = (voice) => {
+        if (currentPlayingVoice === voice.id && isPlayingAudio) {
+            // Si ya está reproduciéndose, pausar
+            audioRef.current?.pause();
+            setIsPlayingAudio(false);
+            setCurrentPlayingVoice(null);
+            return;
+        }
+
+        // Pausar audio anterior si existe
+        if (audioRef.current) {
+            audioRef.current.pause();
+        }
+
+        // Reproducir nuevo audio
+        audioRef.current = new Audio(voice.audio_url);
+        audioRef.current.play();
+        setIsPlayingAudio(true);
+        setCurrentPlayingVoice(voice.id);
+
+        audioRef.current.onended = () => {
+            setIsPlayingAudio(false);
+            setCurrentPlayingVoice(null);
+        };
+    };
+
+    // Limpiar audio al desmontar
+    useEffect(() => {
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current = null;
+            }
+        };
+    }, []);
+
     const handleSave = async (section) => {
         // Determinar businessId de forma robusta
         let effectivebusinessId = businessId;
@@ -475,7 +549,6 @@ const Configuracion = () => {
                         address: settings.address,
                         city: settings.city,
                         postal_code: settings.postal_code,
-                        cuisine_type: settings.cuisine_type,
                         settings: {
                             ...currentSettings,
                             contact_name: settings.contact_name,
@@ -782,156 +855,127 @@ const Configuracion = () => {
                         <div className="space-y-3">
                             <SettingSection
                                 title="Información General"
-                                description="Configuración básica de tu restaurante"
+                                description="Configuración básica de tu negocio"
                                 icon={<Building2 />}
                             >
                                                 <div className="space-y-2">
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Nombre del restaurante
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Nombre de tu negocio
                                             </label>
                                             <input
                                                 type="text"
                                                 value={settings.name}
                                                 onChange={(e) => setSettings(prev => ({ ...prev, name: e.target.value }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="Nombre de tu restaurante"
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="Nombre de tu negocio"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Tipo de cocina
-                                            </label>
-                                            <select
-                                                value={settings.cuisine_type}
-                                                onChange={(e) => setSettings(prev => ({ ...prev, cuisine_type: e.target.value }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                            >
-                                                <option value="">Selecciona el tipo</option>
-                                                <option value="Mediterránea">Mediterránea</option>
-                                                <option value="Española">Española</option>
-                                                <option value="Italiana">Italiana</option>
-                                                <option value="Asiática">Asiática</option>
-                                                <option value="Mexicana">Mexicana</option>
-                                                <option value="Francesa">Francesa</option>
-                                                <option value="Japonesa">Japonesa</option>
-                                                <option value="China">China</option>
-                                                <option value="India">India</option>
-                                                <option value="Americana">Americana</option>
-                                                <option value="Vegetariana/Vegana">Vegetariana/Vegana</option>
-                                                <option value="Marisquería">Marisquería</option>
-                                                <option value="Asador/Parrilla">Asador/Parrilla</option>
-                                                <option value="Tapas">Tapas</option>
-                                                <option value="Fusión">Fusión</option>
-                                            </select>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Email de contacto
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Email del negocio
                                             </label>
                                             <input
                                                 type="email"
                                                 value={settings.email}
                                                 onChange={(e) => setSettings(prev => ({ ...prev, email: e.target.value }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="contacto@restaurante.com"
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="contacto@tunegocio.com"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Nombre del contacto
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={settings.contact_name || ""}
-                                                onChange={(e) => setSettings(prev => ({ ...prev, contact_name: e.target.value }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="Tu nombre"
-                                            />
-                                            <p className="text-xs text-gray-500 mt-1">¿Cómo quieres que te llame el sistema?</p>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                                                 Sitio web
                                             </label>
                                             <input
                                                 type="url"
                                                 value={settings.website}
                                                 onChange={(e) => setSettings(prev => ({ ...prev, website: e.target.value }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="https://www.turestaurante.com"
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="https://www.tunegocio.com"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Teléfono persona de contacto (emergencias)
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Nombre del contacto
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={settings.contact_name || ""}
+                                                onChange={(e) => setSettings(prev => ({ ...prev, contact_name: e.target.value }))}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="Tu nombre"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Teléfono personal de contacto (emergencias)
                                             </label>
                                             <input
                                                 type="tel"
                                                 value={settings.phone}
                                                 onChange={(e) => setSettings(prev => ({ ...prev, phone: e.target.value }))}
-                                                className="w-full px-4 py-2 border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
+                                                className="w-full px-3 py-2 text-sm border border-red-300 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500"
                                                 placeholder="+34 600 000 000"
                                             />
                                             <p className="text-xs text-red-600 mt-1 font-medium">
-                                                ⚠️ Este es el número del encargado para recibir alertas urgentes (NO pongas el teléfono del restaurante)
+                                                ⚠️ Número del encargado para recibir alertas urgentes
                                             </p>
                                         </div>
 
                                         <div className="col-span-2">
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Descripción del restaurante
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Descripción del negocio
                                             </label>
                                             <textarea
                                                 value={settings.description}
                                                 onChange={(e) => setSettings(prev => ({ ...prev, description: e.target.value }))}
                                                 rows="3"
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                placeholder="Describe tu restaurante, especialidades, ambiente..."
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="Describe tu negocio, servicios, especialidades..."
                                             />
                                         </div>
 
                                         <div className="col-span-2">
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                                                 Dirección completa
                                             </label>
                                             <input
                                                 type="text"
                                                 value={settings.address}
                                                 onChange={(e) => setSettings(prev => ({ ...prev, address: e.target.value }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                 placeholder="Calle Mayor 123, Madrid"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                                                 Ciudad
                                             </label>
                                             <input
                                                 type="text"
                                                 value={settings.city}
                                                 onChange={(e) => setSettings(prev => ({ ...prev, city: e.target.value }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                 placeholder="Madrid"
                                             />
                                         </div>
 
                                         <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                                                 Código postal
                                             </label>
                                             <input
                                                 type="text"
                                                 value={settings.postal_code}
                                                 onChange={(e) => setSettings(prev => ({ ...prev, postal_code: e.target.value }))}
-                                                className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                 placeholder="28001"
                                             />
                                         </div>
@@ -1123,8 +1167,8 @@ const Configuracion = () => {
 
                                                 {/* Nombre del Agente */}
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                        Nombre
+                                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                        Nombre del Agente
                                                     </label>
                                                     <input
                                                         type="text"
@@ -1136,15 +1180,15 @@ const Configuracion = () => {
                                                                 name: e.target.value
                                                             }
                                                         }))}
-                                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                        placeholder="Sofia"
+                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        placeholder="Sofia, Carlos, Ana..."
                                                     />
                                                 </div>
 
                                                 {/* Puesto/Rol */}
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                        Puesto
+                                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                        Puesto / Rol
                                                     </label>
                                                     <input
                                                         type="text"
@@ -1156,77 +1200,200 @@ const Configuracion = () => {
                                                                 role: e.target.value
                                                             }
                                                         }))}
-                                                        className="w-full px-2 py-1.5 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                                                         placeholder="Agente de Reservas"
                                                     />
-                                                    <p className="text-[10px] text-gray-500 mt-0.5">
-                                                        Ej: Agente de Reservas, Recepcionista Virtual, etc.
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Ej: Agente de Reservas, Recepcionista Virtual, Asistente de Citas
                                                     </p>
                                                 </div>
 
-                                                {/* Género de la voz */}
+                                                {/* Selector de Voz con Preview (4 voces) */}
                                                 <div>
-                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                        Género de la voz telefónica
+                                                    <label className="block text-sm font-bold text-gray-900 mb-2">
+                                                        Selección de Voz Telefónica
                                                     </label>
-                                                    <div className="grid grid-cols-2 gap-2">
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSettings(prev => ({
-                                                                ...prev,
-                                                                agent: {
-                                                                    ...prev.agent,
-                                                                    gender: "female"
-                                                                }
-                                                            }))}
-                                                            className={`px-3 py-2 rounded-lg border transition-all text-xs font-medium ${
-                                                                settings.agent?.gender === "female"
-                                                                    ? "border-purple-500 bg-purple-50 text-purple-700 shadow-sm"
-                                                                    : "border-gray-300 bg-white text-gray-700 hover:border-purple-300"
-                                                            }`}
-                                                        >
-                                                            👩 Femenino
-                                                        </button>
-                                                        <button
-                                                            type="button"
-                                                            onClick={() => setSettings(prev => ({
-                                                                ...prev,
-                                                                agent: {
-                                                                    ...prev.agent,
-                                                                    gender: "male"
-                                                                }
-                                                            }))}
-                                                            className={`px-3 py-2 rounded-lg border transition-all text-xs font-medium ${
-                                                                settings.agent?.gender === "male"
-                                                                    ? "border-blue-500 bg-blue-50 text-blue-700 shadow-sm"
-                                                                    : "border-gray-300 bg-white text-gray-700 hover:border-blue-300"
-                                                            }`}
-                                                        >
-                                                            👨 Masculino
-                                                        </button>
-                                                    </div>
-                                                    <p className="text-[10px] text-gray-600 mt-0.5">
-                                                        Define qué voz usará en llamadas
+                                                    <p className="text-sm text-gray-600 mb-3">
+                                                        Elige la voz que usará tu agente en las llamadas telefónicas
                                                     </p>
+                                                    
+                                                    {/* Voces Femeninas */}
+                                                    <div className="mb-4">
+                                                        <p className="text-sm text-gray-700 mb-2 font-semibold">👩 Voces Femeninas</p>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                            {VOICE_OPTIONS.filter(v => v.gender === 'female').map((voice) => {
+                                                                const isSelected = settings.agent?.voice_id === voice.id;
+                                                                const isCurrentlyPlaying = currentPlayingVoice === voice.id && isPlayingAudio;
+                                                                
+                                                                return (
+                                                                    <div
+                                                                        key={voice.id}
+                                                                        onClick={() => setSettings(prev => ({
+                                                                            ...prev,
+                                                                            agent: {
+                                                                                ...prev.agent,
+                                                                                voice_id: voice.id,
+                                                                                gender: voice.gender
+                                                                            }
+                                                                        }))}
+                                                                        className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                                                            isSelected
+                                                                                ? 'border-purple-600 bg-purple-50 shadow-md'
+                                                                                : 'border-gray-200 hover:border-purple-300 bg-white'
+                                                                        }`}
+                                                                    >
+                                                                        <div className="flex items-start justify-between mb-2">
+                                                                            <div className="flex-1">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="text-sm font-semibold text-gray-900">
+                                                                                        {voice.display_name}
+                                                                                    </span>
+                                                                                    {isSelected && (
+                                                                                        <CheckCircle2 className="w-4 h-4 text-purple-600" />
+                                                                                    )}
+                                                                                </div>
+                                                                                <p className="text-xs text-gray-600 mt-0.5">
+                                                                                    {voice.description}
+                                                                                </p>
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handlePlayVoiceDemo(voice);
+                                                                                }}
+                                                                                className={`p-2 rounded-full transition-all ${
+                                                                                    isCurrentlyPlaying
+                                                                                        ? 'bg-purple-600 text-white'
+                                                                                        : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                                                                                }`}
+                                                                            >
+                                                                                {isCurrentlyPlaying ? (
+                                                                                    <Pause className="w-4 h-4" />
+                                                                                ) : (
+                                                                                    <Play className="w-4 h-4" />
+                                                                                )}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Voces Masculinas */}
+                                                    <div>
+                                                        <p className="text-sm text-gray-700 mb-2 font-semibold">👨 Voces Masculinas</p>
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                            {VOICE_OPTIONS.filter(v => v.gender === 'male').map((voice) => {
+                                                                const isSelected = settings.agent?.voice_id === voice.id;
+                                                                const isCurrentlyPlaying = currentPlayingVoice === voice.id && isPlayingAudio;
+                                                                
+                                                                return (
+                                                                    <div
+                                                                        key={voice.id}
+                                                                        onClick={() => setSettings(prev => ({
+                                                                            ...prev,
+                                                                            agent: {
+                                                                                ...prev.agent,
+                                                                                voice_id: voice.id,
+                                                                                gender: voice.gender
+                                                                            }
+                                                                        }))}
+                                                                        className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
+                                                                            isSelected
+                                                                                ? 'border-blue-600 bg-blue-50 shadow-md'
+                                                                                : 'border-gray-200 hover:border-blue-300 bg-white'
+                                                                        }`}
+                                                                    >
+                                                                        <div className="flex items-start justify-between mb-2">
+                                                                            <div className="flex-1">
+                                                                                <div className="flex items-center gap-2">
+                                                                                    <span className="text-sm font-semibold text-gray-900">
+                                                                                        {voice.display_name}
+                                                                                    </span>
+                                                                                    {isSelected && (
+                                                                                        <CheckCircle2 className="w-4 h-4 text-blue-600" />
+                                                                                    )}
+                                                                                </div>
+                                                                                <p className="text-xs text-gray-600 mt-0.5">
+                                                                                    {voice.description}
+                                                                                </p>
+                                                                            </div>
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    handlePlayVoiceDemo(voice);
+                                                                                }}
+                                                                                className={`p-2 rounded-full transition-all ${
+                                                                                    isCurrentlyPlaying
+                                                                                        ? 'bg-blue-600 text-white'
+                                                                                        : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                                                                }`}
+                                                                            >
+                                                                                {isCurrentlyPlaying ? (
+                                                                                    <Pause className="w-4 h-4" />
+                                                                                ) : (
+                                                                                    <Play className="w-4 h-4" />
+                                                                                )}
+                                                                            </button>
+                                                                        </div>
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    </div>
                                                 </div>
 
-                                                {/* Estado activo/inactivo */}
-                                                <div className="bg-white p-2 rounded-lg border border-gray-200">
-                                                    <div className="flex items-center justify-between">
-                                                        <div>
-                                                            <p className="font-semibold text-gray-900 text-xs">
-                                                                Estado del agente
-                                                            </p>
-                                                            <p className="text-[10px] text-gray-600 mt-0.5">
-                                                                {settings.agent?.enabled ? "✅ Activo - Atendiendo 24/7" : "❌ Desactivado"}
-                                                            </p>
+                                                {/* ⚡ Estado ON/OFF del Agente - MUY VISIBLE */}
+                                                <div className={`p-4 rounded-xl border-2 transition-all ${
+                                                    settings.agent?.enabled 
+                                                        ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-400 shadow-lg shadow-green-100' 
+                                                        : 'bg-gradient-to-r from-red-50 to-orange-50 border-red-400 shadow-lg shadow-red-100'
+                                                }`}>
+                                                    <div className="flex items-center justify-between mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className={`p-2 rounded-lg ${
+                                                                settings.agent?.enabled 
+                                                                    ? 'bg-green-500 text-white' 
+                                                                    : 'bg-red-500 text-white'
+                                                            }`}>
+                                                                <Power className="w-5 h-5" />
+                                                            </div>
+                                                            <div>
+                                                                <p className="font-bold text-gray-900 text-sm">
+                                                                    {settings.agent?.enabled ? "🟢 Agente ACTIVO" : "🔴 Agente DESACTIVADO"}
+                                                                </p>
+                                                                <p className="text-xs text-gray-700 mt-0.5">
+                                                                    {settings.agent?.enabled 
+                                                                        ? "Atendiendo llamadas y mensajes 24/7" 
+                                                                        : "No responderá a clientes"}
+                                                                </p>
+                                                            </div>
                                                         </div>
+                                                        
+                                                        {/* Toggle Switch GRANDE */}
                                                         <label className="relative inline-flex items-center cursor-pointer">
                                                             <input
                                                                 type="checkbox"
                                                                 checked={settings.agent?.enabled || false}
                                                                 onChange={async (e) => {
                                                                     const newEnabled = e.target.checked;
+                                                                    
+                                                                    // Confirmación al DESACTIVAR
+                                                                    if (!newEnabled) {
+                                                                        const confirmed = window.confirm(
+                                                                            '⚠️ ¿DESACTIVAR el agente IA?\n\n' +
+                                                                            'El agente dejará de:\n' +
+                                                                            '• Responder llamadas telefónicas\n' +
+                                                                            '• Contestar mensajes de WhatsApp\n' +
+                                                                            '• Gestionar reservas automáticamente\n\n' +
+                                                                            'Las reservas manuales seguirán funcionando.'
+                                                                        );
+                                                                        if (!confirmed) return;
+                                                                    }
+                                                                    
                                                                     setSettings(prev => ({
                                                                         ...prev,
                                                                         agent: {
@@ -1235,49 +1402,61 @@ const Configuracion = () => {
                                                                         }
                                                                     }));
                                                                     
-                                                                    // Si se desactiva, enviar email de confirmación
-                                                                    if (!newEnabled && businessId) {
-                                                                        try {
-                                                                            console.log('🔔 Enviando email de confirmación de desactivación...');
-                                                                            const response = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/agent-deactivated`, {
-                                                                                method: 'POST',
-                                                                                headers: { 'Content-Type': 'application/json' },
-                                                                                body: JSON.stringify({ business_id: businessId })
-                                                                            });
-                                                                            const result = await response.json();
-                                                                            if (result.success) {
-                                                                                console.log('✅ Email de confirmación enviado');
-                                                                            }
-                                                                        } catch (error) {
-                                                                            console.error('❌ Error enviando confirmación:', error);
-                                                                        }
-                                                                    }
+                                                                    toast.success(newEnabled 
+                                                                        ? '✅ Agente ACTIVADO - Ahora atenderá a clientes' 
+                                                                        : '❌ Agente DESACTIVADO - No responderá a clientes'
+                                                                    );
                                                                 }}
                                                                 className="sr-only peer"
                                                             />
-                                                            <div className="w-16 h-8 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-8 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-7 after:w-7 after:transition-all peer-checked:bg-gradient-to-r peer-checked:from-blue-600 peer-checked:to-purple-600"></div>
+                                                            <div className="w-20 h-10 bg-red-400 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-10 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-9 after:w-9 after:transition-all peer-checked:bg-green-500 shadow-lg"></div>
                                                         </label>
+                                                    </div>
+                                                    
+                                                    {/* Explicación adicional */}
+                                                    <div className={`mt-3 p-3 rounded-lg ${
+                                                        settings.agent?.enabled 
+                                                            ? 'bg-green-100 border border-green-300' 
+                                                            : 'bg-red-100 border border-red-300'
+                                                    }`}>
+                                                        <p className="text-xs font-semibold mb-1 flex items-center gap-2">
+                                                            {settings.agent?.enabled ? (
+                                                                <>
+                                                                    <Power className="w-4 h-4 text-green-700" />
+                                                                    <span className="text-green-900">¿Qué hace el agente cuando está ACTIVO?</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Power className="w-4 h-4 text-red-700" />
+                                                                    <span className="text-red-900">¿Qué pasa cuando está DESACTIVADO?</span>
+                                                                </>
+                                                            )}
+                                                        </p>
+                                                        <ul className={`text-xs space-y-1 ml-6 ${
+                                                            settings.agent?.enabled ? 'text-green-800' : 'text-red-800'
+                                                        }`}>
+                                                            {settings.agent?.enabled ? (
+                                                                <>
+                                                                    <li>✅ Responde llamadas telefónicas automáticamente</li>
+                                                                    <li>✅ Gestiona conversaciones de WhatsApp</li>
+                                                                    <li>✅ Crea y confirma reservas sin intervención manual</li>
+                                                                    <li>✅ Disponible 24/7 para tus clientes</li>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <li>❌ NO responderá llamadas (cliente escuchará tono de llamada)</li>
+                                                                    <li>❌ NO contestará mensajes de WhatsApp</li>
+                                                                    <li>❌ Reservas solo se pueden crear manualmente desde el dashboard</li>
+                                                                    <li>⚠️ Tus clientes NO podrán reservar por teléfono o WhatsApp</li>
+                                                                </>
+                                                            )}
+                                                        </ul>
                                                     </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
 
-                                    {/* Información cuando está desactivado */}
-                                    {!settings.agent?.enabled && (
-                                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                                            <div className="flex gap-3">
-                                                <Power className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                                                <div>
-                                                    <h4 className="font-semibold text-amber-900">Agente desactivado</h4>
-                                                    <p className="text-sm text-amber-800 mt-1">
-                                                        El agente no responderá a clientes en WhatsApp, teléfono, Instagram, Facebook ni otros canales.
-                                                        Las reservas manuales desde el dashboard siguen funcionando normalmente.
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
 
 
                                     {/* Botón guardar */}

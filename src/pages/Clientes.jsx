@@ -6,7 +6,7 @@ import { supabase } from "../lib/supabase";
 import { format, parseISO, differenceInDays, subDays } from "date-fns";
 import {
     Search, Plus, Users, Mail, Phone, Edit2, X, 
-    AlertTriangle, RefreshCw, Settings, Crown,
+    RefreshCw, Settings, Crown,
     Clock, DollarSign, TrendingUp, CheckCircle2
 } from "lucide-react";
 import toast from "react-hot-toast";
@@ -116,6 +116,7 @@ export default function Clientes() {
     });
     const [sortBy, setSortBy] = useState('risk'); // 'risk', 'ticket', 'lastVisit', 'visits', 'trend'
     const [sortOrder, setSortOrder] = useState('desc'); // 'asc' o 'desc'
+    const [activeTab, setActiveTab] = useState('todos'); // 'todos', 'noshows', 'crm'
 
     // Cargar clientes
     const loadCustomers = useCallback(async () => {
@@ -129,31 +130,45 @@ export default function Clientes() {
                 return;
             }
 
+            // ✅ Query con ESQUEMA REAL de Supabase (extraído 2025-11-08)
+            // 📋 Ver: docs/01-arquitectura/SCHEMA-REAL-SUPABASE-2025.sql
             const { data: customers, error } = await supabase
                 .from("customers")
                 .select(`
-                    id, business_id, name, email, phone, first_name, last_name1, last_name2, birthday,
-                    segment_auto, segment_manual, visits_count, last_visit_at, total_spent, avg_ticket,
-                    churn_risk_score, predicted_ltv, consent_email, consent_sms, consent_whatsapp,
-                    preferences, tags, notes, created_at, updated_at, is_active
+                    id, business_id, name, first_name, last_name,
+                    phone, email, birthday, notes,
+                    consent_email, consent_sms, consent_whatsapp,
+                    total_visits, last_visit_at, total_spent, avg_ticket,
+                    segment_manual, segment_auto,
+                    preferences, tags,
+                    last_contacted_at, notifications_enabled, preferred_channel,
+                    created_at, updated_at
                 `)
                 .eq("business_id", businessId)
-                .eq("is_active", true)  // ✅ Solo clientes activos
                 .order("created_at", { ascending: false });
 
             if (error) throw error;
 
-            // Procesar clientes con segmentación automática EN TIEMPO REAL
+            // Procesar clientes usando ESQUEMA REAL de Supabase
             const processedCustomers = customers?.map(customer => {
+                // Calcular días desde última visita
                 const daysSinceLastVisit = customer.last_visit_at 
                     ? Math.floor((new Date() - new Date(customer.last_visit_at)) / (1000 * 60 * 60 * 24))
                     : null;
                 
+                // Usar visits_count como alias de total_visits para compatibilidad
+                const visitsCount = customer.total_visits || 0;
+                
                 return {
                     ...customer,
-                    // ✅ Calcular segmento en tiempo real basado en visits_count
-                    segment: customer.segment_manual || calculateRealTimeSegment(customer),
-                    daysSinceLastVisit
+                    // ✅ Normalizar nombres de campos para compatibilidad con UI
+                    visits_count: visitsCount, // UI espera visits_count, BD tiene total_visits
+                    segment: customer.segment_manual || customer.segment_auto || 'nuevo',
+                    daysSinceLastVisit,
+                    // Valores por defecto para campos que no existen en BD
+                    churn_risk_score: 0,
+                    predicted_ltv: 0,
+                    is_active: true
                 };
             }) || [];
 
@@ -396,7 +411,42 @@ export default function Clientes() {
                     </div>
                 </div>
 
-                {/* Dashboard de Clientes - Métricas por Segmento */}
+                {/* 🆕 PESTAÑAS: Todos los Clientes | Segmentación CRM */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1.5">
+                    <div className="flex items-center gap-2">
+                        <button
+                            onClick={() => setActiveTab('todos')}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                                activeTab === 'todos'
+                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                            <Users className="w-4 h-4" />
+                            Todos los Clientes
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                activeTab === 'todos' ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-700'
+                            }`}>
+                                {customers.length}
+                            </span>
+                        </button>
+
+                        <button
+                            onClick={() => setActiveTab('crm')}
+                            className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all ${
+                                activeTab === 'crm'
+                                    ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
+                                    : 'text-gray-600 hover:bg-gray-100'
+                            }`}
+                        >
+                            <TrendingUp className="w-4 h-4" />
+                            Segmentación CRM
+                        </button>
+                    </div>
+                </div>
+
+                {/* Dashboard de Clientes - Métricas por Segmento (solo si activeTab === 'todos' o 'crm') */}
+                {(activeTab === 'todos' || activeTab === 'crm') && (
                 <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-3">
                     <div className="flex items-center gap-2 mb-3">
                         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
@@ -552,7 +602,11 @@ export default function Clientes() {
                         </div>
                     </div>
                 </div>
+                )}
 
+                {/* 📋 CONTENIDO: TODOS LOS CLIENTES */}
+                {activeTab === 'todos' && (
+                <>
                 {/* Filtros Avanzados */}
                 <div className="bg-gray-100 rounded-xl shadow-lg border border-gray-300 p-3">
                     <div className="space-y-3">
@@ -909,10 +963,44 @@ export default function Clientes() {
                         </div>
                     )}
                 </div>
-            </div>
+            </>
+            )}
+
+            {/* 💼 CONTENIDO: SEGMENTACIÓN CRM */}
+            {activeTab === 'crm' && (
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 text-center">
+                    <TrendingUp className="w-16 h-16 text-purple-500 mx-auto mb-4" />
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
+                        Análisis y Segmentación CRM
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                        Vista estratégica con análisis avanzado, segmentación automática y predicciones de comportamiento.
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto mt-6">
+                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                            <div className="text-2xl mb-2">📊</div>
+                            <div className="font-semibold text-gray-900">Dashboards Ejecutivos</div>
+                            <div className="text-xs text-gray-600 mt-1">Métricas clave y KPIs</div>
+                        </div>
+                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
+                            <div className="text-2xl mb-2">🎯</div>
+                            <div className="font-semibold text-gray-900">Segmentación Automática</div>
+                            <div className="text-xs text-gray-600 mt-1">Basada en comportamiento</div>
+                        </div>
+                        <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                            <div className="text-2xl mb-2">📈</div>
+                            <div className="font-semibold text-gray-900">Predicciones ML</div>
+                            <div className="text-xs text-gray-600 mt-1">LTV y riesgo de churn</div>
+                        </div>
+                    </div>
+                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-lg font-medium mt-6">
+                        🚧 En desarrollo - Próximamente
+                    </div>
+                </div>
+            )}
 
             {/* Modal Unificado de Cliente */}
-                <CustomerModal
+            <CustomerModal
                 customer={selectedCustomer}
                 isOpen={showCustomerModal}
                 businessId={businessId}
@@ -949,8 +1037,7 @@ export default function Clientes() {
                     }
                 }}
             />
+            </div>
         </div>
     );
-};
-
-
+}

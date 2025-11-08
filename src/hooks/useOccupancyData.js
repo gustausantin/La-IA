@@ -24,15 +24,10 @@ export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
             // 1. Obtener todas las mesas activas del restaurante
             let tablesQuery = supabase
                 .from('resources')
-                .select('id, name, capacity, zone, is_active')
+                .select('id, name, capacity, is_active')
                 .eq('business_id', businessId)
                 .eq('is_active', true)
-                .order('zone', { ascending: true })
                 .order('name', { ascending: true });
-
-            if (selectedZone && selectedZone !== 'all') {
-                tablesQuery = tablesQuery.eq('zone', selectedZone);
-            }
 
             const { data: tables, error: tablesError } = await tablesQuery;
             if (tablesError) throw tablesError;
@@ -49,42 +44,37 @@ export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
             const tableIds = tables.map(table => table.id);
 
             // 2. Obtener slots de disponibilidad para la fecha y mesas seleccionadas
+            // ✅ availability_slots usa resource_id, NO table_id
             const { data: slots, error: slotsError } = await supabase
                 .from('availability_slots')
-                .select('id, table_id, start_time, end_time, status, reservation_id')
+                .select('id, resource_id, start_time, end_time, status, appointment_id')
                 .eq('business_id', businessId)
                 .eq('slot_date', dateStr)
-                .in('table_id', tableIds)
+                .in('resource_id', tableIds)
                 .order('start_time', { ascending: true });
 
             if (slotsError) throw slotsError;
             
             console.log('🎯 Slots encontrados para', dateStr, ':', slots?.length || 0);
             
-            // 🚨 DETECTAR SLOTS INCONSISTENTES
-            const inconsistentSlots = slots?.filter(s => s.status === 'reserved' && !s.reservation_id) || [];
+            // ✅ SLOTS MAPEADOS CON resource_id y appointment_id
+            const inconsistentSlots = slots?.filter(s => s.status === 'reserved' && !s.appointment_id) || [];
             if (inconsistentSlots.length > 0) {
-                console.error('🚨🚨🚨 SLOTS INCONSISTENTES DETECTADOS:', inconsistentSlots.length);
-                console.error('❌ Estos slots están marcados como "reserved" pero NO tienen reservation_id:');
-                inconsistentSlots.forEach(s => {
-                    const table = tables.find(t => t.id === s.table_id);
-                    console.error(`   - ${table?.name} a las ${s.start_time} (ID: ${s.id})`);
-                });
-                console.error('🔧 SOLUCIÓN: Ejecutar scripts/sql/FIX_SLOTS_INCONSISTENTES.sql en Supabase');
+                console.warn('⚠️ Slots reservados sin appointment_id:', inconsistentSlots.length);
             }
             
-            console.log('📍 Slots por mesa:', tableIds.map(tid => ({
-                table_id: tid,
-                table_name: tables.find(t => t.id === tid)?.name,
-                slots_count: slots?.filter(s => s.table_id === tid).length || 0,
-                reserved: slots?.filter(s => s.table_id === tid && s.status === 'reserved').length || 0,
-                with_reservation_id: slots?.filter(s => s.table_id === tid && s.status === 'reserved' && s.reservation_id).length || 0
+            console.log('📍 Slots por recurso:', tableIds.map(tid => ({
+                resource_id: tid,
+                resource_name: tables.find(t => t.id === tid)?.name,
+                slots_count: slots?.filter(s => s.resource_id === tid).length || 0,
+                reserved: slots?.filter(s => s.resource_id === tid && s.status === 'reserved').length || 0,
+                with_appointment: slots?.filter(s => s.resource_id === tid && s.status === 'reserved' && s.appointment_id).length || 0
             })));
 
             // 3. Obtener detalles de reservas para los slots ocupados
             const reservedSlotIds = slots
-                ?.filter(s => s.status === 'reserved' && s.reservation_id)
-                .map(s => s.reservation_id) || [];
+                ?.filter(s => s.status === 'reserved' && s.appointment_id)
+                .map(s => s.appointment_id) || [];
 
             let reservations = [];
             if (reservedSlotIds.length > 0) {
@@ -106,7 +96,7 @@ export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
             const tableStats = [];
 
             const combinedData = tables.map(table => {
-                const tableSlots = slots?.filter(s => s.table_id === table.id) || [];
+                const tableSlots = slots?.filter(s => s.resource_id === table.id) || [];
                 const tableSlotsReserved = tableSlots.filter(s => s.status === 'reserved').length;
                 const tableSlotsFree = tableSlots.filter(s => s.status === 'free').length;
                 
@@ -115,9 +105,9 @@ export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
                 freeSlots += tableSlotsFree;
 
                 const slotsWithReservationInfo = tableSlots.map(slot => {
-                    const reservation = reservations.find(r => r.id === slot.reservation_id);
+                    const reservation = reservations.find(r => r.id === slot.appointment_id);
                     if (reservation) {
-                        totalRevenue += reservation.party_size * averageTicketPrice;
+                        totalRevenue += (reservation.party_size || 1) * averageTicketPrice;
                     }
                     return {
                         ...slot,
@@ -134,7 +124,7 @@ export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
                 tableStats.push({
                     tableId: table.id,
                     tableName: table.name,
-                    zone: table.zone,
+                    zone: 'general',
                     capacity: table.capacity,
                     totalCount: tableSlots.length,
                     reservedCount: tableSlotsReserved,
@@ -148,7 +138,7 @@ export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
                     table_id: table.id,
                     table_name: table.name,
                     table_capacity: table.capacity,
-                    table_zone: table.zone,
+                    table_zone: 'general',
                     slots: slotsWithReservationInfo,
                 };
             });

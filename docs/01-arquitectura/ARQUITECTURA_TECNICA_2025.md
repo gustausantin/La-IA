@@ -163,37 +163,10 @@ La-IA App es una plataforma SaaS multi-tenant diseñada para revolucionar la ges
 #### **3. `customers`**
 **Propósito:** Base de datos de clientes (CRM)
 
-| Columna | Tipo | Descripción |
-|---------|------|-------------|
-| `id` | UUID | PK |
-| `restaurant_id` | UUID | FK a `businesses` |
-| `first_name` | TEXT | Nombre |
-| `last_name1` | TEXT | Primer apellido |
-| `last_name2` | TEXT | Segundo apellido (opcional) |
-| `phone` | TEXT | Teléfono (único por restaurante) |
-| `email` | TEXT | Email (opcional) |
-| `birthday` | DATE | Fecha de cumpleaños (opcional) |
-| `visits_count` | INTEGER | Número de visitas |
-| `total_spent` | DECIMAL | Gasto total acumulado |
-| `avg_party_size` | DECIMAL | Tamaño promedio de grupo |
-| `segment_auto` | TEXT | Segmento automático (nuevo, habitual, VIP) |
-| `segment_manual` | TEXT | Segmento manual (override) |
-| `tags` | TEXT[] | Tags personalizados |
-| `notes` | TEXT | Notas internas |
-| `last_visit` | TIMESTAMPTZ | Última visita |
-| `created_at` | TIMESTAMPTZ | Fecha de creación |
+⚠️ **ESQUEMA OBSOLETO - CONSULTAR:**
+📄 **`docs/01-arquitectura/SCHEMA-REAL-SUPABASE-2025.sql`**
 
-**Índices:**
-- `idx_customers_restaurant_id` en `restaurant_id`
-- `idx_customers_phone` en `phone`
-- `idx_customers_segment` en `segment_auto`
-
-**RLS:** Habilitado - Por `restaurant_id`
-
-**Segmentación Automática:**
-- `nuevo`: `visits_count = 1`
-- `habitual`: `visits_count >= 2 AND visits_count < 5`
-- `vip`: `visits_count >= 5`
+**Este es el esquema REAL extraído de Supabase el 2025-11-08**
 
 ---
 

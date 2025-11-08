@@ -57,9 +57,9 @@ export default function Layout() {
         { name: "Horarios", path: "/calendario", icon: Calendar, showInBottom: false },
         { name: "Mesas", path: "/mesas", icon: Briefcase, showInBottom: false },
         { name: "Clientes", path: "/clientes", icon: Users, showInBottom: true },
-        { name: "CRM", path: "/crm-inteligente", icon: Brain, showInBottom: false },
+        // { name: "CRM", path: "/crm-inteligente", icon: Brain, showInBottom: false }, // ❌ ARCHIVO NO EXISTE
         { name: "Consumos", path: "/consumos", icon: Receipt, showInBottom: false },
-        { name: "Config", path: "/configuracion", icon: Settings, showInBottom: true },
+        { name: "Configuración", path: "/configuracion", icon: Settings, showInBottom: true },
     ];
 
     const handleLogout = async () => {

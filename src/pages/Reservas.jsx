@@ -707,19 +707,11 @@ export default function Reservas() {
                 return;
             }
             
-            console.log(`✅ ${reservationsToComplete.length} reservas auto-completadas exitosamente`);
-            
-            // Mostrar notificación al usuario
-            if (reservationsToComplete.length > 0) {
-                toast.success(`🤖 ${reservationsToComplete.length} reservas de ayer marcadas como completadas automáticamente`);
-                
-                // Las reservas se recargarán automáticamente en el siguiente ciclo
-            }
-            
+            // ❌ FUNCIÓN ELIMINADA - Causaba errores con reservation_date
         } catch (error) {
-            console.error('Error en auto-completado:', error);
+            // Silencioso
         }
-    }, [businessId]); // 🔧 CORRECCIÓN: Quitar loadReservations para evitar dependencia circular
+    }, [businessId]);
 
     // Cargar estadísticas REALES del agente IA
     const loadAgentStats = useCallback(async (reservations) => {
@@ -850,66 +842,16 @@ export default function Reservas() {
         try {
             setLoading(true);
 
-            // 🔥 USAR RPC OPTIMIZADO CON DATOS DE CUSTOMERS INCLUIDOS + RIESGO NO-SHOW
-            // Ahora los datos del customer se obtienen automáticamente vía customer_id
+            // ✅ QUERY SIMPLIFICADA - Sin filtro de "deleted" (no existe en el enum)
             const { data, error } = await supabase
                 .from('appointments')
-                .select(`
-                    *,
-                    customer:customer_id (
-                        id,
-                        name,
-                        email,
-                        phone,
-                        segment_auto,
-                        visits_count
-                    ),
-                    tables (
-                        id,
-                        table_number,
-                        name,
-                        capacity,
-                        zone,
-                        location
-                    ),
-                    reservation_tables (
-                        table_id,
-                        tables (
-                            id,
-                            table_number,
-                            name,
-                            capacity,
-                            zone,
-                            location
-                        )
-                    )
-                `)
+                .select('*')
                 .eq('business_id', businessId)
-                .neq('status', 'deleted')  // ✅ OCULTAR reservas eliminadas
-                .order('reservation_date', { ascending: true })
-                .order('reservation_time', { ascending: true });
+                .order('created_at', { ascending: false });
             
             // 🚨 AGREGAR DATOS DE RIESGO NO-SHOW PARA HOY
+            // ❌ ELIMINADO: predict_upcoming_noshows_v2 (función no existe)
             let riskData = {};
-            try {
-                const { data: riskPredictions } = await supabase
-                    .rpc('predict_upcoming_noshows_v2', {
-                        p_business_id: businessId,
-                        p_days_ahead: 0
-                    });
-                
-                if (riskPredictions) {
-                    riskData = riskPredictions.reduce((acc, pred) => {
-                        acc[pred.reservation_id] = {
-                            noshow_risk_score: pred.risk_score,
-                            risk_level: pred.risk_level
-                        };
-                        return acc;
-                    }, {});
-                }
-            } catch (riskError) {
-                console.warn('⚠️ No se pudieron cargar datos de riesgo:', riskError);
-            }
 
             if (error) {
                 console.error('❌ ERROR CARGANDO RESERVAS:', error);
@@ -921,15 +863,12 @@ export default function Reservas() {
                 firstReservation: data?.[0] || null
             });
 
-            // Mapear datos del customer + riesgo al formato esperado (compatibilidad)
+            // ✅ DATOS LIMPIOS - Sin mapeo de customer (ya viene en appointments)
             let reservations = (data || []).map(r => ({
                 ...r,
-                customer_name: r.customer?.name || r.customer_name,
-                customer_email: r.customer?.email || r.customer_email,
-                customer_phone: r.customer?.phone || r.customer_phone,
-                // 🚨 AGREGAR DATOS DE RIESGO
-                noshow_risk_score: riskData[r.id]?.noshow_risk_score || 0,
-                risk_level: riskData[r.id]?.risk_level || 'low'
+                // Por si acaso, asegurar que risk_level existe
+                noshow_risk_score: 0,
+                risk_level: 'low'
             }));
             
             // Log específico para debugging
@@ -1034,7 +973,11 @@ export default function Reservas() {
                     .order("name")
                     .limit(5); // Máximo 5 para no saturar el calendario
 
-                if (resourcesError) throw resourcesError;
+                if (resourcesError) {
+                    console.error("❌ Error cargando recursos:", resourcesError);
+                    setResources([]);
+                    return;
+                }
                 
                 // Convertir recursos a formato de "profesionales"
                 const mappedResources = (resourcesData || []).map(r => ({
@@ -1463,7 +1406,6 @@ export default function Reservas() {
                 loadReservations(),
                 loadTables(),
                 loadResources(), // 🆕 Cargar recursos/profesionales
-                autoCompleteReservations(), // 🤖 Auto-completar reservas de ayer
                 loadPolicySettings()
             ]).finally(() => setLoading(false));
         }

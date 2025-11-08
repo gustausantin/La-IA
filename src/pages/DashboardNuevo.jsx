@@ -109,17 +109,21 @@ export default function DashboardNuevo() {
   };
 
   const loadNextAppointment = async () => {
-    const { data } = await supabase
-      .from('bookings')
-      .select('*, customer:customers(name, phone)')
-      .eq('business_id', business.id)
-      .eq('status', 'confirmed')
-      .gte('start_time', new Date().toISOString())
-      .order('start_time', { ascending: true })
-      .limit(1)
-      .single();
+    try {
+      // ✅ Sin .single() para evitar 406 cuando no hay datos
+      const { data } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('business_id', business.id)
+        .eq('status', 'confirmed')
+        .order('created_at', { ascending: false })
+        .limit(1);
 
-    setNextAppointment(data);
+      setNextAppointment(data?.[0] || null);
+    } catch (error) {
+      console.log('⚠️ No hay próxima cita');
+      setNextAppointment(null);
+    }
   };
 
   const loadAvailableSlots = async () => {

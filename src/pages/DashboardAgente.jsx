@@ -875,10 +875,10 @@ export default function DashboardAgenteV2() {
                             <p className="text-sm text-gray-500 mb-4">No hay acciones pendientes 🎉</p>
                         )}
                         <button
-                            onClick={() => navigate('/crm-inteligente')}
+                            onClick={() => navigate('/clientes')}
                             className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 rounded-lg hover:bg-purple-100 transition-colors text-sm font-medium"
                         >
-                            Ver CRM
+                            Ver Clientes
                             <ArrowRight className="w-4 h-4" />
                         </button>
                     </div>

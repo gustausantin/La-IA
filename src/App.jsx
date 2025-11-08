@@ -19,7 +19,7 @@ const Login = lazy(() => import('./pages/Login'));
 const Confirm = lazy(() => import('./pages/Confirm'));
 const Reservas = lazy(() => import('./pages/Reservas'));
 const Clientes = lazy(() => import('./pages/Clientes'));
-const PlantillasCRM = lazy(() => import('./pages/PlantillasCRM'));
+// const PlantillasCRM = lazy(() => import('./pages/PlantillasCRM')); // ❌ ARCHIVO NO EXISTE
 const Mesas = lazy(() => import('./pages/Mesas'));
 const Calendario = lazy(() => import('./pages/Calendario'));
 const Comunicacion = lazy(() => import('./pages/Comunicacion'));
@@ -29,7 +29,7 @@ const CRMProximosMensajes = lazy(() => import('./pages/CRMProximosMensajes'));
 
 // 🚀 CRM v2 - Nuevas páginas
 const Consumos = lazy(() => import('./pages/Consumos'));
-const CRMv2 = lazy(() => import('./pages/CRMSimple')); // CRM SIMPLE - Una página con todo claro
+// const CRMv2 = lazy(() => import('./pages/CRMSimple')); // ❌ ARCHIVO NO EXISTE
 const AvailabilityTester = lazy(() => import('./components/AvailabilityTester'));
 
 // 🛡️ Sistema de No-Shows Revolucionario
@@ -180,6 +180,7 @@ function AppContent() {
                   </Suspense>
                 } 
               />
+              {/* ❌ RUTA DESHABILITADA - ARCHIVO NO EXISTE
               <Route 
                 path="/crm-inteligente" 
                 element={
@@ -188,6 +189,7 @@ function AppContent() {
                   </Suspense>
                 } 
               />
+              */}
               <Route 
                 path="/consumos" 
                 element={
