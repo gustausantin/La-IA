@@ -1,0 +1,165 @@
+[
+  {
+    "tabla_origen": "business_services",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "business_services_business_id_fkey"
+  },
+  {
+    "tabla_origen": "business_services",
+    "columna_origen": "template_id",
+    "tabla_destino": "service_templates",
+    "columna_destino": "id",
+    "nombre_constraint": "business_services_template_id_fkey"
+  },
+  {
+    "tabla_origen": "crm_business_overrides",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "crm_business_overrides_business_id_fkey"
+  },
+  {
+    "tabla_origen": "employee_absences",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "employee_absences_business_id_fkey"
+  },
+  {
+    "tabla_origen": "employee_absences",
+    "columna_origen": "approved_by",
+    "tabla_destino": "employees",
+    "columna_destino": "id",
+    "nombre_constraint": "employee_absences_approved_by_fkey"
+  },
+  {
+    "tabla_origen": "employee_absences",
+    "columna_origen": "employee_id",
+    "tabla_destino": "employees",
+    "columna_destino": "id",
+    "nombre_constraint": "employee_absences_employee_id_fkey"
+  },
+  {
+    "tabla_origen": "employee_blocks",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "employee_blocks_business_id_fkey"
+  },
+  {
+    "tabla_origen": "employee_blocks",
+    "columna_origen": "employee_id",
+    "tabla_destino": "employees",
+    "columna_destino": "id",
+    "nombre_constraint": "employee_blocks_employee_id_fkey"
+  },
+  {
+    "tabla_origen": "employee_schedules",
+    "columna_origen": "employee_id",
+    "tabla_destino": "employees",
+    "columna_destino": "id",
+    "nombre_constraint": "employee_schedules_employee_id_fkey"
+  },
+  {
+    "tabla_origen": "employee_schedules",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "employee_schedules_business_id_fkey"
+  },
+  {
+    "tabla_origen": "employees",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "employees_business_id_fkey"
+  },
+  {
+    "tabla_origen": "employees",
+    "columna_origen": "assigned_resource_id",
+    "tabla_destino": "resources",
+    "columna_destino": "id",
+    "nombre_constraint": "employees_assigned_resource_id_fkey"
+  },
+  {
+    "tabla_origen": "google_calendar_events",
+    "columna_origen": "integration_id",
+    "tabla_destino": "integrations",
+    "columna_destino": "id",
+    "nombre_constraint": "google_calendar_events_integration_id_fkey"
+  },
+  {
+    "tabla_origen": "google_calendar_events",
+    "columna_origen": "appointment_id",
+    "tabla_destino": "appointments",
+    "columna_destino": "id",
+    "nombre_constraint": "google_calendar_events_appointment_id_fkey"
+  },
+  {
+    "tabla_origen": "google_calendar_events",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "google_calendar_events_business_id_fkey"
+  },
+  {
+    "tabla_origen": "integrations",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "integrations_business_id_fkey"
+  },
+  {
+    "tabla_origen": "inventario_telefonos",
+    "columna_origen": "id_negocio_asignado",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "inventario_telefonos_id_negocio_asignado_fkey"
+  },
+  {
+    "tabla_origen": "resource_blockages",
+    "columna_origen": "resource_id",
+    "tabla_destino": "resources",
+    "columna_destino": "id",
+    "nombre_constraint": "resource_blockages_resource_id_fkey"
+  },
+  {
+    "tabla_origen": "resource_blockages",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "resource_blockages_business_id_fkey"
+  },
+  {
+    "tabla_origen": "waitlist",
+    "columna_origen": "preferred_resource_id",
+    "tabla_destino": "resources",
+    "columna_destino": "id",
+    "nombre_constraint": "waitlist_preferred_resource_id_fkey"
+  },
+  {
+    "tabla_origen": "waitlist",
+    "columna_origen": "business_id",
+    "tabla_destino": "businesses",
+    "columna_destino": "id",
+    "nombre_constraint": "waitlist_business_id_fkey"
+  },
+  {
+    "tabla_origen": "waitlist",
+    "columna_origen": "service_id",
+    "tabla_destino": "services",
+    "columna_destino": "id",
+    "nombre_constraint": "waitlist_service_id_fkey"
+  },
+  {
+    "tabla_origen": "waitlist",
+    "columna_origen": "customer_id",
+    "tabla_destino": "customers",
+    "columna_destino": "id",
+    "nombre_constraint": "waitlist_customer_id_fkey"
+  }
+]
+
+

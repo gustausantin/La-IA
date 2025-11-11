@@ -1,0 +1,201 @@
+[
+  {
+    "function_name": "calculate_appointment_end_time",
+    "function_type": "FUNCTION",
+    "return_type": "trigger",
+    "function_definition": "\r\nBEGIN\r\n    NEW.end_time := NEW.appointment_time + (NEW.duration_minutes || ' minutes')::INTERVAL;\r\n    RETURN NEW;\r\nEND;\r\n"
+  },
+  {
+    "function_name": "calculate_customer_segment",
+    "function_type": "FUNCTION",
+    "return_type": "character varying",
+    "function_definition": "\r\nDECLARE\r\n  v_vertical_id VARCHAR(50);\r\n  v_params RECORD;\r\n  v_overrides RECORD;\r\n  \r\n  -- Métricas del cliente\r\n  v_lifetime_visits INT;\r\n  v_visits_12m INT;\r\n  v_spend_12m NUMERIC;\r\n  v_last_visit_date DATE;\r\n  v_last_visit_days INT;\r\n  v_first_visit_date DATE;\r\n  v_days_since_first_visit INT;\r\n  \r\n  -- Personal cadence\r\n  v_personal_cadence INT;\r\n  v_has_personal_cadence BOOLEAN;\r\n  v_risk_threshold INT;\r\n  v_inactive_threshold INT;\r\n  \r\n  -- Parámetros finales (después de overrides)\r\n  v_cycle_days INT;\r\n  v_risk_min_days INT;\r\n  v_inactive_days INT;\r\n  v_vip_min_visits INT;\r\n  v_vip_min_spend NUMERIC;\r\nBEGIN\r\n  -- 1. Obtener vertical_type del negocio\r\n  SELECT vertical_type INTO v_vertical_id\r\n  FROM businesses\r\n  WHERE id = p_business_id;\r\n  \r\n  IF v_vertical_id IS NULL THEN\r\n    RETURN 'regular'; -- Fallback\r\n  END IF;\r\n  \r\n  -- 2. Obtener parámetros del vertical\r\n  SELECT * INTO v_params\r\n  FROM crm_vertical_parameters\r\n  WHERE vertical_id = v_vertical_id;\r\n  \r\n  IF NOT FOUND THEN\r\n    RETURN 'regular'; -- Fallback si no hay parámetros\r\n  END IF;\r\n  \r\n  -- 3. Obtener overrides del negocio (si existen)\r\n  SELECT * INTO v_overrides\r\n  FROM crm_business_overrides\r\n  WHERE business_id = p_business_id;\r\n  \r\n  -- 4. Aplicar overrides o usar defaults\r\n  v_cycle_days := COALESCE(v_overrides.cycle_days, v_params.cycle_days);\r\n  v_risk_min_days := COALESCE(v_overrides.risk_min_days, v_params.risk_min_days);\r\n  v_inactive_days := COALESCE(v_overrides.inactive_days, v_params.inactive_days);\r\n  v_vip_min_visits := COALESCE(v_overrides.vip_min_visits_12m, v_params.vip_min_visits_12m);\r\n  v_vip_min_spend := COALESCE(v_overrides.vip_min_spend_12m, v_params.vip_min_spend_12m);\r\n  \r\n  -- 5. Calcular métricas del cliente\r\n  \r\n  -- Lifetime visits\r\n  SELECT COUNT(*) INTO v_lifetime_visits\r\n  FROM appointments\r\n  WHERE customer_id = p_customer_id\r\n    AND status = 'completed';\r\n  \r\n  -- Visits en últimos 12 meses\r\n  SELECT COUNT(*) INTO v_visits_12m\r\n  FROM appointments\r\n  WHERE customer_id = p_customer_id\r\n    AND status = 'completed'\r\n    AND appointment_date >= CURRENT_DATE - INTERVAL '12 months';\r\n  \r\n  -- Gasto en últimos 12 meses\r\n  SELECT COALESCE(SUM(amount_paid), 0) INTO v_spend_12m\r\n  FROM appointments\r\n  WHERE customer_id = p_customer_id\r\n    AND status = 'completed'\r\n    AND appointment_date >= CURRENT_DATE - INTERVAL '12 months';\r\n  \r\n  -- Última visita\r\n  SELECT MAX(appointment_date) INTO v_last_visit_date\r\n  FROM appointments\r\n  WHERE customer_id = p_customer_id\r\n    AND status = 'completed';\r\n  \r\n  v_last_visit_days := COALESCE(CURRENT_DATE - v_last_visit_date, 999);\r\n  \r\n  -- Primera visita\r\n  SELECT MIN(appointment_date) INTO v_first_visit_date\r\n  FROM appointments\r\n  WHERE customer_id = p_customer_id\r\n    AND status = 'completed';\r\n  \r\n  v_days_since_first_visit := COALESCE(CURRENT_DATE - v_first_visit_date, 0);\r\n  \r\n  -- 6. Calcular Personal Cadence\r\n  v_personal_cadence := calculate_personal_cadence(p_customer_id);\r\n  v_has_personal_cadence := (v_personal_cadence IS NOT NULL);\r\n  \r\n  -- 7. Calcular thresholds\r\n  IF v_has_personal_cadence THEN\r\n    v_risk_threshold := v_personal_cadence * 1.5;\r\n    v_inactive_threshold := v_personal_cadence * 2.5;\r\n  ELSE\r\n    v_risk_threshold := v_risk_min_days;\r\n    v_inactive_threshold := v_inactive_days;\r\n  END IF;\r\n  \r\n  -- 8. APLICAR REGLAS (por orden de prioridad) - 5 SEGMENTOS\r\n  \r\n  -- PRIORIDAD 1: VIP (siempre gana, incluso si está inactivo)\r\n  IF v_spend_12m >= v_vip_min_spend OR v_visits_12m >= v_vip_min_visits THEN\r\n    RETURN 'vip';\r\n  END IF;\r\n  \r\n  -- PRIORIDAD 2: NUEVO (1-2 visitas en últimos 90 días)\r\n  IF v_lifetime_visits <= 2 AND v_days_since_first_visit <= 90 THEN\r\n    RETURN 'nuevo';\r\n  END IF;\r\n  \r\n  -- PRIORIDAD 3: INACTIVO\r\n  IF v_last_visit_days > v_inactive_threshold THEN\r\n    RETURN 'inactivo';\r\n  END IF;\r\n  \r\n  -- PRIORIDAD 4: EN RIESGO\r\n  IF v_last_visit_days > v_risk_threshold THEN\r\n    RETURN 'en_riesgo';\r\n  END IF;\r\n  \r\n  -- PRIORIDAD 5 (DEFAULT): REGULAR\r\n  RETURN 'regular';\r\n  \r\nEND;\r\n"
+  },
+  {
+    "function_name": "calculate_personal_cadence",
+    "function_type": "FUNCTION",
+    "return_type": "integer",
+    "function_definition": "\r\nDECLARE\r\n  intervals INT[];\r\n  cadence INT;\r\nBEGIN\r\n  -- Obtener los últimos 4 appointment_date (para calcular 3 intervalos)\r\n  SELECT ARRAY_AGG(\r\n    EXTRACT(DAY FROM appointment_date - LAG(appointment_date) OVER (ORDER BY appointment_date))::INT\r\n  )\r\n  INTO intervals\r\n  FROM (\r\n    SELECT appointment_date\r\n    FROM appointments\r\n    WHERE customer_id = p_customer_id\r\n      AND status = 'completed'\r\n    ORDER BY appointment_date DESC\r\n    LIMIT 4\r\n  ) dates\r\n  WHERE LAG(appointment_date) OVER (ORDER BY appointment_date) IS NOT NULL;\r\n  \r\n  -- Si tenemos al menos 2 intervalos, calcular mediana\r\n  IF array_length(intervals, 1) >= 2 THEN\r\n    -- Ordenar array y tomar mediana\r\n    SELECT CASE \r\n      WHEN array_length(intervals, 1) % 2 = 1 THEN\r\n        intervals[array_length(intervals, 1) / 2 + 1]\r\n      ELSE\r\n        (intervals[array_length(intervals, 1) / 2] + intervals[array_length(intervals, 1) / 2 + 1]) / 2\r\n    END\r\n    INTO cadence\r\n    FROM (SELECT ARRAY(SELECT unnest(intervals) ORDER BY 1) AS intervals) sorted;\r\n    \r\n    RETURN cadence;\r\n  ELSE\r\n    RETURN NULL;\r\n  END IF;\r\nEND;\r\n"
+  },
+  {
+    "function_name": "calculate_simple_risk_level",
+    "function_type": "FUNCTION",
+    "return_type": "record",
+    "function_definition": "\r\nDECLARE\r\n    v_appointment RECORD;\r\n    v_customer RECORD;\r\n    v_confirmations RECORD;\r\n    v_hours_until NUMERIC;\r\n    v_confirmed_24h BOOLEAN := false;\r\n    v_confirmed_4h BOOLEAN := false;\r\n    v_has_noshows BOOLEAN := false;\r\n    v_booking_days INTEGER := 0;\r\n    v_risk TEXT := 'low';\r\n    v_color TEXT := 'green';\r\n    v_emoji TEXT := '🟢';\r\n    v_why TEXT := '';\r\n    v_what TEXT := '';\r\nBEGIN\r\n    -- 1. Obtener datos de la cita\r\n    SELECT a.*, \r\n           EXTRACT(EPOCH FROM (\r\n               (a.appointment_date + a.appointment_time) - now()\r\n           )) / 3600.0 AS hours_until\r\n    INTO v_appointment\r\n    FROM appointments a\r\n    WHERE a.id = p_appointment_id;\r\n\r\n    IF NOT FOUND THEN\r\n        RETURN;\r\n    END IF;\r\n\r\n    v_hours_until := v_appointment.hours_until;\r\n\r\n    -- 2. Obtener datos del cliente\r\n    SELECT \r\n        c.*,\r\n        COALESCE(\r\n            (SELECT COUNT(*) FROM appointments \r\n             WHERE customer_id = c.id \r\n             AND status = 'no_show'\r\n            ), 0\r\n        ) AS noshow_count,\r\n        EXTRACT(DAY FROM now() - c.created_at) AS booking_days_ago\r\n    INTO v_customer\r\n    FROM customers c\r\n    WHERE c.id = v_appointment.customer_id;\r\n\r\n    IF FOUND THEN\r\n        v_has_noshows := v_customer.noshow_count > 0;\r\n        v_booking_days := COALESCE(v_customer.booking_days_ago, 0);\r\n    END IF;\r\n\r\n    -- 3. Obtener confirmaciones\r\n    SELECT \r\n        COALESCE(\r\n            (SELECT COUNT(*) > 0 FROM customer_confirmations \r\n             WHERE appointment_id = p_appointment_id \r\n             AND message_type = 'Confirmación 24h antes' \r\n             AND confirmed = true\r\n            ), false\r\n        ) AS conf_24h,\r\n        COALESCE(\r\n            (SELECT COUNT(*) > 0 FROM customer_confirmations \r\n             WHERE appointment_id = p_appointment_id \r\n             AND message_type = 'Recordatorio 4h antes' \r\n             AND confirmed = true\r\n            ), false\r\n        ) AS conf_4h\r\n    INTO v_confirmed_24h, v_confirmed_4h;\r\n\r\n    -- =====================================================\r\n    -- LÓGICA SIMPLIFICADA (Árbol de Decisión)\r\n    -- =====================================================\r\n\r\n    -- REGLA 1: Si confirmó → BAJO RIESGO (siempre)\r\n    IF v_confirmed_24h OR v_confirmed_4h THEN\r\n        v_risk := 'low';\r\n        v_color := 'green';\r\n        v_emoji := '🟢';\r\n        v_why := 'Ha confirmado su asistencia';\r\n        v_what := 'Todo correcto - esperar al cliente';\r\n        \r\n    -- REGLA 2: Faltan menos de 2h y NO confirmó → ALTO RIESGO\r\n    ELSIF v_hours_until < 2 AND v_hours_until > 0 THEN\r\n        v_risk := 'high';\r\n        v_color := 'red';\r\n        v_emoji := '🔴';\r\n        v_why := 'Faltan menos de 2 horas y no ha confirmado';\r\n        v_what := 'LLAMAR AHORA para confirmar o cancelar';\r\n        \r\n    -- REGLA 3: Tiene no-shows previos → ALTO RIESGO\r\n    ELSIF v_has_noshows THEN\r\n        v_risk := 'high';\r\n        v_color := 'red';\r\n        v_emoji := '🔴';\r\n        v_why := 'Tiene no-shows previos y no ha confirmado';\r\n        v_what := 'Enviar WhatsApp recordatorio urgente';\r\n        \r\n    -- REGLA 4: Reservó con menos de 24h → MEDIO RIESGO\r\n    ELSIF v_booking_days < 1 THEN\r\n        v_risk := 'medium';\r\n        v_color := 'yellow';\r\n        v_emoji := '🟡';\r\n        v_why := 'Reservó con poca antelación (menos de 24h)';\r\n        v_what := 'Enviar confirmación y hacer seguimiento';\r\n        \r\n    -- REGLA 5: No ha confirmado pero sin banderas rojas → MEDIO RIESGO\r\n    ELSIF NOT v_confirmed_24h AND v_hours_until < 24 THEN\r\n        v_risk := 'medium';\r\n        v_color := 'yellow';\r\n        v_emoji := '🟡';\r\n        v_why := 'Aún no ha confirmado su cita';\r\n        v_what := 'Enviar recordatorio por WhatsApp';\r\n        \r\n    -- REGLA 6: Todo OK → BAJO RIESGO\r\n    ELSE\r\n        v_risk := 'low';\r\n        v_color := 'green';\r\n        v_emoji := '🟢';\r\n        v_why := 'Cliente confiable sin señales de riesgo';\r\n        v_what := 'Seguir proceso normal de confirmación';\r\n    END IF;\r\n\r\n    RETURN QUERY SELECT \r\n        v_risk,\r\n        v_color,\r\n        v_emoji,\r\n        v_why,\r\n        v_what,\r\n        v_confirmed_24h,\r\n        v_confirmed_4h,\r\n        v_has_noshows,\r\n        v_booking_days,\r\n        v_hours_until;\r\nEND;\r\n"
+  },
+  {
+    "function_name": "cleanup_expired_demos",
+    "function_type": "FUNCTION",
+    "return_type": "integer",
+    "function_definition": "\r\nDECLARE\r\n    deleted_count INTEGER;\r\nBEGIN\r\n    -- Eliminar demos que expiraron hace más de 1 hora\r\n    DELETE FROM demo_sessions\r\n    WHERE expires_at < NOW() - INTERVAL '1 hour';\r\n    \r\n    GET DIAGNOSTICS deleted_count = ROW_COUNT;\r\n    \r\n    RAISE NOTICE 'Demos expiradas eliminadas: %', deleted_count;\r\n    \r\n    RETURN deleted_count;\r\nEND;\r\n"
+  },
+  {
+    "function_name": "cleanup_expired_waitlist",
+    "function_type": "FUNCTION",
+    "return_type": "integer",
+    "function_definition": "\r\nDECLARE\r\n    v_deleted_count INTEGER;\r\nBEGIN\r\n    -- Marcar como expirados los registros que pasaron su fecha\r\n    UPDATE waitlist\r\n    SET status = 'expired'\r\n    WHERE status = 'waiting'\r\n      AND expires_at < now();\r\n    \r\n    GET DIAGNOSTICS v_deleted_count = ROW_COUNT;\r\n    \r\n    RETURN v_deleted_count;\r\nEND;\r\n"
+  },
+  {
+    "function_name": "cleanup_live_demo",
+    "function_type": "FUNCTION",
+    "return_type": "void",
+    "function_definition": "\r\nBEGIN\r\n    UPDATE live_demo_config\r\n    SET \r\n        is_active = false,\r\n        session_id_temporal = NULL\r\n    WHERE id = 1;\r\nEND;\r\n"
+  },
+  {
+    "function_name": "create_business_securely",
+    "function_type": "FUNCTION",
+    "return_type": "jsonb"
+  },
+  {
+    "function_name": "create_default_schedule_for_employee",
+    "function_type": "FUNCTION",
+    "return_type": "void"
+  },
+  {
+    "function_name": "get_active_integration",
+    "function_type": "FUNCTION",
+    "return_type": "jsonb"
+  },
+  {
+    "function_name": "get_available_demo_phone",
+    "function_type": "FUNCTION",
+    "return_type": "text"
+  },
+  {
+    "function_name": "get_elevenlabs_voice_id",
+    "function_type": "FUNCTION",
+    "return_type": "text"
+  },
+  {
+    "function_name": "get_elevenlabs_voice_id",
+    "function_type": "FUNCTION",
+    "return_type": "character varying"
+  },
+  {
+    "function_name": "get_employee_availability",
+    "function_type": "FUNCTION",
+    "return_type": "record"
+  },
+  {
+    "function_name": "get_employees_for_calendar",
+    "function_type": "FUNCTION",
+    "return_type": "record"
+  },
+  {
+    "function_name": "get_risk_appointments_today",
+    "function_type": "FUNCTION",
+    "return_type": "record"
+  },
+  {
+    "function_name": "get_simple_noshow_metrics",
+    "function_type": "FUNCTION",
+    "return_type": "record"
+  },
+  {
+    "function_name": "get_user_business",
+    "function_type": "FUNCTION",
+    "return_type": "record"
+  },
+  {
+    "function_name": "get_user_business_info",
+    "function_type": "FUNCTION",
+    "return_type": "jsonb"
+  },
+  {
+    "function_name": "mask_whatsapp",
+    "function_type": "FUNCTION",
+    "return_type": "text"
+  },
+  {
+    "function_name": "notify_waitlist_on_cancellation",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "reciclar_numeros_cuarentena",
+    "function_type": "FUNCTION",
+    "return_type": "integer"
+  },
+  {
+    "function_name": "refresh_integration_token",
+    "function_type": "FUNCTION",
+    "return_type": "jsonb"
+  },
+  {
+    "function_name": "release_demo_phone",
+    "function_type": "FUNCTION",
+    "return_type": "void"
+  },
+  {
+    "function_name": "save_employee_schedule_with_validation",
+    "function_type": "FUNCTION",
+    "return_type": "jsonb"
+  },
+  {
+    "function_name": "trigger_create_employee_schedule",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "trigger_slot_regeneration_on_blockage",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "trigger_validate_schedule_overlap",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "update_business_services_updated_at",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "update_demo_schedules_timestamp",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "update_demo_slots_timestamp",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "update_demo_vertical_context_updated_at",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "update_integrations_updated_at",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "update_inventario_updated_at",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "update_live_demo_config_timestamp",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "update_updated_at_column",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  },
+  {
+    "function_name": "validate_employee_schedule_no_overlap",
+    "function_type": "FUNCTION",
+    "return_type": "boolean"
+  },
+  {
+    "function_name": "validate_resource_blockage",
+    "function_type": "FUNCTION",
+    "return_type": "trigger"
+  }
+]
+
+

@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import CustomerModal from "../components/CustomerModal";
+import { getVerticalConfig } from "../config/verticals";
 
 // SEGMENTACIÓN INTELIGENTE - SISTEMA CRM POR VERTICAL (5 SEGMENTOS)
 const CUSTOMER_SEGMENTS = {
@@ -128,6 +129,11 @@ export default function Clientes() {
         message: '',
         title: ''
     });
+
+    // 🎨 Configuración del vertical (labels e iconos personalizados)
+    const verticalConfig = useMemo(() => {
+        return getVerticalConfig(restaurant?.vertical_type);
+    }, [restaurant?.vertical_type]);
 
     // 🆕 Cargar parámetros del vertical desde Supabase
     const loadVerticalParams = useCallback(async () => {
@@ -1471,19 +1477,113 @@ export default function Clientes() {
                         );
                     })()}
 
+                    {/* 📊 Comparativa con el Sector */}
+                    {customers.length >= 10 && (
+                        <div className="bg-white rounded-xl border-2 border-indigo-200 shadow-lg p-6">
+                            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                <BarChart3 className="w-5 h-5 text-indigo-600" />
+                                Comparativa con el Sector ({verticalConfig.name})
+                            </h3>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* VIP Percentage */}
+                                {(() => {
+                                    const vipCount = customers.filter(c => c.segment === 'vip').length;
+                                    const myVipPercentage = Math.round((vipCount / customers.length) * 100);
+                                    const benchmarkVip = verticalConfig.benchmarks.vipPercentage;
+                                    const diff = myVipPercentage - benchmarkVip;
+                                    
+                                    return (
+                                        <div className="p-4 bg-purple-50 rounded-xl border border-purple-200">
+                                            <div className="text-sm text-gray-700 mb-2 font-semibold">Clientes VIP</div>
+                                            <div className="flex items-baseline gap-2">
+                                                <div className="text-2xl font-bold text-purple-700">{myVipPercentage}%</div>
+                                                {Math.abs(diff) >= 2 && (
+                                                    <div className={`text-sm font-semibold ${diff > 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                                                        {diff > 0 ? '↗' : '↘'} {Math.abs(diff)}%
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-gray-600 mt-1">
+                                                Sector: {benchmarkVip}%
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Regular Percentage */}
+                                {(() => {
+                                    const regularCount = customers.filter(c => c.segment === 'regular').length;
+                                    const myRegularPercentage = Math.round((regularCount / customers.length) * 100);
+                                    const benchmarkRegular = verticalConfig.benchmarks.regularPercentage;
+                                    const diff = myRegularPercentage - benchmarkRegular;
+                                    
+                                    return (
+                                        <div className="p-4 bg-green-50 rounded-xl border border-green-200">
+                                            <div className="text-sm text-gray-700 mb-2 font-semibold">Clientes Regulares</div>
+                                            <div className="flex items-baseline gap-2">
+                                                <div className="text-2xl font-bold text-green-700">{myRegularPercentage}%</div>
+                                                {Math.abs(diff) >= 2 && (
+                                                    <div className={`text-sm font-semibold ${diff > 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                                                        {diff > 0 ? '↗' : '↘'} {Math.abs(diff)}%
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-gray-600 mt-1">
+                                                Sector: {benchmarkRegular}%
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+
+                                {/* Churn Rate */}
+                                {(() => {
+                                    const inactivoCount = customers.filter(c => c.segment === 'inactivo').length;
+                                    const myChurnRate = Math.round((inactivoCount / customers.length) * 100);
+                                    const benchmarkChurn = verticalConfig.benchmarks.churnRate;
+                                    const diff = myChurnRate - benchmarkChurn;
+                                    
+                                    return (
+                                        <div className="p-4 bg-orange-50 rounded-xl border border-orange-200">
+                                            <div className="text-sm text-gray-700 mb-2 font-semibold">Tasa de Abandono</div>
+                                            <div className="flex items-baseline gap-2">
+                                                <div className="text-2xl font-bold text-orange-700">{myChurnRate}%</div>
+                                                {Math.abs(diff) >= 2 && (
+                                                    <div className={`text-sm font-semibold ${diff < 0 ? 'text-green-600' : 'text-orange-600'}`}>
+                                                        {diff < 0 ? '✅' : '⚠️'} {Math.abs(diff)}%
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <div className="text-xs text-gray-600 mt-1">
+                                                Sector: {benchmarkChurn}% {diff < 0 && '(¡vas mejor!)'}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                            
+                            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="text-xs text-blue-900">
+                                    <strong>ℹ️ Comparativa:</strong> Datos basados en promedios del sector de {verticalConfig.name.toLowerCase()}. 
+                                    Las diferencias significativas (±2%) se destacan automáticamente.
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Sin clientes en ningún segmento */}
                     {customers.filter(c => ['en_riesgo', 'inactivo', 'nuevo'].includes(c.segment)).length === 0 && (
                         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
                             <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
-                            <h3 className="text-xl font-bold text-gray-900 mb-2">
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">
                                 ¡Excelente trabajo! 🎉
-                            </h3>
+                    </h3>
                             <p className="text-gray-600">
                                 No hay acciones urgentes en este momento. Tu base de clientes está saludable.
-                            </p>
+                    </p>
                         </div>
                     )}
-                </div>
+                        </div>
             )}
 
             {/* 🚀 FASE 2: Modal de Campaña */}
@@ -1496,7 +1596,7 @@ export default function Clientes() {
                                 <h2 className="text-2xl font-bold flex items-center gap-3">
                                     <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
                                         <MessageSquare className="w-6 h-6" />
-                                    </div>
+                        </div>
                                     {campaignData.title}
                                 </h2>
                                 <button
@@ -1505,11 +1605,11 @@ export default function Clientes() {
                                 >
                                     <X className="w-6 h-6" />
                                 </button>
-                            </div>
+                    </div>
                             <p className="text-white/90 text-sm">
                                 Prepara tu mensaje y exporta los contactos
                             </p>
-                        </div>
+                    </div>
 
                         {/* Body */}
                         <div className="flex-1 overflow-y-auto p-6 space-y-6">

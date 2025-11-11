@@ -1,0 +1,564 @@
+[
+  {
+    "table_name": "agent_conversations",
+    "index_name": "agent_conversations_pkey",
+    "index_definition": "CREATE UNIQUE INDEX agent_conversations_pkey ON public.agent_conversations USING btree (id)"
+  },
+  {
+    "table_name": "agent_messages",
+    "index_name": "agent_messages_pkey",
+    "index_definition": "CREATE UNIQUE INDEX agent_messages_pkey ON public.agent_messages USING btree (id)"
+  },
+  {
+    "table_name": "agent_metrics",
+    "index_name": "agent_metrics_pkey",
+    "index_definition": "CREATE UNIQUE INDEX agent_metrics_pkey ON public.agent_metrics USING btree (id)"
+  },
+  {
+    "table_name": "analytics",
+    "index_name": "analytics_pkey",
+    "index_definition": "CREATE UNIQUE INDEX analytics_pkey ON public.analytics USING btree (id)"
+  },
+  {
+    "table_name": "appointments",
+    "index_name": "appointments_pkey",
+    "index_definition": "CREATE UNIQUE INDEX appointments_pkey ON public.appointments USING btree (id)"
+  },
+  {
+    "table_name": "automation_rules",
+    "index_name": "automation_rules_pkey",
+    "index_definition": "CREATE UNIQUE INDEX automation_rules_pkey ON public.automation_rules USING btree (id)"
+  },
+  {
+    "table_name": "availability_slots",
+    "index_name": "availability_slots_pkey",
+    "index_definition": "CREATE UNIQUE INDEX availability_slots_pkey ON public.availability_slots USING btree (id)"
+  },
+  {
+    "table_name": "business_operating_hours",
+    "index_name": "business_operating_hours_pkey",
+    "index_definition": "CREATE UNIQUE INDEX business_operating_hours_pkey ON public.business_operating_hours USING btree (id)"
+  },
+  {
+    "table_name": "business_services",
+    "index_name": "business_services_pkey",
+    "index_definition": "CREATE UNIQUE INDEX business_services_pkey ON public.business_services USING btree (id)"
+  },
+  {
+    "table_name": "business_services",
+    "index_name": "idx_business_services_active",
+    "index_definition": "CREATE INDEX idx_business_services_active ON public.business_services USING btree (business_id, is_active)"
+  },
+  {
+    "table_name": "business_services",
+    "index_name": "idx_business_services_business",
+    "index_definition": "CREATE INDEX idx_business_services_business ON public.business_services USING btree (business_id)"
+  },
+  {
+    "table_name": "business_shifts",
+    "index_name": "business_shifts_pkey",
+    "index_definition": "CREATE UNIQUE INDEX business_shifts_pkey ON public.business_shifts USING btree (id)"
+  },
+  {
+    "table_name": "business_verticals",
+    "index_name": "business_verticals_code_key",
+    "index_definition": "CREATE UNIQUE INDEX business_verticals_code_key ON public.business_verticals USING btree (code)"
+  },
+  {
+    "table_name": "business_verticals",
+    "index_name": "business_verticals_pkey",
+    "index_definition": "CREATE UNIQUE INDEX business_verticals_pkey ON public.business_verticals USING btree (id)"
+  },
+  {
+    "table_name": "businesses",
+    "index_name": "businesses_pkey",
+    "index_definition": "CREATE UNIQUE INDEX businesses_pkey ON public.businesses USING btree (id)"
+  },
+  {
+    "table_name": "businesses",
+    "index_name": "idx_businesses_agent_status",
+    "index_definition": "CREATE INDEX idx_businesses_agent_status ON public.businesses USING btree (agent_status)"
+  },
+  {
+    "table_name": "businesses",
+    "index_name": "idx_businesses_assigned_phone",
+    "index_definition": "CREATE INDEX idx_businesses_assigned_phone ON public.businesses USING btree (assigned_phone)"
+  },
+  {
+    "table_name": "businesses",
+    "index_name": "idx_businesses_copilot",
+    "index_definition": "CREATE INDEX idx_businesses_copilot ON public.businesses USING btree (copilot_completed, copilot_step)"
+  },
+  {
+    "table_name": "businesses",
+    "index_name": "idx_businesses_onboarding",
+    "index_definition": "CREATE INDEX idx_businesses_onboarding ON public.businesses USING btree (onboarding_completed, onboarding_step)"
+  },
+  {
+    "table_name": "calendar_exceptions",
+    "index_name": "calendar_exceptions_pkey",
+    "index_definition": "CREATE UNIQUE INDEX calendar_exceptions_pkey ON public.calendar_exceptions USING btree (id)"
+  },
+  {
+    "table_name": "channel_credentials",
+    "index_name": "channel_credentials_pkey",
+    "index_definition": "CREATE UNIQUE INDEX channel_credentials_pkey ON public.channel_credentials USING btree (id)"
+  },
+  {
+    "table_name": "crm_actions_by_vertical",
+    "index_name": "crm_actions_by_vertical_pkey",
+    "index_definition": "CREATE UNIQUE INDEX crm_actions_by_vertical_pkey ON public.crm_actions_by_vertical USING btree (id)"
+  },
+  {
+    "table_name": "crm_actions_by_vertical",
+    "index_name": "crm_actions_by_vertical_vertical_id_segment_trigger_key",
+    "index_definition": "CREATE UNIQUE INDEX crm_actions_by_vertical_vertical_id_segment_trigger_key ON public.crm_actions_by_vertical USING btree (vertical_id, segment, trigger)"
+  },
+  {
+    "table_name": "crm_actions_by_vertical",
+    "index_name": "idx_crm_actions_vertical_segment",
+    "index_definition": "CREATE INDEX idx_crm_actions_vertical_segment ON public.crm_actions_by_vertical USING btree (vertical_id, segment)"
+  },
+  {
+    "table_name": "crm_business_overrides",
+    "index_name": "crm_business_overrides_business_id_key",
+    "index_definition": "CREATE UNIQUE INDEX crm_business_overrides_business_id_key ON public.crm_business_overrides USING btree (business_id)"
+  },
+  {
+    "table_name": "crm_business_overrides",
+    "index_name": "crm_business_overrides_pkey",
+    "index_definition": "CREATE UNIQUE INDEX crm_business_overrides_pkey ON public.crm_business_overrides USING btree (id)"
+  },
+  {
+    "table_name": "crm_business_overrides",
+    "index_name": "idx_crm_business_overrides_business",
+    "index_definition": "CREATE INDEX idx_crm_business_overrides_business ON public.crm_business_overrides USING btree (business_id)"
+  },
+  {
+    "table_name": "crm_interactions",
+    "index_name": "crm_interactions_pkey",
+    "index_definition": "CREATE UNIQUE INDEX crm_interactions_pkey ON public.crm_interactions USING btree (id)"
+  },
+  {
+    "table_name": "crm_segment_rules",
+    "index_name": "crm_segment_rules_pkey",
+    "index_definition": "CREATE UNIQUE INDEX crm_segment_rules_pkey ON public.crm_segment_rules USING btree (id)"
+  },
+  {
+    "table_name": "crm_segment_rules",
+    "index_name": "crm_segment_rules_priority_key",
+    "index_definition": "CREATE UNIQUE INDEX crm_segment_rules_priority_key ON public.crm_segment_rules USING btree (priority)"
+  },
+  {
+    "table_name": "crm_segment_rules",
+    "index_name": "crm_segment_rules_segment_key",
+    "index_definition": "CREATE UNIQUE INDEX crm_segment_rules_segment_key ON public.crm_segment_rules USING btree (segment)"
+  },
+  {
+    "table_name": "crm_vertical_parameters",
+    "index_name": "crm_vertical_parameters_pkey",
+    "index_definition": "CREATE UNIQUE INDEX crm_vertical_parameters_pkey ON public.crm_vertical_parameters USING btree (id)"
+  },
+  {
+    "table_name": "crm_vertical_parameters",
+    "index_name": "crm_vertical_parameters_vertical_id_key",
+    "index_definition": "CREATE UNIQUE INDEX crm_vertical_parameters_vertical_id_key ON public.crm_vertical_parameters USING btree (vertical_id)"
+  },
+  {
+    "table_name": "crm_vertical_parameters",
+    "index_name": "idx_crm_vertical_parameters_vertical_id",
+    "index_definition": "CREATE INDEX idx_crm_vertical_parameters_vertical_id ON public.crm_vertical_parameters USING btree (vertical_id)"
+  },
+  {
+    "table_name": "customer_confirmations",
+    "index_name": "customer_confirmations_pkey",
+    "index_definition": "CREATE UNIQUE INDEX customer_confirmations_pkey ON public.customer_confirmations USING btree (id)"
+  },
+  {
+    "table_name": "customer_feedback",
+    "index_name": "customer_feedback_pkey",
+    "index_definition": "CREATE UNIQUE INDEX customer_feedback_pkey ON public.customer_feedback USING btree (id)"
+  },
+  {
+    "table_name": "customers",
+    "index_name": "customers_phone_business_id_key",
+    "index_definition": "CREATE UNIQUE INDEX customers_phone_business_id_key ON public.customers USING btree (phone, business_id)"
+  },
+  {
+    "table_name": "customers",
+    "index_name": "customers_pkey",
+    "index_definition": "CREATE UNIQUE INDEX customers_pkey ON public.customers USING btree (id)"
+  },
+  {
+    "table_name": "demo_phone_pool",
+    "index_name": "demo_phone_pool_pkey",
+    "index_definition": "CREATE UNIQUE INDEX demo_phone_pool_pkey ON public.demo_phone_pool USING btree (phone_number)"
+  },
+  {
+    "table_name": "demo_phone_pool",
+    "index_name": "idx_demo_phone_pool_available",
+    "index_definition": "CREATE INDEX idx_demo_phone_pool_available ON public.demo_phone_pool USING btree (is_available) WHERE (is_available = true)"
+  },
+  {
+    "table_name": "demo_schedules",
+    "index_name": "demo_schedules_pkey",
+    "index_definition": "CREATE UNIQUE INDEX demo_schedules_pkey ON public.demo_schedules USING btree (id)"
+  },
+  {
+    "table_name": "demo_schedules",
+    "index_name": "idx_demo_schedules_session",
+    "index_definition": "CREATE INDEX idx_demo_schedules_session ON public.demo_schedules USING btree (session_id_temporal)"
+  },
+  {
+    "table_name": "demo_schedules_slots",
+    "index_name": "demo_schedules_slots_pkey",
+    "index_definition": "CREATE UNIQUE INDEX demo_schedules_slots_pkey ON public.demo_schedules_slots USING btree (id)"
+  },
+  {
+    "table_name": "demo_schedules_slots",
+    "index_name": "demo_schedules_slots_slot_key_key",
+    "index_definition": "CREATE UNIQUE INDEX demo_schedules_slots_slot_key_key ON public.demo_schedules_slots USING btree (slot_key)"
+  },
+  {
+    "table_name": "demo_schedules_slots",
+    "index_name": "idx_demo_slots_key",
+    "index_definition": "CREATE INDEX idx_demo_slots_key ON public.demo_schedules_slots USING btree (slot_key)"
+  },
+  {
+    "table_name": "demo_schedules_slots",
+    "index_name": "idx_demo_slots_status",
+    "index_definition": "CREATE INDEX idx_demo_slots_status ON public.demo_schedules_slots USING btree (status)"
+  },
+  {
+    "table_name": "demo_vertical_context",
+    "index_name": "demo_vertical_context_pkey",
+    "index_definition": "CREATE UNIQUE INDEX demo_vertical_context_pkey ON public.demo_vertical_context USING btree (id)"
+  },
+  {
+    "table_name": "demo_vertical_context",
+    "index_name": "demo_vertical_context_vertical_id_key",
+    "index_definition": "CREATE UNIQUE INDEX demo_vertical_context_vertical_id_key ON public.demo_vertical_context USING btree (vertical_id)"
+  },
+  {
+    "table_name": "demo_vertical_context",
+    "index_name": "idx_demo_vertical_context_vertical_id",
+    "index_definition": "CREATE INDEX idx_demo_vertical_context_vertical_id ON public.demo_vertical_context USING btree (vertical_id)"
+  },
+  {
+    "table_name": "employee_absences",
+    "index_name": "employee_absences_pkey",
+    "index_definition": "CREATE UNIQUE INDEX employee_absences_pkey ON public.employee_absences USING btree (id)"
+  },
+  {
+    "table_name": "employee_absences",
+    "index_name": "idx_employee_absences_business",
+    "index_definition": "CREATE INDEX idx_employee_absences_business ON public.employee_absences USING btree (business_id)"
+  },
+  {
+    "table_name": "employee_absences",
+    "index_name": "idx_employee_absences_dates",
+    "index_definition": "CREATE INDEX idx_employee_absences_dates ON public.employee_absences USING btree (start_date, end_date)"
+  },
+  {
+    "table_name": "employee_absences",
+    "index_name": "idx_employee_absences_employee",
+    "index_definition": "CREATE INDEX idx_employee_absences_employee ON public.employee_absences USING btree (employee_id)"
+  },
+  {
+    "table_name": "employee_absences",
+    "index_name": "idx_employee_absences_recurring",
+    "index_definition": "CREATE INDEX idx_employee_absences_recurring ON public.employee_absences USING btree (is_recurring)"
+  },
+  {
+    "table_name": "employee_blocks",
+    "index_name": "employee_blocks_pkey",
+    "index_definition": "CREATE UNIQUE INDEX employee_blocks_pkey ON public.employee_blocks USING btree (id)"
+  },
+  {
+    "table_name": "employee_blocks",
+    "index_name": "idx_employee_blocks_business",
+    "index_definition": "CREATE INDEX idx_employee_blocks_business ON public.employee_blocks USING btree (business_id)"
+  },
+  {
+    "table_name": "employee_blocks",
+    "index_name": "idx_employee_blocks_date",
+    "index_definition": "CREATE INDEX idx_employee_blocks_date ON public.employee_blocks USING btree (block_date)"
+  },
+  {
+    "table_name": "employee_blocks",
+    "index_name": "idx_employee_blocks_employee",
+    "index_definition": "CREATE INDEX idx_employee_blocks_employee ON public.employee_blocks USING btree (employee_id)"
+  },
+  {
+    "table_name": "employee_blocks",
+    "index_name": "idx_employee_blocks_recurring",
+    "index_definition": "CREATE INDEX idx_employee_blocks_recurring ON public.employee_blocks USING btree (is_recurring)"
+  },
+  {
+    "table_name": "employee_schedules",
+    "index_name": "employee_schedules_pkey",
+    "index_definition": "CREATE UNIQUE INDEX employee_schedules_pkey ON public.employee_schedules USING btree (id)"
+  },
+  {
+    "table_name": "employee_schedules",
+    "index_name": "idx_employee_schedules_business",
+    "index_definition": "CREATE INDEX idx_employee_schedules_business ON public.employee_schedules USING btree (business_id)"
+  },
+  {
+    "table_name": "employee_schedules",
+    "index_name": "idx_employee_schedules_day",
+    "index_definition": "CREATE INDEX idx_employee_schedules_day ON public.employee_schedules USING btree (day_of_week)"
+  },
+  {
+    "table_name": "employee_schedules",
+    "index_name": "idx_employee_schedules_employee",
+    "index_definition": "CREATE INDEX idx_employee_schedules_employee ON public.employee_schedules USING btree (employee_id)"
+  },
+  {
+    "table_name": "employee_schedules",
+    "index_name": "unique_employee_day",
+    "index_definition": "CREATE UNIQUE INDEX unique_employee_day ON public.employee_schedules USING btree (employee_id, day_of_week)"
+  },
+  {
+    "table_name": "employees",
+    "index_name": "employees_pkey",
+    "index_definition": "CREATE UNIQUE INDEX employees_pkey ON public.employees USING btree (id)"
+  },
+  {
+    "table_name": "employees",
+    "index_name": "idx_employees_active",
+    "index_definition": "CREATE INDEX idx_employees_active ON public.employees USING btree (is_active)"
+  },
+  {
+    "table_name": "employees",
+    "index_name": "idx_employees_business",
+    "index_definition": "CREATE INDEX idx_employees_business ON public.employees USING btree (business_id)"
+  },
+  {
+    "table_name": "employees",
+    "index_name": "idx_employees_order",
+    "index_definition": "CREATE INDEX idx_employees_order ON public.employees USING btree (position_order)"
+  },
+  {
+    "table_name": "employees",
+    "index_name": "idx_employees_resource",
+    "index_definition": "CREATE INDEX idx_employees_resource ON public.employees USING btree (assigned_resource_id)"
+  },
+  {
+    "table_name": "employees",
+    "index_name": "unique_email_per_business",
+    "index_definition": "CREATE UNIQUE INDEX unique_email_per_business ON public.employees USING btree (business_id, email)"
+  },
+  {
+    "table_name": "escalations",
+    "index_name": "escalations_pkey",
+    "index_definition": "CREATE UNIQUE INDEX escalations_pkey ON public.escalations USING btree (id)"
+  },
+  {
+    "table_name": "google_calendar_events",
+    "index_name": "google_calendar_events_business_id_gcal_event_id_key",
+    "index_definition": "CREATE UNIQUE INDEX google_calendar_events_business_id_gcal_event_id_key ON public.google_calendar_events USING btree (business_id, gcal_event_id)"
+  },
+  {
+    "table_name": "google_calendar_events",
+    "index_name": "google_calendar_events_pkey",
+    "index_definition": "CREATE UNIQUE INDEX google_calendar_events_pkey ON public.google_calendar_events USING btree (id)"
+  },
+  {
+    "table_name": "google_calendar_events",
+    "index_name": "idx_gcal_events_appointment",
+    "index_definition": "CREATE INDEX idx_gcal_events_appointment ON public.google_calendar_events USING btree (appointment_id) WHERE (appointment_id IS NOT NULL)"
+  },
+  {
+    "table_name": "google_calendar_events",
+    "index_name": "idx_gcal_events_business",
+    "index_definition": "CREATE INDEX idx_gcal_events_business ON public.google_calendar_events USING btree (business_id, start_time DESC)"
+  },
+  {
+    "table_name": "google_calendar_events",
+    "index_name": "idx_gcal_events_sync",
+    "index_definition": "CREATE INDEX idx_gcal_events_sync ON public.google_calendar_events USING btree (sync_status) WHERE (sync_status <> 'synced'::text)"
+  },
+  {
+    "table_name": "google_calendar_events",
+    "index_name": "idx_gcal_events_time_range",
+    "index_definition": "CREATE INDEX idx_gcal_events_time_range ON public.google_calendar_events USING btree (business_id, start_time, end_time)"
+  },
+  {
+    "table_name": "integrations",
+    "index_name": "idx_integrations_business",
+    "index_definition": "CREATE INDEX idx_integrations_business ON public.integrations USING btree (business_id)"
+  },
+  {
+    "table_name": "integrations",
+    "index_name": "idx_integrations_expires",
+    "index_definition": "CREATE INDEX idx_integrations_expires ON public.integrations USING btree (expires_at) WHERE (expires_at IS NOT NULL)"
+  },
+  {
+    "table_name": "integrations",
+    "index_name": "idx_integrations_status",
+    "index_definition": "CREATE INDEX idx_integrations_status ON public.integrations USING btree (status) WHERE (status = 'active'::text)"
+  },
+  {
+    "table_name": "integrations",
+    "index_name": "integrations_business_id_provider_key",
+    "index_definition": "CREATE UNIQUE INDEX integrations_business_id_provider_key ON public.integrations USING btree (business_id, provider)"
+  },
+  {
+    "table_name": "integrations",
+    "index_name": "integrations_pkey",
+    "index_definition": "CREATE UNIQUE INDEX integrations_pkey ON public.integrations USING btree (id)"
+  },
+  {
+    "table_name": "inventario_telefonos",
+    "index_name": "idx_inventario_liberacion",
+    "index_definition": "CREATE INDEX idx_inventario_liberacion ON public.inventario_telefonos USING btree (fecha_liberacion) WHERE (status = 'en_cuarentena'::text)"
+  },
+  {
+    "table_name": "inventario_telefonos",
+    "index_name": "idx_inventario_negocio",
+    "index_definition": "CREATE INDEX idx_inventario_negocio ON public.inventario_telefonos USING btree (id_negocio_asignado)"
+  },
+  {
+    "table_name": "inventario_telefonos",
+    "index_name": "idx_inventario_status",
+    "index_definition": "CREATE INDEX idx_inventario_status ON public.inventario_telefonos USING btree (status)"
+  },
+  {
+    "table_name": "inventario_telefonos",
+    "index_name": "inventario_telefonos_numero_telefono_key",
+    "index_definition": "CREATE UNIQUE INDEX inventario_telefonos_numero_telefono_key ON public.inventario_telefonos USING btree (numero_telefono)"
+  },
+  {
+    "table_name": "inventario_telefonos",
+    "index_name": "inventario_telefonos_pkey",
+    "index_definition": "CREATE UNIQUE INDEX inventario_telefonos_pkey ON public.inventario_telefonos USING btree (id)"
+  },
+  {
+    "table_name": "live_demo_config",
+    "index_name": "idx_live_demo_config_active",
+    "index_definition": "CREATE INDEX idx_live_demo_config_active ON public.live_demo_config USING btree (is_active) WHERE (is_active = true)"
+  },
+  {
+    "table_name": "live_demo_config",
+    "index_name": "live_demo_config_pkey",
+    "index_definition": "CREATE UNIQUE INDEX live_demo_config_pkey ON public.live_demo_config USING btree (id)"
+  },
+  {
+    "table_name": "message_templates",
+    "index_name": "message_templates_pkey",
+    "index_definition": "CREATE UNIQUE INDEX message_templates_pkey ON public.message_templates USING btree (id)"
+  },
+  {
+    "table_name": "notifications",
+    "index_name": "notifications_pkey",
+    "index_definition": "CREATE UNIQUE INDEX notifications_pkey ON public.notifications USING btree (id)"
+  },
+  {
+    "table_name": "profiles",
+    "index_name": "profiles_auth_user_id_key",
+    "index_definition": "CREATE UNIQUE INDEX profiles_auth_user_id_key ON public.profiles USING btree (auth_user_id)"
+  },
+  {
+    "table_name": "profiles",
+    "index_name": "profiles_pkey",
+    "index_definition": "CREATE UNIQUE INDEX profiles_pkey ON public.profiles USING btree (id)"
+  },
+  {
+    "table_name": "resource_blockages",
+    "index_name": "idx_resource_blockages_business",
+    "index_definition": "CREATE INDEX idx_resource_blockages_business ON public.resource_blockages USING btree (business_id, blocked_date)"
+  },
+  {
+    "table_name": "resource_blockages",
+    "index_name": "idx_resource_blockages_date_range",
+    "index_definition": "CREATE INDEX idx_resource_blockages_date_range ON public.resource_blockages USING btree (blocked_date)"
+  },
+  {
+    "table_name": "resource_blockages",
+    "index_name": "idx_resource_blockages_resource_date",
+    "index_definition": "CREATE INDEX idx_resource_blockages_resource_date ON public.resource_blockages USING btree (resource_id, blocked_date)"
+  },
+  {
+    "table_name": "resource_blockages",
+    "index_name": "resource_blockages_pkey",
+    "index_definition": "CREATE UNIQUE INDEX resource_blockages_pkey ON public.resource_blockages USING btree (id)"
+  },
+  {
+    "table_name": "resources",
+    "index_name": "resources_pkey",
+    "index_definition": "CREATE UNIQUE INDEX resources_pkey ON public.resources USING btree (id)"
+  },
+  {
+    "table_name": "scheduled_messages",
+    "index_name": "scheduled_messages_pkey",
+    "index_definition": "CREATE UNIQUE INDEX scheduled_messages_pkey ON public.scheduled_messages USING btree (id)"
+  },
+  {
+    "table_name": "service_templates",
+    "index_name": "service_templates_pkey",
+    "index_definition": "CREATE UNIQUE INDEX service_templates_pkey ON public.service_templates USING btree (id)"
+  },
+  {
+    "table_name": "services",
+    "index_name": "services_pkey",
+    "index_definition": "CREATE UNIQUE INDEX services_pkey ON public.services USING btree (id)"
+  },
+  {
+    "table_name": "user_business_mapping",
+    "index_name": "user_business_mapping_pkey",
+    "index_definition": "CREATE UNIQUE INDEX user_business_mapping_pkey ON public.user_business_mapping USING btree (id)"
+  },
+  {
+    "table_name": "voice_catalog",
+    "index_name": "voice_catalog_frontend_id_key",
+    "index_definition": "CREATE UNIQUE INDEX voice_catalog_frontend_id_key ON public.voice_catalog USING btree (frontend_id)"
+  },
+  {
+    "table_name": "voice_catalog",
+    "index_name": "voice_catalog_pkey",
+    "index_definition": "CREATE UNIQUE INDEX voice_catalog_pkey ON public.voice_catalog USING btree (id)"
+  },
+  {
+    "table_name": "waitlist",
+    "index_name": "idx_waitlist_active",
+    "index_definition": "CREATE INDEX idx_waitlist_active ON public.waitlist USING btree (business_id, status, preferred_date) WHERE (status = 'waiting'::text)"
+  },
+  {
+    "table_name": "waitlist",
+    "index_name": "idx_waitlist_business",
+    "index_definition": "CREATE INDEX idx_waitlist_business ON public.waitlist USING btree (business_id)"
+  },
+  {
+    "table_name": "waitlist",
+    "index_name": "idx_waitlist_created",
+    "index_definition": "CREATE INDEX idx_waitlist_created ON public.waitlist USING btree (created_at DESC)"
+  },
+  {
+    "table_name": "waitlist",
+    "index_name": "idx_waitlist_customer",
+    "index_definition": "CREATE INDEX idx_waitlist_customer ON public.waitlist USING btree (customer_id)"
+  },
+  {
+    "table_name": "waitlist",
+    "index_name": "idx_waitlist_date",
+    "index_definition": "CREATE INDEX idx_waitlist_date ON public.waitlist USING btree (preferred_date)"
+  },
+  {
+    "table_name": "waitlist",
+    "index_name": "idx_waitlist_status",
+    "index_definition": "CREATE INDEX idx_waitlist_status ON public.waitlist USING btree (status)"
+  },
+  {
+    "table_name": "waitlist",
+    "index_name": "waitlist_pkey",
+    "index_definition": "CREATE UNIQUE INDEX waitlist_pkey ON public.waitlist USING btree (id)"
+  },
+  {
+    "table_name": "whatsapp_message_buffer",
+    "index_name": "whatsapp_message_buffer_pkey",
+    "index_definition": "CREATE UNIQUE INDEX whatsapp_message_buffer_pkey ON public.whatsapp_message_buffer USING btree (id)"
+  }
+]
+
+

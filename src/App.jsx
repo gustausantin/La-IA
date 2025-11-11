@@ -41,8 +41,11 @@ const NoShowControl = lazy(() => import('./pages/NoShowsSimple'));
 // 🤖 Dashboard del Agente IA
 const DashboardAgente = lazy(() => import('./pages/DashboardAgente'));
 
-// 🎯 Dashboard Nuevo - Feed de Acciones Mobile-First
+// 🎯 Dashboard Nuevo - Feed de Acciones Mobile-First (Antiguo)
 const DashboardNuevo = lazy(() => import('./pages/DashboardNuevo'));
+
+// 💎 Dashboard VIVO - La Recepcionista IA (Nuevo con Avatar y Chat)
+const Dashboard = lazy(() => import('./pages/Dashboard'));
 
 // 🎯 Wizard de Onboarding para nuevos usuarios
 const OnboardingWizard = lazy(() => import('./components/onboarding/OnboardingWizard'));
@@ -140,12 +143,12 @@ function AppContent() {
               {/* Ruta por defecto: si no tiene negocio → onboarding, si tiene → dashboard */}
               <Route index element={<Navigate to={business ? "/dashboard" : "/onboarding"} replace />} />
 
-              {/* Dashboard principal */}
+              {/* Dashboard principal - NUEVO VIVO */}
               <Route 
                 path="/dashboard" 
                 element={
                   <Suspense fallback={<PageLoading />}>
-                    <DashboardNuevo />
+                    <Dashboard />
                   </Suspense>
                 } 
               />

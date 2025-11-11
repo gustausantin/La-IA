@@ -1,8 +1,25 @@
 # 📚 ÍNDICE MAESTRO - LA-IA APP V1
 
-**Fecha de última actualización:** 23 Octubre 2025  
-**Versión:** 2.1  
-**Estado del Proyecto:** ✅ Producción - 100% Funcional + Sistema de Voz
+**Fecha de última actualización:** 11 Noviembre 2025  
+**Versión:** 2.2  
+**Estado del Proyecto:** ✅ Producción - 100% Funcional + Dashboard Vivo
+
+---
+
+## 🔴 ⚠️ **ANTES DE CODIFICAR CUALQUIER COSA:**
+
+### **REVISAR PRIMERO EL SCHEMA DE SUPABASE** 👇
+
+📁 **[⚠️-LEER-PRIMERO-SCHEMA-SUPABASE.md](01-arquitectura/⚠️-LEER-PRIMERO-SCHEMA-SUPABASE.md)**
+
+**Los 5 archivos de referencia obligatoria:**
+1. **SCHEMA-REAL-SUPABASE-2025-11-11.json** → Tablas y columnas
+2. **FOREIGN-KEYS-2025-11-11.json** → Relaciones (foreign keys)
+3. **ENUMS-2025-11-11.json** → Tipos ENUM
+4. **INDICES-2025-11-11.json** → Índices y constraints
+5. **FUNCTIONS-RPC-2025-11-11.json** → Funciones SQL disponibles
+
+**🚫 NO ADIVINAR | ✅ VERIFICAR SIEMPRE**
 
 ---
 
@@ -40,26 +57,46 @@
 
 Documentación técnica sobre la arquitectura del sistema, stack tecnológico y base de datos.
 
-### **Documentos:**
+### **📋 SCHEMA DE SUPABASE (⚠️ FUENTE DE VERDAD):**
 
-1. **[ARQUITECTURA_TECNICA_2025.md](01-arquitectura/ARQUITECTURA_TECNICA_2025.md)**
+1. **[⚠️-LEER-PRIMERO-SCHEMA-SUPABASE.md](01-arquitectura/⚠️-LEER-PRIMERO-SCHEMA-SUPABASE.md)** 🔴 **OBLIGATORIO**
+   - **REVISAR SIEMPRE ANTES DE CODIFICAR**
+   - Índice de los 5 archivos de referencia
+   - Reglas de oro y casos de uso
+   - Checklist pre-codificación
+
+2. **[SCHEMA-REAL-SUPABASE-2025-11-11.json](01-arquitectura/SCHEMA-REAL-SUPABASE-2025-11-11.json)**
+   - Todas las tablas y columnas
+   - Tipos de datos exactos
+   - Valores por defecto
+
+3. **[FOREIGN-KEYS-2025-11-11.json](01-arquitectura/FOREIGN-KEYS-2025-11-11.json)**
+   - Todas las relaciones entre tablas
+   - FK múltiples identificadas
+   - Guía para joins manuales
+
+4. **[ENUMS-2025-11-11.json](01-arquitectura/ENUMS-2025-11-11.json)**
+   - Tipos ENUM disponibles
+   - Valores válidos de cada enum
+
+5. **[INDICES-2025-11-11.json](01-arquitectura/INDICES-2025-11-11.json)**
+   - Índices y constraints
+   - Primary keys
+   - Unique constraints
+
+6. **[FUNCTIONS-RPC-2025-11-11.json](01-arquitectura/FUNCTIONS-RPC-2025-11-11.json)**
+   - Funciones SQL y RPCs
+   - Parámetros y tipos de retorno
+
+### **📚 ARQUITECTURA GENERAL:**
+
+7. **[ARQUITECTURA_TECNICA_2025.md](01-arquitectura/ARQUITECTURA_TECNICA_2025.md)**
    - Stack tecnológico completo
    - Arquitectura frontend/backend
    - Integraciones externas
    - Security y multi-tenancy
-   - Deployment y DevOps
 
-2. **[DATABASE-SCHEMA-SUPABASE-COMPLETO.md](01-arquitectura/DATABASE-SCHEMA-SUPABASE-COMPLETO.md)**
-   - 45 tablas documentadas
-   - Esquema completo exportado
-   - Relaciones y constraints
-   - Índices y performance
-
-3. **[DATABASE-SCHEMA-COMPLETO-2025.md](01-arquitectura/DATABASE-SCHEMA-COMPLETO-2025.md)**
-   - Versión alternativa del esquema
-   - Documentación adicional
-
-4. **[CONTEXTO_PROYECTO.md](01-arquitectura/CONTEXTO_PROYECTO.md)**
+8. **[CONTEXTO_PROYECTO.md](01-arquitectura/CONTEXTO_PROYECTO.md)**
    - Visión general del proyecto
    - Objetivos y alcance
    - Roadmap
@@ -313,11 +350,11 @@ La-ia-app-V1/
 
 Para una comprensión rápida del proyecto, lee estos en orden:
 
-1. **[RESUMEN_EJECUTIVO_PARA_VENTA.md](03-manuales/RESUMEN_EJECUTIVO_PARA_VENTA.md)** - Visión general
-2. **[ARQUITECTURA_TECNICA_2025.md](01-arquitectura/ARQUITECTURA_TECNICA_2025.md)** - Stack técnico
-3. **[SISTEMA-NOSHOWS-COMPLETO.md](02-sistemas/SISTEMA-NOSHOWS-COMPLETO.md)** - Sistema estrella
-4. **[NORMAS_SAGRADAS.md](04-desarrollo/NORMAS_SAGRADAS.md)** - Principios de desarrollo
-5. **[DATABASE-SCHEMA-SUPABASE-COMPLETO.md](01-arquitectura/DATABASE-SCHEMA-SUPABASE-COMPLETO.md)** - Base de datos
+1. 🔴 **[⚠️-LEER-PRIMERO-SCHEMA-SUPABASE.md](01-arquitectura/⚠️-LEER-PRIMERO-SCHEMA-SUPABASE.md)** - **OBLIGATORIO ANTES DE CODIFICAR**
+2. **[RESUMEN_EJECUTIVO_PARA_VENTA.md](03-manuales/RESUMEN_EJECUTIVO_PARA_VENTA.md)** - Visión general
+3. **[ARQUITECTURA_TECNICA_2025.md](01-arquitectura/ARQUITECTURA_TECNICA_2025.md)** - Stack técnico
+4. **[SISTEMA-NOSHOWS-COMPLETO.md](02-sistemas/SISTEMA-NOSHOWS-COMPLETO.md)** - Sistema estrella
+5. **[NORMAS_SAGRADAS.md](04-desarrollo/NORMAS_SAGRADAS.md)** - Principios de desarrollo
 
 ---
 

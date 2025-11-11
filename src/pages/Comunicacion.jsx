@@ -118,7 +118,7 @@ export default function Comunicacion() {
             setLoading(true);
             const { data, error } = await supabase
                 .from('agent_conversations')
-                .select(`*, customers(id, name, email, phone), reservations(id, reservation_date, reservation_time, party_size)`)
+                .select(`*, customers(id, name, email, phone), appointments(id, appointment_date, appointment_time)`)
                 .eq('business_id', restaurant.id)
                 .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
                 .order('created_at', { ascending: false });

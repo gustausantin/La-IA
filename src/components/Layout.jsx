@@ -59,7 +59,7 @@ export default function Layout() {
         // { name: "Mesas", path: "/mesas", icon: Briefcase, showInBottom: false }, // ⚠️ DEPRECADO - Ahora en Configuración
         { name: "Clientes", path: "/clientes", icon: Users, showInBottom: true },
         // { name: "CRM", path: "/crm-inteligente", icon: Brain, showInBottom: false }, // ❌ ARCHIVO NO EXISTE
-        { name: "Consumos", path: "/consumos", icon: Receipt, showInBottom: false },
+        { name: "Facturación", path: "/consumos", icon: Receipt, showInBottom: false },
         { name: "Configuración", path: "/configuracion", icon: Settings, showInBottom: true },
     ];
 

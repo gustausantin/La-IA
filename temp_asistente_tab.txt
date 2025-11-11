@@ -1,0 +1,83 @@
+                    {/* 🤖 MI ASISTENTE - NUEVO CON AVATARES PREDEFINIDOS */}
+                    {activeTab === "asistente" && (
+                        <div className="space-y-6">
+                            
+                            {/* Selector de Avatares */}
+                            <AvatarSelector
+                                selectedAvatarId={settings.agent?.avatar_id || 'carlota'}
+                                onSelectAvatar={(avatarId) => {
+                                    const avatar = getAvatarById(avatarId);
+                                    setSettings(prev => ({
+                                        ...prev,
+                                        agent: {
+                                            ...prev.agent,
+                                            avatar_id: avatarId,
+                                            avatar_url: avatar.avatar_url,
+                                            voice_id: avatar.voice_id,
+                                            gender: avatar.gender,
+                                            name: prev.agent?.name || avatar.name,
+                                            role: prev.agent?.role || avatar.default_role,
+                                            bio: prev.agent?.bio || avatar.default_description
+                                        }
+                                    }));
+                                }}
+                                agentName={settings.agent?.name}
+                                agentRole={settings.agent?.role}
+                                agentBio={settings.agent?.bio}
+                                onUpdateName={(name) => {
+                                    setSettings(prev => ({
+                                        ...prev,
+                                        agent: { ...prev.agent, name: name }
+                                    }));
+                                }}
+                                onUpdateRole={(role) => {
+                                    setSettings(prev => ({
+                                        ...prev,
+                                        agent: { ...prev.agent, role: role }
+                                    }));
+                                }}
+                                onUpdateBio={(bio) => {
+                                    setSettings(prev => ({
+                                        ...prev,
+                                        agent: { ...prev.agent, bio: bio }
+                                    }));
+                                }}
+                            />
+
+                            {/* Toggle de Activación del Agente */}
+                            <SettingSection
+                                title="Estado del Agente"
+                                description="Activa o desactiva el agente de IA"
+                                icon={<Bot />}
+                            >
+                                <AgentToggle
+                                    enabled={settings.agent?.enabled || false}
+                                    businessId={businessId}
+                                    settings={settings}
+                                    setSettings={setSettings}
+                                />
+
+                                {/* Botón Guardar */}
+                                <div className="flex justify-end pt-4 border-t border-gray-200 mt-6">
+                                    <button
+                                        onClick={() => handleSave("Configuración del Agente")}
+                                        disabled={saving}
+                                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 font-semibold shadow-lg"
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                                Guardando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="w-4 h-4" />
+                                                Guardar Configuración
+                                            </>
+                                        )}
+                                    </button>
+                                </div>
+                            </SettingSection>
+                        </div>
+                    )}
+

@@ -39,6 +39,9 @@ import { useVertical } from "../hooks/useVertical";
 // import BaseConocimientoContent from "../components/BaseConocimientoContent"; // TEMPORALMENTE DESHABILITADO
 import IntegracionesContent from "../components/configuracion/IntegracionesContent"; // 🆕 Integraciones
 import RecursosContent from "../components/configuracion/RecursosContent"; // 🆕 Recursos
+import AvatarSelector from "../components/configuracion/AvatarSelector"; // 🆕 Selector de avatares predefinidos
+import AgentToggle from "../components/configuracion/AgentToggle"; // 🆕 Toggle ON/OFF del agente
+import { AVATARS_PREDEFINIDOS, getAvatarById } from "../config/avatars"; // Config de avatares
 
 const ToggleSwitch = ({ enabled, onChange, label }) => {
     return (
@@ -1061,489 +1064,89 @@ const Configuracion = () => {
                         </div>
                     )}
 
-                    {/* 🤖 MI ASISTENTE */}
+                    {/* 🤖 MI ASISTENTE - NUEVO CON AVATARES PREDEFINIDOS */}
                     {activeTab === "asistente" && (
                         <div className="space-y-4">
+                            
+                            {/* Selector de Avatares */}
+                            <AvatarSelector
+                                selectedAvatarId={settings.agent?.avatar_id || 'carlota'}
+                                onSelectAvatar={(avatarId) => {
+                                    const avatar = getAvatarById(avatarId);
+                                    setSettings(prev => ({
+                                        ...prev,
+                                        agent: {
+                                            ...prev.agent,
+                                            avatar_id: avatarId,
+                                            avatar_url: avatar.avatar_url,
+                                            voice_id: avatar.voice_id,
+                                            gender: avatar.gender,
+                                            name: prev.agent?.name || avatar.name,
+                                            role: prev.agent?.role || avatar.default_role,
+                                            bio: prev.agent?.bio || avatar.default_description
+                                        }
+                                    }));
+                                }}
+                                agentName={settings.agent?.name}
+                                agentRole={settings.agent?.role}
+                                agentBio={settings.agent?.bio}
+                                onUpdateName={(name) => {
+                                    setSettings(prev => ({
+                                        ...prev,
+                                        agent: { ...prev.agent, name: name }
+                                    }));
+                                }}
+                                onUpdateRole={(role) => {
+                                    setSettings(prev => ({
+                                        ...prev,
+                                        agent: { ...prev.agent, role: role }
+                                    }));
+                                }}
+                                onUpdateBio={(bio) => {
+                                    setSettings(prev => ({
+                                        ...prev,
+                                        agent: { ...prev.agent, bio: bio }
+                                    }));
+                                }}
+                            />
+
+                            {/* Toggle de Activación del Agente */}
                             <SettingSection
-                                title="Configuración de tu Asistente IA"
-                                description="Personaliza el nombre, voz y comportamiento de tu agente"
+                                title="Estado del Agente"
+                                description="Activa o desactiva el agente de IA"
                                 icon={<Bot />}
                             >
-                                <div className="space-y-2">
-                                    {/* Tarjeta de perfil profesional */}
-                                    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                                        <div className="grid grid-cols-1 md:grid-cols-1 lg:grid-cols-[400px_1fr] gap-0">
-                                            {/* COLUMNA IZQUIERDA: Foto + Descripción */}
-                                            <div className="bg-gradient-to-br from-blue-600 via-purple-600 to-purple-700 p-4 md:p-6 flex flex-col items-center">
-                                                {/* Foto del agente */}
-                                                <div className="relative group mb-4 md:mb-6">
-                                                    <div className="w-56 h-72 md:w-72 md:h-96 rounded-2xl overflow-hidden shadow-lg bg-gradient-to-br from-blue-700 via-purple-700 to-purple-800 flex items-center justify-center transform transition-all duration-300 group-hover:shadow-xl">
-                                                        {settings.agent?.avatar_url ? (
-                                                            <img
-                                                                src={settings.agent.avatar_url}
-                                                                alt={settings.agent?.name || "Agente"}
-                                                                className="w-full h-full object-cover"
-                                                            />
-                                                        ) : (
-                                                            <div className="flex flex-col items-center gap-2 text-white p-8">
-                                                                <Bot className="w-32 h-32 opacity-60" />
-                                                                <p className="text-base font-medium text-center">
-                                                                    Sube la foto de tu empleado virtual
-                                                                </p>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
+                                <AgentToggle
+                                    enabled={settings.agent?.enabled || false}
+                                    businessId={businessId}
+                                    settings={settings}
+                                    setSettings={setSettings}
+                                />
 
-                                                {/* Botones */}
-                                                <div className="w-full max-w-xs space-y-3 mb-6">
-                                                    <input
-                                                        type="file"
-                                                        id="avatar-upload-main"
-                                                        accept="image/*"
-                                                        className="hidden"
-                                                    onChange={(e) => {
-                                                        const file = e.target.files[0];
-                                                        if (file) {
-                                                            // Validar tamaño (máx 5MB)
-                                                            if (file.size > 5 * 1024 * 1024) {
-                                                                toast.error('La imagen es demasiado grande. Máximo 5MB');
-                                                                return;
-                                                            }
-
-                                                            // Comprimir imagen antes de guardar
-                                                            const reader = new FileReader();
-                                                            reader.onload = (event) => {
-                                                                const img = new Image();
-                                                                img.onload = () => {
-                                                                    // Crear canvas para redimensionar
-                                                                    const canvas = document.createElement('canvas');
-                                                                    const ctx = canvas.getContext('2d');
-                                                                    
-                                                                    // Tamaño máximo: 400x600 (ideal para avatares)
-                                                                    const maxWidth = 400;
-                                                                    const maxHeight = 600;
-                                                                    let width = img.width;
-                                                                    let height = img.height;
-
-                                                                    if (width > maxWidth || height > maxHeight) {
-                                                                        const ratio = Math.min(maxWidth / width, maxHeight / height);
-                                                                        width = width * ratio;
-                                                                        height = height * ratio;
-                                                                    }
-
-                                                                    canvas.width = width;
-                                                                    canvas.height = height;
-                                                                    ctx.drawImage(img, 0, 0, width, height);
-
-                                                                    // Convertir a Base64 con compresión (calidad 0.8)
-                                                                    const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
-
-                                                                    setSettings(prev => ({
-                                                                        ...prev,
-                                                                        agent: {
-                                                                            ...prev.agent,
-                                                                            avatar_url: compressedBase64
-                                                                        }
-                                                                    }));
-                                                                    toast.success('Avatar cargado y optimizado correctamente');
-                                                                };
-                                                                img.src = event.target.result;
-                                                            };
-                                                            reader.readAsDataURL(file);
-                                                        }
-                                                    }}
-                                                    />
-                                                    <button 
-                                                        type="button"
-                                                        onClick={() => document.getElementById('avatar-upload-main').click()}
-                                                        className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-white text-purple-600 rounded-xl hover:bg-gray-50 transition-all duration-200 shadow-md font-semibold"
-                                                    >
-                                                        <Upload className="w-5 h-5" />
-                                                        Subir avatar
-                                                    </button>
-                                                    {settings.agent?.avatar_url && (
-                                                        <button 
-                                                            type="button"
-                                                            onClick={() => {
-                                                                if (window.confirm('¿Eliminar el avatar?')) {
-                                                                    setSettings(prev => ({
-                                                                        ...prev,
-                                                                        agent: {
-                                                                            ...prev.agent,
-                                                                            avatar_url: ''
-                                                                        }
-                                                                    }));
-                                                                    toast.success('Avatar eliminado');
-                                                                }
-                                                            }}
-                                                            className="w-full text-sm text-white hover:text-red-200 font-medium transition-colors"
-                                                        >
-                                                            Eliminar avatar
-                                                        </button>
-                                                    )}
-                                                    <p className="text-xs text-white/70 text-center">
-                                                        JPG o PNG (máx. 5MB)
-                                                    </p>
-                                                </div>
-
-                                                {/* Descripción */}
-                                                <div className="w-full max-w-xs">
-                                                    <div className="bg-white/10 backdrop-blur-sm p-5 rounded-xl border border-white/20">
-                                                        <h4 className="font-semibold text-white mb-3 text-sm flex items-center gap-2">
-                                                            <MessageSquare className="w-4 h-4" />
-                                                            Descripción
-                                                        </h4>
-                                                        <p className="text-sm text-white/90 leading-relaxed">
-                                                            {settings.agent?.bio || "Profesional, amable y siempre dispuesta a ayudar. Le encanta su trabajo y conoce a la perfección cada detalle del restaurante. Paciente y con una sonrisa permanente, hará que cada cliente se sienta especial."}
-                                                        </p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* COLUMNA DERECHA: Configuración */}
-                                            <div className="p-4 md:p-8 flex flex-col gap-2 md:gap-6">
-                                                {/* Información del empleado */}
-                                                <div className="bg-white p-2 rounded-lg border border-gray-200">
-                                                    <div className="space-y-1">
-                                                        <div className="flex items-center gap-2 text-sm">
-                                                            <span className="font-bold text-gray-900">
-                                                                {settings.agent?.name}
-                                                            </span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                                                            <span>📋</span>
-                                                            <span>{settings.agent?.role}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                                                            <span>📅</span>
-                                                            <span>En plantilla desde: {new Date(settings.agent?.hired_date).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-2 text-xs text-gray-600">
-                                                            <span>⏰</span>
-                                                            <span>Turno: 24/7</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* Nombre del Agente */}
-                                                <div>
-                                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                                                        Nombre del Agente
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={settings.agent?.name || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            agent: {
-                                                                ...prev.agent,
-                                                                name: e.target.value
-                                                            }
-                                                        }))}
-                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                        placeholder="Sofia, Carlos, Ana..."
-                                                    />
-                                                </div>
-
-                                                {/* Puesto/Rol */}
-                                                <div>
-                                                    <label className="block text-sm font-semibold text-gray-700 mb-1.5">
-                                                        Puesto / Rol
-                                                    </label>
-                                                    <input
-                                                        type="text"
-                                                        value={settings.agent?.role || ""}
-                                                        onChange={(e) => setSettings(prev => ({
-                                                            ...prev,
-                                                            agent: {
-                                                                ...prev.agent,
-                                                                role: e.target.value
-                                                            }
-                                                        }))}
-                                                        className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                                        placeholder="Agente de Reservas"
-                                                    />
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        Ej: Agente de Reservas, Recepcionista Virtual, Asistente de Citas
-                                                    </p>
-                                                </div>
-
-                                                {/* Selector de Voz con Preview (4 voces) */}
-                                                <div>
-                                                    <label className="block text-sm font-bold text-gray-900 mb-2">
-                                                        Selección de Voz Telefónica
-                                                    </label>
-                                                    <p className="text-sm text-gray-600 mb-3">
-                                                        Elige la voz que usará tu agente en las llamadas telefónicas
-                                                    </p>
-                                                    
-                                                    {/* Voces Femeninas */}
-                                                    <div className="mb-4">
-                                                        <p className="text-sm text-gray-700 mb-2 font-semibold">👩 Voces Femeninas</p>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                            {VOICE_OPTIONS.filter(v => v.gender === 'female').map((voice) => {
-                                                                const isSelected = settings.agent?.voice_id === voice.id;
-                                                                const isCurrentlyPlaying = currentPlayingVoice === voice.id && isPlayingAudio;
-                                                                
-                                                                return (
-                                                                    <div
-                                                                        key={voice.id}
-                                                            onClick={() => setSettings(prev => ({
-                                                                ...prev,
-                                                                agent: {
-                                                                    ...prev.agent,
-                                                                                voice_id: voice.id,
-                                                                                gender: voice.gender
-                                                                }
-                                                            }))}
-                                                                        className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                                                                            isSelected
-                                                                                ? 'border-purple-600 bg-purple-50 shadow-md'
-                                                                                : 'border-gray-200 hover:border-purple-300 bg-white'
-                                                                        }`}
-                                                                    >
-                                                                        <div className="flex items-start justify-between mb-2">
-                                                                            <div className="flex-1">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <span className="text-sm font-semibold text-gray-900">
-                                                                                        {voice.display_name}
-                                                                                    </span>
-                                                                                    {isSelected && (
-                                                                                        <CheckCircle2 className="w-4 h-4 text-purple-600" />
-                                                                                    )}
-                                                                                </div>
-                                                                                <p className="text-xs text-gray-600 mt-0.5">
-                                                                                    {voice.description}
-                                                                                </p>
-                                                                            </div>
-                                                        <button
-                                                            type="button"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    handlePlayVoiceDemo(voice);
-                                                                                }}
-                                                                                className={`p-2 rounded-full transition-all ${
-                                                                                    isCurrentlyPlaying
-                                                                                        ? 'bg-purple-600 text-white'
-                                                                                        : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
-                                                                                }`}
-                                                                            >
-                                                                                {isCurrentlyPlaying ? (
-                                                                                    <Pause className="w-4 h-4" />
-                                                                                ) : (
-                                                                                    <Play className="w-4 h-4" />
-                                                                                )}
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-
-                                                    {/* Voces Masculinas */}
-                                                    <div>
-                                                        <p className="text-sm text-gray-700 mb-2 font-semibold">👨 Voces Masculinas</p>
-                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                                            {VOICE_OPTIONS.filter(v => v.gender === 'male').map((voice) => {
-                                                                const isSelected = settings.agent?.voice_id === voice.id;
-                                                                const isCurrentlyPlaying = currentPlayingVoice === voice.id && isPlayingAudio;
-                                                                
-                                                                return (
-                                                                    <div
-                                                                        key={voice.id}
-                                                            onClick={() => setSettings(prev => ({
-                                                                ...prev,
-                                                                agent: {
-                                                                    ...prev.agent,
-                                                                                voice_id: voice.id,
-                                                                                gender: voice.gender
-                                                                }
-                                                            }))}
-                                                                        className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
-                                                                            isSelected
-                                                                                ? 'border-blue-600 bg-blue-50 shadow-md'
-                                                                                : 'border-gray-200 hover:border-blue-300 bg-white'
-                                                                        }`}
-                                                                    >
-                                                                        <div className="flex items-start justify-between mb-2">
-                                                                            <div className="flex-1">
-                                                                                <div className="flex items-center gap-2">
-                                                                                    <span className="text-sm font-semibold text-gray-900">
-                                                                                        {voice.display_name}
-                                                                                    </span>
-                                                                                    {isSelected && (
-                                                                                        <CheckCircle2 className="w-4 h-4 text-blue-600" />
-                                                                                    )}
-                                                    </div>
-                                                                                <p className="text-xs text-gray-600 mt-0.5">
-                                                                                    {voice.description}
-                                                                                </p>
-                                                                            </div>
-                                                                            <button
-                                                                                type="button"
-                                                                                onClick={(e) => {
-                                                                                    e.stopPropagation();
-                                                                                    handlePlayVoiceDemo(voice);
-                                                                                }}
-                                                                                className={`p-2 rounded-full transition-all ${
-                                                                                    isCurrentlyPlaying
-                                                                                        ? 'bg-blue-600 text-white'
-                                                                                        : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-                                                                                }`}
-                                                                            >
-                                                                                {isCurrentlyPlaying ? (
-                                                                                    <Pause className="w-4 h-4" />
-                                                                                ) : (
-                                                                                    <Play className="w-4 h-4" />
-                                                                                )}
-                                                                            </button>
-                                                                        </div>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                {/* ⚡ Estado ON/OFF del Agente - MUY VISIBLE */}
-                                                <div className={`p-4 rounded-xl border-2 transition-all ${
-                                                    settings.agent?.enabled 
-                                                        ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-400 shadow-lg shadow-green-100' 
-                                                        : 'bg-gradient-to-r from-red-50 to-orange-50 border-red-400 shadow-lg shadow-red-100'
-                                                }`}>
-                                                    <div className="flex items-center justify-between mb-3">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`p-2 rounded-lg ${
-                                                                settings.agent?.enabled 
-                                                                    ? 'bg-green-500 text-white' 
-                                                                    : 'bg-red-500 text-white'
-                                                            }`}>
-                                                                <Power className="w-5 h-5" />
-                                                            </div>
-                                                        <div>
-                                                                <p className="font-bold text-gray-900 text-sm">
-                                                                    {settings.agent?.enabled ? "🟢 Agente ACTIVO" : "🔴 Agente DESACTIVADO"}
-                                                                </p>
-                                                                <p className="text-xs text-gray-700 mt-0.5">
-                                                                    {settings.agent?.enabled 
-                                                                        ? "Atendiendo llamadas y mensajes 24/7" 
-                                                                        : "No responderá a clientes"}
-                                                            </p>
-                                                        </div>
-                                                        </div>
-                                                        
-                                                        {/* Toggle Switch GRANDE */}
-                                                        <label className="relative inline-flex items-center cursor-pointer">
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={settings.agent?.enabled || false}
-                                                                onChange={async (e) => {
-                                                                    const newEnabled = e.target.checked;
-                                                                    
-                                                                    // Confirmación al DESACTIVAR
-                                                                    if (!newEnabled) {
-                                                                        const confirmed = window.confirm(
-                                                                            '⚠️ ¿DESACTIVAR el agente IA?\n\n' +
-                                                                            'El agente dejará de:\n' +
-                                                                            '• Responder llamadas telefónicas\n' +
-                                                                            '• Contestar mensajes de WhatsApp\n' +
-                                                                            '• Gestionar reservas automáticamente\n\n' +
-                                                                            'Las reservas manuales seguirán funcionando.'
-                                                                        );
-                                                                        if (!confirmed) return;
-                                                                    }
-                                                                    
-                                                                    setSettings(prev => ({
-                                                                        ...prev,
-                                                                        agent: {
-                                                                            ...prev.agent,
-                                                                            enabled: newEnabled
-                                                                        }
-                                                                    }));
-                                                                    
-                                                                    toast.success(newEnabled 
-                                                                        ? '✅ Agente ACTIVADO - Ahora atenderá a clientes' 
-                                                                        : '❌ Agente DESACTIVADO - No responderá a clientes'
-                                                                    );
-                                                                }}
-                                                                className="sr-only peer"
-                                                            />
-                                                            <div className="w-20 h-10 bg-red-400 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-10 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-9 after:w-9 after:transition-all peer-checked:bg-green-500 shadow-lg"></div>
-                                                        </label>
-                                    </div>
-
-                                                    {/* Explicación adicional */}
-                                                    <div className={`mt-3 p-3 rounded-lg ${
-                                                        settings.agent?.enabled 
-                                                            ? 'bg-green-100 border border-green-300' 
-                                                            : 'bg-red-100 border border-red-300'
-                                                    }`}>
-                                                        <p className="text-xs font-semibold mb-1 flex items-center gap-2">
-                                                            {settings.agent?.enabled ? (
-                                                                <>
-                                                                    <Power className="w-4 h-4 text-green-700" />
-                                                                    <span className="text-green-900">¿Qué hace el agente cuando está ACTIVO?</span>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <Power className="w-4 h-4 text-red-700" />
-                                                                    <span className="text-red-900">¿Qué pasa cuando está DESACTIVADO?</span>
-                                                                </>
-                                                            )}
-                                                        </p>
-                                                        <ul className={`text-xs space-y-1 ml-6 ${
-                                                            settings.agent?.enabled ? 'text-green-800' : 'text-red-800'
-                                                        }`}>
-                                                            {settings.agent?.enabled ? (
-                                                                <>
-                                                                    <li>✅ Responde llamadas telefónicas automáticamente</li>
-                                                                    <li>✅ Gestiona conversaciones de WhatsApp</li>
-                                                                    <li>✅ Crea y confirma reservas sin intervención manual</li>
-                                                                    <li>✅ Disponible 24/7 para tus clientes</li>
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <li>❌ NO responderá llamadas (cliente escuchará tono de llamada)</li>
-                                                                    <li>❌ NO contestará mensajes de WhatsApp</li>
-                                                                    <li>❌ Reservas solo se pueden crear manualmente desde el dashboard</li>
-                                                                    <li>⚠️ Tus clientes NO podrán reservar por teléfono o WhatsApp</li>
-                                                                </>
-                                                            )}
-                                                        </ul>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        </div>
-                                    </div>
-
-
-
-                                    {/* Botón guardar */}
-                                    <div className="flex justify-end pt-4 border-t border-gray-200">
-                                        <button
-                                            onClick={() => handleSave("Configuración del Agente")}
-                                            disabled={saving}
-                                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 font-semibold shadow-lg"
-                                        >
-                                            {saving ? (
-                                                <>
-                                                    <RefreshCw className="w-4 h-4 animate-spin" />
-                                                    Guardando...
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Save className="w-4 h-4" />
-                                                    Guardar Configuración
-                                                </>
-                                            )}
-                                        </button>
-                                    </div>
+                                {/* Botón Guardar */}
+                                <div className="flex justify-end pt-4 border-t border-gray-200 mt-6">
+                                    <button
+                                        onClick={() => handleSave("Configuración del Agente")}
+                                        disabled={saving}
+                                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 font-semibold shadow-lg"
+                                    >
+                                        {saving ? (
+                                            <>
+                                                <RefreshCw className="w-4 h-4 animate-spin" />
+                                                Guardando...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Save className="w-4 h-4" />
+                                                Guardar Configuración
+                                            </>
+                                        )}
+                                    </button>
                                 </div>
                             </SettingSection>
                         </div>
                     )}
+
 
                     {/* 📡 CANALES Y ALERTAS - NUEVA PÁGINA MOBILE-FIRST */}
                     {activeTab === "canales" && (
