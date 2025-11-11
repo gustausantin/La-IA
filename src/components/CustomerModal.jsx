@@ -117,8 +117,7 @@ const CustomerModal = ({
         // Campos básicos
         name: '',
         first_name: '',
-        last_name1: '',
-        last_name2: '',
+        last_name: '',
         email: '',
         phone: '',
         birthday: '', // Campo de cumpleaños
@@ -182,8 +181,7 @@ const CustomerModal = ({
             console.log('Customer object:', customer);
             console.log('customer.name:', customer.name);
             console.log('customer.first_name:', customer.first_name);
-            console.log('customer.last_name1:', customer.last_name1);
-            console.log('customer.last_name2:', customer.last_name2);
+            console.log('customer.last_name:', customer.last_name);
             console.log('customer.segment_manual:', customer.segment_manual);
             console.log('customer.segment_auto:', customer.segment_auto);
             console.log('=== DEBUGGING GDPR CONSENTS ===');
@@ -191,16 +189,15 @@ const CustomerModal = ({
             console.log('customer.consent_sms:', customer.consent_sms);
             console.log('customer.consent_whatsapp:', customer.consent_whatsapp);
             
-            // ✅ Si el cliente solo tiene 'name' (de WhatsApp), intentar extraer first_name
-            const firstName = customer.first_name || (customer.name ? customer.name.split(' ')[0] : '');
-            const lastName1 = customer.last_name1 || '';
-            const lastName2 = customer.last_name2 || '';
+            // ✅ Si el cliente solo tiene 'name' (de WhatsApp), intentar extraer first_name y last_name
+            const nameParts = customer.name ? customer.name.trim().split(' ') : [];
+            const firstName = customer.first_name || nameParts[0] || '';
+            const lastName = customer.last_name || nameParts.slice(1).join(' ') || '';
             
             setFormData({
                 name: customer.name || '',
                 first_name: firstName,
-                last_name1: lastName1,
-                last_name2: lastName2,
+                last_name: lastName,
                 email: customer.email || '',
                 phone: customer.phone || '',
                 birthday: customer.birthday || '',
@@ -226,8 +223,7 @@ const CustomerModal = ({
             setFormData({
                 name: '',
                 first_name: '',
-                last_name1: '',
-                last_name2: '',
+                last_name: '',
                 email: '',
                 phone: '',
                 birthday: '',
@@ -280,7 +276,7 @@ const CustomerModal = ({
             }
             
             // Generar nombre completo automáticamente
-            const fullName = `${formData.first_name} ${formData.last_name1 || ''} ${formData.last_name2 || ''}`.trim();
+            const fullName = `${formData.first_name} ${formData.last_name || ''}`.trim();
             
             // Preparar datos para guardar - CORRIGIENDO MANEJO DE CAMPOS OPCIONALES
             const dataToSave = {
@@ -296,11 +292,8 @@ const CustomerModal = ({
             };
 
             // Agregar campos opcionales solo si tienen valor real
-            if (formData.last_name1?.trim()) {
-                dataToSave.last_name1 = formData.last_name1.trim();
-            }
-            if (formData.last_name2?.trim()) {
-                dataToSave.last_name2 = formData.last_name2.trim();
+            if (formData.last_name?.trim()) {
+                dataToSave.last_name = formData.last_name.trim();
             }
             if (formData.email?.trim()) {
                 dataToSave.email = formData.email.trim();
@@ -544,7 +537,7 @@ const CustomerModal = ({
                                                         ...prev, 
                                                         first_name: firstName,
                                                         // Actualizar nombre completo automáticamente
-                                                        name: `${firstName} ${prev.last_name1 || ''} ${prev.last_name2 || ''}`.trim()
+                                                        name: `${firstName} ${prev.last_name || ''}`.trim()
                                                     }));
                                                 }}
                                             disabled={!isEditing}
@@ -552,49 +545,26 @@ const CustomerModal = ({
                                             placeholder="Nombre"
                                             />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                    Primer apellido
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={formData.last_name1}
-                                                    onChange={(e) => {
-                                                        const lastName1 = e.target.value;
-                                                        setFormData(prev => ({ 
-                                                            ...prev, 
-                                                            last_name1: lastName1,
-                                                            // Actualizar nombre completo automáticamente
-                                                            name: `${prev.first_name || ''} ${lastName1} ${prev.last_name2 || ''}`.trim()
-                                                        }));
-                                                    }}
-                                                disabled={!isEditing}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-50"
-                                                placeholder="Primer apellido"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                    Segundo apellido
-                                                </label>
-                                                <input
-                                                    type="text"
-                                                    value={formData.last_name2}
-                                                    onChange={(e) => {
-                                                        const lastName2 = e.target.value;
-                                                        setFormData(prev => ({ 
-                                                            ...prev, 
-                                                            last_name2: lastName2,
-                                                            // Actualizar nombre completo automáticamente
-                                                            name: `${prev.first_name || ''} ${prev.last_name1 || ''} ${lastName2}`.trim()
-                                                        }));
-                                                    }}
-                                                disabled={!isEditing}
-                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-50"
-                                                placeholder="Segundo apellido"
-                                                />
-                                            </div>
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Apellidos
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={formData.last_name}
+                                                onChange={(e) => {
+                                                    const lastName = e.target.value;
+                                                    setFormData(prev => ({ 
+                                                        ...prev, 
+                                                        last_name: lastName,
+                                                        // Actualizar nombre completo automáticamente
+                                                        name: `${prev.first_name || ''} ${lastName}`.trim()
+                                                    }));
+                                                }}
+                                            disabled={!isEditing}
+                                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 disabled:bg-gray-50"
+                                            placeholder="Apellidos"
+                                            />
                                         </div>
                                     </div>
                                 </div>
@@ -874,10 +844,9 @@ const CustomerModal = ({
                                     
                                     // GUARDADO COMPLETO - SIN ETIQUETAS - SIN RECARGA
                                     const dataToSave = {
-                                        name: `${formData.first_name} ${formData.last_name1 || ''}`.trim(),
+                                        name: `${formData.first_name} ${formData.last_name || ''}`.trim(),
                                         first_name: formData.first_name,
-                                        last_name1: formData.last_name1 || null,
-                                        last_name2: formData.last_name2 || null,
+                                        last_name: formData.last_name || null,
                                         email: formData.email || null,
                                         phone: formData.phone || null,
                                         birthday: formData.birthday || null,
@@ -980,7 +949,7 @@ const CustomerModal = ({
                         
                         <div className="p-2 bg-gray-50 border border-gray-200 rounded-lg mb-6">
                             <p className="text-sm text-gray-800">
-                                <strong>Cliente:</strong> {formData.first_name} {formData.last_name1}<br />
+                                <strong>Cliente:</strong> {formData.first_name} {formData.last_name}<br />
                                 {formData.email && <><strong>Email:</strong> {formData.email}<br /></>}
                                 {formData.phone && <><strong>Teléfono:</strong> {formData.phone}</>}
                             </p>

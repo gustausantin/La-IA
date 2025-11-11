@@ -480,6 +480,7 @@ function VistaDia({
     setDragOverSlot
 }) {
     const fechaStr = format(fecha, 'yyyy-MM-dd');
+    const diaSemanaActual = fecha.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
     const reservasDelDia = reservations.filter(r => r.reservation_date === fechaStr);
     const bloqueosDelDia = blockages.filter(b => b.blocked_date === fechaStr);
     
@@ -568,26 +569,47 @@ function VistaDia({
                             <Clock className="w-5 h-5 text-gray-500 mx-auto" />
                         </th>
                         
-                        {/* Recursos con ancho equitativo */}
-                        {recursosDisplay.map((recurso, idx) => (
-                            <th 
-                                key={recurso.id}
-                                className={`py-3 ${
-                                    idx < recursosDisplay.length - 1 ? 'border-r-2 border-gray-300' : ''
-                                }`}
-                                style={{ width: `${100 / numRecursos}%` }}
-                            >
-                                <div className="flex items-center justify-center gap-2">
-                                    <div className="w-9 h-9 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center text-white font-bold shadow-md">
-                                        {recurso.name[0]}
+                        {/* Recursos/Empleados con ancho equitativo */}
+                        {recursosDisplay.map((recurso, idx) => {
+                            // Calcular horario dinámico desde schedules
+                            const schedulesToday = recurso.employee_schedules?.filter(s => 
+                                s.day_of_week === diaSemanaActual && s.is_working
+                            ) || [];
+                            
+                            let horarioTexto = 'Sin horario';
+                            if (schedulesToday.length > 0 && schedulesToday[0].shifts && schedulesToday[0].shifts.length > 0) {
+                                const shifts = schedulesToday[0].shifts;
+                                const primerTurno = shifts[0];
+                                const ultimoTurno = shifts[shifts.length - 1];
+                                horarioTexto = `${primerTurno.start.slice(0, 5)} - ${ultimoTurno.end.slice(0, 5)}`;
+                            }
+                            
+                            return (
+                                <th 
+                                    key={recurso.id}
+                                    className={`py-3 ${
+                                        idx < recursosDisplay.length - 1 ? 'border-r-2 border-gray-300' : ''
+                                    }`}
+                                    style={{ width: `${100 / numRecursos}%` }}
+                                >
+                                    <div className="flex items-center justify-center gap-2">
+                                        <div 
+                                            className="w-9 h-9 rounded-full flex items-center justify-center text-white font-bold shadow-md"
+                                            style={{ backgroundColor: recurso.color || '#6366f1' }}
+                                        >
+                                            {recurso.name[0]}
+                                        </div>
+                                        <div className="text-left">
+                                            <span className="font-bold text-gray-900 text-sm block">{recurso.name}</span>
+                                            {recurso.resource_name && (
+                                                <span className="text-xs text-purple-600 font-semibold block">📍 {recurso.resource_name}</span>
+                                            )}
+                                            <span className="text-xs text-gray-500">{horarioTexto}</span>
+                                        </div>
                                     </div>
-                                    <div className="text-left">
-                                        <span className="font-bold text-gray-900 text-sm block">{recurso.name}</span>
-                                        <span className="text-xs text-gray-500">9:00 - 19:00</span>
-                                    </div>
-                                </div>
-                            </th>
-                        ))}
+                                </th>
+                            );
+                        })}
                     </tr>
                 </thead>
                 
@@ -597,7 +619,7 @@ function VistaDia({
                             {/* Hora completa (00) */}
                             <tr className="border-b-2 border-gray-300">
                                 {/* Celda de hora */}
-                                <td className="w-20 h-20 border-r-2 border-gray-400 bg-white align-top text-right pr-3 pt-1">
+                                <td className="w-20 h-5 border-r-2 border-gray-400 bg-white align-top text-right pr-3 pt-1">
                                     <span className="text-sm font-bold text-gray-700">
                                         {hora.toString().padStart(2, '0')}:00
                                     </span>
@@ -641,6 +663,24 @@ function VistaDia({
                                     return horaReserva === hora && minReserva === 0;
                                 });
 
+                                // 🚫 Verificar si empleado NO trabaja en esta hora
+                                const schedulesToday = recurso.employee_schedules?.filter(s => 
+                                    s.day_of_week === diaSemanaActual && s.is_working
+                                ) || [];
+                                
+                                let estaFueraDeHorario = true;
+                                if (schedulesToday.length > 0 && schedulesToday[0].shifts) {
+                                    const shifts = schedulesToday[0].shifts;
+                                    const horaActual = hora;
+                                    
+                                    // Verificar si la hora actual está dentro de algún turno
+                                    estaFueraDeHorario = !shifts.some(shift => {
+                                        const [horaInicio] = shift.start.split(':').map(Number);
+                                        const [horaFin] = shift.end.split(':').map(Number);
+                                        return horaActual >= horaInicio && horaActual < horaFin;
+                                    });
+                                }
+                                
                                 // 🔒 Buscar bloqueos de este recurso en esta hora
                                 const bloqueosEnHora = bloqueosDelDia.filter(b => {
                                     // Bloqueo global (sin resource_id) o del recurso específico
@@ -660,14 +700,20 @@ function VistaDia({
                                 return (
                                     <td
                                         key={`${recurso.id}-${hora}`}
-                                        className={`h-20 p-2 cursor-pointer transition-all align-top ${
+                                        className={`h-5 p-2 transition-all align-top ${
                                             idx < recursosDisplay.length - 1 ? 'border-r-2 border-gray-300' : ''
                                         } ${
-                                            isDragOver ? 'bg-blue-100' : 
-                                            tieneBloqueo ? 'bg-red-50 hover:bg-red-100' : 
-                                            'hover:bg-blue-50'
+                                            estaFueraDeHorario ? 'bg-gray-100 cursor-not-allowed' :
+                                            isDragOver ? 'bg-blue-100 cursor-pointer' : 
+                                            tieneBloqueo ? 'bg-red-50 hover:bg-red-100 cursor-pointer' : 
+                                            'hover:bg-blue-50 cursor-pointer'
                                         }`}
+                                        style={estaFueraDeHorario ? {
+                                            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(156, 163, 175, 0.2) 10px, rgba(156, 163, 175, 0.2) 20px)'
+                                        } : {}}
                                         onClick={() => {
+                                            if (estaFueraDeHorario) return; // No permitir clic si está fuera de horario
+                                            
                                             const timeStr = `${hora.toString().padStart(2, '0')}:00`;
                                             if (tieneBloqueo) {
                                                 // Celda bloqueada - abrir modal con opciones de bloqueo
@@ -690,10 +736,9 @@ function VistaDia({
                                             const duracionMinutos = calcularDuracionReserva(reserva);
                                             const numSlots = Math.ceil(duracionMinutos / 15); // Cuántos intervalos de 15min ocupa
                                             
-                                            // 🎨 Altura: cada slot de 15 min = 20px (h-5), más 80px para el slot principal (h-20)
-                                            // Slots adicionales: (numSlots - 1) * 20px
-                                            const alturaAdicional = (numSlots - 1) * 20; // px
-                                            const alturaTotal = 80 + alturaAdicional; // 80px base + adicionales
+                                            // 🎨 Altura: cada slot de 15 min = 20px (h-5)
+                                            // TODOS los intervalos tienen el mismo tamaño (h-5 = 20px)
+                                            const alturaTotal = numSlots * 20; // 20px por cada intervalo de 15min
                                             
                                             return (
                                                 <div
@@ -810,6 +855,25 @@ function VistaDia({
 
                                         const estaOcupado = !!reservaEnEsteCelda;
                                         
+                                        // 🚫 Verificar si empleado NO trabaja en este minuto
+                                        const schedulesToday = recurso.employee_schedules?.filter(s => 
+                                            s.day_of_week === diaSemanaActual && s.is_working
+                                        ) || [];
+                                        
+                                        let estaFueraDeHorarioMinuto = true;
+                                        if (schedulesToday.length > 0 && schedulesToday[0].shifts) {
+                                            const shifts = schedulesToday[0].shifts;
+                                            const minutosDesdeMedianoche = hora * 60 + minuto;
+                                            
+                                            estaFueraDeHorarioMinuto = !shifts.some(shift => {
+                                                const [hInicio, mInicio] = shift.start.split(':').map(Number);
+                                                const [hFin, mFin] = shift.end.split(':').map(Number);
+                                                const inicioMin = hInicio * 60 + mInicio;
+                                                const finMin = hFin * 60 + mFin;
+                                                return minutosDesdeMedianoche >= inicioMin && minutosDesdeMedianoche < finMin;
+                                            });
+                                        }
+                                        
                                         // 🆕 Drag over state para intervalos de 15min
                                         const isDragOverMinuto = dragOverSlot?.hora === hora && 
                                                                  dragOverSlot?.minuto === minuto &&
@@ -822,25 +886,29 @@ function VistaDia({
                                                 className={`h-5 transition-colors ${
                                                     idx < recursosDisplay.length - 1 ? 'border-r-2 border-gray-300' : ''
                                                 } ${
-                                                    isDragOverMinuto ? 'bg-blue-100' :
+                                                    estaFueraDeHorarioMinuto ? 'bg-gray-100 cursor-not-allowed' :
+                                                    isDragOverMinuto ? 'bg-blue-100 cursor-pointer' :
                                                     estaOcupado 
                                                         ? 'bg-transparent pointer-events-none' 
                                                         : 'cursor-pointer hover:bg-blue-50'
                                                 }`}
+                                                style={estaFueraDeHorarioMinuto ? {
+                                                    backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(156, 163, 175, 0.2) 10px, rgba(156, 163, 175, 0.2) 20px)'
+                                                } : {}}
                                                 onClick={() => {
-                                                    if (!estaOcupado) {
-                                                        const timeStr = `${hora.toString().padStart(2, '0')}:${minuto}`;
-                                                        onCellClick(recurso, fechaStr, timeStr, null, null);
-                                                    }
+                                                    if (estaFueraDeHorarioMinuto || estaOcupado) return;
+                                                    
+                                                    const timeStr = `${hora.toString().padStart(2, '0')}:${minuto}`;
+                                                    onCellClick(recurso, fechaStr, timeStr, null, null);
                                                 }}
                                                 onDragOver={(e) => {
-                                                    if (!estaOcupado) {
+                                                    if (!estaOcupado && !estaFueraDeHorarioMinuto) {
                                                         handleDragOver(e, hora, minuto, recurso.id);
                                                     }
                                                 }}
                                                 onDragLeave={handleDragLeave}
                                                 onDrop={(e) => {
-                                                    if (!estaOcupado) {
+                                                    if (!estaOcupado && !estaFueraDeHorarioMinuto) {
                                                         handleDrop(e, hora, minuto, recurso.id);
                                                     }
                                                 }}

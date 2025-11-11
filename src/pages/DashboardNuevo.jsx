@@ -17,6 +17,7 @@ import {
   Bell, BellOff, ExternalLink, ArrowRight, RefreshCw
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import CopilotBanner from '../components/copilot/CopilotBanner';
 
 // ====================================
 // COMPONENTE PRINCIPAL
@@ -33,9 +34,12 @@ export default function DashboardNuevo() {
   const [alerts, setAlerts] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [summary, setSummary] = useState(null);
+  const [activityFeed, setActivityFeed] = useState([]); // 🆕 Feed de actividad
   const [nextAppointment, setNextAppointment] = useState(null);
   const [availableSlots, setAvailableSlots] = useState([]);
+  const [todayAppointments, setTodayAppointments] = useState([]); // 🆕 Para mini-calendario
   const [onboardingProgress, setOnboardingProgress] = useState(null);
+  const [copilotStep, setCopilotStep] = useState(0); // 🆕 Paso del Copilot (0-3)
   const [connectionStatus, setConnectionStatus] = useState({ status: 'ok' });
 
   // Estado UI
@@ -67,7 +71,9 @@ export default function DashboardNuevo() {
         loadAlerts(),
         loadTasks(),
         loadSummary(),
+        loadActivityFeed(), // 🆕
         loadNextAppointment(),
+        loadTodayAppointments(), // 🆕
         loadAvailableSlots(),
         loadOnboardingProgress(),
         loadConnectionStatus()
@@ -81,31 +87,113 @@ export default function DashboardNuevo() {
   };
 
   const loadAlerts = async () => {
-    // TODO: Implementar consulta real a Supabase
-    // GET /api/alerts?status=pending
-    setAlerts([
-      // MOCK para testing
-      // { id: 1, type: 'Queja de Cliente', summary: 'Llamada de Ana López...', audio_url: null }
-    ]);
+    // ✅ DATOS REALES: Conversaciones con escalation_needed o sentiment negative
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const { data, error } = await supabase
+        .from('agent_conversations')
+        .select('*')
+        .eq('business_id', business.id)
+        .gte('created_at', today.toISOString())
+        .or('sentiment.eq.negative,metadata->>escalation_needed.eq.true')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      // Mapear a formato de alertas
+      const mappedAlerts = (data || []).map(conv => ({
+        id: conv.id,
+        type: conv.interaction_type === 'complaint' ? 'Queja de Cliente' : 'Atención Requerida',
+        summary: `Llamada de ${conv.customer_name || 'Cliente'} - ${conv.interaction_type}`,
+        audio_url: conv.metadata?.audio_url || null,
+        created_at: conv.created_at
+      }));
+
+      setAlerts(mappedAlerts);
+    } catch (error) {
+      console.error('Error cargando alertas:', error);
+      setAlerts([]);
+    }
   };
 
   const loadTasks = async () => {
-    // TODO: Implementar consulta real
-    // GET /api/tasks?status=pending
-    setTasks([
-      // MOCK
-      // { id: 1, type: 'ia', text: 'La IA no pudo confirmar la cita de Carlos Ruiz', completed: false }
-    ]);
+    // ✅ DATOS REALES: Conversaciones con status='active' que llevan > 24h sin resolver
+    try {
+      const yesterday = new Date();
+      yesterday.setHours(yesterday.getHours() - 24);
+
+      const { data, error } = await supabase
+        .from('agent_conversations')
+        .select('*')
+        .eq('business_id', business.id)
+        .eq('status', 'active')
+        .lt('created_at', yesterday.toISOString())
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      // Mapear a formato de tareas
+      const mappedTasks = (data || []).map(conv => ({
+        id: conv.id,
+        type: 'ia',
+        text: `Conversación pendiente con ${conv.customer_name || conv.customer_phone} desde hace más de 24h`,
+        completed: false,
+        created_at: conv.created_at
+      }));
+
+      setTasks(mappedTasks);
+    } catch (error) {
+      console.error('Error cargando tareas:', error);
+      setTasks([]);
+    }
   };
 
   const loadSummary = async () => {
-    // TODO: Implementar
-    // GET /api/dashboard/summary?scope=today
-    setSummary({
-      newBookings: 3,
-      spamFiltered: 8,
-      totalCalls: 14
-    });
+    // ✅ DATOS REALES: Calcular desde agent_conversations y appointments de HOY
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // 1. Nuevas reservas HOY
+      const { data: appointments, error: apptError } = await supabase
+        .from('appointments')
+        .select('id')
+        .eq('business_id', business.id)
+        .gte('created_at', today.toISOString())
+        .eq('source', 'agent_whatsapp');
+
+      if (apptError) throw apptError;
+
+      // 2. Conversaciones HOY
+      const { data: conversations, error: convError } = await supabase
+        .from('agent_conversations')
+        .select('interaction_type')
+        .eq('business_id', business.id)
+        .gte('created_at', today.toISOString());
+
+      if (convError) throw convError;
+
+      // 3. Calcular spam filtrado (interaction_type que empiece con 'noise_')
+      const spamCount = (conversations || []).filter(c => 
+        c.interaction_type?.startsWith('noise_') || 
+        c.interaction_type === 'other'
+      ).length;
+
+      setSummary({
+        newBookings: appointments?.length || 0,
+        spamFiltered: spamCount,
+        totalCalls: conversations?.length || 0
+      });
+    } catch (error) {
+      console.error('Error cargando resumen:', error);
+      setSummary({
+        newBookings: 0,
+        spamFiltered: 0,
+        totalCalls: 0
+      });
+    }
   };
 
   const loadNextAppointment = async () => {
@@ -126,28 +214,117 @@ export default function DashboardNuevo() {
     }
   };
 
+  const loadActivityFeed = async () => {
+    // ✅ DATOS REALES: Últimas 10 acciones del asistente HOY
+    try {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const { data, error } = await supabase
+        .from('agent_conversations')
+        .select('id, customer_name, customer_phone, interaction_type, outcome, created_at, source_channel')
+        .eq('business_id', business.id)
+        .gte('created_at', today.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) throw error;
+
+      setActivityFeed(data || []);
+    } catch (error) {
+      console.error('Error cargando feed de actividad:', error);
+      setActivityFeed([]);
+    }
+  };
+
+  const loadTodayAppointments = async () => {
+    // ✅ DATOS REALES: Todas las citas de HOY para el mini-calendario
+    try {
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
+
+      const { data, error } = await supabase
+        .from('appointments')
+        .select('*')
+        .eq('business_id', business.id)
+        .eq('appointment_date', todayStr)
+        .neq('status', 'cancelled')
+        .order('appointment_time', { ascending: true });
+
+      if (error) throw error;
+
+      setTodayAppointments(data || []);
+    } catch (error) {
+      console.error('Error cargando citas de hoy:', error);
+      setTodayAppointments([]);
+    }
+  };
+
   const loadAvailableSlots = async () => {
-    // TODO: Consumir el motor de "Slots Dinámicos"
-    // GET /api/slots/available?scope=today&limit=3
-    setAvailableSlots([
-      // MOCK
-      // { time: '17:00', available: true }
-    ]);
+    // ✅ DATOS REALES: Huecos libres de HOY
+    try {
+      const today = new Date();
+      const todayStr = format(today, 'yyyy-MM-dd');
+
+      // Obtener todas las citas de hoy
+      const { data: appointments, error } = await supabase
+        .from('appointments')
+        .select('appointment_time, duration_minutes')
+        .eq('business_id', business.id)
+        .eq('appointment_date', todayStr)
+        .neq('status', 'cancelled');
+
+      if (error) throw error;
+
+      // Generar horario del día (9:00 - 20:00, intervalos de 30min)
+      const allSlots = [];
+      for (let hour = 9; hour < 20; hour++) {
+        for (let minute of [0, 30]) {
+          const slotTime = new Date(today);
+          slotTime.setHours(hour, minute, 0, 0);
+          
+          // Solo slots futuros (después de ahora)
+          if (slotTime > new Date()) {
+            allSlots.push({
+              time: format(slotTime, 'HH:mm'),
+              datetime: slotTime
+            });
+          }
+        }
+      }
+
+      // Filtrar slots ocupados
+      const occupiedSlots = (appointments || []).map(apt => {
+        return apt.appointment_time?.slice(0, 5) || '00:00'; // "09:00" format
+      });
+
+      const freeSlots = allSlots
+        .filter(slot => !occupiedSlots.includes(slot.time))
+        .slice(0, 5); // Primeros 5 huecos libres
+
+      setAvailableSlots(freeSlots);
+    } catch (error) {
+      console.error('Error cargando slots:', error);
+      setAvailableSlots([]);
+    }
   };
 
   const loadOnboardingProgress = async () => {
-    // Si el onboarding está completo, no mostrar nada
-    if (business?.onboarding_complete) {
+    // Cargar paso del Copilot desde el negocio
+    const step = business?.copilot_step || 0;
+    setCopilotStep(step);
+    
+    // Si el Copilot está completo, no mostrar onboarding legacy
+    if (business?.copilot_completed || step >= 3) {
       setOnboardingProgress(null);
+      setCopilotStep(3); // Completado
       return;
     }
 
-    setOnboardingProgress({
-      current: 3,
-      total: 7,
-      nextStep: 'Añadir Servicios',
-      nextStepUrl: '/configuracion/servicios'
-    });
+    // Si el onboarding inicial está completo pero el Copilot no, no mostrar onboarding legacy
+    if (business?.onboarding_completed) {
+      setOnboardingProgress(null);
+    }
   };
 
   const loadConnectionStatus = async () => {
@@ -336,13 +513,13 @@ export default function DashboardNuevo() {
           />
         )}
 
-        {/* 2. PROGRESO DE ONBOARDING (solo si incompleto) */}
-        {onboardingProgress && (
-          <OnboardingProgressCard 
-            progress={onboardingProgress}
-            onContinue={() => navigate(onboardingProgress.nextStepUrl)}
+        {/* 2. COPILOT - Configuración Guiada (DESHABILITADO - Lo haremos al final) */}
+        {/* {copilotStep < 3 && (
+          <CopilotBanner 
+            currentStep={copilotStep}
+            onContinue={(step) => navigate(step.url)}
           />
-        )}
+        )} */}
 
         {/* 3. ALERTAS URGENTES */}
         {alerts.length > 0 && (
@@ -368,22 +545,37 @@ export default function DashboardNuevo() {
           />
         )}
 
-        {/* 6. PRÓXIMA CITA */}
-        <NextAppointmentCard 
+        {/* 6. FEED DE ACTIVIDAD (El "Qué") */}
+        {activityFeed.length > 0 && (
+          <ActivityFeedCard 
+            activities={activityFeed}
+            assistantName={assistantName}
+            onViewAll={() => navigate('/comunicacion')}
+          />
+        )}
+
+        {/* 7. MINI-CALENDARIO DE HOY */}
+        <TodayCalendarCard
+          appointments={todayAppointments}
+          onViewCalendar={() => navigate('/calendario')}
+        />
+
+        {/* 8. PRÓXIMA CITA (deprecado, reemplazado por mini-calendario) */}
+        {/* <NextAppointmentCard 
           appointment={nextAppointment}
           vocab={vocab}
           onViewCalendar={() => navigate('/calendario')}
         />
 
-        {/* 7. HUECOS DISPONIBLES */}
-        <AvailableSlotsCard 
+        {/* 9. HUECOS DISPONIBLES */}
+        {/* <AvailableSlotsCard 
           slots={availableSlots}
           onShare={() => setShowShareModal(true)}
           onNewBooking={() => navigate('/reservas/nueva')}
         />
 
-        {/* 8. ESTADO VACÍO (solo si no hay nada) */}
-        {!hasAnyData && (
+        {/* 10. ESTADO VACÍO (solo si no hay nada) */}
+        {!hasAnyData && todayAppointments.length === 0 && activityFeed.length === 0 && (
           <EmptyStateCard 
             assistantName={assistantName}
             onShare={() => setShowShareModal(true)}
@@ -698,19 +890,46 @@ function TaskCard({ tasks, onComplete }) {
   );
 }
 
-// Tarjeta: Resumen del Día
-function SummaryCard({ summary, onViewAll }) {
+// 🆕 Tarjeta: Feed de Actividad (El "QUÉ" ha hecho el asistente)
+function ActivityFeedCard({ activities, assistantName, onViewAll }) {
+  const getActivityIcon = (type) => {
+    if (type?.startsWith('client_') || type === 'reservation') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
+    if (type?.startsWith('noise_') || type === 'other') return <Shield className="w-4 h-4 text-orange-600" />;
+    if (type?.startsWith('provider_')) return <Users className="w-4 h-4 text-yellow-600" />;
+    if (type?.startsWith('incident_')) return <AlertTriangle className="w-4 h-4 text-red-600" />;
+    return <MessageSquare className="w-4 h-4 text-blue-600" />;
+  };
+
+  const getActivityLabel = (type) => {
+    if (type === 'reservation' || type === 'client_reservation') return 'Reserva confirmada';
+    if (type === 'cancellation' || type === 'client_cancel') return 'Cancelación gestionada';
+    if (type?.startsWith('noise_')) return 'Spam filtrado';
+    if (type === 'inquiry' || type === 'client_info') return 'Consulta respondida';
+    if (type?.startsWith('provider_')) return 'Llamada comercial';
+    if (type?.startsWith('incident_')) return 'Incidencia detectada';
+    return 'Mensaje recibido';
+  };
+
+  const getActivityColor = (type) => {
+    if (type?.startsWith('client_') || type === 'reservation') return 'bg-green-50 border-green-200';
+    if (type?.startsWith('noise_')) return 'bg-orange-50 border-orange-200';
+    if (type?.startsWith('provider_')) return 'bg-yellow-50 border-yellow-200';
+    if (type?.startsWith('incident_')) return 'bg-red-50 border-red-200';
+    return 'bg-blue-50 border-blue-200';
+  };
+
   return (
     <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-br from-purple-100 to-blue-100 rounded-lg flex items-center justify-center">
-              <TrendingUp className="w-4 h-4 text-purple-600" />
+            <div className="w-8 h-8 bg-gradient-to-br from-purple-600 to-blue-600 rounded-lg flex items-center justify-center">
+              <Bot className="w-4 h-4 text-white" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-900">📊 Resumen de Hoy</h3>
-              <p className="text-xs text-gray-600">El valor que generaste</p>
+              <h3 className="text-sm font-bold text-gray-900">🤖 Última Actividad de {assistantName}</h3>
+              <p className="text-xs text-gray-600">Esto es lo que ha hecho hoy</p>
             </div>
           </div>
           <button
@@ -723,33 +942,263 @@ function SummaryCard({ summary, onViewAll }) {
         </div>
       </div>
 
+      {/* Lista de actividades */}
+      <div className="p-4 space-y-2">
+        {activities.slice(0, 5).map((activity) => {
+          const time = format(parseISO(activity.created_at), 'HH:mm');
+          
+          return (
+            <div
+              key={activity.id}
+              className={`flex items-start gap-3 p-3 rounded-lg border ${getActivityColor(activity.interaction_type)} transition-all hover:shadow-sm`}
+            >
+              <div className="flex-shrink-0 mt-0.5">
+                {getActivityIcon(activity.interaction_type)}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-0.5">
+                  <span className="text-xs font-bold text-gray-500">{time}:</span>
+                  <span className="text-xs font-semibold text-gray-900">
+                    {getActivityLabel(activity.interaction_type)}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-700">
+                  {activity.customer_name || activity.customer_phone}
+                  {activity.outcome && ` • ${activity.outcome}`}
+                </p>
+              </div>
+            </div>
+          );
+        })}
+
+        {activities.length > 5 && (
+          <button
+            onClick={onViewAll}
+            className="w-full py-2 text-xs font-semibold text-purple-600 hover:text-purple-700 flex items-center justify-center gap-1 transition-colors"
+          >
+            Ver {activities.length - 5} más actividades
+            <ChevronDown className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 🆕 Tarjeta: Mini-Calendario de HOY (Reemplaza "Siguiente Cita")
+function TodayCalendarCard({ appointments, onViewCalendar }) {
+  // Generar slots de 9:00 a 21:00 (intervalos de 30min)
+  const generateDaySlots = () => {
+    const slots = [];
+    for (let hour = 9; hour <= 20; hour++) {
+      for (let minute of [0, 30]) {
+        slots.push({
+          time: `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`,
+          hour,
+          minute
+        });
+      }
+    }
+    return slots;
+  };
+
+  const daySlots = generateDaySlots();
+
+  // Mapear citas a slots
+  const getSlotStatus = (slotTime) => {
+    const appointment = appointments.find(apt => {
+      const aptTime = apt.appointment_time?.slice(0, 5) || '00:00'; // "09:00" format
+      return aptTime === slotTime;
+    });
+
+    if (appointment) {
+      return {
+        status: 'occupied',
+        label: appointment.customer_name || 'Cliente',
+        appointment
+      };
+    }
+
+    // Verificar si es hora pasada
+    const now = new Date();
+    const [h, m] = slotTime.split(':');
+    const slotDateTime = new Date();
+    slotDateTime.setHours(parseInt(h), parseInt(m), 0, 0);
+
+    if (slotDateTime < now) {
+      return { status: 'past', label: null };
+    }
+
+    return { status: 'free', label: null };
+  };
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-lg flex items-center justify-center">
+              <Calendar className="w-4 h-4 text-indigo-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">📅 Tu Día de Hoy</h3>
+              <p className="text-xs text-gray-600">Vista rápida de tu agenda</p>
+            </div>
+          </div>
+          <button
+            onClick={onViewCalendar}
+            className="text-xs font-semibold text-purple-600 hover:text-purple-700 flex items-center gap-1"
+          >
+            Ver agenda completa
+            <ExternalLink className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Mini-calendario (columna única) */}
       <div className="p-4">
-        <div className="grid grid-cols-3 gap-4">
-          {/* Nuevas Reservas */}
-          <div className="text-center">
-            <div className="w-12 h-12 bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl flex items-center justify-center mx-auto mb-2">
-              <Calendar className="w-6 h-6 text-green-600" />
+        {appointments.length === 0 ? (
+          <div className="text-center py-6">
+            <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-gray-500">No tienes citas programadas hoy</p>
+            <p className="text-xs text-gray-400 mt-1">Tu agenda está libre</p>
+          </div>
+        ) : (
+          <div className="space-y-1.5 max-h-96 overflow-y-auto">
+            {daySlots.map((slot) => {
+              const slotStatus = getSlotStatus(slot.time);
+
+              if (slotStatus.status === 'past') {
+                // No mostrar slots pasados
+                return null;
+              }
+
+              if (slotStatus.status === 'occupied') {
+                // Cita ocupada
+                return (
+                  <div
+                    key={slot.time}
+                    className="flex items-center gap-3 p-3 bg-gradient-to-r from-indigo-50 to-purple-50 border-2 border-indigo-300 rounded-xl hover:shadow-md transition-all cursor-pointer"
+                    onClick={onViewCalendar}
+                  >
+                    <div className="flex-shrink-0 w-16 text-center">
+                      <p className="text-base font-black bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                        {slot.time}
+                      </p>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-0.5">
+                        <CheckCircle2 className="w-4 h-4 text-indigo-600 flex-shrink-0" />
+                        <p className="text-sm font-bold text-gray-900 truncate">
+                          {slotStatus.label}
+                        </p>
+                      </div>
+                      <p className="text-xs text-gray-600 truncate">
+                        {slotStatus.appointment.service_name || 'Servicio'}
+                      </p>
+                    </div>
+                    <ArrowRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  </div>
+                );
+              }
+
+              // Hueco libre - solo mostrar los primeros 3
+              const freeSlotsBefore = daySlots
+                .slice(0, daySlots.indexOf(slot))
+                .filter(s => getSlotStatus(s.time).status === 'free').length;
+
+              if (freeSlotsBefore >= 3) {
+                return null;
+              }
+
+              return (
+                <div
+                  key={slot.time}
+                  className="flex items-center gap-3 p-2.5 bg-green-50/50 border border-green-200 rounded-lg hover:bg-green-100 transition-all cursor-pointer"
+                  onClick={onViewCalendar}
+                >
+                  <div className="flex-shrink-0 w-16 text-center">
+                    <p className="text-sm font-bold text-green-700">
+                      {slot.time}
+                    </p>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-green-600">✨ LIBRE</p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Tarjeta: Resumen del Día (VERSIÓN HERO - MÁS GRANDE Y VISUAL)
+function SummaryCard({ summary, onViewAll }) {
+  return (
+    <div className="bg-white border-2 border-purple-200 rounded-2xl shadow-lg overflow-hidden">
+      {/* Header con título hero */}
+      <div className="bg-gradient-to-r from-purple-600 via-blue-600 to-indigo-600 px-5 py-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+              <TrendingUp className="w-6 h-6 text-white" />
             </div>
-            <p className="text-2xl font-black text-gray-900 mb-1">{summary.newBookings}</p>
-            <p className="text-xs text-gray-600 font-medium">Nuevas Reservas</p>
+            <div>
+              <h3 className="text-base font-black text-white">📊 Resumen de Hoy</h3>
+              <p className="text-xs text-purple-100">El valor que está generando tu IA</p>
+            </div>
+          </div>
+          <button
+            onClick={onViewAll}
+            className="text-xs font-semibold text-white/90 hover:text-white flex items-center gap-1 bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-lg transition-all"
+          >
+            Ver todo
+            <ExternalLink className="w-3 h-3" />
+          </button>
+        </div>
+      </div>
+
+      {/* Stats GRANDES y visuales */}
+      <div className="p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Nuevas Reservas - HERO */}
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-xl p-5 text-center hover:shadow-lg transition-shadow">
+            <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-emerald-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <Calendar className="w-8 h-8 text-white" />
+            </div>
+            <p className="text-5xl font-black bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent mb-2">
+              {summary.newBookings}
+            </p>
+            <p className="text-sm text-gray-700 font-bold">Nuevas Reservas</p>
+            <p className="text-xs text-gray-500 mt-1">💰 Tu asistente está vendiendo</p>
           </div>
 
-          {/* Spam Filtrado */}
-          <div className="text-center">
-            <div className="w-12 h-12 bg-gradient-to-br from-orange-50 to-red-50 rounded-xl flex items-center justify-center mx-auto mb-2">
-              <Shield className="w-6 h-6 text-orange-600" />
+          {/* Spam Filtrado - HERO */}
+          <div className="bg-gradient-to-br from-orange-50 to-red-50 border-2 border-orange-300 rounded-xl p-5 text-center hover:shadow-lg transition-shadow">
+            <div className="w-16 h-16 bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <Shield className="w-8 h-8 text-white" />
             </div>
-            <p className="text-2xl font-black text-gray-900 mb-1">{summary.spamFiltered}</p>
-            <p className="text-xs text-gray-600 font-medium">Spam Filtrado</p>
+            <p className="text-5xl font-black bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent mb-2">
+              {summary.spamFiltered}
+            </p>
+            <p className="text-sm text-gray-700 font-bold">Spam Filtrado</p>
+            <p className="text-xs text-gray-500 mt-1">🛡️ Te está protegiendo</p>
           </div>
 
-          {/* Total Llamadas */}
-          <div className="text-center">
-            <div className="w-12 h-12 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center mx-auto mb-2">
-              <Phone className="w-6 h-6 text-blue-600" />
+          {/* Total Llamadas - HERO */}
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-300 rounded-xl p-5 text-center hover:shadow-lg transition-shadow">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+              <Phone className="w-8 h-8 text-white" />
             </div>
-            <p className="text-2xl font-black text-gray-900 mb-1">{summary.totalCalls}</p>
-            <p className="text-xs text-gray-600 font-medium">Total Llamadas</p>
+            <p className="text-5xl font-black bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+              {summary.totalCalls}
+            </p>
+            <p className="text-sm text-gray-700 font-bold">Total Llamadas</p>
+            <p className="text-xs text-gray-500 mt-1">📞 Atendidas 24/7</p>
           </div>
         </div>
       </div>

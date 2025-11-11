@@ -982,44 +982,61 @@ export default function Reservas() {
         if (!businessId) return;
 
         try {
-            // Intentar cargar desde tabla 'staff' o 'professionals' si existe
-            const { data: staffData, error: staffError } = await supabase
-                .from('staff')
-                .select("id, name, email, role, avatar_url")
+            // ✅ CARGAR EMPLEADOS desde la nueva tabla 'employees'
+            const { data: employeesData, error: employeesError } = await supabase
+                .from('employees')
+                .select(`
+                    id, 
+                    name, 
+                    email, 
+                    role, 
+                    color,
+                    is_owner,
+                    assigned_resource_id,
+                    position_order,
+                    employee_schedules(*)
+                `)
                 .eq("business_id", businessId)
                 .eq("is_active", true)
-                .order("name");
+                .order("position_order", { ascending: true });
 
-            if (staffError) {
-                // Si no existe tabla staff, usar recursos (mesas/camillas/boxes) como "profesionales"
-                console.log("⚠️ Tabla 'staff' no existe, usando recursos como profesionales");
-                const { data: resourcesData, error: resourcesError } = await supabase
-                    .from('resources')
-                    .select("id, name, capacity")
-                    .eq("business_id", businessId)
-                    .eq("is_active", true)
-                    .order("name")
-                    .limit(5); // Máximo 5 para no saturar el calendario
-
-                if (resourcesError) {
-                    console.error("❌ Error cargando recursos:", resourcesError);
-                    setResources([]);
-                    return;
-                }
-                
-                // Convertir recursos a formato de "profesionales"
-                const mappedResources = (resourcesData || []).map(r => ({
-                    id: r.id,
-                    name: r.name,
-                    type: 'resource'
-                }));
-                
-                setResources(mappedResources);
-                console.log("✅ Recursos cargados como profesionales:", mappedResources.length);
-            } else {
-                setResources(staffData || []);
-                console.log("✅ Profesionales cargados:", staffData?.length || 0);
+            if (employeesError) {
+                console.error("❌ Error cargando empleados:", employeesError);
+                setResources([]);
+                return;
             }
+
+            // Cargar nombres de recursos para mostrar en el calendario
+            const resourceIds = employeesData?.map(e => e.assigned_resource_id).filter(Boolean) || [];
+            let resourcesMap = {};
+            
+            if (resourceIds.length > 0) {
+                const { data: resourcesData } = await supabase
+                    .from('resources')
+                    .select('id, name')
+                    .in('id', resourceIds);
+                
+                resourcesMap = (resourcesData || []).reduce((acc, r) => {
+                    acc[r.id] = r.name;
+                    return acc;
+                }, {});
+            }
+
+            // Mapear empleados a formato del calendario
+            const mappedEmployees = (employeesData || []).map(emp => ({
+                id: emp.id,
+                name: emp.name,
+                type: 'employee',
+                color: emp.color,
+                is_owner: emp.is_owner,
+                assigned_resource_id: emp.assigned_resource_id,
+                resource_name: emp.assigned_resource_id ? resourcesMap[emp.assigned_resource_id] : null,
+                employee_schedules: emp.employee_schedules,
+                schedules: emp.employee_schedules || []
+            }));
+            
+            setResources(mappedEmployees);
+            console.log("✅ Empleados cargados para calendario:", mappedEmployees.length);
         } catch (error) {
             console.error("❌ Error cargando recursos/profesionales:", error);
             // No mostrar error al usuario, simplemente no mostrar columnas

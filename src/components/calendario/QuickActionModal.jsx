@@ -15,7 +15,8 @@ import {
     User,
     FileText,
     Save,
-    UserPlus
+    UserPlus,
+    UserX
 } from 'lucide-react';
 
 /**
@@ -109,7 +110,7 @@ export default function QuickActionModal({
             ];
         }
 
-        // Celda vacía - permitir crear reserva, bloquear o lista de espera
+        // Celda vacía - permitir crear reserva, bloquear, ausencia o lista de espera
         return [
             {
                 id: 'new_reservation',
@@ -134,6 +135,14 @@ export default function QuickActionModal({
                 color: 'text-orange-600',
                 bgHover: 'hover:bg-orange-50',
                 action: () => setShowBlockForm(true)
+            },
+            {
+                id: 'add_absence',
+                icon: <UserX className="w-5 h-5" />,
+                label: 'Añadir Ausencia',
+                color: 'text-red-600',
+                bgHover: 'hover:bg-red-50',
+                action: () => onAction('add_absence', { resource, date, time })
             }
         ];
     };

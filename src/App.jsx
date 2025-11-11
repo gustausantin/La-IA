@@ -25,12 +25,15 @@ const Calendario = lazy(() => import('./pages/Calendario'));
 const Comunicacion = lazy(() => import('./pages/Comunicacion'));
 // const Analytics = lazy(() => import('./pages/Analytics')); // Deshabilitado temporalmente
 const Configuracion = lazy(() => import('./pages/Configuracion'));
+const Servicios = lazy(() => import('./pages/configuracion/Servicios'));
 const CRMProximosMensajes = lazy(() => import('./pages/CRMProximosMensajes'));
 
 // 🚀 CRM v2 - Nuevas páginas
 const Consumos = lazy(() => import('./pages/Consumos'));
 // const CRMv2 = lazy(() => import('./pages/CRMSimple')); // ❌ ARCHIVO NO EXISTE
 const AvailabilityTester = lazy(() => import('./components/AvailabilityTester'));
+const Equipo = lazy(() => import('./pages/Equipo'));
+const TuEquipo = Equipo; // Alias para claridad
 
 // 🛡️ Sistema de No-Shows SIMPLIFICADO (Versión 3.0)
 const NoShowControl = lazy(() => import('./pages/NoShowsSimple'));
@@ -206,6 +209,17 @@ function AppContent() {
                   </Suspense>
                 } 
               />
+              
+              {/* Tu Equipo - Gestión de Empleados */}
+              <Route 
+                path="/equipo" 
+                element={
+                  <Suspense fallback={<PageLoading />}>
+                    <TuEquipo />
+                  </Suspense>
+                } 
+              />
+              
               <Route 
                 path="/plantillas" 
                 element={<Navigate to="/crm-inteligente" state={{ autoOpenPlantillas: true }} replace />}
@@ -246,7 +260,15 @@ function AppContent() {
                   <Suspense fallback={<PageLoading />}>
                     <Configuracion />
                   </Suspense>
-                } 
+                }
+              />
+              <Route 
+                path="/configuracion/servicios" 
+                element={
+                  <Suspense fallback={<PageLoading />}>
+                    <Servicios />
+                  </Suspense>
+                }
               />
               <Route 
                 path="/crm/mensajes" 

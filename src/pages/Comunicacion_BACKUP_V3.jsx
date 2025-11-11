@@ -1,5 +1,5 @@
-// CENTRO DE COMUNICACIÓN - V4.0 CON TIPOLOGÍA
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+// CENTRO DE COMUNICACIÓN - DISEÑO MODERNO Y COMPACTO V3
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { format, formatDistanceToNow, parseISO } from 'date-fns';
@@ -12,15 +12,6 @@ import {
     Star, Tag, TrendingUp, AlertOctagon, Award, ChevronLeft
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { 
-    getTipologia, 
-    getAccion, 
-    calculateTipologiaMetrics, 
-    groupByTipologia,
-    getBadge,
-    TIPOLOGIAS,
-    TIPOLOGIA_CONFIG
-} from '../utils/conversationClassifier';
 
 const CHANNELS = {
     whatsapp: { name: 'WhatsApp', icon: MessageSquare, bgClass: 'bg-green-50', iconClass: 'text-green-600', borderClass: 'border-green-200' },
@@ -95,7 +86,6 @@ export default function Comunicacion() {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterChannel, setFilterChannel] = useState('all');
     const [filterStatus, setFilterStatus] = useState('all');
-    const [filterTipologia, setFilterTipologia] = useState('all'); // 🆕 Filtro por tipología
     const [stats, setStats] = useState({ 
         total: 0, 
         active: 0, 
@@ -104,12 +94,7 @@ export default function Comunicacion() {
         avgSatisfaction: 0,
         positivePercent: 0,
         escalations: 0,
-        avgQuality: 0,
-        // 🆕 Por tipología
-        clientes: 0,
-        proveedores: 0,
-        incidencias: 0,
-        ruido: 0
+        avgQuality: 0
     });
 
     const loadConversations = useCallback(async () => {
@@ -124,9 +109,6 @@ export default function Comunicacion() {
                 .order('created_at', { ascending: false });
             if (error) throw error;
             setConversations(data || []);
-            
-            // 🆕 Calcular métricas por tipología
-            const tipologiaMetrics = calculateTipologiaMetrics(data || []);
             
             // Calcular estadísticas enriquecidas
             const conversationsWithAnalysis = (data || []).filter(c => c.metadata && typeof c.metadata === 'object');
@@ -162,12 +144,7 @@ export default function Comunicacion() {
                 avgSatisfaction: parseFloat(avgSatisfaction),
                 positivePercent,
                 escalations,
-                avgQuality: parseFloat(avgQuality),
-                // 🆕 Métricas por tipología
-                clientes: tipologiaMetrics[TIPOLOGIAS.CLIENTES] || 0,
-                proveedores: tipologiaMetrics[TIPOLOGIAS.PROVEEDORES] || 0,
-                incidencias: tipologiaMetrics[TIPOLOGIAS.INCIDENCIAS] || 0,
-                ruido: tipologiaMetrics[TIPOLOGIAS.RUIDO] || 0
+                avgQuality: parseFloat(avgQuality)
             });
         } catch (error) {
             console.error('Error:', error);
@@ -247,37 +224,8 @@ export default function Comunicacion() {
         }
         if (filterChannel !== 'all') filtered = filtered.filter(c => c.source_channel === filterChannel);
         if (filterStatus !== 'all') filtered = filtered.filter(c => c.status === filterStatus);
-        
-        // 🆕 Filtro por tipología
-        if (filterTipologia !== 'all') {
-            filtered = filtered.filter(c => {
-                const { tipologia } = getTipologia(c.interaction_type, c);
-                return tipologia === filterTipologia;
-            });
-        }
-        
         return filtered;
-    }, [conversations, searchTerm, filterChannel, filterStatus, filterTipologia]);
-
-    // 🆕 Agrupar conversaciones por tipología y ordenar por prioridad
-    const groupedConversations = useMemo(() => {
-        const filtered = getFilteredConversations();
-        
-        // Si hay filtro de tipología, no agrupar (mostrar lista simple)
-        if (filterTipologia !== 'all') {
-            return { [filterTipologia]: filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at)) };
-        }
-        
-        // Agrupar por tipología
-        const grouped = groupByTipologia(filtered);
-        
-        // Ordenar cada grupo por fecha (más reciente primero)
-        Object.keys(grouped).forEach(key => {
-            grouped[key].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-        });
-        
-        return grouped;
-    }, [getFilteredConversations, filterTipologia]);
+    }, [conversations, searchTerm, filterChannel, filterStatus]);
 
     useEffect(() => { loadConversations(); }, [loadConversations]);
     useEffect(() => { if (selectedConversation) loadMessages(selectedConversation.id); }, [selectedConversation, loadMessages]);
@@ -343,90 +291,81 @@ export default function Comunicacion() {
                         </div>
                     </div>
 
-                    {/* 📊 MÉTRICAS POR TIPOLOGÍA - COMPACTAS (igual que No-Shows) */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mb-3">
-                        {/* 🔴 Incidencias */}
-                        <div 
-                            className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                filterTipologia === TIPOLOGIAS.INCIDENCIAS 
-                                    ? 'bg-red-50 border-red-500 shadow-md' 
-                                    : 'bg-white border-red-200 hover:border-red-400'
-                            }`}
-                            onClick={() => setFilterTipologia(filterTipologia === TIPOLOGIAS.INCIDENCIAS ? 'all' : TIPOLOGIAS.INCIDENCIAS)}
-                        >
-                            <div className="flex items-center justify-between mb-1">
-                                <span className="text-2xl">🔴</span>
-                                <span className="text-2xl font-bold text-red-600">{stats.incidencias}</span>
+                    {/* Estadísticas MOBILE-FIRST - 2 filas */}
+                    <div className="space-y-1.5">
+                        {/* Fila 1: Estadísticas básicas - RESPONSIVE */}
+                        <div className="grid grid-cols-3 gap-1 sm:gap-1.5">
+                            <div className="bg-white p-1.5 rounded-md border border-gray-200 hover:shadow-sm transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Total</p>
+                                        <p className="text-lg font-bold text-gray-900">{stats.total}</p>
                                     </div>
-                            <p className="text-xs font-semibold text-red-700">Incidencias</p>
-                            <p className="text-[10px] text-red-600">Requieren atención</p>
+                                    <Users className="w-5 h-5 text-gray-400" />
                                 </div>
-
-                        {/* 🟢 Clientes */}
-                        <div 
-                            className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                filterTipologia === TIPOLOGIAS.CLIENTES 
-                                    ? 'bg-green-50 border-green-500 shadow-md' 
-                                    : 'bg-white border-green-200 hover:border-green-400'
-                            }`}
-                            onClick={() => setFilterTipologia(filterTipologia === TIPOLOGIAS.CLIENTES ? 'all' : TIPOLOGIAS.CLIENTES)}
-                        >
-                            <div className="flex items-center justify-between mb-1">
-                                <span className="text-2xl">🟢</span>
-                                <span className="text-2xl font-bold text-green-600">{stats.clientes}</span>
                             </div>
-                            <p className="text-xs font-semibold text-green-700">Clientes</p>
-                            <p className="text-[10px] text-green-600">Reservas e info</p>
+                            <div className="bg-white p-1.5 rounded-md border border-gray-200 hover:shadow-sm transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Activas</p>
+                                        <p className="text-lg font-bold text-green-600">{stats.active}</p>
                                     </div>
-
-                        {/* 🟡 Proveedores */}
-                        <div 
-                            className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                filterTipologia === TIPOLOGIAS.PROVEEDORES 
-                                    ? 'bg-yellow-50 border-yellow-500 shadow-md' 
-                                    : 'bg-white border-yellow-200 hover:border-yellow-400'
-                            }`}
-                            onClick={() => setFilterTipologia(filterTipologia === TIPOLOGIAS.PROVEEDORES ? 'all' : TIPOLOGIAS.PROVEEDORES)}
-                        >
-                            <div className="flex items-center justify-between mb-1">
-                                <span className="text-2xl">🟡</span>
-                                <span className="text-2xl font-bold text-yellow-600">{stats.proveedores}</span>
+                                    <MessageCircle className="w-5 h-5 text-green-600" />
                                 </div>
-                            <p className="text-xs font-semibold text-yellow-700">Proveedores</p>
-                            <p className="text-[10px] text-yellow-600">Comercial y gestión</p>
                             </div>
-
-                        {/* ⚪ Ruido */}
-                        <div 
-                            className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                                filterTipologia === TIPOLOGIAS.RUIDO 
-                                    ? 'bg-gray-50 border-gray-500 shadow-md' 
-                                    : 'bg-white border-gray-200 hover:border-gray-400'
-                            }`}
-                            onClick={() => setFilterTipologia(filterTipologia === TIPOLOGIAS.RUIDO ? 'all' : TIPOLOGIAS.RUIDO)}
-                        >
-                            <div className="flex items-center justify-between mb-1">
-                                <span className="text-2xl">⚪</span>
-                                <span className="text-2xl font-bold text-gray-600">{stats.ruido}</span>
+                            <div className="bg-white p-1.5 rounded-md border border-gray-200 hover:shadow-sm transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Resueltas</p>
+                                        <p className="text-lg font-bold text-blue-600">{stats.resolved}</p>
                                     </div>
-                            <p className="text-xs font-semibold text-gray-700">Ruido</p>
-                            <p className="text-[10px] text-gray-600">Spam y equivocados</p>
+                                    <CheckCheck className="w-5 h-5 text-blue-600" />
+                                </div>
                             </div>
                         </div>
                         
-                    {/* 📊 MÉTRICAS GENERALES - COMPACTAS */}
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                        <div className="bg-white p-2 rounded-md border border-gray-200">
-                            <p className="text-[10px] font-medium text-gray-500 uppercase">Total</p>
-                            <p className="text-base font-bold text-gray-900">{stats.total}</p>
+                        {/* Fila 2: Estadísticas enriquecidas - MOBILE: 2 cols, DESKTOP: 4 cols */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-1 sm:gap-1.5">
+                            <div className="bg-white p-1.5 rounded-md border border-gray-200 hover:shadow-sm transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Satisfacción</p>
+                                        <p className="text-lg font-bold text-purple-600">
+                                            {stats.avgSatisfaction > 0 ? `${stats.avgSatisfaction}/5` : 'N/A'}
+                                        </p>
                                     </div>
-                        <div className="bg-white p-2 rounded-md border border-gray-200">
-                            <p className="text-[10px] font-medium text-gray-500 uppercase">Activas</p>
-                            <p className="text-base font-bold text-green-600">{stats.active}</p>
+                                    <Star className="w-5 h-5 text-purple-600" />
                                 </div>
-                        <div className="bg-white p-2 rounded-md border border-gray-200">
-                            <p className="text-[10px] font-medium text-gray-500 uppercase">Resueltas</p>
-                            <p className="text-base font-bold text-blue-600">{stats.resolved}</p>
+                            </div>
+                            <div className="bg-white p-1.5 rounded-md border border-gray-200 hover:shadow-sm transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">% Positivos</p>
+                                        <p className="text-lg font-bold text-green-600">{stats.positivePercent}%</p>
+                                    </div>
+                                    <TrendingUp className="w-5 h-5 text-green-600" />
+                                </div>
+                            </div>
+                            <div className="bg-white p-1.5 rounded-md border border-gray-200 hover:shadow-sm transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Escalaciones</p>
+                                        <p className="text-lg font-bold text-red-600">{stats.escalations}</p>
+                                    </div>
+                                    <AlertOctagon className="w-5 h-5 text-red-600" />
+                                </div>
+                            </div>
+                            <div className="bg-white p-1.5 rounded-md border border-gray-200 hover:shadow-sm transition-shadow">
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Calidad</p>
+                                        <p className="text-lg font-bold text-blue-600">
+                                            {stats.avgQuality > 0 ? `${stats.avgQuality}/5` : 'N/A'}
+                                        </p>
+                                    </div>
+                                    <Award className="w-5 h-5 text-blue-600" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -491,45 +430,16 @@ export default function Comunicacion() {
                             </div>
                         </div>
 
-                        {/* Lista Agrupada por Tipología */}
-                        <div className="overflow-y-auto flex-1 p-2 space-y-3">
-                            {Object.keys(groupedConversations).every(key => groupedConversations[key].length === 0) ? (
+                        {/* Lista */}
+                        <div className="overflow-y-auto flex-1 p-2 space-y-2">
+                            {filteredConversations.length === 0 ? (
                                 <div className="p-8 text-center text-gray-500">
                                     <MessageSquare className="w-16 h-16 mx-auto mb-3 opacity-20" />
                                     <p className="font-semibold">No hay conversaciones</p>
                                     <p className="text-sm mt-1">Las conversaciones aparecerán aquí</p>
                                 </div>
                             ) : (
-                                // Ordenar por prioridad: Incidencias → Clientes → Proveedores → Ruido
-                                [TIPOLOGIAS.INCIDENCIAS, TIPOLOGIAS.CLIENTES, TIPOLOGIAS.PROVEEDORES, TIPOLOGIAS.RUIDO]
-                                    .filter(tipologia => groupedConversations[tipologia]?.length > 0)
-                                    .map(tipologia => {
-                                        const config = TIPOLOGIA_CONFIG[tipologia];
-                                        const conversations = groupedConversations[tipologia];
-                                        
-                                        return (
-                                            <div key={tipologia} className="space-y-2">
-                                                {/* Header de grupo */}
-                                                <div className={`sticky top-0 px-3 py-2 ${config.bgClass} ${config.borderClass} border rounded-lg shadow-sm`}>
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            <span className="text-xl">{config.emoji}</span>
-                                                            <h3 className={`text-sm font-bold ${config.textClass}`}>
-                                                                {config.label} ({conversations.length})
-                                                            </h3>
-                                                        </div>
-                                                        {tipologia === TIPOLOGIAS.INCIDENCIAS && (
-                                                            <span className="text-[10px] font-semibold px-2 py-0.5 bg-red-200 text-red-800 rounded">
-                                                                PRIORIDAD ALTA
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-[10px] text-gray-600 mt-0.5">{config.descripcion}</p>
-                                                </div>
-                                                
-                                                {/* Conversaciones del grupo */}
-                                                <div className="space-y-2 pl-2">
-                                                    {conversations.map((conv) => {
+                                filteredConversations.map((conv) => {
                                     const channel = CHANNELS[conv.source_channel] || CHANNELS.webchat;
                                     const status = STATUS_CONFIG[conv.status] || STATUS_CONFIG.resolved;
                                     const Icon = channel.icon;
@@ -616,23 +526,8 @@ export default function Comunicacion() {
                                                                 </span>
                                                             );
                                                         })()}
-                                                        
-                                                        {/* 🆕 BADGE DE URGENCIA (solo para incidencias) */}
-                                                        {(() => {
-                                                            const badge = getBadge(conv);
-                                                            if (!badge) return null;
-                                                            return (
-                                                                <span className={`text-xs px-2 py-0.5 rounded-md font-bold ${badge.bgClass} ${badge.textClass} border ${badge.borderClass} animate-pulse`}>
-                                                                    {badge.text}
-                                                                </span>
-                                                            );
-                                                        })()}
                                                     </div>
                                                 </div>
-                                            </div>
-                                        </div>
-                                    );
-                                                    })}
                                             </div>
                                         </div>
                                     );

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useAuthContext } from "../contexts/AuthContext";
 import { supabase } from "../lib/supabase";
-import { useSearchParams, useLocation } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
 import {
     Settings as SettingsIcon,
     Building2,
@@ -19,15 +19,16 @@ import {
     Globe,
     Calendar,
     Users,
-    Clock,
-    AlertCircle,
-    AlertTriangle,
-    HelpCircle,
-    Eye,
-    EyeOff,
+        Clock,
+        AlertCircle,
+        AlertTriangle,
+        HelpCircle,
+        Eye,
+        EyeOff,
     FileText,
     Zap,
     Play,
+    Tag,
     Pause,
     Volume2,
     CheckCircle2,
@@ -121,6 +122,7 @@ const Configuracion = () => {
     const { labels } = useVertical(); // 🆕 Hook para vocabulario dinámico
     const [searchParams] = useSearchParams();
     const location = useLocation();
+    const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('asistente'); // 🆕 Por defecto "Mi Asistente"
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -285,6 +287,13 @@ const Configuracion = () => {
             label: `Mis ${labels?.resources || 'Recursos'}`,
             icon: <Briefcase className="w-4 h-4" />,
             description: `Gestiona tus ${labels?.resources?.toLowerCase() || 'recursos'} disponibles`
+        },
+        {
+            id: "servicios",
+            label: "Servicios",
+            icon: <Tag className="w-4 h-4" />,
+            description: "Servicios que ofreces, duraciones y precios",
+            link: "/configuracion/servicios"
         },
         {
             id: "canales",
@@ -853,12 +862,12 @@ const Configuracion = () => {
                     <div className="flex items-center gap-3">
                         <div className="bg-white/20 backdrop-blur rounded-lg p-2.5">
                             <SettingsIcon className="w-6 h-6 text-white" />
-                        </div>
+                    </div>
                         <div>
                             <h1 className="text-lg sm:text-xl font-bold">Configuración</h1>
                             <p className="text-sm text-white/90 mt-0.5">
                                 Centro de control de tu negocio
-                            </p>
+                    </p>
                         </div>
                     </div>
                 </div>
@@ -866,10 +875,16 @@ const Configuracion = () => {
                 {/* 📱 Tabs MOBILE-FIRST - Scroll horizontal en móvil */}
                 <div className="bg-white rounded-xl shadow-sm border p-1.5 mb-4">
                     <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
-                        {tabs.map((tab) => (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id)}
+                            {tabs.map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => {
+                                        if (tab.link) {
+                                            navigate(tab.link);
+                                        } else {
+                                            setActiveTab(tab.id);
+                                        }
+                                    }}
                                 className={`
                                     min-w-[140px] px-4 py-3 rounded-lg font-semibold text-sm whitespace-nowrap 
                                     flex flex-col items-center gap-1.5 transition-all
@@ -878,11 +893,11 @@ const Configuracion = () => {
                                         : "text-gray-600 hover:bg-gray-100"
                                     }
                                 `}
-                            >
-                                {tab.icon}
+                                >
+                                    {tab.icon}
                                 <span>{tab.label}</span>
-                            </button>
-                        ))}
+                                </button>
+                            ))}
                     </div>
                 </div>
 
@@ -1274,14 +1289,14 @@ const Configuracion = () => {
                                                                 return (
                                                                     <div
                                                                         key={voice.id}
-                                                                        onClick={() => setSettings(prev => ({
-                                                                            ...prev,
-                                                                            agent: {
-                                                                                ...prev.agent,
+                                                            onClick={() => setSettings(prev => ({
+                                                                ...prev,
+                                                                agent: {
+                                                                    ...prev.agent,
                                                                                 voice_id: voice.id,
                                                                                 gender: voice.gender
-                                                                            }
-                                                                        }))}
+                                                                }
+                                                            }))}
                                                                         className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
                                                                             isSelected
                                                                                 ? 'border-purple-600 bg-purple-50 shadow-md'
@@ -1302,8 +1317,8 @@ const Configuracion = () => {
                                                                                     {voice.description}
                                                                                 </p>
                                                                             </div>
-                                                                            <button
-                                                                                type="button"
+                                                        <button
+                                                            type="button"
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
                                                                                     handlePlayVoiceDemo(voice);
@@ -1338,14 +1353,14 @@ const Configuracion = () => {
                                                                 return (
                                                                     <div
                                                                         key={voice.id}
-                                                                        onClick={() => setSettings(prev => ({
-                                                                            ...prev,
-                                                                            agent: {
-                                                                                ...prev.agent,
+                                                            onClick={() => setSettings(prev => ({
+                                                                ...prev,
+                                                                agent: {
+                                                                    ...prev.agent,
                                                                                 voice_id: voice.id,
                                                                                 gender: voice.gender
-                                                                            }
-                                                                        }))}
+                                                                }
+                                                            }))}
                                                                         className={`p-3 border-2 rounded-lg cursor-pointer transition-all ${
                                                                             isSelected
                                                                                 ? 'border-blue-600 bg-blue-50 shadow-md'
@@ -1361,7 +1376,7 @@ const Configuracion = () => {
                                                                                     {isSelected && (
                                                                                         <CheckCircle2 className="w-4 h-4 text-blue-600" />
                                                                                     )}
-                                                                                </div>
+                                                    </div>
                                                                                 <p className="text-xs text-gray-600 mt-0.5">
                                                                                     {voice.description}
                                                                                 </p>
@@ -1407,7 +1422,7 @@ const Configuracion = () => {
                                                             }`}>
                                                                 <Power className="w-5 h-5" />
                                                             </div>
-                                                            <div>
+                                                        <div>
                                                                 <p className="font-bold text-gray-900 text-sm">
                                                                     {settings.agent?.enabled ? "🟢 Agente ACTIVO" : "🔴 Agente DESACTIVADO"}
                                                                 </p>
@@ -1415,8 +1430,8 @@ const Configuracion = () => {
                                                                     {settings.agent?.enabled 
                                                                         ? "Atendiendo llamadas y mensajes 24/7" 
                                                                         : "No responderá a clientes"}
-                                                                </p>
-                                                            </div>
+                                                            </p>
+                                                        </div>
                                                         </div>
                                                         
                                                         {/* Toggle Switch GRANDE */}
@@ -1457,8 +1472,8 @@ const Configuracion = () => {
                                                             />
                                                             <div className="w-20 h-10 bg-red-400 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-10 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-9 after:w-9 after:transition-all peer-checked:bg-green-500 shadow-lg"></div>
                                                         </label>
-                                                    </div>
-                                                    
+                                    </div>
+
                                                     {/* Explicación adicional */}
                                                     <div className={`mt-3 p-3 rounded-lg ${
                                                         settings.agent?.enabled 
@@ -1497,9 +1512,9 @@ const Configuracion = () => {
                                                                 </>
                                                             )}
                                                         </ul>
-                                                    </div>
                                                 </div>
                                             </div>
+                                        </div>
                                         </div>
                                     </div>
 
@@ -1534,7 +1549,7 @@ const Configuracion = () => {
                     {activeTab === "canales" && (
                         <div className="space-y-4">
                             {/* 1️⃣ TU ASISTENTE LA-IA (Servicio que damos) */}
-                            <SettingSection
+                        <SettingSection
                                 title="Tu Asistente LA-IA"
                                 description="Número de teléfono y WhatsApp asignado a tu negocio"
                                 icon={<Phone />}
@@ -1549,21 +1564,21 @@ const Configuracion = () => {
                                         <div className="flex items-center gap-3">
                                             <div className="p-2.5 bg-blue-100 rounded-lg">
                                                 <Phone className="w-5 h-5 text-blue-600" />
-                                            </div>
+                                        </div>
                                             <div>
                                                 <p className="font-semibold text-gray-900">Llamadas de Voz</p>
                                                 <p className="text-lg font-mono font-bold text-blue-600">
                                                     {business?.assigned_phone || '+34 9XX XXX XXX'}
                                                 </p>
                                                 <p className="text-xs text-gray-500 mt-0.5">Asignado por LA-IA</p>
-                                            </div>
                                         </div>
+                                    </div>
                                         <div className="flex items-center gap-2">
                                             <span className="text-xs font-semibold text-green-700 bg-green-100 px-3 py-1.5 rounded-full">
                                                 ✅ ACTIVO
                                             </span>
-                                        </div>
-                                    </div>
+                                </div>
+                                </div>
 
                                     {/* WhatsApp Business */}
                                     <div className="flex items-center justify-between p-4 bg-white border-2 border-green-200 rounded-xl">
@@ -1577,27 +1592,27 @@ const Configuracion = () => {
                                                     {business?.assigned_phone || '+34 9XX XXX XXX'}
                                                 </p>
                                                 <p className="text-xs text-gray-500 mt-0.5">Mismo número que voz</p>
+                                                </div>
                                             </div>
-                                        </div>
                                         <label className="relative inline-flex items-center cursor-pointer">
-                                            <input
-                                                type="checkbox"
+                                                <input
+                                                    type="checkbox"
                                                 checked={settings.channels?.whatsapp?.enabled !== false}
-                                                onChange={(e) => setSettings(prev => ({
-                                                    ...prev,
-                                                    channels: {
-                                                        ...prev.channels,
+                                                    onChange={(e) => setSettings(prev => ({
+                                                        ...prev,
+                                                        channels: {
+                                                            ...prev.channels,
                                                         whatsapp: {
                                                             ...prev.channels?.whatsapp,
                                                             enabled: e.target.checked
                                                         }
-                                                    }
-                                                }))}
+                                                        }
+                                                    }))}
                                                 className="sr-only peer"
-                                            />
+                                                />
                                             <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-green-300 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-green-500"></div>
                                         </label>
-                                    </div>
+                                            </div>
                                 </div>
                             </SettingSection>
 
@@ -1612,7 +1627,7 @@ const Configuracion = () => {
                                         ⚠️ <strong>Tu WhatsApp personal.</strong> Te enviaremos alertas urgentes aquí (quejas, errores del sistema, etc.)
                                     </p>
 
-                                    <div>
+                                            <div>
                                         <label className="block text-sm font-semibold text-gray-700 mb-1.5">
                                             Tu móvil para alertas (WhatsApp)
                                         </label>
@@ -1640,8 +1655,8 @@ const Configuracion = () => {
                                         <p className="text-xs text-gray-600 mt-1.5">
                                             Este es TU número personal. Solo para alertas importantes.
                                         </p>
-                                    </div>
                                 </div>
+                                            </div>
                             </SettingSection>
 
                             {/* 3️⃣ CANALES ADICIONALES (Centro de Mando Mobile-First) */}
@@ -1666,7 +1681,7 @@ const Configuracion = () => {
                                                 <div className="p-2 bg-gradient-to-br from-pink-500 to-pink-600 rounded-lg">
                                                     <Instagram className="w-5 h-5 text-white" />
                                                 </div>
-                                                <div>
+                                            <div>
                                                     <p className="font-semibold text-gray-900">Instagram DM</p>
                                                     <p className="text-xs text-gray-600">Mensajes directos automáticos</p>
                                                 </div>
@@ -1689,8 +1704,8 @@ const Configuracion = () => {
                                                 />
                                                 <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-pink-300 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-pink-500"></div>
                                             </label>
-                                        </div>
-                                        
+                                </div>
+
                                         {/* Campos que aparecen al activar */}
                                         {settings.channels?.instagram?.enabled && (
                                             <div className="mt-3 space-y-3 pt-3 border-t border-pink-200">
@@ -1699,8 +1714,8 @@ const Configuracion = () => {
                                                         <p className="text-sm text-pink-900 font-medium mb-2">
                                                             Se requiere conexión
                                                         </p>
-                                                        <button
-                                                            type="button"
+                                                    <button
+                                                        type="button"
                                                             onClick={() => {
                                                                 toast.info('Próximamente: OAuth de Instagram');
                                                             }}
@@ -1708,27 +1723,27 @@ const Configuracion = () => {
                                                         >
                                                             <Instagram className="w-4 h-4" />
                                                             Conectar con Instagram
-                                                        </button>
-                                                    </div>
-                                                )}
+                                                    </button>
+                                        </div>
+                                    )}
                                                 {settings.channels?.instagram?.connected && (
                                                     <div className="bg-green-50 border border-green-300 rounded-lg p-3">
                                                         <p className="text-sm text-green-900 font-medium mb-1">
                                                             ✅ Conectado como: <span className="font-bold">{settings.channels?.instagram?.handle || '@tunegocio'}</span>
                                                         </p>
-                                                        <button
-                                                            type="button"
+                                                    <button
+                                                        type="button"
                                                             className="text-sm text-red-600 hover:text-red-700 font-medium"
-                                                        >
+                                                    >
                                                             Desconectar
-                                                        </button>
-                                                    </div>
+                                                    </button>
+                                                </div>
                                                 )}
-                                            </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
+                                </div>
 
-                                    {/* Facebook Messenger */}
+                                {/* Facebook Messenger */}
                                     <div className={`p-4 rounded-xl border-2 transition-all ${
                                         settings.channels?.facebook?.enabled 
                                             ? 'border-blue-400 bg-blue-50' 
@@ -1737,32 +1752,32 @@ const Configuracion = () => {
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg">
-                                                    <Facebook className="w-5 h-5 text-white" />
-                                                </div>
+                                                <Facebook className="w-5 h-5 text-white" />
+                                            </div>
                                                 <div>
                                                     <p className="font-semibold text-gray-900">Facebook Messenger</p>
                                                     <p className="text-xs text-gray-600">Chat de tu página</p>
                                                 </div>
                                             </div>
                                             <label className="relative inline-flex items-center cursor-pointer">
-                                                <input
+                                                    <input
                                                     type="checkbox"
                                                     checked={settings.channels?.facebook?.enabled || false}
-                                                    onChange={(e) => setSettings(prev => ({
-                                                        ...prev,
-                                                        channels: {
-                                                            ...prev.channels,
+                                                        onChange={(e) => setSettings(prev => ({
+                                                            ...prev,
+                                                            channels: {
+                                                                ...prev.channels,
                                                             facebook: {
                                                                 ...prev.channels?.facebook,
                                                                 enabled: e.target.checked
                                                             }
-                                                        }
-                                                    }))}
+                                                            }
+                                                        }))}
                                                     className="sr-only peer"
-                                                />
+                                                    />
                                                 <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-blue-600"></div>
                                             </label>
-                                        </div>
+                                                </div>
                                         
                                         {settings.channels?.facebook?.enabled && (
                                             <div className="mt-3 space-y-3 pt-3 border-t border-blue-200">
@@ -1781,26 +1796,26 @@ const Configuracion = () => {
                                                             <Facebook className="w-4 h-4" />
                                                             Conectar con Facebook
                                                         </button>
-                                                    </div>
+                                            </div>
                                                 )}
                                                 {settings.channels?.facebook?.connected && (
                                                     <div className="bg-green-50 border border-green-300 rounded-lg p-3">
                                                         <p className="text-sm text-green-900 font-medium mb-1">
                                                             ✅ Conectado: <span className="font-bold">{settings.channels?.facebook?.page_url || 'Tu Página'}</span>
                                                         </p>
-                                                        <button
-                                                            type="button"
+                                                    <button
+                                                        type="button"
                                                             className="text-sm text-red-600 hover:text-red-700 font-medium"
-                                                        >
+                                                    >
                                                             Desconectar
-                                                        </button>
-                                                    </div>
+                                                    </button>
+                                                </div>
                                                 )}
-                                            </div>
-                                        )}
-                                    </div>
+                                        </div>
+                                    )}
+                                </div>
 
-                                    {/* Web Chat */}
+                                {/* Web Chat */}
                                     <div className={`p-4 rounded-xl border-2 transition-all ${
                                         settings.channels?.webchat?.enabled 
                                             ? 'border-gray-400 bg-gray-50' 
@@ -1809,13 +1824,13 @@ const Configuracion = () => {
                                         <div className="flex items-center justify-between mb-2">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2 bg-gradient-to-br from-gray-600 to-gray-700 rounded-lg">
-                                                    <Globe className="w-5 h-5 text-white" />
-                                                </div>
+                                                <Globe className="w-5 h-5 text-white" />
+                                            </div>
                                                 <div>
                                                     <p className="font-semibold text-gray-900">Chat en tu Web</p>
                                                     <p className="text-xs text-gray-600">Widget de chat integrado</p>
-                                                </div>
                                             </div>
+                                        </div>
                                             <label className="relative inline-flex items-center cursor-pointer">
                                                 <input
                                                     type="checkbox"
@@ -1834,7 +1849,7 @@ const Configuracion = () => {
                                                 />
                                                 <div className="w-14 h-7 bg-gray-300 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-gray-300 rounded-full peer peer-checked:after:translate-x-7 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-6 after:w-6 after:transition-all peer-checked:bg-gray-600"></div>
                                             </label>
-                                        </div>
+                                            </div>
                                         
                                         {settings.channels?.webchat?.enabled && (
                                             <div className="mt-3 space-y-3 pt-3 border-t border-gray-200">
@@ -1844,37 +1859,37 @@ const Configuracion = () => {
                                                     </p>
                                                     <div className="bg-white p-2 rounded border border-gray-300 font-mono text-xs overflow-x-auto">
                                                         &lt;script src="https://la-ia.com/widget.js" data-key="{businessId || 'TU-KEY'}"&gt;&lt;/script&gt;
-                                                    </div>
+                                        </div>
                                                     <p className="text-xs text-gray-600 mt-2">
                                                         Copia este código en el &lt;head&gt; de tu sitio web
                                                     </p>
-                                                </div>
+                                </div>
                                             </div>
                                         )}
-                                    </div>
+                            </div>
 
                                     {/* Botón guardar */}
                                     <div className="flex justify-end pt-4 border-t border-gray-200">
-                                        <button
+                                <button
                                             onClick={() => handleSave("Canales y Alertas")}
-                                            disabled={saving}
+                                    disabled={saving}
                                             className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all disabled:opacity-50 font-semibold shadow-lg"
-                                        >
-                                            {saving ? (
+                                >
+                                    {saving ? (
                                                 <>
-                                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
                                                     Guardando...
                                                 </>
-                                            ) : (
+                                    ) : (
                                                 <>
-                                                    <Save className="w-4 h-4" />
+                                        <Save className="w-4 h-4" />
                                                     Guardar Configuración
                                                 </>
-                                            )}
-                                        </button>
+                                    )}
+                                </button>
                                     </div>
-                                </div>
-                            </SettingSection>
+                            </div>
+                        </SettingSection>
                         </div>
                     )}
 
@@ -1898,20 +1913,20 @@ const Configuracion = () => {
                             >
                                 <div className="text-center py-12">
                                     <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                                    <h3 className="text-lg font-bold text-gray-900 mb-2">
+                                        <h3 className="text-lg font-bold text-gray-900 mb-2">
                                         Gestión de Cuenta
-                                    </h3>
+                                        </h3>
                                     <p className="text-gray-600 mb-4">
                                         Información del plan, facturación y usuarios
                                     </p>
                                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-lg font-medium">
                                         🚧 En desarrollo - Próximamente
-                                    </div>
-                                </div>
+                                        </div>
+                                        </div>
                             </SettingSection>
-                        </div>
+                                    </div>
                     )}
-
+                            
                 </div>
             </div>
         </div>

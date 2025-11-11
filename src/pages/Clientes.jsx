@@ -6,97 +6,95 @@ import { supabase } from "../lib/supabase";
 import { format, parseISO, differenceInDays, subDays } from "date-fns";
 import {
     Search, Plus, Users, Mail, Phone, Edit2, X, 
-    RefreshCw, Settings, Crown,
-    Clock, DollarSign, TrendingUp, CheckCircle2
+    RefreshCw, Settings, Crown, AlertTriangle,
+    Clock, DollarSign, TrendingUp, CheckCircle2, Zap,
+    Target, Send, Eye, MessageSquare, Copy, Download, FileText
 } from "lucide-react";
 import toast from "react-hot-toast";
 import CustomerModal from "../components/CustomerModal";
 
-// SEGMENTACIÓN INTELIGENTE - TODOS LOS SEGMENTOS REALES
+// SEGMENTACIÓN INTELIGENTE - SISTEMA CRM POR VERTICAL (5 SEGMENTOS)
 const CUSTOMER_SEGMENTS = {
+    vip: { 
+        label: "VIP", 
+        icon: "👑", 
+        color: "purple",
+        description: "Cliente prioritario - Alto valor",
+        priority: 1
+    },
     nuevo: { 
         label: "Nuevo", 
         icon: "👋", 
         color: "blue",
-        description: "Cliente recién registrado",
-        priority: 1
+        description: "Primera/segunda visita (< 90 días)",
+        priority: 2
     },
     regular: { 
         label: "Regular", 
         icon: "⭐", 
         color: "green",
-        description: "Cliente con visitas regulares",
-        priority: 2
-    },
-    vip: { 
-        label: "VIP", 
-        icon: "👑", 
-        color: "purple",
-        description: "Very Important Person - Cliente prioritario",
-        priority: 5
-    },
-    ocasional: { 
-        label: "Ocasional", 
-        icon: "🕐", 
-        color: "yellow",
-        description: "Cliente con visitas esporádicas",
+        description: "Cliente fiel y activo",
         priority: 3
-    },
-    inactivo: { 
-        label: "Inactivo", 
-        icon: "😴", 
-        color: "gray",
-        description: "Sin visitas recientes",
-        priority: 4
     },
     en_riesgo: { 
         label: "En Riesgo", 
         icon: "⚠️", 
         color: "orange",
         description: "Cliente que puede perderse",
-        priority: 6
+        priority: 4
     },
-    alto_valor: { 
-        label: "Alto Valor", 
-        icon: "💎", 
-        color: "indigo",
-        description: "Cliente de alto valor económico",
-        priority: 7
+    inactivo: { 
+        label: "Inactivo", 
+        icon: "😴", 
+        color: "gray",
+        description: "Sin visitas recientes - Necesita recuperación",
+        priority: 5
     }
 };
 
-// FUNCIÓN PARA CALCULAR SEGMENTO EN TIEMPO REAL
-const calculateRealTimeSegment = (customer) => {
+// FUNCIÓN PARA CALCULAR SEGMENTO SEGÚN PARÁMETROS DEL VERTICAL
+const calculateSegmentByVertical = (customer, verticalParams) => {
     if (!customer) return 'nuevo';
+    if (!verticalParams) return 'nuevo'; // Fallback si no hay parámetros
     
-    const visitsCount = customer.visits_count || 0;
+    const lifetimeVisits = customer.total_visits || 0;
     const totalSpent = customer.total_spent || 0;
     const daysSinceLastVisit = customer.last_visit_at 
         ? Math.floor((new Date() - new Date(customer.last_visit_at)) / (1000 * 60 * 60 * 24))
         : 999;
+    const daysSinceFirstVisit = customer.created_at
+        ? Math.floor((new Date() - new Date(customer.created_at)) / (1000 * 60 * 60 * 24))
+        : 0;
     
-    // 1. Nuevo: 0-1 visitas
-    if (visitsCount <= 1) return 'nuevo';
+    // Calcular thresholds (sin Personal Cadence por ahora - se puede añadir después)
+    const riskThreshold = verticalParams.risk_min_days;
+    const inactiveThreshold = verticalParams.inactive_days;
     
-    // 2. VIP: 10+ visitas O gasto alto
-    if (visitsCount >= 10 || totalSpent >= 500) return 'vip';
+    // PRIORIDAD 1: VIP (siempre gana, incluso si está inactivo)
+    const isVIP = totalSpent >= verticalParams.vip_min_spend_12m || 
+                  lifetimeVisits >= verticalParams.vip_min_visits_12m;
     
-    // 3. Alto valor: Gasto elevado pero pocas visitas
-    if (totalSpent >= 300 && visitsCount < 10) return 'alto_valor';
+    if (isVIP) {
+        return 'vip';
+    }
     
-    // 4. Regular: 2-9 visitas y activo
-    if (visitsCount >= 2 && visitsCount < 10 && daysSinceLastVisit <= 60) return 'regular';
+    // PRIORIDAD 2: NUEVO (1-2 visitas en últimos 90 días)
+    if (lifetimeVisits <= 2 && daysSinceFirstVisit <= 90) {
+        return 'nuevo';
+    }
     
-    // 5. Ocasional: Pocas visitas, irregular
-    if (visitsCount >= 2 && visitsCount < 5) return 'ocasional';
+    // PRIORIDAD 3: INACTIVO
+    if (daysSinceLastVisit > inactiveThreshold) {
+        return 'inactivo';
+    }
     
-    // 6. Inactivo: No viene hace 90+ días
-    if (daysSinceLastVisit >= 90) return 'inactivo';
+    // PRIORIDAD 4: EN RIESGO
+    if (daysSinceLastVisit > riskThreshold) {
+        return 'en_riesgo';
+    }
     
-    // 7. En riesgo: Entre 60-90 días sin venir
-    if (daysSinceLastVisit >= 60 && daysSinceLastVisit < 90) return 'en_riesgo';
-    
-    return 'nuevo';
+    // PRIORIDAD 5 (DEFAULT): REGULAR
+    return 'regular';
 };
 
 // Componente principal
@@ -117,6 +115,49 @@ export default function Clientes() {
     const [sortBy, setSortBy] = useState('risk'); // 'risk', 'ticket', 'lastVisit', 'visits', 'trend'
     const [sortOrder, setSortOrder] = useState('desc'); // 'asc' o 'desc'
     const [activeTab, setActiveTab] = useState('todos'); // 'todos', 'noshows', 'crm'
+    const [showAdvancedFilters, setShowAdvancedFilters] = useState(false); // 🆕 Control de filtros avanzados
+    
+    // 🆕 NUEVO: Parámetros del vertical para segmentación CRM
+    const [verticalParams, setVerticalParams] = useState(null);
+
+    // 🆕 FASE 2: Modal de Campaña
+    const [showCampaignModal, setShowCampaignModal] = useState(false);
+    const [campaignData, setCampaignData] = useState({
+        segment: '',
+        clients: [],
+        message: '',
+        title: ''
+    });
+
+    // 🆕 Cargar parámetros del vertical desde Supabase
+    const loadVerticalParams = useCallback(async () => {
+        try {
+            if (!restaurant?.vertical_type) {
+                console.log('📊 CRM: Sin vertical_type en el negocio');
+                return;
+            }
+
+            console.log(`📊 CRM: Cargando parámetros para vertical "${restaurant.vertical_type}"`);
+            
+            const { data, error } = await supabase
+                .from('crm_vertical_parameters')
+                .select('*')
+                .eq('vertical_id', restaurant.vertical_type)
+                .single();
+
+            if (error) {
+                console.error('❌ Error cargando parámetros del vertical:', error);
+                return;
+            }
+
+            if (data) {
+                console.log('✅ Parámetros del vertical cargados:', data);
+                setVerticalParams(data);
+            }
+        } catch (error) {
+            console.error('❌ Error cargando parámetros del vertical:', error);
+        }
+    }, [restaurant]);
 
     // Cargar clientes
     const loadCustomers = useCallback(async () => {
@@ -159,11 +200,17 @@ export default function Clientes() {
                 // Usar visits_count como alias de total_visits para compatibilidad
                 const visitsCount = customer.total_visits || 0;
                 
+                // 🆕 Calcular segmento usando parámetros del vertical
+                let segment = customer.segment_manual || customer.segment_auto || 'nuevo';
+                if (verticalParams) {
+                    segment = calculateSegmentByVertical(customer, verticalParams);
+                }
+                
                 return {
                     ...customer,
                     // ✅ Normalizar nombres de campos para compatibilidad con UI
                     visits_count: visitsCount, // UI espera visits_count, BD tiene total_visits
-                    segment: customer.segment_manual || customer.segment_auto || 'nuevo',
+                    segment: segment,
                     daysSinceLastVisit,
                     // Valores por defecto para campos que no existen en BD
                     churn_risk_score: 0,
@@ -203,6 +250,53 @@ export default function Clientes() {
         setSelectedCustomer(customer);
         setModalMode('view');
         setShowCustomerModal(true);
+    };
+
+    // 🆕 FASE 2: Funciones de Campaña
+    const handleOpenCampaign = (segment, title, defaultMessage) => {
+        const targetClients = customers.filter(c => c.segment === segment);
+        setCampaignData({
+            segment,
+            clients: targetClients,
+            message: defaultMessage,
+            title
+        });
+        setShowCampaignModal(true);
+    };
+
+    const handleCopyPhones = () => {
+        const phones = campaignData.clients
+            .filter(c => c.phone)
+            .map(c => c.phone)
+            .join('\n');
+        
+        navigator.clipboard.writeText(phones).then(() => {
+            toast.success(`✅ ${campaignData.clients.filter(c => c.phone).length} teléfonos copiados al portapapeles`);
+        }).catch(() => {
+            toast.error('❌ Error al copiar teléfonos');
+        });
+    };
+
+    const handleDownloadCSV = () => {
+        const csvContent = [
+            ['Nombre', 'Teléfono', 'Email', 'Última Visita', 'Visitas', 'Gasto Total'].join(','),
+            ...campaignData.clients.map(c => [
+                c.name || '',
+                c.phone || '',
+                c.email || '',
+                c.last_visit_at ? new Date(c.last_visit_at).toLocaleDateString() : 'Nunca',
+                c.visits_count || 0,
+                `€${(c.total_spent || 0).toFixed(2)}`
+            ].join(','))
+        ].join('\n');
+
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `campana_${campaignData.segment}_${new Date().toISOString().split('T')[0]}.csv`;
+        link.click();
+        
+        toast.success('✅ CSV descargado correctamente');
     };
 
     // Filtrar y ordenar clientes
@@ -250,7 +344,7 @@ export default function Clientes() {
 
             switch(sortBy) {
                 case 'risk':
-                    // Calcular riesgo para ambos
+                    // ✅ Calcular riesgo usando parámetros del VERTICAL (NO hardcoded)
                     const calcRisk = (customer) => {
                         const daysSince = customer.last_visit_at 
                             ? Math.floor((new Date() - new Date(customer.last_visit_at)) / (1000 * 60 * 60 * 24))
@@ -258,24 +352,36 @@ export default function Clientes() {
                         const visits = customer.visits_count || 0;
                         const totalSpent = customer.total_spent || 0;
                         
-                        let risk = 0;
-                        if (daysSince === null) {
-                            risk = 10;
-                        } else {
-                            if (daysSince >= 90) risk += 60;
-                            else if (daysSince >= 60) risk += 40;
-                            else if (daysSince >= 30) risk += 20;
-                            else if (daysSince >= 14) risk += 10;
-                            
-                            if (visits >= 10) risk -= 15;
-                            else if (visits >= 5) risk -= 10;
-                            
-                            if (totalSpent >= 500) risk -= 10;
-                            else if (totalSpent >= 200) risk -= 5;
-                            
-                            risk = Math.max(0, Math.min(100, risk));
+                        if (daysSince === null || visits === 0) {
+                            return 0; // Cliente nuevo sin visitas = sin riesgo
                         }
-                        return risk;
+                        
+                        if (!verticalParams) {
+                            return 0; // Sin parámetros del vertical
+                        }
+                        
+                        let risk = 0;
+                        const riskThreshold = verticalParams.risk_min_days;
+                        const inactiveThreshold = verticalParams.inactive_days;
+                        
+                        if (daysSince >= inactiveThreshold) {
+                            risk = 90;
+                        } else if (daysSince >= riskThreshold) {
+                            const range = inactiveThreshold - riskThreshold;
+                            const position = daysSince - riskThreshold;
+                            risk = 30 + Math.round((position / range) * 60);
+                        } else {
+                            risk = Math.round((daysSince / riskThreshold) * 30);
+                        }
+                        
+                        // Ajustar por lealtad
+                        if (visits >= verticalParams.vip_min_visits_12m) risk = Math.max(0, risk - 20);
+                        else if (visits >= 5) risk = Math.max(0, risk - 10);
+                        
+                        if (totalSpent >= verticalParams.vip_min_spend_12m) risk = Math.max(0, risk - 15);
+                        else if (totalSpent >= 200) risk = Math.max(0, risk - 5);
+                        
+                        return Math.max(0, Math.min(100, risk));
                     };
                     valueA = calcRisk(a);
                     valueB = calcRisk(b);
@@ -325,17 +431,23 @@ export default function Clientes() {
                 return valueB - valueA;
             }
         });
-    }, [customers, filters, sortBy, sortOrder]);
+    }, [customers, filters, sortBy, sortOrder, verticalParams]);
 
     // Mantener compatibilidad con código existente
     const filteredCustomers = filteredAndSortedCustomers;
 
     // Effects
     useEffect(() => {
-        if (isReady && businessId) {
+        if (isReady && restaurant) {
+            loadVerticalParams();
+        }
+    }, [isReady, restaurant, loadVerticalParams]);
+
+    useEffect(() => {
+        if (isReady && businessId && verticalParams) {
             loadCustomers();
         }
-    }, [isReady, businessId, loadCustomers]);
+    }, [isReady, businessId, verticalParams, loadCustomers]);
 
     // Pantallas de carga y error
     if (!isReady) {
@@ -381,30 +493,33 @@ export default function Clientes() {
     return (
         <div className="min-h-screen bg-gray-50 px-4 py-4">
             <div className="max-w-[85%] mx-auto space-y-3">
-                {/* Header con gradiente corporativo */}
-                <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl shadow-lg p-3 text-white">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+                {/* Header simplificado y profesional */}
+                <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl shadow-lg p-4 text-white">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-                                <Users className="w-5 h-5 text-white" />
+                            <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                                <Users className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-sm font-bold text-white">Gestión de Clientes</h1>
+                                <h1 className="text-xl font-bold text-white">Gestión de Clientes</h1>
+                                <p className="text-sm text-white/80">{customers.length} clientes totales</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-3">
                             <button
-                                onClick={loadCustomers}
-                                className="flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur text-white border border-white/30 rounded-lg hover:bg-white/20 transition-all text-sm font-medium"
+                                onClick={() => toast('Función de importación próximamente', { icon: '📥' })}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur text-white border-2 border-white/40 rounded-lg hover:bg-white/20 hover:border-white/60 transition-all text-sm font-semibold shadow-lg"
                             >
-                                <RefreshCw className="w-4 h-4" />
-                                Actualizar
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                                </svg>
+                                Importar Clientes
                             </button>
                             <button
                                 onClick={handleCreateCustomer}
-                                className="flex items-center gap-2 px-4 py-2 bg-white text-purple-600 rounded-lg hover:bg-purple-50 transition-all text-sm font-bold shadow-md"
+                                className="flex items-center gap-2 px-5 py-2.5 bg-white text-purple-600 rounded-lg hover:bg-purple-50 transition-all text-sm font-bold shadow-lg"
                             >
-                                <Plus className="w-4 h-4" />
+                                <Plus className="w-5 h-5" />
                                 Nuevo Cliente
                             </button>
                         </div>
@@ -432,174 +547,129 @@ export default function Clientes() {
                         </button>
 
                         <button
-                            onClick={() => setActiveTab('crm')}
+                            onClick={() => setActiveTab('campaigns')}
                             className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all ${
-                                activeTab === 'crm'
+                                activeTab === 'campaigns'
                                     ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-md'
                                     : 'text-gray-600 hover:bg-gray-100'
                             }`}
                         >
-                            <TrendingUp className="w-4 h-4" />
-                            Segmentación CRM
+                            <Zap className="w-4 h-4" />
+                            Campañas Inteligentes
                         </button>
                     </div>
                 </div>
 
-                {/* Dashboard de Clientes - Métricas por Segmento (solo si activeTab === 'todos' o 'crm') */}
-                {(activeTab === 'todos' || activeTab === 'crm') && (
-                <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-3">
-                    <div className="flex items-center gap-2 mb-3">
-                        <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                            <TrendingUp className="w-5 h-5 text-white" />
+                {/* 📊 SEGMENTOS VISUALES - REDISEÑADOS (Más grandes, con barra de progreso) */}
+                {activeTab === 'todos' && (
+                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+                    <div className="flex items-center justify-between mb-5">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-blue-600 rounded-xl flex items-center justify-center shadow-md">
+                                <TrendingUp className="w-6 h-6 text-white" />
                         </div>
-                        <h2 className="text-sm font-bold text-gray-900">Estado de la Base de Clientes</h2>
+                            <div>
+                                <h2 className="text-lg font-bold text-gray-900">Segmentos de Clientes</h2>
+                                <p className="text-xs text-gray-500">Haz clic en un segmento para filtrar</p>
+                            </div>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                            <span className="font-semibold text-purple-700">{customers.length}</span> clientes totales
+                        </div>
                     </div>
 
-                    {/* Desglose por segmentos con porcentajes */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                    {/* Cards de Segmentos - COMPACTAS (50% más pequeñas) */}
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                         {Object.entries(CUSTOMER_SEGMENTS).map(([key, segment]) => {
                             const count = customers.filter(c => c.segment === key).length;
                             const percentage = customers.length > 0 ? Math.round((count / customers.length) * 100) : 0;
                             
                             const colorClasses = {
-                                blue: 'from-blue-400 to-blue-600 border-blue-300 bg-blue-50',
-                                green: 'from-green-400 to-green-600 border-green-300 bg-green-50',
-                                purple: 'from-purple-400 to-purple-600 border-purple-300 bg-purple-50',
-                                yellow: 'from-yellow-400 to-yellow-600 border-yellow-300 bg-yellow-50',
-                                gray: 'from-gray-400 to-gray-600 border-gray-300 bg-gray-50',
-                                orange: 'from-orange-400 to-orange-600 border-orange-300 bg-orange-50',
-                                indigo: 'from-indigo-400 to-indigo-600 border-indigo-300 bg-indigo-50'
+                                blue: { 
+                                    bg: 'from-blue-500 to-blue-600', 
+                                    border: 'border-blue-400',
+                                    hover: 'hover:shadow-blue-300',
+                                    active: 'ring-blue-400 shadow-blue-200'
+                                },
+                                green: { 
+                                    bg: 'from-green-500 to-green-600', 
+                                    border: 'border-green-400',
+                                    hover: 'hover:shadow-green-300',
+                                    active: 'ring-green-400 shadow-green-200'
+                                },
+                                purple: { 
+                                    bg: 'from-purple-500 to-purple-600', 
+                                    border: 'border-purple-400',
+                                    hover: 'hover:shadow-purple-300',
+                                    active: 'ring-purple-400 shadow-purple-200'
+                                },
+                                orange: { 
+                                    bg: 'from-orange-500 to-orange-600', 
+                                    border: 'border-orange-400',
+                                    hover: 'hover:shadow-orange-300',
+                                    active: 'ring-orange-400 shadow-orange-200'
+                                },
+                                gray: { 
+                                    bg: 'from-gray-500 to-gray-600', 
+                                    border: 'border-gray-400',
+                                    hover: 'hover:shadow-gray-300',
+                                    active: 'ring-gray-400 shadow-gray-200'
+                                }
                             };
+
+                            const colors = colorClasses[segment.color];
+                            const isActive = filters.segment === key;
                             
                             return (
                                 <div 
                                     key={key} 
-                                    className={`p-2 rounded-lg border-2 cursor-pointer transition-all duration-200 hover:shadow-lg hover:scale-102 ${
-                                        filters.segment === key 
-                                            ? `${colorClasses[segment.color]} border-2 shadow-md` 
-                                            : 'border-gray-300 hover:border-blue-400 bg-white hover:bg-blue-50'
+                                    className={`relative p-3 rounded-xl border-2 cursor-pointer transition-all duration-300 transform ${
+                                        isActive 
+                                            ? `bg-gradient-to-br ${colors.bg} border-transparent shadow-xl ${colors.active} ring-2 scale-105` 
+                                            : `bg-white ${colors.border} ${colors.hover} hover:shadow-lg hover:scale-105 hover:-translate-y-1`
                                     }`}
                                     onClick={() => setFilters({...filters, segment: filters.segment === key ? '' : key})}
-                                    title={`Filtrar por ${segment.label} (click para filtrar)`}
+                                    title={`Filtrar por ${segment.label}`}
                                 >
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="text-base">{segment.icon}</div>
-                                        <div className="flex flex-col items-center flex-1">
-                                            <div className="text-base font-bold text-gray-900">{count}</div>
-                                            <div className="text-sm font-semibold text-gray-700">
+                                    {/* Icono */}
+                                    <div className={`text-2xl mb-1.5 ${isActive ? 'scale-110' : ''} transition-transform duration-300`}>
+                                        {segment.icon}
+                                    </div>
+                                    
+                                    {/* Label */}
+                                    <div className={`text-xs font-bold mb-1 ${isActive ? 'text-white' : 'text-gray-800'}`}>
                                                 {segment.label}
                                             </div>
-                                        </div>
-                                        <div className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-gradient-to-r ${colorClasses[segment.color]} text-white`}>
+                                    
+                                    {/* Count y Percentage */}
+                                    <div className="flex items-baseline gap-1.5 mb-2">
+                                        <span className={`text-xl font-extrabold ${isActive ? 'text-white' : 'text-gray-900'}`}>
+                                            {count}
+                                        </span>
+                                        <span className={`text-sm font-bold ${isActive ? 'text-white/90' : 'text-gray-600'}`}>
                                             {percentage}%
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
+                                        </span>
                     </div>
 
-                    {/* Indicador de salud general - COMPACTO */}
-                    <div className="mt-3 p-2 bg-gray-50 rounded-lg">
-                        <div className="flex items-start justify-between gap-2">
-                            {/* Estado de salud */}
-                            <div className="flex-shrink-0">
-                                <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Salud de la Base de Clientes</div>
-                                <div className="text-sm font-semibold text-gray-900">
-                                    {(() => {
-                                        const regularCount = customers.filter(c => c.segment === 'regular').length;
-                                        const activePercentage = customers.length > 0 ? (regularCount / customers.length) * 100 : 0;
-                                        
-                                        if (activePercentage >= 60) return "🟢 Excelente";
-                                        if (activePercentage >= 40) return "🟡 Buena";
-                                        if (activePercentage >= 20) return "🟠 Regular";
-                                        return "🔴 Necesita atención";
-                                    })()}
-                                </div>
+                                    {/* Barra de Progreso */}
+                                    <div className={`w-full h-1.5 rounded-full overflow-hidden ${isActive ? 'bg-white/30' : 'bg-gray-200'}`}>
+                                        <div 
+                                            className={`h-full rounded-full transition-all duration-500 ${
+                                                isActive ? 'bg-white' : `bg-gradient-to-r ${colors.bg}`
+                                            }`}
+                                            style={{ width: `${percentage}%` }}
+                                        />
                             </div>
                             
-                            {/* Análisis compacto */}
-                            <div className="flex-1 text-sm text-gray-700">
-                                {(() => {
-                                    const regularCount = customers.filter(c => c.segment === 'regular').length;
-                                    const riskCount = customers.filter(c => c.segment === 'en_riesgo').length;
-                                    const inactiveCount = customers.filter(c => c.segment === 'inactivo').length;
-                                    const newCount = customers.filter(c => c.segment === 'nuevo').length;
-                                    const activePercentage = customers.length > 0 ? (regularCount / customers.length) * 100 : 0;
-                                    const riskPercentage = customers.length > 0 ? (riskCount / customers.length) * 100 : 0;
-                                    const inactivePercentage = customers.length > 0 ? (inactiveCount / customers.length) * 100 : 0;
-                                    
-                                    const issues = [];
-                                    const recommendations = [];
-                                    
-                                    // Reglas de análisis
-                                    if (activePercentage < 20) {
-                                        issues.push(`Muy pocos clientes activos (${activePercentage.toFixed(0)}%)`);
-                                        recommendations.push("Implementar estrategias de reactivación");
-                                    }
-                                    
-                                    if (riskPercentage > 30) {
-                                        issues.push(`Muchos clientes en riesgo (${riskPercentage.toFixed(0)}%)`);
-                                        recommendations.push("Contactar clientes en riesgo urgentemente");
-                                    }
-                                    
-                                    if (inactivePercentage > 40) {
-                                        issues.push(`Demasiados clientes inactivos (${inactivePercentage.toFixed(0)}%)`);
-                                        recommendations.push("Crear campañas de recuperación");
-                                    }
-                                    
-                                    if (newCount > regularCount && customers.length > 5) {
-                                        issues.push("Los clientes nuevos no se están fidelizando");
-                                        recommendations.push("Mejorar experiencia de primeras visitas");
-                                    }
-                                    
-                                    if (customers.length < 10) {
-                                        issues.push("Base de clientes muy pequeña");
-                                        recommendations.push("Enfocar en captación de nuevos clientes");
-                                    }
-                                    
-                                    // Mostrar resultado COMPACTO
-                                    if (issues.length === 0) {
-                                        return (
-                                            <div className="text-green-700">
-                                                <span className="font-medium">✅ Excelente estado</span> - {activePercentage.toFixed(0)}% clientes activos
-                                            </div>
-                                        );
-                                    }
-                                    
-                                    return (
-                                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
-                                            <div>
-                                                <div className="font-medium text-orange-700 mb-2">⚠️ Problemas detectados:</div>
-                                                <div className="space-y-1">
-                                                    {issues.slice(0, 3).map((issue, index) => (
-                                                        <div key={index} className="text-xs text-gray-700">• {issue}</div>
-                                                    ))}
-                                                    {issues.length > 3 && (
-                                                        <div className="text-xs text-gray-500 italic">
-                                                            y {issues.length - 3} problema{issues.length - 3 > 1 ? 's' : ''} adicional{issues.length - 3 > 1 ? 'es' : ''}
+                                    {/* Indicador de "Activo" */}
+                                    {isActive && (
+                                        <div className="absolute top-2 right-2">
+                                            <CheckCircle2 className="w-4 h-4 text-white drop-shadow-lg" />
                                                         </div>
                                                     )}
-                                                </div>
-                                            </div>
-                                            <div>
-                                                <div className="font-medium text-blue-700 mb-2">💡 Recomendaciones:</div>
-                                                <div className="space-y-1">
-                                                    {recommendations.slice(0, 3).map((rec, index) => (
-                                                        <div key={index} className="text-xs text-gray-700">• {rec}</div>
-                                                    ))}
-                                                    {recommendations.length > 3 && (
-                                                        <div className="text-xs text-gray-500 italic">
-                                                            y {recommendations.length - 3} acción{recommendations.length - 3 > 1 ? 'es' : ''} adicional{recommendations.length - 3 > 1 ? 'es' : ''}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
                                         </div>
                                     );
-                                })()}
-                            </div>
-                        </div>
+                        })}
                     </div>
                 </div>
                 )}
@@ -607,55 +677,76 @@ export default function Clientes() {
                 {/* 📋 CONTENIDO: TODOS LOS CLIENTES */}
                 {activeTab === 'todos' && (
                 <>
-                {/* Filtros Avanzados */}
-                <div className="bg-gray-100 rounded-xl shadow-lg border border-gray-300 p-3">
+                {/* 🔍 BÚSQUEDA Y FILTROS - SIMPLIFICADOS */}
+                <div className="bg-white rounded-xl shadow-md border border-gray-200 p-4">
                     <div className="space-y-3">
-                        {/* Búsqueda por texto */}
+                        {/* Búsqueda principal y botón de filtros avanzados */}
+                        <div className="flex flex-col md:flex-row gap-3">
+                            {/* Barra de búsqueda */}
                     <div className="flex-1 relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-purple-400" size={18} />
+                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                         <input
                             type="text"
-                            placeholder="🔍 Buscar por nombre, email o teléfono..."
+                                    placeholder="🔍 Buscar cliente por nombre, email o teléfono..."
                             value={filters.search}
                             onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-                            className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm font-medium bg-white shadow-sm"
+                                    className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm font-medium bg-gray-50 focus:bg-white shadow-sm"
                         />
                         </div>
 
-                        {/* Filtros adicionales */}
-                        <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+                            {/* Botón de Filtros Avanzados */}
+                            <button
+                                onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                                className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-semibold text-sm transition-all shadow-sm ${
+                                    showAdvancedFilters || filters.segment || filters.visitCount || filters.spentRange
+                                        ? 'bg-purple-600 text-white hover:bg-purple-700'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border-2 border-gray-300'
+                                }`}
+                            >
+                                <Settings className="w-4 h-4" />
+                                Filtros
+                                {(filters.segment || filters.visitCount || filters.spentRange) && (
+                                    <span className="px-2 py-0.5 bg-white/30 rounded-full text-xs font-bold">
+                                        {[filters.segment, filters.visitCount, filters.spentRange].filter(Boolean).length}
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+
+                        {/* Panel de Filtros Avanzados (Desplegable) */}
+                        {showAdvancedFilters && (
+                            <div className="pt-3 border-t border-gray-200 animate-in slide-in-from-top-2 duration-200">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                             {/* Filtro por Tipo de Cliente */}
                             <div>
-                                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5">
                                     <Crown className="w-4 h-4 text-purple-500" />
                                     Tipo de Cliente
                                 </label>
                                 <select
                                     value={filters.segment}
                                     onChange={(e) => setFilters({ ...filters, segment: e.target.value })}
-                                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-xs font-medium bg-white"
+                                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 transition-all text-sm font-medium bg-white"
                                 >
                                     <option value="">Todos</option>
+                                            <option value="vip">👑 VIP</option>
                                     <option value="nuevo">👋 Nuevo</option>
                                     <option value="regular">⭐ Regular</option>
-                                    <option value="vip">👑 VIP</option>
-                                    <option value="ocasional">🕐 Ocasional</option>
-                                    <option value="inactivo">😴 Inactivo</option>
                                     <option value="en_riesgo">⚠️ En Riesgo</option>
-                                    <option value="alto_valor">💎 Alto Valor</option>
+                                            <option value="inactivo">😴 Inactivo</option>
                                 </select>
                             </div>
 
                             {/* Filtro por frecuencia de visitas */}
                             <div>
-                                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5">
                                     <Clock className="w-4 h-4 text-blue-500" />
                                     Frecuencia
                                 </label>
                                 <select
                                     value={filters.visitCount}
                                     onChange={(e) => setFilters({ ...filters, visitCount: e.target.value })}
-                                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs font-medium bg-white"
+                                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-sm font-medium bg-white"
                                 >
                                     <option value="">Todas</option>
                                     <option value="new">👋 Nuevos (1 visita)</option>
@@ -666,14 +757,14 @@ export default function Clientes() {
 
                             {/* Filtro por rango de gasto */}
                             <div>
-                                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
+                                        <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5">
                                     <DollarSign className="w-4 h-4 text-green-500" />
                                     Gasto Total
                                 </label>
                                 <select
                                     value={filters.spentRange}
                                     onChange={(e) => setFilters({ ...filters, spentRange: e.target.value })}
-                                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-xs font-medium bg-white"
+                                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-green-500/20 focus:border-green-500 transition-all text-sm font-medium bg-white"
                                 >
                                     <option value="">Todos</option>
                                     <option value="low">💚 Bajo (&lt;€100)</option>
@@ -684,14 +775,14 @@ export default function Clientes() {
 
                             {/* Ordenar por */}
                             <div>
-                                <label className="block text-xs font-semibold text-gray-700 mb-1 flex items-center gap-1.5">
-                                    <TrendingUp className="w-4 h-4 text-blue-500" />
+                                        <label className="block text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                                            <TrendingUp className="w-4 h-4 text-indigo-500" />
                                     Ordenar por
                                 </label>
                                 <select
                                     value={sortBy}
                                     onChange={(e) => setSortBy(e.target.value)}
-                                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-xs font-medium bg-white"
+                                            className="w-full px-3 py-2 border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all text-sm font-medium bg-white"
                                 >
                                     <option value="risk">🎯 Riesgo</option>
                                     <option value="ticket">💰 Ticket Promedio</option>
@@ -702,12 +793,29 @@ export default function Clientes() {
                             </div>
                         </div>
 
+                                {/* Botón para limpiar filtros */}
+                                {(filters.segment || filters.visitCount || filters.spentRange) && (
+                                    <div className="mt-3 flex justify-end">
+                                        <button
+                                            onClick={() => setFilters({ ...filters, segment: '', visitCount: '', spentRange: '' })}
+                                            className="text-sm text-purple-600 hover:text-purple-800 font-semibold flex items-center gap-1"
+                                        >
+                                            <X className="w-4 h-4" />
+                                            Limpiar filtros
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
                         {/* Contador de resultados */}
-                        <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">
-                            Mostrando {filteredCustomers.length} de {customers.length} clientes
+                        <div className="flex items-center justify-between text-sm">
+                            <div className="text-gray-600 font-medium">
+                                Mostrando <span className="font-bold text-purple-700">{filteredCustomers.length}</span> de <span className="font-bold text-gray-900">{customers.length}</span> clientes
                             {(filters.search || filters.segment || filters.visitCount || filters.spentRange) && 
-                                " (filtrados)"
+                                    <span className="ml-1 text-purple-600">(filtrados)</span>
                             }
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -889,53 +997,76 @@ export default function Clientes() {
                                         const totalSpent = customer.total_spent || 0;
                                         const avgTicket = visits > 0 ? (totalSpent / visits).toFixed(0) : 0;
 
-                                        // Calcular Tendencia (basada en última visita vs promedio de frecuencia)
-                                        let trend = '➡️'; // Estable por defecto
+                                        // ✅ Calcular Tendencia usando parámetros del VERTICAL (NO hardcoded)
+                                        let trend = '➡️';
                                         let trendColor = 'text-gray-500';
                                         let trendTooltip = 'Estable';
                                         
-                                        if (daysSince !== null && visits > 2) {
-                                            // Si viene más frecuente que su promedio = subiendo
-                                            if (daysSince < 30) {
+                                        if (verticalParams && daysSince !== null && visits > 0) {
+                                            const riskThreshold = verticalParams.risk_min_days;
+                                            const inactiveThreshold = verticalParams.inactive_days;
+                                            const midPoint = (riskThreshold + inactiveThreshold) / 2;
+                                            
+                                            if (daysSince < riskThreshold) {
                                                 trend = '📈';
                                                 trendColor = 'text-green-600';
-                                                trendTooltip = 'Mejorando';
-                                            } else if (daysSince > 60) {
+                                                trendTooltip = 'Cliente activo';
+                                            } else if (daysSince >= inactiveThreshold) {
                                                 trend = '📉';
                                                 trendColor = 'text-red-600';
-                                                trendTooltip = 'Empeorando';
+                                                trendTooltip = 'Cliente inactivo';
+                                            } else if (daysSince >= midPoint) {
+                                                trend = '⚠️';
+                                                trendColor = 'text-orange-600';
+                                                trendTooltip = 'En riesgo';
                                             }
-                                        } else if (visits <= 2 && daysSince !== null && daysSince < 7) {
-                                            trend = '📈';
-                                            trendColor = 'text-green-600';
-                                            trendTooltip = 'Cliente nuevo activo';
+                                        } else if (daysSince === null || visits === 0) {
+                                            trend = '👋';
+                                            trendColor = 'text-blue-600';
+                                            trendTooltip = 'Cliente nuevo sin visitas';
                                         }
 
-                                        // Calcular Riesgo de Pérdida (0-100%)
-                                        let riskScore = 0;
-                                        let riskColor = 'text-green-600';
-                                        let riskBgColor = 'bg-green-100';
+                                        // ✅ Calcular Riesgo usando parámetros del VERTICAL (NO hardcoded)
+                                        let riskScore = null;
+                                        let riskText = '-';
+                                        let riskColor = 'text-gray-500';
+                                        let riskBgColor = 'bg-gray-100';
                                         
-                                        if (daysSince === null) {
-                                            riskScore = 10; // Nunca vino = riesgo bajo (aún no lo perdimos)
+                                        if (daysSince === null || visits === 0) {
+                                            // ✅ Cliente nuevo SIN visitas = NO hay riesgo (aún no lo conocemos)
+                                            riskScore = null;
+                                            riskText = '-';
+                                            riskColor = 'text-gray-500';
+                                            riskBgColor = 'bg-gray-100';
+                                        } else if (verticalParams) {
+                                            // ✅ Calcular riesgo basado en parámetros del vertical
+                                            const riskThreshold = verticalParams.risk_min_days;
+                                            const inactiveThreshold = verticalParams.inactive_days;
+                                            
+                                            // Calcular porcentaje basado en umbrales del vertical
+                                            if (daysSince >= inactiveThreshold) {
+                                                riskScore = 90; // Inactivo = alto riesgo
+                                            } else if (daysSince >= riskThreshold) {
+                                                // Riesgo proporcional entre risk_min_days e inactive_days
+                                                const range = inactiveThreshold - riskThreshold;
+                                                const position = daysSince - riskThreshold;
+                                                riskScore = 30 + Math.round((position / range) * 60); // De 30% a 90%
                                         } else {
-                                            // Aumenta con días sin venir
-                                            if (daysSince >= 90) riskScore += 60;
-                                            else if (daysSince >= 60) riskScore += 40;
-                                            else if (daysSince >= 30) riskScore += 20;
-                                            else if (daysSince >= 14) riskScore += 10;
+                                                // Activo = bajo riesgo
+                                                riskScore = Math.round((daysSince / riskThreshold) * 30); // De 0% a 30%
+                                            }
                                             
-                                            // Disminuye con frecuencia alta
-                                            if (visits >= 10) riskScore -= 15;
-                                            else if (visits >= 5) riskScore -= 10;
+                                            // Ajustar por lealtad (visitas y gasto)
+                                            if (visits >= verticalParams.vip_min_visits_12m) riskScore = Math.max(0, riskScore - 20);
+                                            else if (visits >= 5) riskScore = Math.max(0, riskScore - 10);
                                             
-                                            // Disminuye con gasto alto
-                                            if (totalSpent >= 500) riskScore -= 10;
-                                            else if (totalSpent >= 200) riskScore -= 5;
+                                            if (totalSpent >= verticalParams.vip_min_spend_12m) riskScore = Math.max(0, riskScore - 15);
+                                            else if (totalSpent >= 200) riskScore = Math.max(0, riskScore - 5);
                                             
                                             riskScore = Math.max(0, Math.min(100, riskScore));
-                                        }
+                                            riskText = `${riskScore}%`;
                                         
+                                            // Colores según riesgo
                                         if (riskScore <= 30) {
                                             riskColor = 'text-green-700';
                                             riskBgColor = 'bg-green-100';
@@ -945,6 +1076,7 @@ export default function Clientes() {
                                         } else {
                                             riskColor = 'text-red-700';
                                             riskBgColor = 'bg-red-100';
+                                            }
                                         }
 
                                         return (
@@ -1002,7 +1134,7 @@ export default function Clientes() {
                                                 {/* Riesgo de Pérdida */}
                                                 <td className="px-4 py-3 text-center">
                                                     <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${riskBgColor} ${riskColor}`}>
-                                                        {riskScore}%
+                                                        {riskText}
                                                     </span>
                                                 </td>
 
@@ -1060,35 +1192,465 @@ export default function Clientes() {
             </>
             )}
 
-            {/* 💼 CONTENIDO: SEGMENTACIÓN CRM */}
-            {activeTab === 'crm' && (
-                <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-8 text-center">
-                    <TrendingUp className="w-16 h-16 text-purple-500 mx-auto mb-4" />
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                        Análisis y Segmentación CRM
-                    </h3>
-                    <p className="text-gray-600 mb-4">
-                        Vista estratégica con análisis avanzado, segmentación automática y predicciones de comportamiento.
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto mt-6">
-                        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-                            <div className="text-2xl mb-2">📊</div>
-                            <div className="font-semibold text-gray-900">Dashboards Ejecutivos</div>
-                            <div className="text-xs text-gray-600 mt-1">Métricas clave y KPIs</div>
-                        </div>
-                        <div className="p-4 bg-purple-50 rounded-lg border border-purple-200">
-                            <div className="text-2xl mb-2">🎯</div>
-                            <div className="font-semibold text-gray-900">Segmentación Automática</div>
-                            <div className="text-xs text-gray-600 mt-1">Basada en comportamiento</div>
-                        </div>
-                        <div className="p-4 bg-green-50 rounded-lg border border-green-200">
-                            <div className="text-2xl mb-2">📈</div>
-                            <div className="font-semibold text-gray-900">Predicciones ML</div>
-                            <div className="text-xs text-gray-600 mt-1">LTV y riesgo de churn</div>
+            {/* ⚡ CONTENIDO: CAMPAÑAS INTELIGENTES */}
+            {activeTab === 'campaigns' && (
+                <div className="space-y-6">
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+                        <div className="flex items-center gap-4 mb-3">
+                            <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                                <Zap className="w-8 h-8 text-white" />
+                            </div>
+                            <div>
+                                <h2 className="text-2xl font-bold">Campañas Inteligentes</h2>
+                                <p className="text-white/90 text-sm">La IA ha analizado tus {customers.length} clientes y te sugiere estas acciones</p>
+                            </div>
                         </div>
                     </div>
-                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-lg font-medium mt-6">
-                        🚧 En desarrollo - Próximamente
+
+                    {/* 🚨 ACCIONES URGENTES */}
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-orange-600" />
+                            Acciones Urgentes
+                    </h3>
+                        
+                        <div className="space-y-4">
+                            {/* Card: Clientes En Riesgo */}
+                            {(() => {
+                                const enRiesgoClients = customers.filter(c => c.segment === 'en_riesgo');
+                                const totalValue = enRiesgoClients.reduce((sum, c) => sum + (c.total_spent || 0), 0);
+                                const avgTicket = customers.length > 0 
+                                    ? customers.reduce((sum, c) => sum + (c.total_spent || 0), 0) / customers.reduce((sum, c) => sum + (c.visits_count || 0), 0)
+                                    : 0;
+                                const potentialValue = Math.round(enRiesgoClients.length * avgTicket);
+
+                                return enRiesgoClients.length > 0 && (
+                                    <div className="bg-white rounded-xl border-2 border-orange-200 shadow-lg p-6 hover:shadow-xl transition-all">
+                                        <div className="flex items-start gap-4">
+                                            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+                                                <AlertTriangle className="w-6 h-6 text-orange-600" />
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-xl font-bold text-gray-900 mb-2">
+                                                    ⚠️ ¡Recupera a tus Clientes en Riesgo!
+                                                </h4>
+                                                <div className="space-y-2 mb-4">
+                                                    <p className="text-gray-700">
+                                                        <span className="font-bold text-orange-600">{enRiesgoClients.length} clientes</span> {enRiesgoClients.length === 1 ? 'lleva' : 'llevan'} más de {verticalParams?.risk_min_days || 56} días sin visita
+                                                    </p>
+                                                    <div className="flex items-center gap-4 text-sm">
+                                                        <span className="flex items-center gap-1 text-gray-600">
+                                                            <DollarSign className="w-4 h-4" />
+                                                            <strong>Valor histórico:</strong> €{totalValue.toFixed(0)}
+                                                        </span>
+                                                        <span className="flex items-center gap-1 text-green-600">
+                                                            <Target className="w-4 h-4" />
+                                                            <strong>Valor potencial:</strong> €{potentialValue}
+                                                        </span>
+                        </div>
+                        </div>
+                                                
+                                                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-4">
+                                                    <div className="flex items-start gap-2 mb-2">
+                                                        <MessageSquare className="w-4 h-4 text-orange-600 mt-0.5" />
+                                                        <span className="text-xs font-semibold text-orange-900">Mensaje sugerido:</span>
+                        </div>
+                                                    <p className="text-sm text-gray-700 italic">
+                                                        "¡Hola [Nombre]! Te echamos de menos 😊 Han pasado [X] días desde tu última visita. 
+                                                        ¿Qué te parece volver con un <strong>20% de descuento</strong>? ¡Reserva ya!"
+                                                    </p>
+                    </div>
+
+                                                <div className="flex gap-3">
+                                                    <button
+                                                        onClick={() => {
+                                                            setActiveTab('todos');
+                                                            setFilters({ ...filters, segment: 'en_riesgo' });
+                                                            toast.success(`Mostrando ${enRiesgoClients.length} clientes en riesgo`);
+                                                        }}
+                                                        className="flex items-center gap-2 px-4 py-2.5 bg-white border-2 border-orange-600 text-orange-600 rounded-lg hover:bg-orange-50 transition-all font-semibold"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                        Ver Lista ({enRiesgoClients.length})
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCampaign(
+                                                            'en_riesgo',
+                                                            '⚠️ Recupera a tus Clientes en Riesgo',
+                                                            `¡Hola [Nombre]! Te echamos de menos 😊 Han pasado [X] días desde tu última visita. ¿Qué te parece volver con un 20% de descuento? ¡Reserva ya!`
+                                                        )}
+                                                        className="flex items-center gap-2 px-4 py-2.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-all font-semibold shadow-md"
+                                                    >
+                                                        <Send className="w-4 h-4" />
+                                                        Preparar Campaña
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* 💎 OPORTUNIDADES DE CRECIMIENTO */}
+                    <div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                            <Target className="w-5 h-5 text-purple-600" />
+                            Oportunidades de Crecimiento
+                        </h3>
+                        
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            {/* Card: Clientes Inactivos */}
+                            {(() => {
+                                const inactivosClients = customers.filter(c => c.segment === 'inactivo');
+                                const totalValue = inactivosClients.reduce((sum, c) => sum + (c.total_spent || 0), 0);
+                                const avgTicket = customers.length > 0 
+                                    ? customers.reduce((sum, c) => sum + (c.total_spent || 0), 0) / customers.reduce((sum, c) => sum + (c.visits_count || 0), 0)
+                                    : 0;
+                                const potentialValue = Math.round(inactivosClients.length * avgTicket);
+
+                                return inactivosClients.length > 0 && (
+                                    <div className="bg-white rounded-xl border-2 border-gray-200 shadow-lg p-5 hover:shadow-xl transition-all">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                <span className="text-2xl">😴</span>
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-lg font-bold text-gray-900 mb-2">
+                                                    ¡Reactiva a tus Inactivos!
+                                                </h4>
+                                                <p className="text-sm text-gray-700 mb-2">
+                                                    <span className="font-bold text-gray-900">{inactivosClients.length} clientes</span> sin visita hace más de {verticalParams?.inactive_days || 98} días
+                                                </p>
+                                                <p className="text-xs text-green-600 font-semibold mb-3">
+                                                    💰 Valor potencial: €{potentialValue}
+                                                </p>
+                                                
+                                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 mb-3">
+                                                    <p className="text-xs text-gray-700 italic">
+                                                        "¡[Nombre]! Han pasado [X] meses... 🥺 ¿Volvemos a verte? Te regalamos un servicio adicional."
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            setActiveTab('todos');
+                                                            setFilters({ ...filters, segment: 'inactivo' });
+                                                            toast.success(`Mostrando ${inactivosClients.length} clientes inactivos`);
+                                                        }}
+                                                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border-2 border-gray-600 text-gray-600 rounded-lg hover:bg-gray-50 transition-all text-sm font-semibold"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                        Ver ({inactivosClients.length})
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCampaign(
+                                                            'inactivo',
+                                                            '😴 Reactiva a tus Clientes Inactivos',
+                                                            `¡[Nombre]! Han pasado [X] meses... 🥺 ¿Volvemos a verte? Te regalamos un servicio adicional en tu próxima visita.`
+                                                        )}
+                                                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-all text-sm font-semibold"
+                                                    >
+                                                        <Send className="w-4 h-4" />
+                                                        Preparar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Card: Clientes Nuevos */}
+                            {(() => {
+                                const nuevosClients = customers.filter(c => c.segment === 'nuevo');
+                                const avgTicket = customers.length > 0 
+                                    ? customers.reduce((sum, c) => sum + (c.total_spent || 0), 0) / customers.reduce((sum, c) => sum + (c.visits_count || 0), 0)
+                                    : 0;
+                                const potentialValue = Math.round(nuevosClients.length * avgTicket * 5); // Potencial si se fidelizan (5 visitas más)
+
+                                return nuevosClients.length > 0 && (
+                                    <div className="bg-white rounded-xl border-2 border-blue-200 shadow-lg p-5 hover:shadow-xl transition-all">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                                <span className="text-2xl">👋</span>
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-lg font-bold text-gray-900 mb-2">
+                                                    ¡Fideliza a tus Nuevos!
+                                                </h4>
+                                                <p className="text-sm text-gray-700 mb-2">
+                                                    <span className="font-bold text-blue-600">{nuevosClients.length} clientes</span> nuevos (1-2 visitas)
+                                                </p>
+                                                <p className="text-xs text-green-600 font-semibold mb-3">
+                                                    💰 Valor potencial: €{potentialValue} (si se fidelizan)
+                                                </p>
+                                                
+                                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-3">
+                                                    <p className="text-xs text-gray-700 italic">
+                                                        "¡Gracias por confiar en nosotros, [Nombre]! 🙌 ¿Qué tal tu experiencia? ¿Reservamos tu próxima cita?"
+                                                    </p>
+                                                </div>
+
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={() => {
+                                                            setActiveTab('todos');
+                                                            setFilters({ ...filters, segment: 'nuevo' });
+                                                            toast.success(`Mostrando ${nuevosClients.length} clientes nuevos`);
+                                                        }}
+                                                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-white border-2 border-blue-600 text-blue-600 rounded-lg hover:bg-blue-50 transition-all text-sm font-semibold"
+                                                    >
+                                                        <Eye className="w-4 h-4" />
+                                                        Ver ({nuevosClients.length})
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOpenCampaign(
+                                                            'nuevo',
+                                                            '👋 Fideliza a tus Clientes Nuevos',
+                                                            `¡Gracias por confiar en nosotros, [Nombre]! 🙌 ¿Qué tal tu experiencia? Queremos verte pronto. ¿Reservamos tu próxima cita?`
+                                                        )}
+                                                        className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all text-sm font-semibold"
+                                                    >
+                                                        <Send className="w-4 h-4" />
+                                                        Preparar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+                        </div>
+                    </div>
+
+                    {/* 📊 RESUMEN DE IMPACTO */}
+                    {(() => {
+                        const enRiesgo = customers.filter(c => c.segment === 'en_riesgo').length;
+                        const inactivos = customers.filter(c => c.segment === 'inactivo').length;
+                        const nuevos = customers.filter(c => c.segment === 'nuevo').length;
+                        const totalAlcance = enRiesgo + inactivos + nuevos;
+                        const avgTicket = customers.length > 0 
+                            ? customers.reduce((sum, c) => sum + (c.total_spent || 0), 0) / customers.reduce((sum, c) => sum + (c.visits_count || 0), 0)
+                            : 0;
+                        const potentialRevenue = Math.round(totalAlcance * avgTicket * 0.35); // 35% de conversión estimada
+                        const potentialRevenueMax = Math.round(totalAlcance * avgTicket * 0.45); // 45% optimista
+
+                        return totalAlcance > 0 && (
+                            <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-xl p-6">
+                                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+                                    <Target className="w-5 h-5 text-green-600" />
+                                    Resumen de Impacto Potencial
+                                </h3>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                    <div>
+                                        <div className="text-3xl font-bold text-purple-600">{totalAlcance}</div>
+                                        <div className="text-sm text-gray-600">Clientes objetivo</div>
+                                        <div className="text-xs text-gray-500">{Math.round(totalAlcance / customers.length * 100)}% de tu base</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-3xl font-bold text-green-600">€{Math.round(avgTicket)}</div>
+                                        <div className="text-sm text-gray-600">Ticket promedio</div>
+                                        <div className="text-xs text-gray-500">Por cliente</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-3xl font-bold text-blue-600">30-40%</div>
+                                        <div className="text-sm text-gray-600">Tasa de éxito</div>
+                                        <div className="text-xs text-gray-500">Estimada del sector</div>
+                                    </div>
+                                    <div>
+                                        <div className="text-3xl font-bold text-orange-600">€{potentialRevenue}-{potentialRevenueMax}</div>
+                                        <div className="text-sm text-gray-600">Ingresos esperados</div>
+                                        <div className="text-xs text-gray-500">Si ejecutas las campañas</div>
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })()}
+
+                    {/* Sin clientes en ningún segmento */}
+                    {customers.filter(c => ['en_riesgo', 'inactivo', 'nuevo'].includes(c.segment)).length === 0 && (
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-8 text-center">
+                            <CheckCircle2 className="w-16 h-16 text-green-500 mx-auto mb-4" />
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">
+                                ¡Excelente trabajo! 🎉
+                            </h3>
+                            <p className="text-gray-600">
+                                No hay acciones urgentes en este momento. Tu base de clientes está saludable.
+                            </p>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* 🚀 FASE 2: Modal de Campaña */}
+            {showCampaignModal && (
+                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white">
+                            <div className="flex items-center justify-between mb-2">
+                                <h2 className="text-2xl font-bold flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
+                                        <MessageSquare className="w-6 h-6" />
+                                    </div>
+                                    {campaignData.title}
+                                </h2>
+                                <button
+                                    onClick={() => setShowCampaignModal(false)}
+                                    className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                >
+                                    <X className="w-6 h-6" />
+                                </button>
+                            </div>
+                            <p className="text-white/90 text-sm">
+                                Prepara tu mensaje y exporta los contactos
+                            </p>
+                        </div>
+
+                        {/* Body */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {/* Destinatarios */}
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                        <Users className="w-5 h-5 text-purple-600" />
+                                        Destinatarios ({campaignData.clients.length})
+                                    </h3>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={handleCopyPhones}
+                                            className="flex items-center gap-2 px-3 py-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-all text-sm font-semibold"
+                                        >
+                                            <Copy className="w-4 h-4" />
+                                            Copiar Teléfonos
+                                        </button>
+                                        <button
+                                            onClick={handleDownloadCSV}
+                                            className="flex items-center gap-2 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-all text-sm font-semibold"
+                                        >
+                                            <Download className="w-4 h-4" />
+                                            Descargar CSV
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <div className="bg-gray-50 rounded-xl border border-gray-200 p-4 max-h-60 overflow-y-auto">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                        {campaignData.clients.map((client) => (
+                                            <div key={client.id} className="flex items-center gap-3 p-2 bg-white rounded-lg">
+                                                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
+                                                    {client.name.charAt(0).toUpperCase()}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="text-sm font-semibold text-gray-900 truncate">{client.name}</div>
+                                                    <div className="text-xs text-gray-500">{client.phone || 'Sin teléfono'}</div>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+
+                                {campaignData.clients.filter(c => !c.phone).length > 0 && (
+                                    <div className="mt-2 text-sm text-orange-600 flex items-center gap-2">
+                                        <AlertTriangle className="w-4 h-4" />
+                                        <span>{campaignData.clients.filter(c => !c.phone).length} cliente(s) sin teléfono</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Mensaje */}
+                            <div>
+                                <div className="flex items-center justify-between mb-3">
+                                    <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                                        <FileText className="w-5 h-5 text-purple-600" />
+                                        Mensaje de la Campaña
+                                    </h3>
+                                    <div className="text-sm text-gray-500">
+                                        {campaignData.message.length} caracteres
+                                    </div>
+                                </div>
+                                
+                                <textarea
+                                    value={campaignData.message}
+                                    onChange={(e) => setCampaignData({ ...campaignData, message: e.target.value })}
+                                    className="w-full h-32 px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all text-sm resize-none"
+                                    placeholder="Escribe tu mensaje aquí..."
+                                />
+
+                                <div className="mt-3 p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                                    <div className="text-sm font-semibold text-blue-900 mb-2">💡 Variables disponibles:</div>
+                                    <div className="grid grid-cols-2 gap-2 text-xs text-blue-800">
+                                        <div><code className="bg-blue-100 px-2 py-1 rounded">[Nombre]</code> → Nombre del cliente</div>
+                                        <div><code className="bg-blue-100 px-2 py-1 rounded">[X]</code> → Días desde última visita</div>
+                                    </div>
+                                    <div className="text-xs text-blue-700 mt-2">
+                                        Las variables se reemplazarán automáticamente para cada cliente
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Preview */}
+                            {campaignData.clients.length > 0 && (
+                                <div>
+                                    <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+                                        <Eye className="w-5 h-5 text-purple-600" />
+                                        Vista Previa (Ejemplo)
+                                    </h3>
+                                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-200 rounded-xl p-4">
+                                        <div className="flex items-center gap-2 mb-3">
+                                            <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+                                                <MessageSquare className="w-4 h-4 text-white" />
+                                            </div>
+                                            <div>
+                                                <div className="text-xs text-gray-600">WhatsApp para:</div>
+                                                <div className="text-sm font-bold text-gray-900">
+                                                    {campaignData.clients[0].name} ({campaignData.clients[0].phone || 'Sin teléfono'})
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="bg-white rounded-lg p-3 text-sm text-gray-800 whitespace-pre-wrap">
+                                            {campaignData.message
+                                                .replace('[Nombre]', campaignData.clients[0].name)
+                                                .replace('[X]', campaignData.clients[0].last_visit_at 
+                                                    ? Math.floor((new Date() - new Date(campaignData.clients[0].last_visit_at)) / (1000 * 60 * 60 * 24)).toString()
+                                                    : '?')
+                                            }
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="border-t border-gray-200 p-6 bg-gray-50">
+                            <div className="flex items-center justify-between">
+                                <div className="text-sm text-gray-600">
+                                    <span className="font-semibold text-gray-900">{campaignData.clients.filter(c => c.phone).length}</span> mensajes listos para enviar
+                                </div>
+                                <div className="flex gap-3">
+                                    <button
+                                        onClick={() => setShowCampaignModal(false)}
+                                        className="px-4 py-2.5 bg-white border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-all font-semibold"
+                                    >
+                                        Cancelar
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            toast.success('🚀 Próximamente: Envío automático vía N8N + WhatsApp');
+                                            setShowCampaignModal(false);
+                                        }}
+                                        className="flex items-center gap-2 px-6 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all font-bold shadow-lg"
+                                    >
+                                        <Send className="w-4 h-4" />
+                                        Enviar Campaña
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

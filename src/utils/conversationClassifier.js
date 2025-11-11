@@ -1,280 +1,267 @@
-// conversationClassifier.js - Clasificador de conversaciones en 2 niveles
-// NIVEL 1: Tipología (¿Quién llama?)
-// NIVEL 2: Acción (¿Qué quiere?)
+/**
+ * CLASIFICADOR DE CONVERSACIONES - Sistema de 2 Niveles
+ * 
+ * NIVEL 1: TIPOLOGÍA (Quién llama)
+ * - Clientes: Personas que quieren recibir un servicio
+ * - Proveedores: Comerciales o parte de la cadena de suministro
+ * - Incidencias: Requieren atención humana inmediata
+ * - Ruido: Sin valor directo, debe filtrarse
+ * 
+ * NIVEL 2: ACCIÓN (Qué quiere)
+ * - Clientes: Reservar, Gestionar, Informarse, Feedback
+ * - Proveedores: Venta, Seguimiento, Reclamación
+ * - Incidencias: Médica, Servicio
+ * - Ruido: Filtrar, Bloquear
+ */
+
+// ============================================
+// NIVEL 1: TIPOLOGÍA (El "Quién eres")
+// ============================================
+
+export const TIPOLOGIAS = {
+    CLIENTES: 'clientes',
+    PROVEEDORES: 'proveedores',
+    INCIDENCIAS: 'incidencias',
+    RUIDO: 'ruido'
+};
+
+export const TIPOLOGIA_CONFIG = {
+    [TIPOLOGIAS.CLIENTES]: {
+        label: 'Clientes',
+        emoji: '🟢',
+        color: 'green',
+        bgClass: 'bg-green-50',
+        textClass: 'text-green-700',
+        borderClass: 'border-green-200',
+        prioridad: 2,
+        descripcion: 'Personas que quieren recibir un servicio'
+    },
+    [TIPOLOGIAS.PROVEEDORES]: {
+        label: 'Proveedores',
+        emoji: '🟡',
+        color: 'yellow',
+        bgClass: 'bg-yellow-50',
+        textClass: 'text-yellow-700',
+        borderClass: 'border-yellow-200',
+        prioridad: 3,
+        descripcion: 'Comerciales o parte de la cadena de suministro'
+    },
+    [TIPOLOGIAS.INCIDENCIAS]: {
+        label: 'Incidencias',
+        emoji: '🔴',
+        color: 'red',
+        bgClass: 'bg-red-50',
+        textClass: 'text-red-700',
+        borderClass: 'border-red-200',
+        prioridad: 1,
+        descripcion: 'Requieren atención humana inmediata'
+    },
+    [TIPOLOGIAS.RUIDO]: {
+        label: 'Ruido',
+        emoji: '⚪',
+        color: 'gray',
+        bgClass: 'bg-gray-50',
+        textClass: 'text-gray-700',
+        borderClass: 'border-gray-200',
+        prioridad: 4,
+        descripcion: 'Sin valor directo, debe filtrarse'
+    }
+};
+
+// ============================================
+// NIVEL 2: ACCIONES (El "Qué quieres")
+// ============================================
+
+export const ACCIONES = {
+    // Clientes
+    RESERVAR: 'Reservar',
+    GESTIONAR: 'Gestionar',
+    INFORMARSE: 'Informarse',
+    FEEDBACK: 'Feedback',
+    
+    // Proveedores
+    VENTA: 'Venta',
+    SEGUIMIENTO: 'Seguimiento',
+    RECLAMACION: 'Reclamación',
+    
+    // Incidencias
+    MEDICA: 'Médica',
+    SERVICIO: 'Servicio',
+    
+    // Ruido
+    FILTRAR: 'Filtrar',
+    BLOQUEAR: 'Bloquear',
+    
+    // Sin clasificar
+    SIN_CLASIFICAR: 'Sin clasificar'
+};
+
+// ============================================
+// MAPEO: interaction_type → TIPOLOGÍA + ACCIÓN
+// ============================================
+
+const MAPEO_INTERACTION_TYPE = {
+    // CLIENTES (valores actuales)
+    'reservation': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.RESERVAR },
+    'modification': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.GESTIONAR },
+    'cancellation': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.GESTIONAR },
+    'inquiry': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.INFORMARSE },
+    'feedback': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.FEEDBACK },
+    'complaint': { tipologia: TIPOLOGIAS.INCIDENCIAS, accion: ACCIONES.SERVICIO },
+    
+    // CLIENTES (valores futuros - 2 niveles)
+    'client_reservation': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.RESERVAR },
+    'client_manage': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.GESTIONAR },
+    'client_modify': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.GESTIONAR },
+    'client_cancel': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.GESTIONAR },
+    'client_info': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.INFORMARSE },
+    'client_inquiry': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.INFORMARSE },
+    'client_feedback': { tipologia: TIPOLOGIAS.CLIENTES, accion: ACCIONES.FEEDBACK },
+    
+    // PROVEEDORES
+    'provider_commercial': { tipologia: TIPOLOGIAS.PROVEEDORES, accion: ACCIONES.VENTA },
+    'provider_sale': { tipologia: TIPOLOGIAS.PROVEEDORES, accion: ACCIONES.VENTA },
+    'provider_followup': { tipologia: TIPOLOGIAS.PROVEEDORES, accion: ACCIONES.SEGUIMIENTO },
+    'provider_delivery': { tipologia: TIPOLOGIAS.PROVEEDORES, accion: ACCIONES.SEGUIMIENTO },
+    'provider_claim': { tipologia: TIPOLOGIAS.PROVEEDORES, accion: ACCIONES.RECLAMACION },
+    'provider_invoice': { tipologia: TIPOLOGIAS.PROVEEDORES, accion: ACCIONES.SEGUIMIENTO },
+    
+    // INCIDENCIAS
+    'incident_medical': { tipologia: TIPOLOGIAS.INCIDENCIAS, accion: ACCIONES.MEDICA },
+    'incident_allergy': { tipologia: TIPOLOGIAS.INCIDENCIAS, accion: ACCIONES.MEDICA },
+    'incident_service': { tipologia: TIPOLOGIAS.INCIDENCIAS, accion: ACCIONES.SERVICIO },
+    'incident_urgent': { tipologia: TIPOLOGIAS.INCIDENCIAS, accion: ACCIONES.SERVICIO },
+    
+    // RUIDO
+    'noise_spam': { tipologia: TIPOLOGIAS.RUIDO, accion: ACCIONES.FILTRAR },
+    'noise_survey': { tipologia: TIPOLOGIAS.RUIDO, accion: ACCIONES.FILTRAR },
+    'noise_wrong': { tipologia: TIPOLOGIAS.RUIDO, accion: ACCIONES.BLOQUEAR },
+    'noise_robocall': { tipologia: TIPOLOGIAS.RUIDO, accion: ACCIONES.BLOQUEAR },
+    
+    // OTROS
+    'other': { tipologia: TIPOLOGIAS.RUIDO, accion: ACCIONES.FILTRAR }
+};
+
+// ============================================
+// FUNCIONES PÚBLICAS
+// ============================================
 
 /**
- * NIVEL 1: Determinar TIPOLOGÍA de la conversación
- * @param {string} interactionType - Tipo de interacción del agente
- * @param {object} conversation - Objeto completo de conversación (opcional)
- * @returns {object} { tipologia, emoji, color, priority, label }
+ * Obtiene la tipología de una conversación
+ * @param {string} interaction_type - El tipo de interacción
+ * @param {object} conversation - Objeto completo de la conversación (opcional)
+ * @returns {object} { tipologia, emoji, color, prioridad, label, config }
  */
-export const getTipologia = (interactionType, conversation = {}) => {
-    const type = (interactionType || '').toLowerCase();
+export const getTipologia = (interaction_type, conversation = null) => {
+    const mapeo = MAPEO_INTERACTION_TYPE[interaction_type];
+    const tipologia = mapeo?.tipologia || TIPOLOGIAS.RUIDO;
+    const config = TIPOLOGIA_CONFIG[tipologia];
     
-    // 🚨 INCIDENCIAS (Prioridad 0 - MÁS ALTA)
-    if (
-        type.includes('complaint') ||
-        type.includes('urgent') ||
-        type.includes('medical') ||
-        type.includes('escalation') ||
-        type.includes('issue') ||
-        type.includes('emergency') ||
-        conversation.outcome === 'escalated'
-    ) {
-        return {
-            tipologia: 'incidencia',
-            emoji: '🚨',
-            color: 'red',
-            bgClass: 'bg-red-50',
-            textClass: 'text-red-700',
-            borderClass: 'border-red-300',
-            priority: 0,
-            label: 'Incidencia'
-        };
-    }
-    
-    // 🙋 CLIENTES (Prioridad 1)
-    if (
-        type.includes('reservation') ||
-        type.includes('booking') ||
-        type.includes('appointment') ||
-        type.includes('cancellation') ||
-        type.includes('modification') ||
-        type.includes('information') ||
-        type.includes('inquiry') ||
-        type.includes('price') ||
-        type.includes('service') ||
-        type.includes('schedule')
-    ) {
-        return {
-            tipologia: 'cliente',
-            emoji: '🙋',
-            color: 'blue',
-            bgClass: 'bg-blue-50',
-            textClass: 'text-blue-700',
-            borderClass: 'border-blue-300',
-            priority: 1,
-            label: 'Cliente'
-        };
-    }
-    
-    // 📦 PROVEEDORES (Prioridad 2)
-    if (
-        type.includes('supplier') ||
-        type.includes('commercial') ||
-        type.includes('vendor') ||
-        type.includes('delivery') ||
-        type.includes('invoice') ||
-        type.includes('payment') ||
-        type.includes('provider')
-    ) {
-        return {
-            tipologia: 'proveedor',
-            emoji: '📦',
-            color: 'gray',
-            bgClass: 'bg-gray-50',
-            textClass: 'text-gray-700',
-            borderClass: 'border-gray-300',
-            priority: 2,
-            label: 'Proveedor'
-        };
-    }
-    
-    // 🗑️ RUIDO (Prioridad 3 - MÁS BAJA)
-    if (
-        type.includes('wrong') ||
-        type.includes('spam') ||
-        type.includes('survey') ||
-        type.includes('unrelated') ||
-        type.includes('noise')
-    ) {
-        return {
-            tipologia: 'ruido',
-            emoji: '🗑️',
-            color: 'black',
-            bgClass: 'bg-gray-100',
-            textClass: 'text-gray-500',
-            borderClass: 'border-gray-300',
-            priority: 3,
-            label: 'Ruido'
-        };
-    }
-    
-    // DEFAULT: Cliente (si no matchea nada)
     return {
-        tipologia: 'cliente',
-        emoji: '🙋',
-        color: 'blue',
-        bgClass: 'bg-blue-50',
-        textClass: 'text-blue-700',
-        borderClass: 'border-blue-300',
-        priority: 1,
-        label: 'Cliente'
+        tipologia,
+        emoji: config.emoji,
+        color: config.color,
+        prioridad: config.prioridad,
+        label: config.label,
+        config
     };
 };
 
 /**
- * NIVEL 2: Determinar ACCIÓN específica
- * @param {string} interactionType - Tipo de interacción
- * @param {object} conversation - Conversación completa
- * @returns {object} { accion, emoji, label, description }
+ * Obtiene la acción de una conversación
+ * @param {string} interaction_type - El tipo de interacción
+ * @returns {string} Nombre de la acción
  */
-export const getAccion = (interactionType, conversation = {}) => {
-    const type = (interactionType || '').toLowerCase();
-    const outcome = (conversation.outcome || '').toLowerCase();
-    
-    // ACCIONES DE CLIENTES
-    if (type.includes('reservation') && type.includes('request')) {
-        return {
-            accion: 'reservar',
-            emoji: '✅',
-            label: 'Reservar',
-            description: outcome.includes('created') ? 'Reserva creada' : 'Solicitó reserva'
-        };
-    }
-    
-    if (type.includes('cancellation')) {
-        return {
-            accion: 'cancelar',
-            emoji: '❌',
-            label: 'Cancelar',
-            description: 'Cancelación de cita'
-        };
-    }
-    
-    if (type.includes('modification')) {
-        return {
-            accion: 'modificar',
-            emoji: '🔄',
-            label: 'Modificar',
-            description: 'Cambio de cita'
-        };
-    }
-    
-    if (type.includes('information') || type.includes('inquiry')) {
-        return {
-            accion: 'informarse',
-            emoji: 'ℹ️',
-            label: 'Informarse',
-            description: 'Consulta de información'
-        };
-    }
-    
-    // ACCIONES DE PROVEEDORES
-    if (type.includes('commercial')) {
-        return {
-            accion: 'venta',
-            emoji: '💼',
-            label: 'Venta',
-            description: 'Llamada comercial'
-        };
-    }
-    
-    if (type.includes('supplier') || type.includes('delivery')) {
-        return {
-            accion: 'seguimiento',
-            emoji: '📋',
-            label: 'Seguimiento',
-            description: 'Proveedor habitual'
-        };
-    }
-    
-    if (type.includes('invoice') || type.includes('payment')) {
-        return {
-            accion: 'reclamo',
-            emoji: '💰',
-            label: 'Reclamo',
-            description: 'Reclamo de pago'
-        };
-    }
-    
-    // ACCIONES DE INCIDENCIAS
-    if (type.includes('medical') || type.includes('allergy')) {
-        return {
-            accion: 'medica',
-            emoji: '🏥',
-            label: 'Médica',
-            description: 'Urgencia médica'
-        };
-    }
-    
-    if (type.includes('complaint')) {
-        return {
-            accion: 'queja',
-            emoji: '⚠️',
-            label: 'Queja',
-            description: 'Queja de servicio'
-        };
-    }
-    
-    // ACCIONES DE RUIDO
-    if (type.includes('wrong')) {
-        return {
-            accion: 'equivocado',
-            emoji: '🚫',
-            label: 'Equivocado',
-            description: 'Llamada equivocada'
-        };
-    }
-    
-    if (type.includes('spam')) {
-        return {
-            accion: 'spam',
-            emoji: '🔇',
-            label: 'Spam',
-            description: 'Spam o robocall'
-        };
-    }
-    
-    // DEFAULT
-    return {
-        accion: 'otro',
-        emoji: '💬',
-        label: 'Otro',
-        description: 'Conversación general'
-    };
+export const getAccion = (interaction_type) => {
+    const mapeo = MAPEO_INTERACTION_TYPE[interaction_type];
+    return mapeo?.accion || ACCIONES.SIN_CLASIFICAR;
 };
 
 /**
- * Agrupar conversaciones por tipología
- * @param {Array} conversations - Array de conversaciones
- * @returns {object} { incidencias: [], clientes: [], proveedores: [], ruido: [] }
+ * Calcula métricas por tipología
+ * @param {array} conversations - Array de conversaciones
+ * @returns {object} { clientes, proveedores, incidencias, ruido }
  */
-export const groupByTipologia = (conversations) => {
-    const grouped = {
-        incidencias: [],
-        clientes: [],
-        proveedores: [],
-        ruido: []
+export const calculateTipologiaMetrics = (conversations) => {
+    const metrics = {
+        [TIPOLOGIAS.CLIENTES]: 0,
+        [TIPOLOGIAS.PROVEEDORES]: 0,
+        [TIPOLOGIAS.INCIDENCIAS]: 0,
+        [TIPOLOGIAS.RUIDO]: 0
     };
     
     conversations.forEach(conv => {
         const { tipologia } = getTipologia(conv.interaction_type, conv);
-        grouped[tipologia + 's'] = grouped[tipologia + 's'] || [];
-        grouped[tipologia + 's'].push(conv);
+        metrics[tipologia] = (metrics[tipologia] || 0) + 1;
+    });
+    
+    return metrics;
+};
+
+/**
+ * Agrupa conversaciones por tipología
+ * @param {array} conversations - Array de conversaciones
+ * @returns {object} { incidencias: [...], clientes: [...], proveedores: [...], ruido: [...] }
+ */
+export const groupByTipologia = (conversations) => {
+    const grouped = {
+        [TIPOLOGIAS.INCIDENCIAS]: [],
+        [TIPOLOGIAS.CLIENTES]: [],
+        [TIPOLOGIAS.PROVEEDORES]: [],
+        [TIPOLOGIAS.RUIDO]: []
+    };
+    
+    conversations.forEach(conv => {
+        const { tipologia } = getTipologia(conv.interaction_type, conv);
+        grouped[tipologia].push(conv);
     });
     
     return grouped;
 };
 
 /**
- * Calcular métricas por tipología
- * @param {Array} conversations - Array de conversaciones
- * @returns {object} { clientes: 25, proveedores: 3, incidencias: 1, ruido: 5 }
+ * Verifica si una conversación es una incidencia urgente
+ * @param {object} conversation - Objeto de conversación
+ * @returns {boolean}
  */
-export const calculateTipologiaMetrics = (conversations) => {
-    const metrics = {
-        clientes: 0,
-        proveedores: 0,
-        incidencias: 0,
-        ruido: 0
-    };
+export const isUrgente = (conversation) => {
+    const { tipologia } = getTipologia(conversation.interaction_type, conversation);
     
-    conversations.forEach(conv => {
-        const { tipologia } = getTipologia(conv.interaction_type, conv);
-        metrics[tipologia + 's'] = (metrics[tipologia + 's'] || 0) + 1;
-    });
+    // Todas las incidencias son urgentes
+    if (tipologia === TIPOLOGIAS.INCIDENCIAS) return true;
     
-    return metrics;
+    // También si tiene metadata de escalación
+    if (conversation.metadata?.escalation_needed === true) return true;
+    
+    // O si tiene sentiment negativo y es queja
+    if (conversation.sentiment === 'negative' && conversation.interaction_type === 'complaint') return true;
+    
+    return false;
 };
 
+/**
+ * Obtiene el badge para una conversación
+ * @param {object} conversation - Objeto de conversación
+ * @returns {object|null} { text, icon, bgClass, textClass } o null
+ */
+export const getBadge = (conversation) => {
+    if (!isUrgente(conversation)) return null;
+    
+    const { accion } = MAPEO_INTERACTION_TYPE[conversation.interaction_type] || {};
+    
+    if (accion === ACCIONES.MEDICA) {
+        return {
+            text: '🚨 URGENTE - MÉDICA',
+            bgClass: 'bg-red-100',
+            textClass: 'text-red-800',
+            borderClass: 'border-red-300'
+        };
+    }
+    
+    return {
+        text: '⚠️ REQUIERE ATENCIÓN',
+        bgClass: 'bg-orange-100',
+        textClass: 'text-orange-800',
+        borderClass: 'border-orange-300'
+    };
+};

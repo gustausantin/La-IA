@@ -107,17 +107,19 @@ export default function Calendario() {
     const [showEventDetailModal, setShowEventDetailModal] = useState(false); // Modal para ver evento existente
     const [selectedEvent, setSelectedEvent] = useState(null); // Evento seleccionado para ver/editar/eliminar
     
-    // Estados para estadísticas calculadas
-    const [stats, setStats] = useState({
-        daysOpen: 0,
-        weeklyHours: 0,
-        activeChannels: 0,
-        activeReservations: 0,
-        upcomingEvents: 0
-    });
+    // ⭐ Estados para modal de detalles de ausencia
+    const [showAbsenceDetailModal, setShowAbsenceDetailModal] = useState(false);
+    const [selectedAbsence, setSelectedAbsence] = useState(null);
+    
+    // ⭐ Estados para modal de lista de ausencias (cuando hay +1 más)
+    const [showAbsenceListModal, setShowAbsenceListModal] = useState(false);
+    const [selectedDayAbsences, setSelectedDayAbsences] = useState([]);
 
     // Estados para eventos especiales
     const [events, setEvents] = useState([]);
+
+    // Estados para ausencias de empleados
+    const [employeeAbsences, setEmployeeAbsences] = useState([]);
 
     // Generar días del calendario CON ALINEACIÓN CORRECTA
     const generateCalendarDays = () => {
@@ -155,6 +157,7 @@ export default function Calendario() {
             
             initializeData();
             loadEvents();
+            loadEmployeeAbsences(); // ⭐ Cargar ausencias de empleados
         }
     }, [businessId]); // SOLO cuando cambia businessId, NO al navegar meses
 
@@ -177,14 +180,21 @@ export default function Calendario() {
             initializeData();
         };
 
+        const handleAbsencesUpdate = (event) => {
+            console.log("🏖️ Calendario: Ausencias actualizadas desde Tu Equipo");
+            loadEmployeeAbsences();
+        };
+
         window.addEventListener('force-restaurant-reload', handleRestaurantReload);
         window.addEventListener('schedule-updated', handleScheduleUpdate);
+        window.addEventListener('absences-updated', handleAbsencesUpdate); // ⭐ Nuevo listener
         
         // Nota: Removidos listeners de focus/visibility que causaban recargas innecesarias
 
         return () => {
             window.removeEventListener('force-restaurant-reload', handleRestaurantReload);
             window.removeEventListener('schedule-updated', handleScheduleUpdate);
+            window.removeEventListener('absences-updated', handleAbsencesUpdate);
         };
     }, []);
 
@@ -248,7 +258,7 @@ export default function Calendario() {
             console.log('  - viernes:', savedHours.friday?.closed, '→ abierto:', !savedHours.friday?.closed);
             console.log('  - sábado:', savedHours.saturday?.closed, '→ abierto:', !savedHours.saturday?.closed);
 
-            // CREAR SCHEDULE DEFINITIVO - CARGAR TURNOS REALES
+            // CREAR SCHEDULE DEFINITIVO - CON SOPORTE DE TURNOS
             const loadedSchedule = [
                 { day_of_week: 'sunday', day_name: 'Domingo' },
                 { day_of_week: 'monday', day_name: 'Lunes' },
@@ -262,17 +272,24 @@ export default function Calendario() {
                 // FORMATO CORRECTO: usar !closed en lugar de open
                 const isOpen = !dayConfig.closed;
                 
-                // 🔧 HORARIO SIMPLE (SIN TURNOS) - CAMPOS CORRECTOS
-                const openTime = dayConfig.open || "09:00";
-                const closeTime = dayConfig.close || "22:00";
+                // 🔧 SOPORTE DE TURNOS - Cargar shifts si existen, sino crear uno por defecto
+                let shifts = [];
+                if (dayConfig.shifts && Array.isArray(dayConfig.shifts) && dayConfig.shifts.length > 0) {
+                    shifts = dayConfig.shifts;
+                } else {
+                    // Crear un turno simple con open/close
+                    shifts = [{ start: dayConfig.open || "09:00", end: dayConfig.close || "22:00" }];
+                }
                 
-                console.log(`🔄 ${day.day_name}: ${isOpen ? `✅ ${openTime}-${closeTime}` : '❌ Cerrado'}`);
+                console.log(`🔄 ${day.day_name}: ${isOpen ? `✅ ${shifts.map(s => `${s.start}-${s.end}`).join(', ')}` : '❌ Cerrado'}`);
                 
                 return {
                     ...day,
                     is_open: isOpen,
-                    open_time: openTime,
-                    close_time: closeTime
+                    shifts: shifts,
+                    // Legacy para compatibilidad
+                    open_time: shifts[0]?.start || "09:00",
+                    close_time: shifts[shifts.length - 1]?.end || "22:00"
                 };
             });
             
@@ -286,9 +303,6 @@ export default function Calendario() {
             });
 
             setSchedule(loadedSchedule);
-            
-            // Calcular estadísticas
-            calculateStats(loadedSchedule);
 
         } catch (error) {
             console.error("❌ Error inicializando calendario:", error);
@@ -298,108 +312,6 @@ export default function Calendario() {
         }
     };
 
-    // Función para calcular estadísticas reales
-    const calculateStats = useCallback(async (scheduleData) => {
-        try {
-            // 1. Días abiertos
-            const daysOpen = scheduleData.filter(day => day.is_open).length;
-            
-            // 2. Horas semanales - CALCULAR CORRECTAMENTE CON MINUTOS
-            const weeklyHours = scheduleData.reduce((total, day) => {
-                if (!day.is_open || !day.open_time || !day.close_time) return total;
-                
-                // Parsear horas y minutos correctamente
-                const [openHour, openMin] = day.open_time.split(':').map(Number);
-                const [closeHour, closeMin] = day.close_time.split(':').map(Number);
-                
-                // Calcular minutos totales
-                const openMinutes = openHour * 60 + openMin;
-                const closeMinutes = closeHour * 60 + closeMin;
-                const dayMinutes = closeMinutes - openMinutes;
-                
-                // Convertir a horas (con decimales)
-                return total + (dayMinutes / 60);
-            }, 0);
-
-            // 3. Canales activos - LEER DE channel_credentials (TABLA REAL)
-            // Contar canales IA activos desde settings.channels
-            let activeChannels = 0;
-            try {
-                const { data: restaurantData, error: restaurantError } = await supabase
-                    .from("businesses")
-                    .select("settings")
-                    .eq("id", businessId)
-                    .single();
-                
-                if (restaurantError) throw restaurantError;
-                
-                const channels = restaurantData?.settings?.channels || {};
-                // Contar solo canales IA (no teléfono/móvil que son solo info)
-                const iaChannels = ['vapi', 'whatsapp', 'instagram', 'facebook', 'webchat'];
-                activeChannels = iaChannels.filter(ch => channels[ch]?.enabled).length;
-                console.log('📊 Canales IA activos desde settings.channels:', activeChannels, channels);
-            } catch (error) {
-                console.error("Error leyendo canales activos:", error);
-                activeChannels = 0;
-            }
-
-            // 4. Reservas activas (próximos 7 días)
-            let activeReservations = 0;
-            try {
-                const today = format(new Date(), 'yyyy-MM-dd');
-                const sevenDaysLater = format(addDays(new Date(), 7), 'yyyy-MM-dd');
-                
-                const { data: reservationsData, error: reservationsError } = await supabase
-                    .from('appointments')
-                    .select("id")
-                    .eq("business_id", businessId)
-                    .gte("reservation_date", today)
-                    .lte("reservation_date", sevenDaysLater)
-                    .not('status', 'in', '(cancelled,completed)');
-                
-                if (reservationsError) throw reservationsError;
-                
-                activeReservations = reservationsData?.length || 0;
-                console.log('📊 Reservas activas próximos 7 días:', activeReservations);
-            } catch (error) {
-                console.error("Error leyendo reservas activas:", error);
-                activeReservations = 0;
-            }
-
-            // 5. Eventos especiales (próximos 30 días)
-            let upcomingEvents = 0;
-            try {
-                const today = format(new Date(), 'yyyy-MM-dd');
-                const thirtyDaysLater = format(addDays(new Date(), 30), 'yyyy-MM-dd');
-                
-                const { data: eventsData, error: eventsError } = await supabase
-                    .from("special_events")
-                    .select("id")
-                    .eq("business_id", businessId)
-                    .gte("event_date", today)
-                    .lte("event_date", thirtyDaysLater);
-                
-                if (eventsError) throw eventsError;
-                
-                upcomingEvents = eventsData?.length || 0;
-                console.log('📊 Eventos especiales próximos 30 días:', upcomingEvents);
-            } catch (error) {
-                console.error("Error leyendo eventos especiales:", error);
-                upcomingEvents = 0;
-            }
-
-            setStats({
-                daysOpen,
-                weeklyHours: Math.round(weeklyHours),
-                activeChannels,
-                activeReservations,
-                upcomingEvents
-            });
-
-        } catch (error) {
-            console.error("Error calculando estadísticas:", error);
-        }
-    }, [businessId]);
 
     // SOLUCIÓN DEFINITIVA - MATEMÁTICAMENTE IMPOSIBLE QUE FALLE
     const getDaySchedule = useCallback((date) => {
@@ -491,27 +403,87 @@ export default function Calendario() {
         description: '',
         start_time: '09:00',
         end_time: '22:00',
-        closed: false
+        closed: false,
+        isRange: false, // Día único o rango
+        startDate: format(new Date(), 'yyyy-MM-dd'),
+        endDate: format(new Date(), 'yyyy-MM-dd')
     });
 
-    // Cargar eventos especiales
+    // Cargar eventos especiales (excepciones de calendario)
     const loadEvents = async () => {
         if (!businessId) return;
         
         try {
             const { data, error } = await supabase
-                .from('special_events')
+                .from('calendar_exceptions')
                 .select('*')
                 .eq('business_id', businessId)
-                .order('event_date');
+                .order('exception_date');
             
             if (error) throw error;
             
             setEvents(data || []);
-            console.log('✅ Eventos cargados:', data?.length || 0);
+            console.log('✅ Eventos/Excepciones cargados:', data?.length || 0);
         } catch (error) {
             console.error('❌ Error cargando eventos:', error);
         }
+    };
+
+    // Cargar ausencias de TODOS los empleados
+    const loadEmployeeAbsences = async () => {
+        console.log('🏖️ [INICIO] loadEmployeeAbsences llamada');
+        console.log('  - businessId:', businessId);
+        
+        if (!businessId) {
+            console.log('  ⚠️ No hay businessId, saliendo...');
+            return;
+        }
+        
+        try {
+            console.log('🔍 Ejecutando query de employee_absences...');
+            
+            const { data, error } = await supabase
+                .from('employee_absences')
+                .select(`
+                    *,
+                    employees!employee_absences_employee_id_fkey (
+                        name,
+                        color
+                    )
+                `)
+                .eq('business_id', businessId)
+                .eq('approved', true)
+                .order('start_date', { ascending: true });
+            
+            console.log('🔍 Query completada. Error:', error, 'Data:', data);
+            
+            if (error) {
+                console.error('❌ Error en query employee_absences:', error);
+                console.error('   Detalles:', JSON.stringify(error, null, 2));
+                throw error;
+            }
+            
+            console.log('✅ Ausencias de empleados cargadas:', data?.length || 0);
+            if (data && data.length > 0) {
+                console.log('📋 Detalles de ausencias:', data.map(a => ({
+                    empleado: a.employees?.name || 'Sin nombre',
+                    desde: a.start_date,
+                    hasta: a.end_date,
+                    tipo: a.reason,
+                    aprobado: a.approved
+                })));
+            } else {
+                console.log('⚠️ No hay ausencias aprobadas para este negocio');
+            }
+            
+            setEmployeeAbsences(data || []);
+            console.log('🔄 Estado employeeAbsences actualizado, total:', (data || []).length);
+        } catch (error) {
+            console.error('❌ [ERROR CRÍTICO] Error cargando ausencias de empleados:', error);
+            console.error('   Stack:', error.stack);
+        }
+        
+        console.log('🏖️ [FIN] loadEmployeeAbsences completada');
     };
 
     // Eliminar evento especial
@@ -519,42 +491,29 @@ export default function Calendario() {
         if (!event || !event.id) return;
         
         const confirmed = window.confirm(
-            `¿Estás seguro de que quieres eliminar el evento "${event.title}"?\n\n` +
-            `📅 Fecha: ${format(parseISO(event.event_date), 'dd/MM/yyyy')}\n` +
-            `${event.is_closed ? '🔒 Este día dejará de estar cerrado' : '🎉 Se eliminará el evento especial'}`
+            `¿Estás seguro de que quieres eliminar el evento "${event.reason || 'Sin título'}"?\n\n` +
+            `📅 Fecha: ${format(parseISO(event.exception_date), 'dd/MM/yyyy')}\n` +
+            `${!event.is_open ? '🔒 Este día dejará de estar cerrado' : '🎉 Se eliminará el evento especial'}`
         );
         
         if (!confirmed) return;
         
         try {
             const { error } = await supabase
-                .from('special_events')
+                .from('calendar_exceptions')
                 .delete()
                 .eq('id', event.id);
             
             if (error) throw error;
             
-            // 🔥 ELIMINAR TAMBIÉN DE calendar_exceptions si era un día cerrado
-            if (event.is_closed) {
-                const { error: exceptionDeleteError } = await supabase
-                    .from('calendar_exceptions')
-                    .delete()
-                    .eq('business_id', businessId)
-                    .eq('exception_date', event.event_date)
-                    .eq('is_open', false);
-                
-                if (exceptionDeleteError) {
-                    console.error('⚠️ Error eliminando excepción:', exceptionDeleteError);
-                } else {
-                    console.log('✅ Excepción eliminada de calendar_exceptions');
-                }
-            }
+            console.log('✅ Evento eliminado de calendar_exceptions');
             
             // Actualizar estado local
             setEvents(prev => prev.filter(e => e.id !== event.id));
+            setCalendarExceptions(prev => prev.filter(e => e.id !== event.id));
             
             // ✅ VERIFICAR SI EL EVENTO ELIMINADO ESTÁ DENTRO DEL RANGO
-            const eventDate = event.event_date;
+            const eventDate = event.exception_date;
             const today = format(new Date(), 'yyyy-MM-dd');
             const advanceDays = restaurant?.settings?.advance_booking_days || 20;
             const maxDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
@@ -573,10 +532,10 @@ export default function Calendario() {
             if (isWithinRange) {
                 changeDetection.checkExistingSlots().then(slotsExist => {
                     if (slotsExist) {
-                        changeDetection.onSpecialEventChange('removed', event.title);
+                        changeDetection.onSpecialEventChange('removed', event.reason || 'Evento');
                         showRegenerationModal(
                             'special_event_deleted', 
-                            `Evento "${event.title}" eliminado (${format(parseISO(event.event_date), 'dd/MM/yyyy')})`
+                            `Evento "${event.reason || 'Sin título'}" eliminado (${format(parseISO(event.exception_date), 'dd/MM/yyyy')})`
                         );
                     } else {
                         console.log('✅ No se muestra aviso: usuario está configurando el sistema por primera vez');
@@ -586,211 +545,177 @@ export default function Calendario() {
                 console.log(`ℹ️ Evento eliminado fuera de rango (${eventDate} > ${maxDate}) - NO se requiere regeneración`);
             }
             
-            toast.success(`✅ Evento "${event.title}" eliminado correctamente`);
+            toast.success(`✅ Evento "${event.reason || 'Sin título'}" eliminado correctamente`);
         } catch (error) {
             console.error('❌ Error eliminando evento:', error);
             toast.error('Error al eliminar el evento');
         }
     }, [changeDetection, showRegenerationModal, restaurant]);
 
-    // Guardar evento especial
+    // Guardar evento especial (DÍA ÚNICO o RANGO DE FECHAS)
     const handleSaveEvent = async (e) => {
         e.preventDefault();
-        if (!selectedDay || !businessId) return;
+        if (!businessId) return;
         
         try {
-            const eventDate = format(selectedDay, 'yyyy-MM-dd');
+            // ⭐ GENERAR LISTA DE FECHAS (día único o rango)
+            const startDate = new Date(eventForm.startDate + 'T00:00:00');
+            const endDate = new Date(eventForm.endDate + 'T00:00:00');
             
-            // 🔒 VALIDACIÓN ANTES DE CERRAR DÍAS
+            // Validar que la fecha de fin no sea anterior a la de inicio
+            if (endDate < startDate) {
+                toast.error('❌ La fecha de fin no puede ser anterior a la fecha de inicio');
+                return;
+            }
+            
+            // Generar array de fechas del rango
+            const datesToProcess = eachDayOfInterval({ start: startDate, end: endDate });
+            const dateStrings = datesToProcess.map(date => format(date, 'yyyy-MM-dd'));
+            
+            console.log(`📅 Procesando ${dateStrings.length} día(s):`, dateStrings);
+            
+            // 🔒 VALIDACIÓN: Si está marcado como cerrado, validar TODAS las fechas
             if (eventForm.closed) {
-                console.log(`🔒 Validando cierre del día ${eventDate}...`);
+                console.log(`🔒 Validando cierre de ${dateStrings.length} día(s)...`);
                 
-                try {
-                    // 🚧 TEMPORAL: Función SQL no ejecutada aún
-                    console.log("🚧 Función validar_cierre_dia no disponible - saltando validación");
-                    const validationData = { validation_result: 'ALLOWED' }; // Mock temporal
-                    const validationError = null;
+                // Buscar reservas confirmadas en cualquiera de los días del rango
+                const { data: reservationsData, error: reservationsError } = await supabase
+                    .from('appointments')
+                    .select('id, customer_name, appointment_date, appointment_time, duration_minutes')
+                    .eq('business_id', businessId)
+                    .in('appointment_date', dateStrings)
+                    .in('status', ['confirmed', 'pending']); // Ambos bloquean
+                
+                if (reservationsError) {
+                    console.warn("⚠️ Error verificando reservas:", reservationsError);
+                } else if (reservationsData && reservationsData.length > 0) {
+                    // ❌ HAY RESERVAS - BLOQUEAR
+                    const reservationsByDate = {};
+                    reservationsData.forEach(r => {
+                        if (!reservationsByDate[r.appointment_date]) {
+                            reservationsByDate[r.appointment_date] = [];
+                        }
+                        reservationsByDate[r.appointment_date].push(r);
+                    });
                     
-                    if (validationError) {
-                        console.warn("⚠️ No se pudo validar el cierre:", validationError);
-                    } else if (validationData?.validation_result === 'BLOCKED') {
-                        // Hay reservas confirmadas - BLOQUEAR
-                        const reservations = validationData.reservation_details || [];
-                        const reservationList = reservations.map(r => 
-                            `• ${r.customer_name} - ${r.reservation_time} (${r.party_size} personas)`
+                    const affectedDates = Object.keys(reservationsByDate).sort();
+                    const totalReservations = reservationsData.length;
+                    
+                    const detailedList = affectedDates.slice(0, 3).map(date => {
+                        const dayReservations = reservationsByDate[date];
+                        const reservationList = dayReservations.slice(0, 2).map(r => 
+                            `  • ${r.customer_name} - ${r.appointment_time}`
                         ).join('\n');
+                        const more = dayReservations.length > 2 ? `\n  ... y ${dayReservations.length - 2} más` : '';
+                        return `📅 ${format(parseISO(date), 'dd/MM/yyyy', { locale: es })}: ${dayReservations.length} reserva(s)\n${reservationList}${more}`;
+                    }).join('\n\n');
+                    
+                    const moreInfo = affectedDates.length > 3 ? `\n\n... y ${affectedDates.length - 3} días más con reservas` : '';
                         
                         toast.error(
-                            `❌ NO SE PUEDE CERRAR EL DÍA\n\n` +
-                            `📅 ${eventDate} tiene ${validationData.existing_reservations} reservas confirmadas:\n\n` +
-                            `${reservationList}\n\n` +
-                            `🔧 SOLUCIÓN: Ve a "Reservas" y cancela/reprograma estas reservas primero.`,
-                            { 
-                                duration: 8000,
+                        `❌ NO SE PUEDE CERRAR\n\n` +
+                        `Hay ${totalReservations} reserva(s) confirmada(s) en ${affectedDates.length} día(s) del rango:\n\n` +
+                        `${detailedList}${moreInfo}\n\n` +
+                        `🔧 SOLUCIÓN: Cancela o reprograma estas reservas primero.`,
+                        { 
+                            duration: 10000,
                                 style: { 
-                                    minWidth: '400px',
+                                minWidth: '450px',
                                     whiteSpace: 'pre-line',
                                     fontSize: '13px'
                                 }
                             }
                         );
                         return; // BLOQUEAR creación del evento
-                        
-                    } else if (validationData?.validation_result === 'WARNING') {
-                        // Solo hay disponibilidades - ADVERTIR pero permitir
-                        const userConfirmed = confirm(
-                            `⚠️ ADVERTENCIA DE CIERRE\n\n` +
-                            `📅 ${eventDate} tiene ${validationData.existing_slots} slots disponibles activos.\n\n` +
-                            `✅ ACCIÓN AUTOMÁTICA:\n` +
-                            `• Los slots disponibles serán eliminados\n` +
-                            `• No hay reservas confirmadas afectadas\n\n` +
-                            `¿Continuar con el cierre del día?`
-                        );
-                        
-                        if (!userConfirmed) {
-                            return; // Cancelado silenciosamente
-                        }
-                    }
-                } catch (validationCheckError) {
-                    console.warn("⚠️ Error validando cierre:", validationCheckError);
-                    // Continuar con advertencia general
-                    const userConfirmed = confirm(
-                        `⚠️ NO SE PUDO VALIDAR EL CIERRE\n\n` +
-                        `No se pudo verificar si hay reservas confirmadas en ${eventDate}.\n\n` +
-                        `🚨 RIESGO: Podrías estar cerrando un día con reservas.\n\n` +
-                        `¿Quieres continuar bajo tu responsabilidad?`
-                    );
-                    
-                    if (!userConfirmed) {
-                        return; // Cancelado silenciosamente
-                    }
                 }
             }
             
-            const eventData = {
-                business_id: businessId,
-                event_date: eventDate,
-                title: eventForm.title,
-                description: eventForm.description || '',
-                type: eventForm.closed ? 'cerrado' : 'evento',
-                start_time: eventForm.closed ? null : eventForm.start_time,
-                end_time: eventForm.closed ? null : eventForm.end_time,
-                is_closed: eventForm.closed
-            };
+            // ✅ NO HAY RESERVAS (o es evento abierto) - CREAR EVENTOS
             
-            // 🔥 GUARDAR TAMBIÉN EN calendar_exceptions para que el backend lo respete
-            if (eventForm.closed) {
-                const exceptionData = {
-                    business_id: businessId,
-                    exception_date: eventDate,
-                    is_open: false,  // ← DÍA CERRADO
-                    open_time: null,
-                    close_time: null,
-                    reason: eventForm.title || 'Cerrado',
-                    created_by: 'frontend'
-                };
-                
-                const { error: exceptionError } = await supabase
+            // Primero eliminar eventos existentes en esas fechas (si existen)
+            const { error: deleteError } = await supabase
                     .from('calendar_exceptions')
-                    .upsert(exceptionData, {
-                        onConflict: 'business_id,exception_date'
-                    });
-                
-                if (exceptionError) {
-                    console.error('⚠️ Error guardando excepción:', exceptionError);
-                } else {
-                    console.log('✅ Excepción guardada en calendar_exceptions');
-                }
+                .delete()
+                .eq('business_id', businessId)
+                .in('exception_date', dateStrings);
+            
+            if (deleteError) {
+                console.warn("⚠️ Error eliminando eventos existentes:", deleteError);
             }
             
-            // Verificar si ya existe un evento en esta fecha para actualizar o crear
-            const existingEvent = getDayEvent(selectedDay);
-            const isEditing = !!existingEvent;
+            // Ahora crear los nuevos eventos
+            const eventsToCreate = dateStrings.map(dateStr => ({
+                business_id: businessId,
+                exception_date: dateStr,
+                reason: eventForm.title || 'Evento',
+                is_open: !eventForm.closed,
+                open_time: eventForm.closed ? null : eventForm.start_time,
+                close_time: eventForm.closed ? null : eventForm.end_time
+            }));
             
-            let data, error;
-            
-            if (isEditing) {
-                // ACTUALIZAR evento existente
-                const updateResult = await supabase
-                    .from('special_events')
-                    .update(eventData)
-                    .eq('id', existingEvent.id)
-                    .select()
-                    .single();
-                
-                data = updateResult.data;
-                error = updateResult.error;
-                
-                if (!error) {
-                    // Actualizar estado local
-                    setEvents(prev => prev.map(e => e.id === existingEvent.id ? data : e));
-                }
-            } else {
-                // CREAR evento nuevo
-                const insertResult = await supabase
-                    .from('special_events')
-                    .insert([eventData])
-                    .select()
-                    .single();
-                
-                data = insertResult.data;
-                error = insertResult.error;
-                
-                if (!error) {
-                    // Actualizar estado local
-                    setEvents(prev => [...prev, data]);
-                }
-            }
+            // INSERTAR TODOS LOS EVENTOS
+            const { data, error } = await supabase
+                .from('calendar_exceptions')
+                .insert(eventsToCreate)
+                .select();
             
             if (error) throw error;
             
-            // ✅ VERIFICAR SI EL EVENTO ESTÁ DENTRO DEL RANGO DE DÍAS CONFIGURADOS
-            // (eventDate ya está declarado al inicio de la función)
+            // Actualizar estados locales
+            const newEvents = data || [];
+            setEvents(prev => {
+                const filtered = prev.filter(e => !dateStrings.includes(e.exception_date));
+                return [...filtered, ...newEvents];
+            });
+            setCalendarExceptions(prev => {
+                const filtered = prev.filter(e => !dateStrings.includes(e.exception_date));
+                return [...filtered, ...newEvents];
+            });
+            
+            // ✅ VERIFICAR SI ALGÚN EVENTO ESTÁ DENTRO DEL RANGO DE REGENERACIÓN
             const today = format(new Date(), 'yyyy-MM-dd');
             const advanceDays = restaurant?.settings?.advance_booking_days || 20;
             const maxDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
             
-            const isWithinRange = eventDate >= today && eventDate <= maxDate;
+            const datesWithinRange = dateStrings.filter(d => d >= today && d <= maxDate);
             
-            console.log('🔍 Validando rango de evento:', {
-                eventDate,
-                today,
-                maxDate,
-                advanceDays,
-                isWithinRange
-            });
-            
-            // 🚨 MOSTRAR MODAL BLOQUEANTE DE REGENERACIÓN solo si:
-            // 1. Existen slots
-            // 2. El evento está DENTRO del rango de días configurados
-            if (isWithinRange) {
+            if (datesWithinRange.length > 0) {
                 changeDetection.checkExistingSlots().then(slotsExist => {
                     if (slotsExist) {
                         changeDetection.onSpecialEventChange(
                             eventForm.closed ? 'closed' : 'special_hours',
-                            format(selectedDay, 'dd/MM/yyyy')
+                            dateStrings.length === 1 ? format(startDate, 'dd/MM/yyyy') : `${format(startDate, 'dd/MM/yyyy')} - ${format(endDate, 'dd/MM/yyyy')}`
                         );
                         
                         // MOSTRAR MODAL
                         if (eventForm.closed) {
-                            showRegenerationModal('special_event_closed', `Día ${format(selectedDay, 'dd/MM/yyyy')} cerrado`);
+                            showRegenerationModal('special_event_closed', 
+                                dateStrings.length === 1 
+                                    ? `Día ${format(startDate, 'dd/MM/yyyy')} cerrado` 
+                                    : `${dateStrings.length} días cerrados`
+                            );
                         } else {
-                            showRegenerationModal('special_event_created', `Evento "${eventForm.title}" en ${format(selectedDay, 'dd/MM/yyyy')}`);
+                            showRegenerationModal('special_event_created', 
+                                `Evento "${eventForm.title}" (${dateStrings.length} día${dateStrings.length > 1 ? 's' : ''})`
+                            );
                         }
                     } else {
                         console.log('✅ No se muestra aviso: usuario está configurando el sistema por primera vez');
                     }
                 });
             } else {
-                console.log(`ℹ️ Evento fuera de rango (${eventDate} > ${maxDate}) - NO se requiere regeneración`);
+                console.log(`ℹ️ Evento(s) fuera de rango - NO se requiere regeneración`);
             }
             
             setShowEventModal(false);
-            console.log('✅ Evento guardado:', data);
+            console.log('✅ Evento(s) guardado(s):', data);
             
-            // ✅ ÚNICO TOAST AL FINAL (simple y claro) - se adapta a crear/actualizar
-            const action = isEditing ? 'actualizado' : 'creado';
-            toast.success(`✅ Evento "${eventForm.title}" ${action} para ${format(selectedDay, 'dd/MM/yyyy')}`);
+            toast.success(
+                dateStrings.length === 1 
+                    ? `✅ Evento creado para ${format(startDate, 'dd/MM/yyyy')}`
+                    : `✅ Evento creado para ${dateStrings.length} días (${format(startDate, 'dd/MM')} - ${format(endDate, 'dd/MM')})`,
+                { duration: 4000 }
+            );
         } catch (error) {
             console.error('❌ Error guardando evento:', error);
             toast.error('Error al guardar el evento');
@@ -800,8 +725,61 @@ export default function Calendario() {
     // Obtener evento de un día específico
     const getDayEvent = useCallback((date) => {
         const dateStr = format(date, 'yyyy-MM-dd');
-        return events.find(event => event.event_date === dateStr);
+        return events.find(event => event.exception_date === dateStr);
     }, [events]);
+
+    // Obtener ausencias de empleados de un día específico
+    const getDayAbsences = useCallback((date) => {
+        const dateStr = format(date, 'yyyy-MM-dd');
+        
+        // Debug: Ver todas las ausencias disponibles
+        if (employeeAbsences.length > 0 && dateStr === '2025-11-17') {
+            console.log('🔍 DEBUG getDayAbsences:');
+            console.log('  - Fecha buscada:', dateStr);
+            console.log('  - Total ausencias en memoria:', employeeAbsences.length);
+            console.log('  - Ausencias:', employeeAbsences.map(a => ({
+                empleado: a.employees?.name,
+                desde: a.start_date,
+                hasta: a.end_date
+            })));
+        }
+        
+        const absencesForDay = employeeAbsences.filter(absence => {
+            // Comparar fechas correctamente
+            const checkDate = new Date(dateStr + 'T00:00:00');
+            const startDate = new Date(absence.start_date + 'T00:00:00');
+            const endDate = new Date(absence.end_date + 'T00:00:00');
+            
+            const isInRange = checkDate >= startDate && checkDate <= endDate;
+            
+            // Debug específico
+            if (dateStr === '2025-11-17' || dateStr === '2025-11-18') {
+                console.log(`  ✓ Comparando ${absence.employees?.name}: ${absence.start_date} a ${absence.end_date} | ¿Incluye ${dateStr}? ${isInRange}`);
+            }
+            
+            return isInRange;
+        });
+        
+        // ⭐ ORDENAR por hora (ausencias con hora primero, ordenadas cronológicamente)
+        const sorted = absencesForDay.sort((a, b) => {
+            // Si ambas tienen hora, ordenar por start_time
+            if (!a.all_day && !b.all_day && a.start_time && b.start_time) {
+                return a.start_time.localeCompare(b.start_time);
+            }
+            // Ausencias con hora van primero
+            if (!a.all_day && a.start_time && b.all_day) return -1;
+            if (a.all_day && !b.all_day && b.start_time) return 1;
+            // Si ambas son día completo, mantener orden original
+            return 0;
+        });
+        
+        // Debug para ver qué ausencias encuentra
+        if (sorted.length > 0) {
+            console.log(`📅 ${dateStr}: ${sorted.length} ausencia(s) -`, sorted.map(a => a.employees?.name).join(', '));
+        }
+        
+        return sorted;
+    }, [employeeAbsences]);
 
     // Manejar click en día del calendario
     const handleDayClick = useCallback((date) => {
@@ -839,17 +817,32 @@ export default function Calendario() {
             return;
         }
 
-        // VALIDACIONES SIMPLES (SIN TURNOS)
+        // VALIDACIONES CON SOPORTE DE TURNOS
         const invalidDays = schedule.filter(day => {
             if (!day.is_open) return false;
             
-            // Verificar que tenga horarios válidos
-            return !day.open_time || !day.close_time || 
-                   day.open_time === "" || day.close_time === "";
+            // Verificar si tiene shifts definidos
+            const shifts = day.shifts || [];
+            if (shifts.length === 0) {
+                // Si no hay shifts, verificar open_time/close_time legacy
+                return !day.open_time || !day.close_time || day.open_time === "" || day.close_time === "";
+            }
+            
+            // Validar cada turno
+            for (const shift of shifts) {
+                if (!shift.start || !shift.end || shift.start === "" || shift.end === "") {
+                    return true; // Turno inválido
+                }
+                if (shift.end <= shift.start) {
+                    return true; // Hora de cierre debe ser posterior a apertura
+                }
+            }
+            
+            return false;
         });
 
         if (invalidDays.length > 0) {
-            toast.error(`Horarios incompletos en: ${invalidDays.map(d => d.day_name).join(', ')}`);
+            toast.error(`Horarios incompletos o inválidos en: ${invalidDays.map(d => d.day_name).join(', ')}`);
             return;
         }
 
@@ -928,7 +921,8 @@ export default function Calendario() {
                     operating_hours[dayName] = {
                         open: day.open_time || "09:00",
                         close: day.close_time || "22:00",
-                        closed: true
+                        closed: true,
+                        shifts: []
                     };
                     calendar_schedule.push({
                         day_of_week: dayName,
@@ -936,18 +930,22 @@ export default function Calendario() {
                         is_open: false
                     });
                 } else {
-                    // Día abierto - horario simple (SIN TURNOS)
+                    // Día abierto - CON SOPORTE DE TURNOS
+                    const shifts = day.shifts || [{ start: day.open_time, end: day.close_time }];
+                    
                     operating_hours[dayName] = {
                         open: day.open_time || "09:00",
                         close: day.close_time || "22:00",
-                        closed: false
+                        closed: false,
+                        shifts: shifts  // ⭐ Guardar turnos
                     };
                     calendar_schedule.push({
                         day_of_week: dayName,
                         day_name: day.day_name,
                         is_open: true,
                         open_time: day.open_time || "09:00",
-                        close_time: day.close_time || "22:00"
+                        close_time: day.close_time || "22:00",
+                        shifts: shifts  // ⭐ Guardar turnos también aquí
                     });
                 }
             });
@@ -1044,72 +1042,18 @@ export default function Calendario() {
         return (
         <CalendarioErrorBoundary>
         <div className="min-h-screen bg-gray-50 px-4 py-4">
-            <div className="max-w-[85%] mx-auto">
+            <div className="max-w-[95%] mx-auto">
                 {/* Header */}
                 <div className="mb-3">
                     <div className="flex items-center justify-between">
                         <div>
                             <h1 className="text-sm font-bold text-gray-900 flex items-center gap-2">
                                 <Calendar className="w-4 h-4 text-blue-600" />
-                                Horarios y Calendario
+                                Horario y Calendario
                             </h1>
                             <p className="text-xs text-gray-600 mt-0.5">
-                                Gestiona los horarios del restaurante y eventos especiales
+                                Define el horario del negocio y visualiza ausencias del equipo
                             </p>
-                        </div>
-                        </div>
-                    </div>
-
-                                    {/* Estadísticas rápidas - Diseño vertical mejorado */}
-                <div className="bg-white rounded-xl shadow-md border border-gray-200 p-3 mb-3">
-                    <h2 className="text-xs font-bold text-gray-700 mb-2 flex items-center gap-1.5">
-                        <Activity className="w-4 h-4 text-blue-600" />
-                        RESUMEN DE ACTIVIDAD
-                    </h2>
-                    <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-                        <div className="text-center">
-                            <div className="flex items-center justify-center w-10 h-10 bg-green-100 rounded-lg mx-auto mb-1.5">
-                                <CheckCircle className="w-5 h-5 text-green-600" />
-                                </div>
-                            <p className="text-base font-bold text-gray-900">{stats.daysOpen}</p>
-                                    <p className="text-[10px] text-gray-600 font-medium uppercase tracking-wide mt-0.5">Días abiertos</p>
-                            <p className="text-xs text-gray-500">de 7 días</p>
-                        </div>
-
-                        <div className="text-center">
-                            <div className="flex items-center justify-center w-10 h-10 bg-blue-100 rounded-lg mx-auto mb-1.5">
-                                <Clock className="w-5 h-5 text-blue-600" />
-                                </div>
-                            <p className="text-base font-bold text-gray-900">{stats.weeklyHours}h</p>
-                                    <p className="text-[10px] text-gray-600 font-medium uppercase tracking-wide mt-0.5">Horas semanales</p>
-                            <p className="text-xs text-gray-500">tiempo de servicio</p>
-                        </div>
-
-                        <div className="text-center">
-                            <div className="flex items-center justify-center w-10 h-10 bg-purple-100 rounded-lg mx-auto mb-1.5">
-                                <MessageSquare className="w-5 h-5 text-purple-600" />
-                                </div>
-                            <p className="text-base font-bold text-gray-900">{stats.activeChannels}</p>
-                            <p className="text-[10px] text-gray-600 font-medium uppercase tracking-wide mt-0.5">Canales activos</p>
-                            <p className="text-xs text-gray-500">comunicación</p>
-                        </div>
-
-                        <div className="text-center">
-                            <div className="flex items-center justify-center w-10 h-10 bg-indigo-100 rounded-lg mx-auto mb-1.5">
-                                <Users className="w-5 h-5 text-indigo-600" />
-                                </div>
-                            <p className="text-base font-bold text-gray-900">{stats.activeReservations}</p>
-                            <p className="text-[10px] text-gray-600 font-medium uppercase tracking-wide mt-0.5">Reservas activas</p>
-                            <p className="text-xs text-gray-500">próximos 7 días</p>
-                        </div>
-
-                        <div className="text-center">
-                            <div className="flex items-center justify-center w-10 h-10 bg-amber-100 rounded-lg mx-auto mb-1.5">
-                                <Star className="w-5 h-5 text-amber-600" />
-                                </div>
-                            <p className="text-base font-bold text-gray-900">{stats.upcomingEvents}</p>
-                            <p className="text-[10px] text-gray-600 font-medium uppercase tracking-wide mt-0.5">Eventos especiales</p>
-                            <p className="text-xs text-gray-500">próximos 30 días</p>
                         </div>
                     </div>
                 </div>
@@ -1127,7 +1071,7 @@ export default function Calendario() {
                         >
                             <span className="flex items-center gap-2">
                                 <Clock className="w-4 h-4" />
-                                Horarios
+                                Horario
                             </span>
                         </button>
                         <button
@@ -1149,76 +1093,196 @@ export default function Calendario() {
                 {/* Contenido de tabs */}
                 <div>
 
-                    {/* Tab: Horarios del restaurante */}
+                    {/* Tab: Horarios del restaurante - ESTILO EMPLEADOS */}
                     {activeTab === 'horarios' && (
-                        <div className="p-3">
-                            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            {/* Header */}
+                            <div className="px-3 py-2 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
+                                <h3 className="text-xs font-bold text-gray-900">
+                                    🏢 Horario del Negocio
+                                </h3>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                    Define cuándo está abierto el negocio. Los empleados no pueden trabajar fuera de estas horas.
+                                </p>
+                            </div>
+                            
+                            {/* Lista de días - MÁS COMPACTA (10-15% reducido) */}
+                            <div className="p-2.5 space-y-1">
                                 {schedule.map((day, index) => (
-                                    <div key={day.day_of_week} className="bg-white border border-gray-200 rounded-xl p-3 shadow-sm hover:shadow-md transition-all">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <h3 className="font-medium text-xs text-gray-900">{day.day_name}</h3>
-                                                    <button
-                                                onClick={() => {
+                                    <div 
+                                        key={day.day_of_week}
+                                        className={`flex items-center gap-2.5 p-2 rounded-lg border transition-all ${
+                                            day.is_open
+                                                ? 'bg-white border-purple-200 hover:border-purple-400'
+                                                : 'bg-gray-50 border-gray-200'
+                                        }`}
+                                    >
+                                        {/* Toggle ON/OFF - Más pequeño */}
+                                        <label className="flex items-center cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={day.is_open}
+                                                onChange={() => {
                                                     const newSchedule = [...schedule];
                                                     newSchedule[index].is_open = !newSchedule[index].is_open;
                                                     if (newSchedule[index].is_open && !newSchedule[index].open_time) {
                                                         newSchedule[index].open_time = "09:00";
                                                         newSchedule[index].close_time = "22:00";
+                                                        newSchedule[index].shifts = [{ start: "09:00", end: "22:00" }];
                                                     }
                                                     setSchedule(newSchedule);
                                                 }}
-                                                        className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-                                                            day.is_open 
-                                                                ? 'bg-green-100 text-green-800 hover:bg-green-200'
-                                                                : 'bg-red-100 text-red-800 hover:bg-red-200'
-                                                        }`}
+                                                className="sr-only peer"
+                                            />
+                                            <div className="relative w-9 h-5 bg-gray-200 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-green-500"></div>
+                                        </label>
+
+                                        {/* Nombre del día - Más compacto */}
+                                        <div className="w-20">
+                                            <p className={`text-xs font-bold ${day.is_open ? 'text-gray-900' : 'text-gray-400'}`}>
+                                                {day.day_name}
+                                            </p>
+                                                    </div>
+
+                                        {/* Turnos (múltiples) - MÁS COMPACTO */}
+                                        {day.is_open ? (
+                                            <div className="flex items-start gap-2 flex-1">
+                                                <div className="flex-1 space-y-1">
+                                                    {(day.shifts || [{ start: day.open_time, end: day.close_time }]).map((shift, shiftIdx) => (
+                                                        <div key={shiftIdx} className="flex items-center gap-1.5">
+                                                            {day.shifts && day.shifts.length > 1 && (
+                                                                <span className="text-xs text-gray-500 font-semibold w-6">
+                                                                    T{shiftIdx + 1}
+                                                                </span>
+                                                            )}
+                                                        <input
+                                                            type="time"
+                                                                value={shift.start}
+                                                            onChange={(e) => {
+                                                                const newSchedule = [...schedule];
+                                                                    if (!newSchedule[index].shifts) {
+                                                                        newSchedule[index].shifts = [{ start: newSchedule[index].open_time, end: newSchedule[index].close_time }];
+                                                                    }
+                                                                    newSchedule[index].shifts[shiftIdx].start = e.target.value;
+                                                                    // Actualizar legacy
+                                                                    newSchedule[index].open_time = newSchedule[index].shifts[0].start;
+                                                                setSchedule(newSchedule);
+                                                            }}
+                                                                className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:border-transparent w-[85px]"
+                                                        />
+                                                            <span className="text-gray-400 text-xs">—</span>
+                                                        <input
+                                                            type="time"
+                                                                value={shift.end}
+                                                            onChange={(e) => {
+                                                                const newSchedule = [...schedule];
+                                                                    if (!newSchedule[index].shifts) {
+                                                                        newSchedule[index].shifts = [{ start: newSchedule[index].open_time, end: newSchedule[index].close_time }];
+                                                                    }
+                                                                    newSchedule[index].shifts[shiftIdx].end = e.target.value;
+                                                                    // Actualizar legacy
+                                                                    newSchedule[index].close_time = newSchedule[index].shifts[newSchedule[index].shifts.length - 1].end;
+                                                                setSchedule(newSchedule);
+                                                            }}
+                                                                className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:border-transparent w-[85px]"
+                                                            />
+                                                            
+                                                            {/* Botón Quitar (solo si hay más de 1 turno) */}
+                                                            {day.shifts && day.shifts.length > 1 && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        const newSchedule = [...schedule];
+                                                                        newSchedule[index].shifts = newSchedule[index].shifts.filter((_, idx) => idx !== shiftIdx);
+                                                                        // Actualizar legacy
+                                                                        if (newSchedule[index].shifts.length > 0) {
+                                                                            newSchedule[index].open_time = newSchedule[index].shifts[0].start;
+                                                                            newSchedule[index].close_time = newSchedule[index].shifts[newSchedule[index].shifts.length - 1].end;
+                                                                        }
+                                                                        setSchedule(newSchedule);
+                                                                    }}
+                                                                    className="p-0.5 text-red-500 hover:bg-red-50 rounded transition-colors"
+                                                                    title="Quitar turno"
+                                                                >
+                                                                    <X className="w-3 h-3" />
+                                                                </button>
+                                                            )}
+                                                    </div>
+                                                    ))}
+                                                    
+                                                    {/* Botón Añadir Turno */}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const newSchedule = [...schedule];
+                                                            if (!newSchedule[index].shifts) {
+                                                                newSchedule[index].shifts = [{ start: newSchedule[index].open_time, end: newSchedule[index].close_time }];
+                                                            }
+                                                            newSchedule[index].shifts.push({ start: '16:00', end: '20:00' });
+                                                            setSchedule(newSchedule);
+                                                        }}
+                                                        className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-semibold transition-colors mt-0.5"
                                                     >
-                                                        {day.is_open ? 'Abierto' : 'Cerrado'}
+                                                        <Plus className="w-3 h-3" />
+                                                        Añadir turno
                                                     </button>
                                                 </div>
                                                 
-                                        {day.is_open && (
-                                            <div className="space-y-2">
-                                                {/* Horario Simple (SIN TURNOS) */}
-                                                <div className="bg-gray-50 p-2 rounded-lg">
-                                                    <div className="text-xs font-medium text-gray-800 mb-1.5">
-                                                        Horario de Apertura
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <input
-                                                            type="time"
-                                                            value={day.open_time || "09:00"}
-                                                            onChange={(e) => {
-                                                                const newSchedule = [...schedule];
-                                                                newSchedule[index].open_time = e.target.value;
-                                                                setSchedule(newSchedule);
-                                                            }}
-                                                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
-                                                        />
-                                                        <span className="text-gray-500 text-xs">a</span>
-                                                        <input
-                                                            type="time"
-                                                            value={day.close_time || "22:00"}
-                                                            onChange={(e) => {
-                                                                const newSchedule = [...schedule];
-                                                                newSchedule[index].close_time = e.target.value;
-                                                                setSchedule(newSchedule);
-                                                            }}
-                                                            className="flex-1 px-2 py-1 border border-gray-300 rounded text-xs focus:ring-1 focus:ring-purple-500"
-                                                        />
-                                                    </div>
-                                                </div>
+                                                {/* Botón copiar para toda la semana - SOLO EN LUNES */}
+                                                {day.day_of_week === 'monday' && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            if (!confirm(`¿Copiar el horario de ${day.day_name} a toda la semana?`)) {
+                                                                return;
+                                                            }
+                                                            
+                                                            // Copiar a todos los demás días (excepto los que están cerrados)
+                                                            const newSchedule = schedule.map(d => {
+                                                                if (d.day_of_week === 'monday') return d; // No copiar sobre sí mismo
+                                                                if (!d.is_open) return d; // No copiar a días cerrados
+                                                                
+                                                                return {
+                                                                    ...d,
+                                                                    shifts: day.shifts ? [...day.shifts] : [{ start: day.open_time, end: day.close_time }],
+                                                                    open_time: day.open_time,
+                                                                    close_time: day.close_time
+                                                                };
+                                                            });
+                                                            
+                                                            setSchedule(newSchedule);
+                                                            toast.success(`Horario de ${day.day_name} copiado a toda la semana ✅`);
+                                                        }}
+                                                        className="px-2.5 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold rounded-lg transition-all shadow-sm flex items-center gap-1 whitespace-nowrap"
+                                                        title="Copiar este horario a todos los días abiertos de la semana"
+                                                    >
+                                                        <Copy className="w-3 h-3" />
+                                                        Copiar semana
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div className="flex-1">
+                                                <p className="text-xs text-gray-400 font-medium">Cerrado</p>
                                             </div>
                                         )}
                                                         </div>
                                 ))}
                                                     </div>
                                                     
-                            <div className="flex justify-end mt-3 pt-3 border-t border-gray-200">
+                            {/* Nota informativa */}
+                            <div className="px-3 py-2.5 bg-blue-50 border-t border-blue-200">
+                                <p className="text-xs text-gray-700">
+                                    <strong>💡 Turnos partidos:</strong> Usa "Añadir turno" si cierras para comer. Ej: T1 (9-14h) + T2 (16-20h).
+                                </p>
+                            </div>
+                            
+                            {/* Footer con botón de guardar - Más compacto */}
+                            <div className="px-3 py-2.5 border-t border-gray-200 bg-gray-50">
                                                         <button
                                     onClick={saveWeeklySchedule}
                                     disabled={saving}
-                                    className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition-all disabled:opacity-50 text-sm font-medium"
+                                    className="w-full px-3 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-2 text-sm"
                                 >
                                     {saving ? (
                                         <>
@@ -1228,7 +1292,7 @@ export default function Calendario() {
                                     ) : (
                                         <>
                                             <Save className="w-4 h-4" />
-                                            Guardar horarios
+                                            Guardar Horario
                                         </>
                                     )}
                                                         </button>
@@ -1238,55 +1302,65 @@ export default function Calendario() {
 
                     {/* Tab: Calendario */}
                     {activeTab === 'calendario' && (
-                        <div className="p-3">
-                            {/* Controles del calendario */}
-                            <div className="flex items-center justify-between mb-3">
-                                <div className="flex items-center gap-2">
+                        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                            {/* Controles del calendario - MÁS GRANDES Y VISIBLES */}
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
+                                <div className="flex items-center gap-4">
                                     <button
                                         onClick={() => navigateMonth('prev')}
-                                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                                        className="p-2 hover:bg-white rounded-lg transition-all shadow-sm"
+                                        title="Mes anterior"
                                     >
-                                        <ChevronLeft className="w-4 h-4" />
+                                        <ChevronLeft className="w-5 h-5 text-gray-700" />
                                     </button>
-                                    <h3 className="text-xs font-semibold text-gray-900">
+                                    <h3 className="text-lg font-bold text-gray-900 capitalize min-w-[180px] text-center">
                                         {format(currentDate, 'MMMM yyyy', { locale: es })}
                                     </h3>
                                     <button
                                         onClick={() => navigateMonth('next')}
-                                        className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors"
+                                        className="p-2 hover:bg-white rounded-lg transition-all shadow-sm"
+                                        title="Mes siguiente"
                                     >
-                                        <ChevronRight className="w-4 h-4" />
+                                        <ChevronRight className="w-5 h-5 text-gray-700" />
                                     </button>
                                     <button
                                         onClick={() => setCurrentDate(new Date())}
-                                        className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                                        className="px-4 py-2 text-sm font-semibold bg-white hover:bg-purple-50 text-purple-700 border border-purple-200 rounded-lg transition-all shadow-sm"
                                     >
-                                        Hoy
+                                        📅 Hoy
                                     </button>
                                 </div>
                                     <button
                                     onClick={(e) => {
                                         e.preventDefault();
                                         e.stopPropagation();
-                                        toast("Funcionalidad de eventos especiales próximamente", {
-                                            icon: "🗓️",
-                                            duration: 3000,
+                                        // ✅ Activar modal de eventos
+                                        setSelectedDay(new Date());
+                                        setEventForm({
+                                            title: '',
+                                            description: '',
+                                            start_time: '09:00',
+                                            end_time: '22:00',
+                                            closed: false,
+                                            isRange: false, // Por defecto día único
+                                            startDate: format(new Date(), 'yyyy-MM-dd'),
+                                            endDate: format(new Date(), 'yyyy-MM-dd')
                                         });
-                                        // setShowEventModal(true);
+                                        setShowEventModal(true);
                                     }}
-                                    className="flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition-all text-xs font-medium"
+                                    className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white rounded-lg transition-all text-sm font-bold shadow-md"
                                     >
-                                        <Plus className="w-3.5 h-3.5" />
+                                        <Plus className="w-5 h-5" />
                                         Nuevo evento
                                     </button>
                             </div>
 
-                            {/* Calendario */}
-                            <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            {/* Calendario - MÁS GRANDE Y PROFESIONAL */}
+                            <div className="bg-white overflow-hidden">
                                 {/* Encabezados de días */}
-                                <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
-                                    {['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map((day, index) => (
-                                        <div key={day} className="p-1.5 text-center text-xs font-medium text-gray-600">
+                                <div className="grid grid-cols-7 bg-gradient-to-r from-gray-100 to-slate-100 border-b-2 border-gray-300">
+                                    {['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'].map((day, index) => (
+                                        <div key={day} className="py-2 text-center text-xs font-bold text-gray-700 uppercase tracking-wide">
                                             {day}
                                         </div>
                                     ))}
@@ -1295,10 +1369,17 @@ export default function Calendario() {
                                 {/* Días del calendario - CON ALINEACIÓN CORRECTA */}
                                 <div className="grid grid-cols-7">
                                     {calendarDays.map((day, index) => {
+                                        const today = new Date();
+                                        today.setHours(0, 0, 0, 0);
+                                        const dayDate = new Date(day);
+                                        dayDate.setHours(0, 0, 0, 0);
+                                        
                                         const isToday = isSameDay(day, new Date());
+                                        const isPastDay = dayDate < today; // ⭐ Detectar días pasados
                                         const isCurrentMonth = isSameMonth(day, currentDate);
                                         const daySchedule = getDaySchedule(day);
                                         const dayEvent = getDayEvent(day);
+                                        const dayAbsences = getDayAbsences(day); // ⭐ Obtener ausencias del día
                                         
                                         // Debug para verificar alineación de la primera semana
                                         if (index < 7) {
@@ -1309,28 +1390,41 @@ export default function Calendario() {
                                                         return (
                                             <div
                                                 key={index}
-                                                className={`min-h-[90px] p-1.5 border-b border-r border-gray-100 ${
+                                                className={`min-h-[110px] p-2 border-b border-r border-gray-200 relative ${
                                                     isCurrentMonth ? 'bg-white' : 'bg-gray-50'
-                                                } ${isToday && isCurrentMonth ? 'bg-blue-50' : ''} ${dayEvent && isCurrentMonth ? 'bg-yellow-50' : ''} ${isCurrentMonth ? 'hover:bg-gray-50 cursor-pointer' : ''}`}
-                                                onClick={() => isCurrentMonth && handleDayClick(day)}
+                                                } ${isToday && isCurrentMonth ? 'bg-blue-50 border-blue-300' : ''} ${dayEvent && isCurrentMonth ? 'bg-yellow-50' : ''} ${isCurrentMonth && !isPastDay ? 'hover:bg-gray-50 cursor-pointer' : ''} transition-colors`}
+                                                onClick={() => isCurrentMonth && !isPastDay && handleDayClick(day)}
                                             >
-                                                <div className={`text-xs font-medium mb-1 ${
-                                                    isToday && isCurrentMonth ? 'text-blue-600' : isCurrentMonth ? 'text-gray-900' : 'text-gray-400'
+                                                {/* ⭐ OVERLAY DE LÍNEAS DIAGONALES para días pasados */}
+                                                {isPastDay && isCurrentMonth && (
+                                                    <div 
+                                                        className="absolute inset-0 pointer-events-none z-10"
+                                                        style={{
+                                                            backgroundImage: 'repeating-linear-gradient(45deg, transparent, transparent 5px, rgba(156, 163, 175, 0.35) 5px, rgba(156, 163, 175, 0.35) 8px)',
+                                                            backgroundColor: 'rgba(243, 244, 246, 0.5)'
+                                                        }}
+                                                    />
+                                                )}
+                                                
+                                                {/* ⭐ CONTENIDO DEL DÍA (con z-index para estar sobre el overlay) */}
+                                                <div className="relative z-20">
+                                                    <div className={`text-sm font-bold mb-1.5 ${
+                                                        isToday && isCurrentMonth ? 'text-blue-600 bg-blue-100 w-6 h-6 rounded-full flex items-center justify-center text-xs' : isCurrentMonth ? 'text-gray-900' : 'text-gray-400'
                                                     }`}>
                                                         {format(day, 'd')}
                                                 </div>
 
                                                 {/* Estado del día - EVENTOS TIENEN PRIORIDAD */}
                                                 {isCurrentMonth && (
-                                                    <div className="text-[10px]">
+                                                        <div className="space-y-1.5">
                                                         {/* Si hay evento y está cerrado, mostrar CERRADO */}
-                                                        {dayEvent && dayEvent.is_closed ? (
+                                                        {dayEvent && !dayEvent.is_open ? (
                                                             <div>
-                                                                <span className="text-red-600 bg-red-100 px-1.5 py-0.5 rounded block mb-1 text-[10px]">
+                                                                <span className="text-red-700 bg-red-100 px-1.5 py-0.5 rounded block mb-1 text-[10px] font-semibold">
                                                                     Cerrado
                                                                 </span>
-                                                                <div className="flex items-center justify-between text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded mb-1">
-                                                                    <span className="text-[10px]">🔒 {dayEvent.title}</span>
+                                                                <div className="flex items-center justify-between text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded mb-1">
+                                                                    <span className="text-[10px] font-medium">🔒 {dayEvent.reason || 'Evento'}</span>
                                                                     <button
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
@@ -1346,11 +1440,11 @@ export default function Calendario() {
                                                         ) : dayEvent ? (
                                                             // Si hay evento pero NO está cerrado, mostrar evento especial
                                                             <div>
-                                                                <span className="text-green-600 bg-green-100 px-1.5 py-0.5 rounded block mb-1 text-[10px]">
-                                                                    Abierto {(dayEvent.start_time || daySchedule.open_time || '09:00').substring(0, 5)}-{(dayEvent.end_time || daySchedule.close_time || '22:00').substring(0, 5)}
+                                                                <span className="text-green-700 bg-green-100 px-1.5 py-0.5 rounded block mb-1 text-[10px] font-semibold">
+                                                                    Abierto {(dayEvent.open_time || daySchedule.open_time || '09:00').substring(0, 5)}-{(dayEvent.close_time || daySchedule.close_time || '22:00').substring(0, 5)}
                                                                 </span>
-                                                                <div className="flex items-center justify-between text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded">
-                                                                    <span className="text-[10px]">🎉 {dayEvent.title}</span>
+                                                                <div className="flex items-center justify-between text-orange-700 bg-orange-100 px-1.5 py-0.5 rounded">
+                                                                    <span className="text-[10px] font-medium">🎉 {dayEvent.reason || 'Evento'}</span>
                                                                     <button
                                                                         onClick={(e) => {
                                                                             e.stopPropagation();
@@ -1365,16 +1459,84 @@ export default function Calendario() {
                                                             </div>
                                                         ) : (
                                                             // Si NO hay evento, mostrar horario regular
-                                                            <span className={`px-1.5 py-0.5 rounded block text-[10px] ${
+                                                            <span className={`px-1.5 py-0.5 rounded block text-[10px] font-semibold ${
                                                                 daySchedule.is_open 
-                                                                    ? 'text-green-600 bg-green-100' 
-                                                                    : 'text-red-600 bg-red-100'
+                                                                    ? 'text-green-700 bg-green-100' 
+                                                                    : 'text-red-700 bg-red-100'
                                                             }`}>
                                                                 {daySchedule.is_open ? `Abierto ${(daySchedule.open_time || '09:00').substring(0, 5)}-${(daySchedule.close_time || '22:00').substring(0, 5)}` : 'Cerrado'}
                                                             </span>
                                                         )}
+                                                        
+                                                        {/* ⭐ AUSENCIAS DE EMPLEADOS - CLICKEABLE */}
+                                                        {dayAbsences && dayAbsences.length > 0 && (
+                                                            <div className="mt-1.5 space-y-0.5">
+                                                                {dayAbsences.slice(0, 2).map((absence, idx) => {
+                                                                    // Emoji según tipo de ausencia
+                                                                    const reasonEmoji = {
+                                                                        'vacation': '🏖️',
+                                                                        'sick_leave': '🤒',
+                                                                        'medical_appointment': '🩺',
+                                                                        'personal_leave': '🏠',
+                                                                        'other': '📅'
+                                                                    };
+                                                                    
+                                                                    // Texto corto según tipo
+                                                                    const reasonText = {
+                                                                        'vacation': 'Vacaciones',
+                                                                        'sick_leave': 'Baja',
+                                                                        'medical_appointment': 'Médico',
+                                                                        'personal_leave': 'Permiso',
+                                                                        'other': absence.reason_label || 'Ausencia'
+                                                                    };
+                                                                    
+                                                                    const emoji = reasonEmoji[absence.reason] || '📅';
+                                                                    const text = reasonText[absence.reason] || absence.reason_label || 'Ausencia';
+                                                                    
+                                                                    // ⭐ Mostrar horarios solo si NO es día completo
+                                                                    const timeRange = !absence.all_day && absence.start_time && absence.end_time
+                                                                        ? ` ${absence.start_time.substring(0, 5)}-${absence.end_time.substring(0, 5)}`
+                                                                        : '';
+                                                                    
+                                                                    return (
+                                                                        <div
+                                                                            key={absence.id}
+                                                                            onClick={(e) => {
+                                                                                e.stopPropagation();
+                                                                                setSelectedAbsence(absence);
+                                                                                setShowAbsenceDetailModal(true);
+                                                                            }}
+                                                                            className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium cursor-pointer hover:opacity-80 transition-opacity"
+                                                                            style={{ 
+                                                                                backgroundColor: `${absence.employees.color}20`,
+                                                                                borderLeft: `2px solid ${absence.employees.color}`
+                                                                            }}
+                                                                            title={`Click para ver detalles: ${absence.employees.name} - ${text}${timeRange}`}
+                                                                        >
+                                                                            <span className="truncate">
+                                                                                {emoji} {absence.employees.name} - {text}{timeRange}
+                                                                            </span>
                                                     </div>
+                                                                    );
+                                                                })}
+                                                                {dayAbsences.length > 2 && (
+                                                                    <button
+                                                                        onClick={(e) => {
+                                                                            e.stopPropagation();
+                                                                            setSelectedDayAbsences(dayAbsences);
+                                                                            setShowAbsenceListModal(true);
+                                                                        }}
+                                                                        className="text-[10px] text-blue-600 font-bold pl-1.5 hover:text-blue-800 hover:underline cursor-pointer"
+                                                                        title="Click para ver todas las ausencias"
+                                                                    >
+                                                                        +{dayAbsences.length - 2} más ▶
+                                                                    </button>
                                                 )}
+                                                            </div>
+                                                        )}
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
                                         );
                                     })}
@@ -1389,10 +1551,10 @@ export default function Calendario() {
             {/* Modal de Eventos Especiales */}
             {showEventModal && selectedDay && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-semibold text-gray-900">
-                                Crear evento - {format(selectedDay, 'dd/MM/yyyy')}
+                                {eventForm.isRange ? 'Crear evento (rango de fechas)' : `Crear evento - ${format(selectedDay, 'dd/MM/yyyy')}`}
                             </h3>
                             <button
                                 onClick={() => setShowEventModal(false)}
@@ -1407,9 +1569,88 @@ export default function Calendario() {
                             <div className="bg-blue-50 border-l-4 border-blue-400 p-2 mb-2">
                                 <p className="text-sm text-blue-700">
                                     <strong>📌 Importante:</strong> Los eventos tienen prioridad sobre el horario regular. 
-                                    Si marcas este día como cerrado, anulará el horario habitual.
+                                    Si marcas como cerrado, anulará el horario habitual.
                                 </p>
                             </div>
+
+                            {/* ⭐ SELECTOR: Día único vs Rango de fechas */}
+                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Tipo de evento
+                                </label>
+                                <div className="flex gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={() => setEventForm(prev => ({ ...prev, isRange: false }))}
+                                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            !eventForm.isRange 
+                                                ? 'bg-purple-600 text-white shadow-md' 
+                                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        📅 Día único
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => setEventForm(prev => ({ ...prev, isRange: true }))}
+                                        className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                                            eventForm.isRange 
+                                                ? 'bg-purple-600 text-white shadow-md' 
+                                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-100'
+                                        }`}
+                                    >
+                                        📆 Rango de fechas
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* ⭐ CAMPOS DE FECHA (según tipo) */}
+                            {eventForm.isRange ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Fecha inicio
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={eventForm.startDate}
+                                            onChange={(e) => setEventForm(prev => ({ ...prev, startDate: e.target.value }))}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                                            Fecha fin
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={eventForm.endDate}
+                                            onChange={(e) => setEventForm(prev => ({ ...prev, endDate: e.target.value }))}
+                                            min={eventForm.startDate}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                                        Fecha
+                                    </label>
+                                    <input
+                                        type="date"
+                                        value={eventForm.startDate}
+                                        onChange={(e) => setEventForm(prev => ({ 
+                                            ...prev, 
+                                            startDate: e.target.value,
+                                            endDate: e.target.value 
+                                        }))}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                                        required
+                                    />
+                                </div>
+                            )}
 
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -1639,6 +1880,233 @@ export default function Calendario() {
                             >
                                 <X className="w-4 h-4" />
                                 Eliminar evento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ⭐ MODAL DE DETALLES DE AUSENCIA */}
+            {showAbsenceDetailModal && selectedAbsence && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-900">
+                                Detalles de Ausencia
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowAbsenceDetailModal(false);
+                                    setSelectedAbsence(null);
+                                }}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Información del empleado */}
+                        <div className="mb-4 flex items-center gap-3">
+                            <div 
+                                className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
+                                style={{ backgroundColor: selectedAbsence.employees.color }}
+                            >
+                                {selectedAbsence.employees.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                                <p className="font-semibold text-gray-900">{selectedAbsence.employees.name}</p>
+                                <p className="text-sm text-gray-500">Empleado</p>
+                            </div>
+                        </div>
+
+                        {/* Detalles de la ausencia */}
+                        <div className="space-y-3">
+                            {/* Tipo de ausencia */}
+                            <div className="bg-blue-50 border-l-4 border-blue-400 p-3 rounded">
+                                <p className="text-sm text-blue-900 font-semibold mb-1">
+                                    {(() => {
+                                        const types = {
+                                            'vacation': '🏖️ Vacaciones',
+                                            'sick_leave': '🤒 Baja médica',
+                                            'medical_appointment': '🩺 Cita médica',
+                                            'personal_leave': '🏠 Permiso personal',
+                                            'other': '📅 Otra ausencia'
+                                        };
+                                        return types[selectedAbsence.reason] || '📅 Ausencia';
+                                    })()}
+                                </p>
+                                {selectedAbsence.reason_label && (
+                                    <p className="text-sm text-blue-700">{selectedAbsence.reason_label}</p>
+                                )}
+                            </div>
+
+                            {/* Fechas */}
+                            <div className="bg-gray-50 p-3 rounded-lg">
+                                <p className="text-xs text-gray-600 mb-1">
+                                    {selectedAbsence.all_day ? 'Período:' : 'Fecha y hora:'}
+                                </p>
+                                <p className="text-sm font-medium text-gray-900">
+                                    {format(parseISO(selectedAbsence.start_date), 'dd MMM yyyy', { locale: es })} 
+                                    {selectedAbsence.start_date !== selectedAbsence.end_date && (
+                                        <>
+                                            {' - '}
+                                            {format(parseISO(selectedAbsence.end_date), 'dd MMM yyyy', { locale: es })}
+                                        </>
+                                    )}
+                                </p>
+                                
+                                {/* ⭐ Mostrar horarios si NO es día completo */}
+                                {!selectedAbsence.all_day && selectedAbsence.start_time && selectedAbsence.end_time && (
+                                    <p className="text-sm font-semibold text-blue-600 mt-1">
+                                        🕐 {selectedAbsence.start_time.substring(0, 5)} - {selectedAbsence.end_time.substring(0, 5)}
+                                    </p>
+                                )}
+                                
+                                {/* Duración */}
+                                {selectedAbsence.all_day ? (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        ({(() => {
+                                            const start = parseISO(selectedAbsence.start_date);
+                                            const end = parseISO(selectedAbsence.end_date);
+                                            const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+                                            return `${days} día${days > 1 ? 's' : ''}`;
+                                        })()})
+                                    </p>
+                                ) : (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        ({(() => {
+                                            if (!selectedAbsence.start_time || !selectedAbsence.end_time) return '';
+                                            const [startH, startM] = selectedAbsence.start_time.split(':').map(Number);
+                                            const [endH, endM] = selectedAbsence.end_time.split(':').map(Number);
+                                            const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+                                            const hours = Math.floor(durationMinutes / 60);
+                                            const minutes = durationMinutes % 60;
+                                            return hours > 0 
+                                                ? `${hours}h ${minutes > 0 ? minutes + 'm' : ''}`
+                                                : `${minutes}m`;
+                                        })()})
+                                    </p>
+                                )}
+                            </div>
+
+                            {/* Notas (si las hay) */}
+                            {selectedAbsence.notes && (
+                                <div className="bg-yellow-50 p-3 rounded-lg border-l-4 border-yellow-400">
+                                    <p className="text-xs text-yellow-800 font-semibold mb-1">Notas:</p>
+                                    <p className="text-sm text-yellow-900">{selectedAbsence.notes}</p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Botón cerrar */}
+                        <div className="mt-6">
+                            <button
+                                onClick={() => {
+                                    setShowAbsenceDetailModal(false);
+                                    setSelectedAbsence(null);
+                                }}
+                                className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                            >
+                                Cerrar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* ⭐ MODAL DE LISTA DE AUSENCIAS (cuando hay +1 más) */}
+            {showAbsenceListModal && selectedDayAbsences.length > 0 && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg p-6 w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-lg font-bold text-gray-900">
+                                Ausencias del día ({selectedDayAbsences.length})
+                            </h3>
+                            <button
+                                onClick={() => {
+                                    setShowAbsenceListModal(false);
+                                    setSelectedDayAbsences([]);
+                                }}
+                                className="text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+
+                        {/* Lista de todas las ausencias */}
+                        <div className="space-y-3">
+                            {selectedDayAbsences.map((absence, idx) => {
+                                const reasonEmoji = {
+                                    'vacation': '🏖️',
+                                    'sick_leave': '🤒',
+                                    'medical_appointment': '🩺',
+                                    'personal_leave': '🏠',
+                                    'other': '📅'
+                                };
+                                
+                                const reasonText = {
+                                    'vacation': 'Vacaciones',
+                                    'sick_leave': 'Baja',
+                                    'medical_appointment': 'Médico',
+                                    'personal_leave': 'Permiso',
+                                    'other': absence.reason_label || 'Ausencia'
+                                };
+                                
+                                const emoji = reasonEmoji[absence.reason] || '📅';
+                                const text = reasonText[absence.reason] || absence.reason_label || 'Ausencia';
+                                const timeRange = !absence.all_day && absence.start_time && absence.end_time
+                                    ? ` ${absence.start_time.substring(0, 5)}-${absence.end_time.substring(0, 5)}`
+                                    : '';
+                                
+                                return (
+                                    <div
+                                        key={absence.id}
+                                        onClick={() => {
+                                            setShowAbsenceListModal(false);
+                                            setSelectedAbsence(absence);
+                                            setShowAbsenceDetailModal(true);
+                                        }}
+                                        className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer transition-all"
+                                        style={{ 
+                                            backgroundColor: `${absence.employees.color}10`,
+                                            borderLeft: `4px solid ${absence.employees.color}`
+                                        }}
+                                    >
+                                        {/* Avatar */}
+                                        <div 
+                                            className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold"
+                                            style={{ backgroundColor: absence.employees.color }}
+                                        >
+                                            {absence.employees.name.charAt(0).toUpperCase()}
+                                        </div>
+
+                                        {/* Info */}
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-gray-900 text-sm">
+                                                {absence.employees.name}
+                                            </p>
+                                            <p className="text-xs text-gray-600">
+                                                {emoji} {text}{timeRange}
+                                            </p>
+                                        </div>
+
+                                        {/* Flecha */}
+                                        <ChevronRight className="w-4 h-4 text-gray-400" />
+                                    </div>
+                                );
+                            })}
+                        </div>
+
+                        {/* Botón cerrar */}
+                        <div className="mt-6">
+                            <button
+                                onClick={() => {
+                                    setShowAbsenceListModal(false);
+                                    setSelectedDayAbsences([]);
+                                }}
+                                className="w-full px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                            >
+                                Cerrar
                             </button>
                         </div>
                     </div>
