@@ -3,7 +3,7 @@
 // Grid visual con preview y configuración
 // ====================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AVATARS_PREDEFINIDOS } from '../../config/avatars';
 import { Play, Check, Sparkles, Bot } from 'lucide-react';
 
@@ -18,13 +18,52 @@ export default function AvatarSelector({
   onUpdateBio
 }) {
   const [playingVoice, setPlayingVoice] = useState(null);
+  const [audioElement, setAudioElement] = useState(null);
   
   const selectedAvatar = AVATARS_PREDEFINIDOS.find(a => a.id === selectedAvatarId) || AVATARS_PREDEFINIDOS[0];
 
-  const handlePlayVoice = (voiceId) => {
-    // TODO: Implementar reproducción de audio desde Supabase Storage
+  // Cleanup: detener audio al desmontar componente
+  useEffect(() => {
+    return () => {
+      if (audioElement) {
+        audioElement.pause();
+        audioElement.currentTime = 0;
+      }
+    };
+  }, [audioElement]);
+
+  const handlePlayVoice = (voiceId, voiceSampleUrl) => {
+    // Detener audio anterior si existe
+    if (audioElement) {
+      audioElement.pause();
+      audioElement.currentTime = 0;
+    }
+
+    // Crear nuevo elemento de audio
+    const audio = new Audio(voiceSampleUrl);
+    audio.crossOrigin = "anonymous";
+    
     setPlayingVoice(voiceId);
-    setTimeout(() => setPlayingVoice(null), 2000);
+    setAudioElement(audio);
+    
+    // Reproducir audio
+    audio.play().catch(error => {
+      console.error('Error reproduciendo voz:', error);
+      setPlayingVoice(null);
+    });
+    
+    // Cuando termine, resetear estado
+    audio.onended = () => {
+      setPlayingVoice(null);
+      setAudioElement(null);
+    };
+    
+    // Si hay error, resetear estado
+    audio.onerror = () => {
+      console.error('Error cargando audio de voz');
+      setPlayingVoice(null);
+      setAudioElement(null);
+    };
   };
 
   return (
@@ -35,7 +74,7 @@ export default function AvatarSelector({
         <h2 className="text-xl font-bold text-gray-900 mb-1">
           Elige tu Asistente Virtual
         </h2>
-        <p className="text-sm text-gray-600">
+        <p className="text-sm font-medium text-gray-700">
           Cada asistente tiene su propia personalidad, voz y estilo
         </p>
       </div>
@@ -47,40 +86,28 @@ export default function AvatarSelector({
           const colorClasses = avatar.color;
           
           return (
-            <button
+            <div
               key={avatar.id}
               onClick={() => onSelectAvatar(avatar.id)}
               className={`relative group cursor-pointer transition-all duration-300 ${
                 isSelected ? 'scale-105' : 'hover:scale-105'
               }`}
             >
-              {/* Card del avatar */}
-              <div className={`relative bg-white rounded-2xl overflow-hidden shadow-lg transition-all duration-300 ${
+              {/* Card del avatar - con borde de color cuando está seleccionado */}
+              <div className={`relative bg-white rounded-2xl overflow-hidden transition-all duration-300 ${
                 isSelected 
-                  ? `ring-4 ${colorClasses.border} ring-opacity-60 shadow-2xl` 
-                  : 'hover:shadow-xl'
+                  ? `ring-[3px] ring-offset-2 shadow-2xl ${colorClasses.border.replace('border-', 'ring-')}` 
+                  : 'shadow-md hover:shadow-xl ring-1 ring-gray-200'
               }`}>
                 
                 {/* Avatar */}
-                <div className={`relative aspect-[3/4] bg-gradient-to-br ${colorClasses.from} ${colorClasses.to} overflow-hidden`}>
+                <div className="relative aspect-[3/4] bg-gradient-to-br from-gray-50 to-gray-100 overflow-hidden">
                   <img 
                     src={avatar.avatar_url}
                     alt={avatar.name}
-                    className="w-full h-full object-cover absolute inset-0"
+                    className="w-full h-full object-cover"
                     crossOrigin="anonymous"
-                    onError={(e) => {
-                      console.error(`Error cargando imagen de ${avatar.name}:`, avatar.avatar_url);
-                      e.target.style.display = 'none';
-                    }}
                   />
-                  
-                  {/* Fallback cuando la imagen no carga */}
-                  <div className="absolute inset-0 flex items-center justify-center text-white z-0">
-                    <div className="text-center p-4">
-                      <Bot className="w-16 h-16 mx-auto mb-2 opacity-80" />
-                      <p className="text-sm font-semibold">{avatar.name}</p>
-                    </div>
-                  </div>
                   
                   {/* Overlay con check si está seleccionado */}
                   {isSelected && (
@@ -93,27 +120,27 @@ export default function AvatarSelector({
                 </div>
 
                 {/* Info del avatar - MÁS COMPACTA */}
-                <div className={`p-3 ${isSelected ? colorClasses.bg : 'bg-white'}`}>
+                <div className="p-3 bg-white border-t border-gray-100">
                   <h3 className="text-base font-bold text-gray-900 mb-0.5">
                     {avatar.name}
                   </h3>
                   
                   <div className="flex items-center gap-1 mb-2">
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs font-medium text-gray-700">
                       🎙️ {avatar.voice_label}
                     </span>
                   </div>
 
-                  {/* Botón para escuchar voz - MÁS PEQUEÑO */}
+                  {/* Botón para escuchar voz - MÁS PEQUEÑO - mantiene color */}
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      handlePlayVoice(avatar.voice_id);
+                      handlePlayVoice(avatar.voice_id, avatar.voice_sample_url);
                     }}
-                    className={`w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg transition-colors ${
+                    className={`w-full flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-lg transition-all duration-200 ${
                       playingVoice === avatar.voice_id
-                        ? 'bg-purple-600 text-white'
-                        : `bg-gradient-to-r ${colorClasses.from} ${colorClasses.to} text-white hover:opacity-90`
+                        ? 'bg-purple-600 text-white scale-95'
+                        : `bg-gradient-to-r ${colorClasses.from} ${colorClasses.to} text-white hover:opacity-90 hover:shadow-md`
                     }`}
                   >
                     {playingVoice === avatar.voice_id ? (
@@ -130,7 +157,7 @@ export default function AvatarSelector({
                   </button>
                 </div>
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
@@ -142,24 +169,20 @@ export default function AvatarSelector({
         <div className={`bg-gradient-to-r ${selectedAvatar.color.from} ${selectedAvatar.color.to} p-3 text-white`}>
           <div className="flex items-center gap-3">
             {/* Avatar circular - MÁS PEQUEÑO */}
-            <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-lg bg-white flex-shrink-0 relative">
+            <div className="w-12 h-12 rounded-full overflow-hidden ring-2 ring-white shadow-lg bg-white flex-shrink-0">
               <img 
                 src={selectedAvatar.avatar_url}
                 alt={selectedAvatar.name}
                 className="w-full h-full object-cover"
                 crossOrigin="anonymous"
-                onError={(e) => e.target.style.display = 'none'}
               />
-              <div className="absolute inset-0 flex items-center justify-center">
-                <Bot className="w-6 h-6 text-gray-400" />
-              </div>
             </div>
             
             <div className="flex-1 min-w-0">
               <h3 className="text-base font-bold">
                 Configuración de {selectedAvatar.name}
               </h3>
-              <p className="text-white/90 text-xs truncate">
+              <p className="text-white/95 text-xs font-medium truncate">
                 {selectedAvatar.voice_description}
               </p>
             </div>
@@ -171,7 +194,7 @@ export default function AvatarSelector({
           
           {/* Nombre */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
+            <label className="block text-sm font-semibold text-gray-800 mb-1">
               Nombre del Agente
             </label>
             <input
@@ -185,7 +208,7 @@ export default function AvatarSelector({
 
           {/* Puesto/Rol */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
+            <label className="block text-sm font-semibold text-gray-800 mb-1">
               Puesto / Rol
             </label>
             <input
@@ -199,7 +222,7 @@ export default function AvatarSelector({
 
           {/* Descripción/Bio */}
           <div>
-            <label className="block text-xs font-semibold text-gray-700 mb-1">
+            <label className="block text-sm font-semibold text-gray-800 mb-1">
               Descripción de la Personalidad
             </label>
             <textarea
@@ -216,10 +239,10 @@ export default function AvatarSelector({
             <div className="flex items-center gap-2">
               <Sparkles className={`w-4 h-4 ${selectedAvatar.color.text} flex-shrink-0`} />
               <div>
-                <p className="text-xs font-semibold text-gray-900">
+                <p className="text-xs font-bold text-gray-900">
                   Voz: {selectedAvatar.voice_label}
                 </p>
-                <p className="text-xs text-gray-600">
+                <p className="text-xs font-medium text-gray-600">
                   No se puede cambiar
                 </p>
               </div>

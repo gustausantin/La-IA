@@ -41,19 +41,19 @@ export class AutoSlotRegenerationService {
 
       console.log('📋 Configuración del negocio obtenida');
 
-      // 3. Llamar a función de regeneración en Supabase (con fallback)
+      // 3. Llamar a función de regeneración en Supabase
       let data, error;
       
-      // Intentar con RPC principal
-      const result1 = await supabase.rpc('cleanup_and_regenerate_availability', {
+      // ⭐ NUEVO: Intentar primero con función employee-based
+      const result1 = await supabase.rpc('generate_employee_slots', {
         p_business_id: businessId,
         p_start_date: today,
-        p_end_date: endDate
+        p_days_ahead: advanceDays
       });
 
-      // Si falla, intentar con RPC alternativo
+      // Si falla, intentar con función legacy (resource-based)
       if (result1.error && result1.error.code === 'PGRST202') {
-        console.log('⚠️ RPC cleanup_and_regenerate_availability no existe, intentando alternativo...');
+        console.log('⚠️ RPC generate_employee_slots no existe, intentando legacy...');
         
         const result2 = await supabase.rpc('generate_availability_slots_simple', {
           p_business_id: businessId,
@@ -64,10 +64,10 @@ export class AutoSlotRegenerationService {
         data = result2.data;
         error = result2.error;
 
-        // Si tampoco existe el alternativo, hacer silencioso
+        // Si tampoco existe el legacy, operación silenciosa
         if (error && error.code === 'PGRST202') {
           console.log('ℹ️ RPCs de regeneración no disponibles - operación silenciosa');
-          data = { affected_count: 0 };
+          data = { total_slots_generated: 0 };
           error = null;
         }
       } else {
@@ -80,7 +80,7 @@ export class AutoSlotRegenerationService {
         throw error;
       }
 
-      const slotsUpdated = data?.affected_count || data?.slots_created || 0;
+      const slotsUpdated = data?.total_slots_generated || data?.affected_count || data?.slots_created || 0;
 
       console.log(`✅ Regeneración completada: ${slotsUpdated} slots actualizados`);
 
@@ -128,7 +128,14 @@ export class AutoSlotRegenerationService {
       'resource_deactivated',
       'service_duration_changed',
       'calendar_exception_created',
-      'calendar_exception_removed'
+      'calendar_exception_removed',
+      // ⭐ NUEVOS: Employee-based availability
+      'employee_absence_created',
+      'employee_absence_removed',
+      'employee_schedule_changed',
+      'employee_resource_assigned',
+      'employee_activated',
+      'employee_deactivated'
     ];
 
     return TRIGGERS.includes(actionType);

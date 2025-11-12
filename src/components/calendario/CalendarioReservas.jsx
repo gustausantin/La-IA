@@ -92,6 +92,16 @@ export default function CalendarioReservas({
     const [fechaActual, setFechaActual] = useState(new Date());
     const [horaInicio] = useState(8); // 08:00
     const [horaFin] = useState(22); // 22:00
+    const [currentTime, setCurrentTime] = useState(new Date()); // 🔴 Hora actual para línea roja
+    
+    // 🔴 Actualizar hora actual cada minuto
+    useEffect(() => {
+        setCurrentTime(new Date());
+        const interval = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 60000); // Cada 60 segundos
+        return () => clearInterval(interval);
+    }, []);
     
     // 🆕 FILTROS AVANZADOS
     const [filtros, setFiltros] = useState({
@@ -412,6 +422,7 @@ export default function CalendarioReservas({
                     mobileSelectedResource={mobileSelectedResource}
                     horaInicio={horaInicio}
                     horaFin={horaFin}
+                    currentTime={currentTime}
                     onReservationClick={onReservationClick}
                     onSlotClick={onSlotClick}
                     onCellClick={handleCellClick}
@@ -469,7 +480,8 @@ function VistaDia({
     blockages = [],
     mobileSelectedResource = 'todos',
     horaInicio, 
-    horaFin, 
+    horaFin,
+    currentTime,
     onReservationClick, 
     onSlotClick,
     onCellClick,
@@ -483,6 +495,59 @@ function VistaDia({
     const diaSemanaActual = fecha.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
     const reservasDelDia = reservations.filter(r => r.reservation_date === fechaStr);
     const bloqueosDelDia = blockages.filter(b => b.blocked_date === fechaStr);
+    
+    // 🎯 Referencia a la tabla para buscar filas por minuto exacto
+    const tableRef = React.useRef(null);
+    const [linePosition, setLinePosition] = React.useState(0);
+    
+    // 🎯 CALCULAR POSICIÓN DE LA LÍNEA ROJA - Buscar fila exacta del minuto
+    React.useEffect(() => {
+        if (!tableRef.current) return;
+        
+        const calculateLinePosition = () => {
+            const table = tableRef.current;
+            const thead = table.querySelector('thead');
+            const tbody = table.querySelector('tbody');
+            
+            if (!thead || !tbody) return;
+            
+            const currentHour = currentTime?.getHours() || 0;
+            const currentMinute = currentTime?.getMinutes() || 0;
+            
+            // Si está fuera del rango, no mostrar
+            if (currentHour < horaInicio || currentHour >= horaFin) {
+                setLinePosition(-1000);
+                return;
+            }
+            
+            // 🎯 BUSCAR la fila exacta: tr[data-hour="12"][data-minute="17"]
+            const filaExacta = tbody.querySelector(`tr[data-hour="${currentHour}"][data-minute="${currentMinute}"]`);
+            
+            if (!filaExacta) {
+                return;
+            }
+            
+            // Altura del thead
+            const theadHeight = thead.getBoundingClientRect().height;
+            
+            // Posición de la fila exacta
+            const filaTop = filaExacta.offsetTop;
+            const filaHeight = filaExacta.offsetHeight || 0;
+            
+            // Posición final: thead + posición de la fila
+            const posicionFinal = theadHeight + filaTop + (filaHeight / 2);
+            
+            setLinePosition(posicionFinal);
+        };
+        
+        // Calcular inmediatamente
+        calculateLinePosition();
+        
+        // Re-calcular cada segundo
+        const interval = setInterval(calculateLinePosition, 1000);
+        
+        return () => clearInterval(interval);
+    }, [currentTime, horaInicio, horaFin, resources, reservations]);
     
     // Generar horas del día
     const horas = Array.from({ length: horaFin - horaInicio + 1 }, (_, i) => horaInicio + i);
@@ -559,9 +624,9 @@ function VistaDia({
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-lg border-2 border-gray-300 overflow-hidden">
+        <div className="bg-white rounded-xl shadow-lg border-2 border-gray-300 overflow-hidden relative">
             {/* TABLA HTML - Alineación PERFECTA garantizada */}
-            <table className="w-full border-collapse">
+            <table ref={tableRef} className="w-full border-collapse">
                 <thead className="bg-gradient-to-r from-gray-50 to-gray-100 sticky top-0 z-20">
                     <tr className="border-b-2 border-gray-400">
                         {/* Columna de hora */}
@@ -617,7 +682,11 @@ function VistaDia({
                     {horas.map(hora => (
                         <Fragment key={hora}>
                             {/* Hora completa (00) */}
-                            <tr className="border-b-2 border-gray-300">
+                            <tr 
+                                data-hour={hora}
+                                data-minute={0}
+                                className="border-b-2 border-gray-300"
+                            >
                                 {/* Celda de hora */}
                                 <td className="w-20 h-5 border-r-2 border-gray-400 bg-white align-top text-right pr-3 pt-1">
                                     <span className="text-sm font-bold text-gray-700">
@@ -824,7 +893,12 @@ function VistaDia({
 
                             {/* Intervalos de 15 minutos (:15, :30, :45) */}
                             {[15, 30, 45].map(minuto => (
-                                <tr key={`${hora}-${minuto}`} className="border-b border-gray-200">
+                                <tr 
+                                    key={`${hora}-${minuto}`}
+                                    data-hour={hora}
+                                    data-minute={minuto}
+                                    className="border-b border-gray-200"
+                                >
                                     {/* Celda de minuto */}
                                     <td className="w-20 h-5 border-r-2 border-gray-400 bg-white text-right pr-3">
                                         <span className="text-xs text-gray-400 font-medium">
@@ -917,10 +991,51 @@ function VistaDia({
                                     })}
                                 </tr>
                             ))}
+                            
+                            {/* 🎯 FILAS INVISIBLES para cada minuto que NO es múltiplo de 15 */}
+                            {/* Total: 56 filas invisibles por hora (60 - 4 visibles) */}
+                            {Array.from({ length: 60 }, (_, m) => m)
+                                .filter(m => m % 15 !== 0) // Solo minutos que NO son 0, 15, 30, 45
+                                .map(minuto => (
+                                    <tr 
+                                        key={`${hora}-${minuto}-invisible`}
+                                        data-hour={hora}
+                                        data-minute={minuto}
+                                        style={{ 
+                                            display: 'none', 
+                                            height: 0, 
+                                            lineHeight: 0, 
+                                            padding: 0, 
+                                            margin: 0 
+                                        }}
+                                    >
+                                        {/* Fila invisible - sin contenido */}
+                                    </tr>
+                                ))
+                            }
                         </Fragment>
                     ))}
                 </tbody>
             </table>
+            
+            {/* 🔴 LÍNEA ROJA DE HORA ACTUAL */}
+            {format(fecha, 'yyyy-MM-dd') === format(new Date(), 'yyyy-MM-dd') && linePosition > 0 && (
+                <div 
+                    className="absolute left-0 right-0 pointer-events-none z-30"
+                    style={{ top: `${linePosition}px` }}
+                >
+                    {/* Línea horizontal roja */}
+                    <div className="relative h-0.5 bg-red-500 shadow-lg shadow-red-500/50">
+                        {/* Label de hora actual */}
+                        <div className="absolute -left-1 -top-3 flex items-center gap-1.5">
+                            <span className="text-xs font-bold text-red-600 bg-white px-1.5 py-0.5 rounded shadow-sm">
+                                {currentTime?.getHours().toString().padStart(2, '0')}:{currentTime?.getMinutes().toString().padStart(2, '0')}
+                            </span>
+                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shadow-lg shadow-red-500/50"></div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

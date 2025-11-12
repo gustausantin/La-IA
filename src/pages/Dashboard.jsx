@@ -34,7 +34,7 @@ export default function Dashboard() {
   const [loadingResponse, setLoadingResponse] = useState(false);
   const [chatHistory, setChatHistory] = useState([]);
 
-  const userName = user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuario';
+  const userName = business?.settings?.contact_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Usuario';
   const assistantName = agentConfig?.name || business?.settings?.agent?.name || business?.assistant_name || 'Tu asistente';
 
   useEffect(() => {
@@ -157,16 +157,8 @@ export default function Dashboard() {
         .eq('slot_date', todayStr)
         .eq('is_available', true);
 
-      // 3. No-Shows en riesgo HOY
-      const { data: riskPredictions } = await supabase
-        .rpc('predict_upcoming_noshows_v2', {
-          p_business_id: business.id,
-          p_days_ahead: 0
-        });
-
-      const highRiskCount = (riskPredictions || []).filter(p => 
-        p.risk_level === 'high' || p.risk_level === 'medium'
-      ).length;
+      // 3. No-Shows en riesgo - Deshabilitado
+      const highRiskCount = 0;
 
       setBusinessMetrics({
         revenue: revenue,
@@ -734,42 +726,58 @@ export default function Dashboard() {
   const dynamicMetric = getDynamicMetric();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 via-white to-blue-50 pb-24 lg:pb-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 pb-24 lg:pb-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         
         <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
           
-          {/* AVATAR - BORDES REDONDEADOS + TEXTO CLARO */}
+          {/* AVATAR - GLASSMORPHISM PREMIUM */}
           <div className="space-y-4">
-            <div className="relative bg-white rounded-[36px] overflow-hidden sticky top-6 shadow-2xl shadow-purple-500/10">
+            <div className="relative bg-white/40 backdrop-blur-xl rounded-[36px] sticky top-6 shadow-2xl shadow-gray-900/10 border border-white/60 overflow-visible">
               
-              {/* Avatar con borde gradiente - BORDES MUY REDONDEADOS */}
-              <div className="relative group">
-                {/* Glow effect en hover */}
-                <div className="absolute -inset-2 bg-gradient-to-r from-purple-600 via-pink-500 to-blue-600 opacity-0 group-hover:opacity-20 blur-xl transition-all duration-700"></div>
+              {/* Avatar con efecto 3D - SIN FONDO, SOBRESALE DEL MARCO */}
+              <div className="relative group -mt-6 px-6">
+                {/* Glow effect sutil y profesional */}
+                <div className="absolute -inset-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 opacity-0 group-hover:opacity-20 blur-3xl transition-all duration-700"></div>
                 
-                {/* Borde gradiente DIRECTO con bordes más redondeados */}
-                <div className="relative p-[4px] rounded-t-[36px] bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500">
-                  <div className="relative w-full aspect-[3/4] overflow-hidden rounded-t-[32px] bg-white">
-                    {avatarUrl ? (
-                      <img 
-                        src={avatarUrl} 
-                        alt={assistantName}
-                        className="w-full h-full object-cover transition-all duration-700 group-hover:scale-105"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500">
-                        <Bot className="w-24 h-24 text-white" />
-                      </div>
-                    )}
+                {/* Contenedor del avatar - overflow visible para que sobresalga */}
+                <div className="relative">
+                  {/* Imagen del avatar - sobresale del contenedor */}
+                  <div className="relative transform transition-all duration-700 group-hover:scale-105 group-hover:-translate-y-2">
+                    {/* Sombra profunda para dar sensación 3D - más sutil y oscura */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-900/10 to-gray-900/20 blur-2xl transform translate-y-6 scale-95 opacity-50"></div>
                     
-                    {/* Shine effect en hover */}
-                    <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/40 to-white/0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000 ease-out"></div>
+                    {/* Borde sutil - glassmorphism style */}
+                    <div className="relative p-[2px] rounded-[36px] bg-gradient-to-br from-white/80 via-white/60 to-white/80 shadow-2xl">
+                      <div className="relative w-full aspect-[3/4] overflow-hidden rounded-[33px]">
+                        {avatarUrl ? (
+                          <img 
+                            src={avatarUrl} 
+                            alt={assistantName}
+                            className="w-full h-full object-cover transition-all duration-700"
+                            style={{ 
+                              filter: 'contrast(1.05) saturate(1.1)',
+                              objectPosition: 'center 20%'
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500">
+                            <Bot className="w-24 h-24 text-white" />
+                          </div>
+                        )}
+                        
+                        {/* Shine effect sutil */}
+                        <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/30 to-white/0 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000 ease-out"></div>
+                        
+                        {/* Vignette muy sutil para dar profundidad */}
+                        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-gray-900/5"></div>
+                      </div>
+                    </div>
                   </div>
                 </div>
                 
-                {/* Badge con más punch */}
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 transform group-hover:scale-110 transition-transform duration-300 z-20">
+                {/* Badge con más punch - ahora con z-index mayor */}
+                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 transform group-hover:scale-110 transition-transform duration-300 z-30">
                   <div className={`relative px-5 py-2 rounded-full border-2 shadow-2xl ${
                     agentStatus === 'active' 
                       ? 'bg-gradient-to-r from-green-400 to-emerald-500 border-white/50' 
@@ -798,27 +806,27 @@ export default function Dashboard() {
 
               {/* Nombre + Conversación - VISUAL Y ATRACTIVA */}
               <div className="relative px-6 pt-8 pb-6">
-                {/* Nombre con gradiente - MÁS VISIBLE */}
+                {/* Nombre con gradiente profesional */}
                 <div className="text-center mb-4">
-                  <h1 className="text-[36px] font-black bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 bg-clip-text text-transparent tracking-tight leading-none" 
+                  <h1 className="text-[36px] font-black bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 bg-clip-text text-transparent tracking-tight leading-none" 
                       style={{
-                        filter: 'drop-shadow(0 2px 8px rgba(168, 85, 247, 0.15))'
+                        filter: 'drop-shadow(0 2px 8px rgba(59, 130, 246, 0.15))'
                       }}>
                     {assistantName}
                   </h1>
                 </div>
 
-                {/* Burbuja de conversación - VISUAL */}
+                {/* Burbuja de conversación - PROFESIONAL */}
                 <div className="relative">
                   {/* Triangulito de la burbuja */}
-                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-gradient-to-br from-purple-500 to-pink-500 transform rotate-45"></div>
+                  <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-gradient-to-br from-blue-500 to-indigo-500 transform rotate-45"></div>
                   
-                  {/* Burbuja con gradiente */}
-                  <div className="relative bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500 p-[2px] rounded-2xl shadow-xl shadow-purple-500/20">
+                  {/* Burbuja con gradiente profesional */}
+                  <div className="relative bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-600 p-[2px] rounded-2xl shadow-xl shadow-blue-500/20">
                     <div className="bg-white rounded-2xl px-5 py-4">
                       {/* Icono de mensaje */}
                       <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mt-0.5">
+                        <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mt-0.5">
                           <Bot className="w-4 h-4 text-white" />
                         </div>
                         
@@ -833,9 +841,9 @@ export default function Dashboard() {
                   
                   {/* Efecto de "escribiendo..." sutil */}
                   <div className="mt-2 flex items-center justify-center gap-1 opacity-40">
-                    <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
                 </div>
               </div>

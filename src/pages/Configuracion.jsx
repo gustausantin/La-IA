@@ -39,6 +39,7 @@ import { useVertical } from "../hooks/useVertical";
 // import BaseConocimientoContent from "../components/BaseConocimientoContent"; // TEMPORALMENTE DESHABILITADO
 import IntegracionesContent from "../components/configuracion/IntegracionesContent"; // 🆕 Integraciones
 import RecursosContent from "../components/configuracion/RecursosContent"; // 🆕 Recursos
+import ServiciosContent from "./configuracion/Servicios"; // 🆕 Servicios
 import AvatarSelector from "../components/configuracion/AvatarSelector"; // 🆕 Selector de avatares predefinidos
 import AgentToggle from "../components/configuracion/AgentToggle"; // 🆕 Toggle ON/OFF del agente
 import { AVATARS_PREDEFINIDOS, getAvatarById } from "../config/avatars"; // Config de avatares
@@ -295,8 +296,7 @@ const Configuracion = () => {
             id: "servicios",
             label: "Servicios",
             icon: <Tag className="w-4 h-4" />,
-            description: "Servicios que ofreces, duraciones y precios",
-            link: "/configuracion/servicios"
+            description: "Servicios que ofreces, duraciones y precios"
         },
         {
             id: "canales",
@@ -387,7 +387,6 @@ const Configuracion = () => {
                 .maybeSingle();
 
             console.log("📊 DATOS DEL RESTAURANTE:", restaurantData);
-            console.log("❌ ERROR AL CARGAR:", restError);
 
             if (restaurantData) {
                 
@@ -438,10 +437,12 @@ const Configuracion = () => {
                     // ✅ AGENTE IA
                     agent: {
                         enabled: dbSettings.agent?.enabled !== false,
+                        avatar_id: dbSettings.agent?.avatar_id || 'carlota',
+                        avatar_url: dbSettings.agent?.avatar_url || "",
+                        voice_id: dbSettings.agent?.voice_id || 'femenina_1',
                         name: dbSettings.agent?.name || "Sofia",
                         role: dbSettings.agent?.role || "Agente de Reservas",
                         gender: dbSettings.agent?.gender || "female",
-                        avatar_url: dbSettings.agent?.avatar_url || "",
                         bio: dbSettings.agent?.bio || "Profesional, amable y siempre dispuesta a ayudar. Le encanta su trabajo y conoce a la perfección cada detalle del restaurante. Paciente y con una sonrisa permanente, hará que cada cliente se sienta especial.",
                         hired_date: dbSettings.agent?.hired_date || new Date().toISOString().split('T')[0]
                     },
@@ -1064,6 +1065,13 @@ const Configuracion = () => {
                         </div>
                     )}
 
+                    {/* 🏷️ SERVICIOS - PESTAÑA INDEPENDIENTE */}
+                    {activeTab === "servicios" && (
+                        <div className="space-y-4">
+                            <ServiciosContent />
+                        </div>
+                    )}
+
                     {/* 🤖 MI ASISTENTE - NUEVO CON AVATARES PREDEFINIDOS */}
                     {activeTab === "asistente" && (
                         <div className="space-y-4">
@@ -1073,38 +1081,38 @@ const Configuracion = () => {
                                 selectedAvatarId={settings.agent?.avatar_id || 'carlota'}
                                 onSelectAvatar={(avatarId) => {
                                     const avatar = getAvatarById(avatarId);
-                                    setSettings(prev => ({
-                                        ...prev,
-                                        agent: {
-                                            ...prev.agent,
+                                                                    setSettings(prev => ({
+                                                                        ...prev,
+                                                                        agent: {
+                                                                            ...prev.agent,
                                             avatar_id: avatarId,
                                             avatar_url: avatar.avatar_url,
                                             voice_id: avatar.voice_id,
                                             gender: avatar.gender,
-                                            name: prev.agent?.name || avatar.name,
-                                            role: prev.agent?.role || avatar.default_role,
-                                            bio: prev.agent?.bio || avatar.default_description
-                                        }
-                                    }));
+                                            name: avatar.name, // ✅ SIEMPRE actualiza el nombre del avatar
+                                            role: avatar.default_role, // ✅ SIEMPRE actualiza el rol del avatar
+                                            bio: avatar.default_description // ✅ SIEMPRE actualiza la descripción del avatar
+                                                                        }
+                                                                    }));
                                 }}
                                 agentName={settings.agent?.name}
                                 agentRole={settings.agent?.role}
                                 agentBio={settings.agent?.bio}
                                 onUpdateName={(name) => {
-                                    setSettings(prev => ({
-                                        ...prev,
+                                                                    setSettings(prev => ({
+                                                                        ...prev,
                                         agent: { ...prev.agent, name: name }
                                     }));
                                 }}
                                 onUpdateRole={(role) => {
                                     setSettings(prev => ({
-                                        ...prev,
+                                                            ...prev,
                                         agent: { ...prev.agent, role: role }
                                     }));
                                 }}
                                 onUpdateBio={(bio) => {
-                                    setSettings(prev => ({
-                                        ...prev,
+                                                                    setSettings(prev => ({
+                                                                        ...prev,
                                         agent: { ...prev.agent, bio: bio }
                                     }));
                                 }}
@@ -1125,23 +1133,23 @@ const Configuracion = () => {
 
                                 {/* Botón Guardar */}
                                 <div className="flex justify-end pt-4 border-t border-gray-200 mt-6">
-                                    <button
-                                        onClick={() => handleSave("Configuración del Agente")}
-                                        disabled={saving}
-                                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 font-semibold shadow-lg"
-                                    >
-                                        {saving ? (
-                                            <>
-                                                <RefreshCw className="w-4 h-4 animate-spin" />
-                                                Guardando...
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Save className="w-4 h-4" />
-                                                Guardar Configuración
-                                            </>
-                                        )}
-                                    </button>
+                                        <button
+                                            onClick={() => handleSave("Configuración del Agente")}
+                                            disabled={saving}
+                                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 font-semibold shadow-lg"
+                                        >
+                                            {saving ? (
+                                                <>
+                                                    <RefreshCw className="w-4 h-4 animate-spin" />
+                                                    Guardando...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Save className="w-4 h-4" />
+                                                    Guardar Configuración
+                                                </>
+                                            )}
+                                        </button>
                                 </div>
                             </SettingSection>
                         </div>

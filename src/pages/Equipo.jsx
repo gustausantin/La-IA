@@ -238,6 +238,7 @@ export default function Equipo() {
       {showScheduleModal && selectedEmployee && (
         <EditScheduleModal
           employee={selectedEmployee}
+          resources={resources}
           onClose={() => {
             setShowScheduleModal(false);
             setSelectedEmployee(null);
@@ -1127,7 +1128,7 @@ function EditEmployeeModal({ employee, resources, onClose, onSuccess }) {
 // ====================================
 // MODAL: Editar Horario del Empleado
 // ====================================
-function EditScheduleModal({ employee, onClose, onSuccess }) {
+function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
   const [schedules, setSchedules] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1166,6 +1167,7 @@ function EditScheduleModal({ employee, onClose, onSuccess }) {
       const orderedSchedules = dayNames.map(day => {
         const existing = scheduleMap[day.id];
         return {
+          id: existing?.id,
           day_of_week: day.id,
           is_working: existing?.is_working || false,
           // Convertir shifts de JSONB a array, o crear uno con start_time/end_time legacy
@@ -1173,7 +1175,10 @@ function EditScheduleModal({ employee, onClose, onSuccess }) {
             ? existing.shifts 
             : existing?.start_time && existing?.end_time
               ? [{ start: existing.start_time, end: existing.end_time }]
-              : [{ start: '09:00', end: '18:00' }]
+              : [{ start: '09:00', end: '18:00' }],
+          // ⭐ NUEVO: Asignación de recurso (manual o automática)
+          resource_id: existing?.resource_id || null,
+          resource_assignment_type: existing?.resource_assignment_type || 'auto'
         };
       });
 
@@ -1221,6 +1226,18 @@ function EditScheduleModal({ employee, onClose, onSuccess }) {
         shifts: s.shifts.map((shift, idx) => 
           idx === shiftIndex ? { ...shift, [field]: value } : shift
         )
+      };
+    }));
+  };
+
+  // ⭐ NUEVO: Cambiar recurso asignado
+  const handleResourceChange = (dayIndex, resourceId) => {
+    setSchedules(prev => prev.map((s, i) => {
+      if (i !== dayIndex) return s;
+      return {
+        ...s,
+        resource_id: resourceId === 'auto' ? null : resourceId,
+        resource_assignment_type: resourceId === 'auto' ? 'auto' : 'manual'
       };
     }));
   };
@@ -1321,7 +1338,10 @@ function EditScheduleModal({ employee, onClose, onSuccess }) {
         // Legacy: guardar también start_time/end_time del primer turno (por compatibilidad)
         start_time: s.is_working && s.shifts.length > 0 ? s.shifts[0].start : null,
         end_time: s.is_working && s.shifts.length > 0 ? s.shifts[s.shifts.length - 1].end : null,
-        breaks: []
+        breaks: [],
+        // ⭐ NUEVO: Asignación de recurso
+        resource_id: s.is_working ? s.resource_id : null,
+        resource_assignment_type: s.is_working ? s.resource_assignment_type : 'auto'
       }));
 
       const { error: insertError } = await supabase
@@ -1331,6 +1351,20 @@ function EditScheduleModal({ employee, onClose, onSuccess }) {
       if (insertError) throw insertError;
 
       toast.success('¡Horario guardado! ✅');
+      
+      // ⭐ NUEVO: Auto-regenerar disponibilidades
+      try {
+        const AutoSlotRegenerationService = (await import('../services/AutoSlotRegenerationService')).default;
+        await AutoSlotRegenerationService.regenerateAfterAction(
+          employee.business_id,
+          'employee_schedule_changed',
+          { silent: true }
+        );
+      } catch (regError) {
+        console.error('Error regenerando slots:', regError);
+        // No bloquear el guardado por esto
+      }
+      
       onSuccess();
     } catch (error) {
       console.error('Error guardando horario:', error);
@@ -1494,10 +1528,34 @@ function EditScheduleModal({ employee, onClose, onSuccess }) {
                           </div>
                         ))}
                         
+                        {/* ⭐ NUEVO: Selector de Recurso */}
+                        <div className="pt-2 border-t border-gray-200 mt-2">
+                          <label className="block text-xs font-semibold text-gray-700 mb-1">
+                            🪑 Sillón/Recurso:
+                          </label>
+                          <select
+                            value={schedule.resource_id || 'auto'}
+                            onChange={(e) => handleResourceChange(idx, e.target.value)}
+                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                          >
+                            <option value="auto">✨ Automático (Recomendado)</option>
+                            {resources.map(resource => (
+                              <option key={resource.id} value={resource.id}>
+                                {resource.name}
+                              </option>
+                            ))}
+                          </select>
+                          {schedule.resource_assignment_type === 'auto' && (
+                            <p className="text-[10px] text-gray-500 mt-0.5">
+                              El sistema asignará el mejor sillón disponible
+                            </p>
+                          )}
+                        </div>
+                        
                         {/* Botón Añadir Turno */}
                         <button
                           onClick={() => handleAddShift(idx)}
-                          className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-semibold transition-colors"
+                          className="flex items-center gap-1 text-xs text-purple-600 hover:text-purple-700 font-semibold transition-colors mt-2"
                         >
                           <Plus className="w-3 h-3" />
                           Añadir turno
@@ -1516,10 +1574,16 @@ function EditScheduleModal({ employee, onClose, onSuccess }) {
           )}
 
           {/* Nota informativa */}
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3">
+          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
             <p className="text-xs text-gray-700">
               <strong>💡 Turnos partidos:</strong> Usa "Añadir turno" para horarios de mañana y tarde 
-              (ej: 9-14h y 16-20h). El sistema evita que dos empleados se solapen en el mismo recurso.
+              (ej: 9-14h y 16-20h).
+            </p>
+            <p className="text-xs text-gray-700">
+              <strong>🪑 Sillón Automático:</strong> El sistema asigna el mejor sillón disponible evitando conflictos.
+            </p>
+            <p className="text-xs text-gray-700">
+              <strong>🔄 Sillón Manual:</strong> Útil si quieres que use siempre el mismo o cambiar por día.
             </p>
           </div>
         </div>
