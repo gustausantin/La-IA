@@ -279,3 +279,4 @@ COMMENT ON FUNCTION get_effective_resource_id IS
 
 SELECT 'Migración 20251112_02_generate_slots_employee_based completada' AS status;
 
+

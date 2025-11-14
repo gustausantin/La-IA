@@ -39,7 +39,7 @@ export const ConfirmCancelModal = ({ isOpen, reservation, onConfirm, onCancel })
                                 <strong>Cliente:</strong> {reservation.customer_name}
                             </li>
                             <li>
-                                <strong>Fecha:</strong> {new Date(reservation.reservation_date).toLocaleDateString('es-ES', {
+                                <strong>Fecha:</strong> {new Date(reservation.reservation_date || reservation.appointment_date).toLocaleDateString('es-ES', {
                                     weekday: 'long',
                                     year: 'numeric',
                                     month: 'long',
@@ -47,14 +47,16 @@ export const ConfirmCancelModal = ({ isOpen, reservation, onConfirm, onCancel })
                                 })}
                             </li>
                             <li>
-                                <strong>Hora:</strong> {reservation.reservation_time?.slice(0, 5) || 'N/A'}
+                                <strong>Hora:</strong> {(reservation.reservation_time || reservation.appointment_time)?.slice(0, 5) || 'N/A'}
                             </li>
-                            <li>
-                                <strong>Personas:</strong> {reservation.party_size}
-                            </li>
-                            {reservation.tables?.name && (
+                            {reservation.service_name && (
                                 <li>
-                                    <strong>Mesa:</strong> {reservation.tables.name}
+                                    <strong>Servicio:</strong> {reservation.service_name}
+                                </li>
+                            )}
+                            {reservation.resource_name && (
+                                <li>
+                                    <strong>Profesional:</strong> {reservation.resource_name}
                                 </li>
                             )}
                         </ul>

@@ -222,3 +222,4 @@ COMMENT ON COLUMN employee_schedules.resource_assignment_type IS
 
 SELECT 'Migración 20251112_01_employee_based_availability completada' AS status;
 
+

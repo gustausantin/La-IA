@@ -22,9 +22,9 @@ import { format, parseISO } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 /**
- * Modal de detalles de reserva (solo lectura)
+ * Modal de detalles de reserva (solo lectura con opción de editar)
  */
-export const ReservationDetailsModal = ({ reservation, onClose, isOpen }) => {
+export const ReservationDetailsModal = ({ reservation, onClose, onEdit, isOpen }) => {
   if (!isOpen || !reservation) return null;
 
   // Formatear fecha
@@ -52,8 +52,8 @@ export const ReservationDetailsModal = ({ reservation, onClose, isOpen }) => {
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <h2 className="text-2xl font-bold mb-2">Detalles de la Reserva</h2>
-              <p className="text-blue-100 text-sm">
-                ID: {reservation.id?.substring(0, 8)}...
+              <p className="text-blue-100 text-xs font-mono">
+                ID: {reservation.id}
               </p>
             </div>
             <button
@@ -125,50 +125,66 @@ export const ReservationDetailsModal = ({ reservation, onClose, isOpen }) => {
                     <p className="font-semibold text-gray-900">{formattedDate}</p>
                   </div>
                 </div>
+                
+                {/* Servicio */}
+                {reservation.service_name && (
+                  <div className="flex items-center gap-3">
+                    <Tag className="w-5 h-5 text-purple-600" />
+                    <div>
+                      <p className="text-sm text-gray-600">Servicio</p>
+                      <p className="font-semibold text-gray-900">{reservation.service_name}</p>
+                    </div>
+                  </div>
+                )}
+                
+                {/* Profesional/Empleado */}
+                {reservation.resource_name && (
+                  <div className="flex items-center gap-3">
+                    <User className="w-5 h-5 text-purple-600" />
+                    <div>
+                      <p className="text-sm text-gray-600">Profesional</p>
+                      <p className="font-semibold text-gray-900">{reservation.resource_name}</p>
+                    </div>
+                  </div>
+                )}
+                
                 <div className="grid grid-cols-2 gap-3">
                   <div className="flex items-center gap-3">
                     <Clock className="w-5 h-5 text-purple-600" />
                     <div>
                       <p className="text-sm text-gray-600">Hora Inicio</p>
-                      <p className="font-semibold text-gray-900">{reservation.reservation_time?.substring(0, 5) || 'N/A'}</p>
+                      <p className="font-semibold text-gray-900">{reservation.reservation_time?.substring(0, 5) || reservation.appointment_time?.substring(0, 5) || 'N/A'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <Clock className="w-5 h-5 text-purple-600" />
                     <div>
                       <p className="text-sm text-gray-600">Hora Fin</p>
-                      <p className="font-semibold text-gray-900">{reservation.reservation_end_time?.substring(0, 5) || 'N/A'}</p>
+                      <p className="font-semibold text-gray-900">
+                        {(() => {
+                          const startTime = reservation.reservation_time || reservation.appointment_time;
+                          const duration = reservation.duration_minutes || reservation.service_duration_minutes || 60;
+                          if (!startTime) return 'N/A';
+                          
+                          const [hours, minutes] = startTime.split(':').map(Number);
+                          const endMinutes = hours * 60 + minutes + duration;
+                          const endHours = Math.floor(endMinutes / 60);
+                          const endMins = endMinutes % 60;
+                          return `${endHours.toString().padStart(2, '0')}:${endMins.toString().padStart(2, '0')}`;
+                        })()}
+                      </p>
                     </div>
                   </div>
                 </div>
+                
+                {/* Duración */}
                 <div className="flex items-center gap-3">
-                  <Users className="w-5 h-5 text-purple-600" />
+                  <Clock className="w-5 h-5 text-purple-600" />
                   <div>
-                    <p className="text-sm text-gray-600">Comensales</p>
-                    <p className="font-semibold text-gray-900">{reservation.party_size} persona{reservation.party_size > 1 ? 's' : ''}</p>
+                    <p className="text-sm text-gray-600">Duración</p>
+                    <p className="font-semibold text-gray-900">{reservation.duration_minutes || reservation.service_duration_minutes || 60} minutos</p>
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
-                  <UtensilsCrossed className="w-5 h-5 text-purple-600" />
-                  <div>
-                    <p className="text-sm text-gray-600">Mesa</p>
-                    <p className="font-semibold text-gray-900">
-                      {reservation.tables?.name || 
-                       (reservation.tables?.table_number ? `Mesa ${reservation.tables.table_number}` : null) ||
-                       (reservation.table_number ? `Mesa ${reservation.table_number}` : null) ||
-                       'No asignada'}
-                    </p>
-                  </div>
-                </div>
-                {reservation.tables?.zone && (
-                  <div className="flex items-center gap-3">
-                    <MapPin className="w-5 h-5 text-purple-600" />
-                    <div>
-                      <p className="text-sm text-gray-600">Zona</p>
-                      <p className="font-semibold text-gray-900">{reservation.tables.zone}</p>
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -219,13 +235,24 @@ export const ReservationDetailsModal = ({ reservation, onClose, isOpen }) => {
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 p-4 bg-gray-50 flex justify-end">
+        <div className="border-t border-gray-200 p-4 bg-gray-50 flex justify-between">
           <button
             onClick={onClose}
             className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
           >
             Cerrar
           </button>
+          {onEdit && (
+            <button
+              onClick={() => {
+                onEdit(reservation);
+                onClose();
+              }}
+              className="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 transition-colors font-medium shadow-md"
+            >
+              Editar Reserva
+            </button>
+          )}
         </div>
       </div>
     </div>

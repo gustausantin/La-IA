@@ -49,6 +49,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ReservationWizard } from "../components/reservas/ReservationWizard";
+import NewReservationModalPro from "../components/reservas/NewReservationModalPro";
 import { ReservationDetailsModal } from "../components/reservas/ReservationDetailsModal";
 import { ConfirmDeleteModal } from "../components/reservas/ConfirmDeleteModal";
 import { ConfirmCancelModal } from "../components/reservas/ConfirmCancelModal";
@@ -651,6 +652,7 @@ export default function Reservas() {
     const [proximasFilter, setProximasFilter] = useState('todas'); // todas | manana | esta_semana | este_mes
 
     const [showCreateModal, setShowCreateModal] = useState(false);
+    const [initialReservationData, setInitialReservationData] = useState(null); // 🆕 Datos iniciales del slot clickeado
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -666,54 +668,160 @@ export default function Reservas() {
     const [realtimeSubscription, setRealtimeSubscription] = useState(null);
 
     
-    // 🤖 AUTOMATIZACIÓN: Completar reservas automáticamente
+    // 🤖 AUTOMATIZACIÓN: Completar reservas automáticamente (estilo industria)
+    // Lógica:
+    // - Reservas "confirmed" pasadas → "completed" (se completaron)
+    // - Reservas "pending" pasadas → "no_show" (no se confirmaron, asumimos no-show)
     const autoCompleteReservations = useCallback(async () => {
-        if (!businessId) return;
+        if (!businessId) {
+            console.log('⚠️ No hay businessId, saltando auto-completar');
+            return;
+        }
         
         try {
-            const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+            const hoy = format(new Date(), "yyyy-MM-dd");
+            const ahora = new Date();
             
-            console.log('🤖 Buscando reservas para auto-completar del:', yesterday);
+            console.log('═══════════════════════════════════════');
+            console.log('🤖 INICIANDO AUTO-COMPLETAR RESERVAS');
+            console.log('📅 Fecha de hoy:', hoy);
+            console.log('🕐 Hora actual:', format(ahora, 'HH:mm:ss'));
+            console.log('🏢 Business ID:', businessId);
+            console.log('═══════════════════════════════════════');
             
-            // Buscar reservas de ayer que estén confirmadas o sentadas
-            const { data: reservationsToComplete, error } = await supabase
+            // ============================================
+            // 1. RESERVAS CONFIRMADAS PASADAS → "completed"
+            // ============================================
+            
+            // Buscar reservas confirmadas de días anteriores
+            const { data: confirmedPast, error: errorConfirmed } = await supabase
                 .from('appointments')
-                .select('id, customer_name, status, reservation_date')
+                .select('id, customer_name, status, appointment_date, appointment_time, duration_minutes')
                 .eq('business_id', businessId)
-                .eq('reservation_date', yesterday)
-                .in('status', ['confirmed', 'seated']);
-                
-            if (error) {
-                console.error('Error buscando reservas para completar:', error);
-                return;
-            }
+                .eq('status', 'confirmed')
+                .lt('appointment_date', hoy);
             
-            if (!reservationsToComplete || reservationsToComplete.length === 0) {
-                console.log('✅ No hay reservas de ayer para auto-completar');
-                return;
-            }
-            
-            console.log(`🤖 Encontradas ${reservationsToComplete.length} reservas para completar:`);
-            reservationsToComplete.forEach(r => {
-                console.log(`  - ${r.customer_name} (${r.status})`);
+            console.log('📊 Reservas confirmadas de días anteriores:', { 
+                encontradas: confirmedPast?.length || 0, 
+                error: errorConfirmed?.message 
             });
             
-            // Actualizar todas a "completed"
-            const reservationIds = reservationsToComplete.map(r => r.id);
-            
-            const { error: updateError } = await supabase
+            // Buscar reservas confirmadas de HOY que ya terminaron
+            const { data: confirmedToday, error: errorTodayConfirmed } = await supabase
                 .from('appointments')
-                .update({ status: 'completed' })
-                .in('id', reservationIds);
-                
-            if (updateError) {
-                console.error('Error auto-completando reservas:', updateError);
-                return;
+                .select('id, customer_name, status, appointment_date, appointment_time, duration_minutes')
+                .eq('business_id', businessId)
+                .eq('appointment_date', hoy)
+                .eq('status', 'confirmed');
+            
+            let confirmedToComplete = confirmedPast || [];
+            
+            if (!errorTodayConfirmed && confirmedToday) {
+                const terminadasHoy = confirmedToday.filter(r => {
+                    const [hora, minuto] = (r.appointment_time || '00:00').split(':');
+                    const duracion = r.duration_minutes || 60;
+                    const horaFin = new Date();
+                    horaFin.setHours(parseInt(hora), parseInt(minuto) + duracion, 0);
+                    return horaFin < ahora;
+                });
+                confirmedToComplete.push(...terminadasHoy);
             }
             
-            // ❌ FUNCIÓN ELIMINADA - Causaba errores con reservation_date
+            // ============================================
+            // 2. RESERVAS PENDING PASADAS → "no_show"
+            // ============================================
+            
+            // Buscar reservas pending de días anteriores
+            const { data: pendingPast, error: errorPending } = await supabase
+                .from('appointments')
+                .select('id, customer_name, status, appointment_date, appointment_time, duration_minutes')
+                .eq('business_id', businessId)
+                .eq('status', 'pending')
+                .lt('appointment_date', hoy);
+            
+            console.log('📊 Reservas pending de días anteriores:', { 
+                encontradas: pendingPast?.length || 0, 
+                error: errorPending?.message 
+            });
+            
+            // Buscar reservas pending de HOY que ya pasaron su hora de fin
+            const { data: pendingToday, error: errorTodayPending } = await supabase
+                .from('appointments')
+                .select('id, customer_name, status, appointment_date, appointment_time, duration_minutes')
+                .eq('business_id', businessId)
+                .eq('appointment_date', hoy)
+                .eq('status', 'pending');
+            
+            let pendingToNoShow = pendingPast || [];
+            
+            if (!errorTodayPending && pendingToday) {
+                const pasadasHoy = pendingToday.filter(r => {
+                    const [hora, minuto] = (r.appointment_time || '00:00').split(':');
+                    const duracion = r.duration_minutes || 60;
+                    const horaFin = new Date();
+                    horaFin.setHours(parseInt(hora), parseInt(minuto) + duracion, 0);
+                    return horaFin < ahora;
+                });
+                pendingToNoShow.push(...pasadasHoy);
+            }
+            
+            // ============================================
+            // 3. ACTUALIZAR RESERVAS CONFIRMADAS → "completed"
+            // ============================================
+            
+            if (confirmedToComplete.length > 0) {
+                console.log(`✅ Encontradas ${confirmedToComplete.length} reservas CONFIRMADAS para completar:`);
+                confirmedToComplete.forEach(r => {
+                    console.log(`  📋 ${r.customer_name} - ${r.appointment_date} ${r.appointment_time}`);
+                });
+                
+                const confirmedIds = confirmedToComplete.map(r => r.id);
+                const { error: updateError } = await supabase
+                    .from('appointments')
+                    .update({ status: 'completed', updated_at: new Date().toISOString() })
+                    .in('id', confirmedIds);
+                    
+                if (updateError) {
+                    console.error('❌ Error completando reservas confirmadas:', updateError);
+                } else {
+                    console.log(`✅ ${confirmedToComplete.length} reservas confirmadas → completadas`);
+                }
+            }
+            
+            // ============================================
+            // 4. ACTUALIZAR RESERVAS PENDING → "no_show"
+            // ============================================
+            
+            if (pendingToNoShow.length > 0) {
+                console.log(`⚠️ Encontradas ${pendingToNoShow.length} reservas PENDING para marcar como no-show:`);
+                pendingToNoShow.forEach(r => {
+                    console.log(`  📋 ${r.customer_name} - ${r.appointment_date} ${r.appointment_time} (no confirmada)`);
+                });
+                
+                const pendingIds = pendingToNoShow.map(r => r.id);
+                const { error: updateErrorPending } = await supabase
+                    .from('appointments')
+                    .update({ status: 'no_show', updated_at: new Date().toISOString() })
+                    .in('id', pendingIds);
+                    
+                if (updateErrorPending) {
+                    console.error('❌ Error marcando reservas pending como no-show:', updateErrorPending);
+                } else {
+                    console.log(`⚠️ ${pendingToNoShow.length} reservas pending → no_show (no confirmadas)`);
+                }
+            }
+            
+            const totalProcesadas = confirmedToComplete.length + pendingToNoShow.length;
+            if (totalProcesadas === 0) {
+                console.log('✅ No hay reservas pasadas para procesar');
+            } else {
+                console.log(`\n🎯 RESUMEN: ${totalProcesadas} reservas procesadas`);
+                console.log(`   ✅ ${confirmedToComplete.length} confirmadas → completadas`);
+                console.log(`   ⚠️ ${pendingToNoShow.length} pending → no_show`);
+            }
+            
         } catch (error) {
-            // Silencioso
+            console.error('❌ Error en auto-completar reservas:', error);
         }
     }, [businessId]);
 
@@ -845,13 +953,14 @@ export default function Reservas() {
 
         try {
             setLoading(true);
+            console.log('🔄 RECARGANDO RESERVAS...');
 
-            // ✅ QUERY SIMPLIFICADA - Sin filtro de "deleted" (no existe en el enum)
+            // ✅ QUERY SIN JOIN (no hay foreign key constraints configuradas)
             const { data, error } = await supabase
                 .from('appointments')
                 .select('*')
                 .eq('business_id', businessId)
-                .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false});
             
             // 🚨 AGREGAR DATOS DE RIESGO NO-SHOW PARA HOY
             // ❌ ELIMINADO: predict_upcoming_noshows_v2 (función no existe)
@@ -862,18 +971,66 @@ export default function Reservas() {
                 throw error;
             }
 
-            console.log("📊 DATOS CARGADOS DE SUPABASE:", {
-                totalReservations: data?.length || 0,
-                firstReservation: data?.[0] || null
-            });
 
-            // ✅ DATOS LIMPIOS - Sin mapeo de customer (ya viene en appointments)
+            // ✅ CARGAR NOMBRES DE SERVICIOS POR SEPARADO (enriquecer datos)
+            let servicesMap = {};
+            if (data && data.length > 0) {
+                const serviceIds = [...new Set(data.map(r => r.service_id).filter(Boolean))];
+                if (serviceIds.length > 0) {
+                    const { data: services, error: servicesError } = await supabase
+                        .from('business_services')
+                        .select('id, name, duration_minutes')
+                        .in('id', serviceIds);
+                    
+                    if (!servicesError && services) {
+                        services.forEach(s => {
+                            servicesMap[s.id] = s;
+                        });
+                    }
+                }
+            }
+
+            // ✅ CARGAR NOMBRES DE EMPLEADOS POR SEPARADO (enriquecer datos)
+            let employeesMap = {};
+            if (data && data.length > 0) {
+                const resourceIds = [...new Set(data.map(r => r.resource_id).filter(Boolean))];
+                if (resourceIds.length > 0) {
+                    const { data: employees, error: employeesError } = await supabase
+                        .from('employees')
+                        .select('id, name')
+                        .in('id', resourceIds);
+                    
+                    if (!employeesError && employees) {
+                        employees.forEach(e => {
+                            employeesMap[e.id] = e;
+                        });
+                    }
+                }
+            }
+
+            // ✅ MAPEAR DATOS: appointment_date -> reservation_date (compatibilidad frontend)
             let reservations = (data || []).map(r => ({
                 ...r,
+                // Mapear campos de appointments a formato legacy del frontend
+                reservation_date: r.appointment_date, // ✅ Mapeo crítico para calendario
+                reservation_time: r.appointment_time, // ✅ Mapeo crítico para calendario
+                service_name: servicesMap[r.service_id]?.name || null, // ✅ Nombre del servicio
+                service_duration_minutes: r.duration_minutes, // ✅ Duración ya está en appointments
+                resource_name: employeesMap[r.resource_id]?.name || null, // ✅ Nombre del profesional/empleado
                 // Por si acaso, asegurar que risk_level existe
                 noshow_risk_score: 0,
                 risk_level: 'low'
             }));
+            
+            console.log("🔄 RESERVAS MAPEADAS:", {
+                total: reservations.length,
+                primera: reservations[0] ? {
+                    id: reservations[0].id,
+                    customer_name: reservations[0].customer_name,
+                    reservation_date: reservations[0].reservation_date, // Verificar que existe
+                    appointment_date: reservations[0].appointment_date
+                } : null
+            });
             
             // Log específico para debugging
             const targetReservation = reservations.find(r => r.customer_name?.includes('Kiku'));
@@ -913,6 +1070,7 @@ export default function Reservas() {
             }
 
             setReservations(reservations);
+            console.log('✅ Estado de reservations actualizado. Total:', reservations.length);
 
             // Calcular estadísticas del agente usando datos reales
             // Cargar estadísticas del agente de forma NO BLOQUEANTE
@@ -1109,124 +1267,98 @@ export default function Reservas() {
         }
     }, [businessId, reservations]);
 
-    // CRÍTICO: Función para validar antes de crear reservas
-    const handleCreateReservation = useCallback(() => {
-        // Verificar que hay mesas configuradas Y operativas (misma lógica que contador Mesas)
-        const activeTables = tables.filter(table => 
-            table.is_active !== false
-        );
-        
-        if (tables.length === 0) {
-            // No hay mesas en absoluto
-            const handleGoToTables = () => {
-                navigate('/mesas');
-                toast.dismiss(); // Cerrar el toast
-            };
-            
-            toast.error(
-                (t) => (
-                    <div className="space-y-3">
-                        <div>
-                            <p className="font-medium !text-white" style={{color: 'white !important'}}>⚠️ No hay mesas configuradas</p>
-                            <p className="text-sm !text-gray-200 mt-1" style={{color: '#e5e7eb !important'}}>
-                                Para crear reservas necesitas configurar mesas primero.
-                            </p>
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleGoToTables}
-                                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
-                            >
-                                Ir a Mesas
-                            </button>
-                            <button
-                                onClick={() => toast.dismiss(t.id)}
-                                className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors"
-                            >
-                                Cerrar
-                            </button>
-                        </div>
-                    </div>
-                ),
-                {
-                    duration: 10000,
-                    style: {
-                        maxWidth: '400px',
-                    }
-                }
-            );
-            return;
-        }
-
-        if (activeTables.length === 0) {
-            // Hay mesas pero todas están inactivas
-            const handleGoToTables = () => {
-                navigate('/mesas');
-                toast.dismiss(); // Cerrar el toast
-            };
-            
-            toast.error(
-                (t) => (
-                    <div className="space-y-3">
-                        <div>
-                            <p className="font-medium !text-white" style={{color: 'white !important'}}>⚠️ No hay mesas operativas</p>
-                            <p className="text-sm !text-gray-200 mt-1" style={{color: '#e5e7eb !important'}}>
-                                Todas las mesas están inactivas o en mantenimiento. Activa al menos una mesa para crear reservas.
-                            </p>
-                        </div>
-                        <div className="flex gap-2">
-                            <button
-                                onClick={handleGoToTables}
-                                className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
-                            >
-                                Ir a Mesas
-                            </button>
-                            <button
-                                onClick={() => toast.dismiss(t.id)}
-                                className="px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded hover:bg-gray-300 transition-colors"
-                            >
-                                Cerrar
-                            </button>
-                        </div>
-                    </div>
-                ),
-                {
-                    duration: 10000,
-                    style: {
-                        maxWidth: '400px',
-                    }
-                }
-            );
-            return;
-        }
-        
-        // Si hay mesas activas, proceder normalmente
+    // Función simplificada para abrir modal de nueva reserva (salones de belleza)
+    const handleCreateReservation = useCallback((initialData = null) => {
+        console.log('📅 Abriendo modal de reserva con datos:', initialData);
+        console.log('📅 showCreateModal antes:', showCreateModal);
+        setInitialReservationData(initialData);
         setShowCreateModal(true);
-    }, [tables, navigate]);
+        console.log('📅 setShowCreateModal(true) ejecutado');
+        // Verificar después de un tick
+        setTimeout(() => {
+            console.log('📅 showCreateModal después:', showCreateModal);
+        }, 100);
+    }, [showCreateModal]);
 
-    // 🆕 Handler para mover reservas (Drag & Drop)
+    // 🆕 Handler para mover reservas (Drag & Drop) con validación
     const handleReservationMove = useCallback(async (reserva, { newDate, newTime, newResourceId }) => {
         try {
-            console.log('🔄 Moviendo reserva:', {
-                id: reserva.id,
-                from: `${reserva.reservation_date} ${reserva.reservation_time}`,
-                to: `${newDate} ${newTime}`,
-                resource: newResourceId
-            });
+            const resourceIdToUse = newResourceId || reserva.resource_id;
+            const duration = reserva.duration_minutes || 60;
+            
+            // 🔍 1. VALIDAR HORARIO DEL EMPLEADO
+            const { data: employee, error: employeeError } = await supabase
+                .from('employees')
+                .select('*, employee_schedules(*)')
+                .eq('id', resourceIdToUse)
+                .single();
+            
+            if (employeeError || !employee) {
+                toast.error('❌ Error al verificar horario del empleado');
+            return;
+        }
 
+            const dayOfWeek = new Date(newDate).getDay();
+            const schedule = employee.employee_schedules?.find(s => s.day_of_week === dayOfWeek && s.is_working);
+            
+            if (!schedule || !schedule.shifts || schedule.shifts.length === 0) {
+                toast.error(`❌ ${employee.name} no trabaja este día. No se puede mover la reserva.`);
+            return;
+        }
+        
+            // Verificar que la hora está dentro de algún turno
+            const [reqHour, reqMin] = newTime.split(':').map(Number);
+            const requestedMinutes = reqHour * 60 + reqMin;
+            const endMinutes = requestedMinutes + duration;
+            
+            const isWithinShift = schedule.shifts.some(shift => {
+                const [startH, startM] = shift.start.split(':').map(Number);
+                const [endH, endM] = shift.end.split(':').map(Number);
+                const shiftStart = startH * 60 + startM;
+                const shiftEnd = endH * 60 + endM;
+                
+                return requestedMinutes >= shiftStart && endMinutes <= shiftEnd;
+            });
+            
+            if (!isWithinShift) {
+                const shiftText = schedule.shifts.map(s => `${s.start}-${s.end}`).join(', ');
+                toast.error(`❌ Hora fuera del horario de ${employee.name} (${shiftText})`);
+                return;
+            }
+            
+            // 🔍 2. VALIDAR CONFLICTOS CON OTRAS RESERVAS
+            const { data: conflictingReservations, error: conflictError } = await supabase
+                .from('appointments')
+                .select('id, appointment_time, duration_minutes, customer_name')
+                .eq('resource_id', resourceIdToUse)
+                .eq('appointment_date', newDate)
+                .neq('status', 'cancelled')
+                .neq('id', reserva.id); // Excluir la misma reserva
+            
+            if (!conflictError && conflictingReservations && conflictingReservations.length > 0) {
+                for (const existing of conflictingReservations) {
+                    const [exHour, exMin] = existing.appointment_time.split(':').map(Number);
+                    const exStart = exHour * 60 + exMin;
+                    const exEnd = exStart + (existing.duration_minutes || 60);
+                    
+                    // Verificar solapamiento
+                    const overlaps = (requestedMinutes < exEnd) && (endMinutes > exStart);
+                    
+                    if (overlaps) {
+                        toast.error(`❌ Conflicto: Ya existe reserva de ${existing.customer_name} a las ${existing.appointment_time}`);
+                        return;
+                    }
+                }
+            }
+
+            // ✅ Todo OK - Actualizar reserva
             const updates = {
-                reservation_date: newDate,
-                reservation_time: newTime,
+                appointment_date: newDate,
+                appointment_time: newTime,
             };
 
-            // Solo actualizar resource si cambió
             if (newResourceId && newResourceId !== 'default') {
-                // Verificar si es tabla o recurso
-                if (reserva.table_id) {
-                    updates.table_id = newResourceId;
-                } else if (reserva.resource_id) {
                     updates.resource_id = newResourceId;
-                }
             }
 
             const { error } = await supabase
@@ -1236,9 +1368,7 @@ export default function Reservas() {
 
             if (error) throw error;
 
-            toast.success(`✅ Reserva movida a ${format(parseISO(newDate), "dd/MM")} ${newTime}`);
-            
-            // Recargar reservas
+            toast.success(`✅ Reserva movida a ${format(parseISO(newDate), "dd/MM")} ${newTime.substring(0, 5)}`);
             await loadReservations();
 
         } catch (error) {
@@ -1536,15 +1666,69 @@ export default function Reservas() {
     useEffect(() => {
         if (isReady && businessId) {
             setLoading(true);
-            Promise.all([
-                loadReservations(),
-                loadTables(),
-                loadResources(), // 🆕 Cargar recursos/profesionales
-                loadBlockages(), // 🆕 Cargar bloqueos de horas
-                loadPolicySettings()
-            ]).finally(() => setLoading(false));
+            console.log('🚀 INICIANDO CARGA DE DATOS...');
+            
+            // 🤖 Primero auto-completar reservas de ayer, luego cargar todo
+            autoCompleteReservations()
+                .then(() => {
+                    console.log('✅ Auto-completar finalizado, cargando datos...');
+                    return Promise.all([
+                        loadReservations(),
+                        loadTables(),
+                        loadResources(), // 🆕 Cargar recursos/profesionales
+                        loadBlockages(), // 🆕 Cargar bloqueos de horas
+                        loadPolicySettings()
+                    ]);
+                })
+                .catch(error => {
+                    console.error('Error en auto-completar o carga:', error);
+                })
+                .finally(() => {
+                    setLoading(false);
+                    console.log('✅ Carga de datos finalizada');
+                });
         }
-    }, [isReady, businessId]); // SOLO dependencies estables
+    }, [isReady, businessId, autoCompleteReservations]); // Incluir autoCompleteReservations
+
+    // 🔄 ESCUCHAR CAMBIOS DE HORARIO desde Calendario y recargar automáticamente
+    useEffect(() => {
+        const handleScheduleUpdate = () => {
+            // Esperar 1 segundo para que se guarde en BD y luego recargar
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        };
+
+        const handleBusinessReload = () => {
+            // Recargar después de 1 segundo para dar tiempo a que se guarde
+            setTimeout(() => {
+                if (businessId) {
+                    window.location.reload();
+                }
+            }, 1000);
+        };
+
+        window.addEventListener('schedule-updated', handleScheduleUpdate);
+        window.addEventListener('force-business-reload', handleBusinessReload);
+        
+        return () => {
+            window.removeEventListener('schedule-updated', handleScheduleUpdate);
+            window.removeEventListener('force-business-reload', handleBusinessReload);
+        };
+    }, [businessId]);
+    
+    // 🤖 AUTO-COMPLETAR RESERVAS PERIÓDICAMENTE (cada 30 minutos)
+    useEffect(() => {
+        if (!businessId) return;
+        
+        // Ejecutar cada 30 minutos
+        const interval = setInterval(() => {
+            console.log('⏰ Verificando reservas para auto-completar...');
+            autoCompleteReservations();
+        }, 30 * 60 * 1000); // 30 minutos
+        
+        return () => clearInterval(interval);
+    }, [businessId, autoCompleteReservations]);
 
     // Recargar cuando cambien los filtros - SIN BUCLES
     useEffect(() => {
@@ -2149,7 +2333,7 @@ export default function Reservas() {
                         {/* Botón Nueva Reserva solo en pestaña "reservas" */}
                         {activeTab === 'reservas' && (
                             <button
-                                onClick={handleCreateReservation}
+                                onClick={() => handleCreateReservation(null)}
                                 className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 shadow-md font-medium"
                             >
                                 <Plus className="w-4 h-4" />
@@ -2168,14 +2352,25 @@ export default function Reservas() {
                         reservations={reservations}
                         resources={resources} // ✅ Recursos/profesionales desde BD
                         blockages={blockages} // 🆕 Bloqueos de horas
+                        businessSettings={restaurant?.settings} // 🆕 Configuración del negocio (incluye operating_hours)
                         onReservationClick={(reserva) => {
                             setViewingReservation(reserva);
                             setShowDetailsModal(true);
                         }}
                         onSlotClick={(slot) => {
-                            handleCreateReservation();
+                            // Pasar datos del slot al modal
+                            const initialData = {
+                                employee_id: slot.resource?.id || null,
+                                date: slot.date,
+                                time: slot.time
+                            };
+                            handleCreateReservation(initialData);
                         }}
                         onReservationMove={handleReservationMove} // 🆕 Drag & Drop
+                        onCancelReservation={(reserva) => {
+                            setCancellingReservation(reserva);
+                            setShowCancelModal(true);
+                        }} // 🆕 Cancelar reserva
                         onBlockSlot={handleBlockSlot} // 🆕 Bloquear horas
                         onUnblockSlot={handleUnblockSlot} // 🆕 Desbloquear horas
                         onAddToWaitlist={handleAddToWaitlist} // 🆕 Lista de espera
@@ -2577,163 +2772,6 @@ export default function Reservas() {
                 )}
             </div>
 
-            {/* Modals - WIZARD NUEVO */}
-            {showCreateModal && (
-                <ReservationWizard
-                    businessId={businessId}
-                    initialData={null}
-                    onSave={async (reservationData) => {
-                        try {
-                            // 🔥 Extraer datos que NO van a la tabla reservations
-                            const customerData = reservationData._customerData || {};
-                            const tableIds = reservationData._tableIds || [];
-                            const zone = reservationData._zone;
-                            
-                            delete reservationData._customerData;
-                            delete reservationData._tableIds;
-                            delete reservationData._zone;
-                            
-                            // 1. Crear reserva en Supabase
-                            const { data: newReservation, error } = await supabase
-                                .from('appointments')
-                                .insert([reservationData])
-                                .select()
-                                .single();
-
-                            if (error) throw error;
-
-                            // 2. 🆕 Insertar mesas en reservation_tables
-                            if (tableIds && tableIds.length > 0) {
-                                const reservationTables = tableIds.map(tableId => ({
-                                    reservation_id: newReservation.id,
-                                    table_id: tableId
-                                }));
-
-                                const { error: tablesError } = await supabase
-                                    .from('reservation_tables')
-                                    .insert(reservationTables);
-
-                                if (tablesError) {
-                                    console.error('Error insertando mesas:', tablesError);
-                                    // No lanzar error, la reserva ya se creó
-                                }
-                            }
-
-                            // 3. Vincular con cliente y actualizar métricas
-                            await handleCustomerLinking(reservationData, {
-                                first_name: customerData.first_name || reservationData.customer_name?.split(' ')[0],
-                                last_name1: customerData.last_name1 || reservationData.customer_name?.split(' ')[1],
-                                last_name2: customerData.last_name2 || reservationData.customer_name?.split(' ')[2],
-                                birthdate: customerData.birthdate || null,
-                                consent_email: false,
-                                consent_sms: false,
-                                consent_whatsapp: false
-                            });
-
-                            setShowCreateModal(false);
-                            loadReservations();
-                            toast.success(tableIds.length > 1 
-                                ? `Reserva creada con ${tableIds.length} mesas (PENDIENTE de confirmación)` 
-                                : "Reserva creada correctamente"
-                            );
-                            addNotification({
-                                type: "system",
-                                message: parseInt(reservationData.party_size) >= 10
-                                    ? `⚠️ GRUPO GRANDE (${reservationData.party_size} personas): Pendiente de aprobación` 
-                                    : tableIds.length > 1
-                                        ? `Nueva reserva: ${tableIds.length} mesas combinadas en ${zone}`
-                                        : "Nueva reserva manual creada",
-                                priority: parseInt(reservationData.party_size) >= 10 ? "high" : "low",
-                            });
-                        } catch (error) {
-                            console.error('Error creando reserva:', error);
-                            toast.error('Error al crear la reserva: ' + error.message);
-                        }
-                    }}
-                    onCancel={() => setShowCreateModal(false)}
-                />
-            )}
-
-            {showEditModal && editingReservation && (
-                <ReservationWizard
-                    businessId={businessId}
-                    initialData={editingReservation}
-                    onSave={async (reservationData) => {
-                        try {
-                            // 🔥 Extraer datos que NO van a la tabla reservations
-                            const customerData = reservationData._customerData || {};
-                            const tableIds = reservationData._tableIds || [];
-                            const zone = reservationData._zone;
-                            
-                            delete reservationData._customerData;
-                            delete reservationData._tableIds;
-                            delete reservationData._zone;
-                            
-                            // Actualizar reserva en Supabase
-                            const { error } = await supabase
-                                .from('appointments')
-                                .update(reservationData)
-                                .eq('id', editingReservation.id);
-
-                            if (error) throw error;
-
-                            // 🔥 Actualizar datos del cliente si existen
-                            if (reservationData.customer_id && Object.keys(customerData).length > 0) {
-                                // Construir objeto completo para handleCustomerLinking
-                                const fullReservationData = {
-                                    ...reservationData,
-                                    id: editingReservation.id
-                                };
-                                await handleCustomerLinking(fullReservationData, customerData);
-                            }
-
-                            // 🔥 Actualizar reservation_tables si hay múltiples mesas
-                            if (tableIds.length > 0) {
-                                // Eliminar relaciones antiguas
-                                await supabase
-                                    .from('reservation_tables')
-                                    .delete()
-                                    .eq('reservation_id', editingReservation.id);
-                                
-                                // Insertar nuevas relaciones
-                                const reservationTables = tableIds.map(tableId => ({
-                                    reservation_id: editingReservation.id,
-                                    table_id: tableId
-                                }));
-                                
-                                await supabase
-                                    .from('reservation_tables')
-                                    .insert(reservationTables);
-                            }
-
-                            setShowEditModal(false);
-                            loadReservations();
-                            addNotification({
-                                type: "system",
-                                message: "Reserva actualizada",
-                                priority: "low",
-                            });
-                        } catch (error) {
-                            console.error('Error actualizando reserva:', error);
-                            toast.error('Error al actualizar la reserva: ' + error.message);
-                        }
-                    }}
-                    onCancel={() => setShowEditModal(false)}
-                />
-            )}
-
-            {/* Modal de Detalles (Solo Lectura) */}
-            {showDetailsModal && viewingReservation && (
-                <ReservationDetailsModal
-                    reservation={viewingReservation}
-                    isOpen={showDetailsModal}
-                    onClose={() => {
-                        setShowDetailsModal(false);
-                        setViewingReservation(null);
-                    }}
-                />
-            )}
-
                 </>
             )}
 
@@ -2949,6 +2987,45 @@ export default function Reservas() {
                     setDeletingReservation(null);
                 }}
             />
+
+            {/* 🎯 MODAL PROFESIONAL DE RESERVAS (Crear y Editar) */}
+            <NewReservationModalPro
+                isOpen={showCreateModal}
+                onClose={() => {
+                    setShowCreateModal(false);
+                    setInitialReservationData(null);
+                    setEditingReservation(null); // 🆕 Limpiar edición
+                }}
+                businessId={businessId}
+                editingReservation={editingReservation} // 🆕 Pasar reserva en edición
+                prefilledData={{
+                    employee_id: initialReservationData?.employee_id,
+                    date: initialReservationData?.date,
+                    time: initialReservationData?.time
+                }}
+                onSuccess={async (result) => {
+                    await loadReservations();
+                }}
+            />
+
+            {/* 📄 MODAL DE DETALLES DE RESERVA */}
+            {showDetailsModal && viewingReservation && (
+                <ReservationDetailsModal
+                    reservation={viewingReservation}
+                    isOpen={showDetailsModal}
+                    onClose={() => {
+                        setShowDetailsModal(false);
+                        setViewingReservation(null);
+                    }}
+                    onEdit={(reserva) => {
+                        // ✅ Abrir NewReservationModalPro en modo edición
+                        setEditingReservation(reserva);
+                        setShowDetailsModal(false); // Cerrar modal de detalles
+                        setShowCreateModal(true); // Abrir modal de edición
+                    }}
+                />
+            )}
+
         </div>
     );
 }

@@ -321,3 +321,4 @@ Una vez completados todos los pasos, el sistema estará **100% operativo** con:
 **Autor:** La-IA Team  
 **Soporte:** docs/IMPLEMENTACION-EMPLOYEE-BASED-AVAILABILITY-2025-11-12.md
 
+

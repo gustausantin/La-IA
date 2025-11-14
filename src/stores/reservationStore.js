@@ -685,9 +685,9 @@ export const useReservationStore = create()(
             // Consulta simplificada para evitar error 400
             const { data, error: reservationsError } = await supabase
               .from('appointments')
-              .select('id, status, reservation_date') // Quitar slot_id por si no existe
+              .select('id, status, appointment_date') // ✅ Corregido: usar appointment_date
               .eq('business_id', businessId)
-              .gte('reservation_date', todayStr);
+              .gte('appointment_date', todayStr);
               
             if (reservationsError) {
               log.error('❌ Reservations query failed:', reservationsError);

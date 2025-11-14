@@ -539,3 +539,4 @@ Se ha implementado con éxito un sistema de disponibilidades **Employee-Based** 
 **Estado:** ✅ IMPLEMENTADO  
 **Pendiente:** Testing + Ejecutar migraciones en Supabase
 
+

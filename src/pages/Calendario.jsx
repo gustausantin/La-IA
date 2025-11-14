@@ -987,20 +987,27 @@ export default function Calendario() {
             // ACTUALIZAR ESTADO LOCAL
             setSchedule(calendar_schedule);
 
-            // Evento de sincronización
+            // Eventos de sincronización
             try {
-            window.dispatchEvent(new CustomEvent('schedule-updated', { 
+                // 1. Evento para recargar esta página
+                window.dispatchEvent(new CustomEvent('schedule-updated', { 
                     detail: { 
                         scheduleData: calendar_schedule, 
                         operatingHours: operating_hours,
                         businessId 
                     } 
                 }));
+                
+                // 2. Evento para recargar el AuthContext (actualiza restaurant.settings en Reservas)
+                window.dispatchEvent(new CustomEvent('force-business-reload'));
+                console.log('✅ Eventos de actualización disparados');
             } catch (eventError) {
-                console.warn("Error disparando evento:", eventError);
+                console.warn("Error disparando eventos:", eventError);
             }
 
-            toast.success("✅ Horarios guardados correctamente");
+            toast.success("✅ Horarios guardados. El calendario se actualizará automáticamente.", {
+                duration: 3000
+            });
             console.log("✅ Guardado exitoso - horarios simples");
             
             // 🚨 MOSTRAR MODAL BLOQUEANTE DE REGENERACIÓN (solo si existen slots)

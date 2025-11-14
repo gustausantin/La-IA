@@ -400,19 +400,11 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
     phone: '',
     role: 'staff',
     color: '#6366f1',
-    assigned_resource_id: null
+    assigned_resource_id: 'auto' // Por defecto: Automático
   });
   
-  // Inicializar horario por defecto (Lun-Vie 9-18h)
-  const [schedules, setSchedules] = useState([
-    { day_of_week: 0, is_working: false, shifts: [{ start: '09:00', end: '18:00' }] }, // Domingo
-    { day_of_week: 1, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },  // Lunes
-    { day_of_week: 2, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },  // Martes
-    { day_of_week: 3, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },  // Miércoles
-    { day_of_week: 4, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },  // Jueves
-    { day_of_week: 5, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },  // Viernes
-    { day_of_week: 6, is_working: false, shifts: [{ start: '09:00', end: '18:00' }] }  // Sábado
-  ]);
+  // Inicializar horario vacío - se cargará dinámicamente desde el horario del negocio
+  const [schedules, setSchedules] = useState([]);
   
   const [resources, setResources] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -429,22 +421,85 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
   ];
 
   useEffect(() => {
-    loadResources();
+    loadInitialData();
   }, []);
 
-  const loadResources = async () => {
+  const loadInitialData = async () => {
     try {
-      const { data, error} = await supabase
+      setLoading(true);
+      
+      // 1. Cargar recursos
+      const { data: resourcesData, error: resourcesError } = await supabase
         .from('resources')
         .select('id, name')
         .eq('business_id', businessId)
         .eq('is_active', true)
         .order('name');
 
-      if (error) throw error;
-      setResources(data || []);
+      if (resourcesError) throw resourcesError;
+      setResources(resourcesData || []);
+      
+      // 2. Cargar horario del negocio
+      const { data: businessData, error: businessError } = await supabase
+        .from('businesses')
+        .select('settings')
+        .eq('id', businessId)
+        .single();
+      
+      if (businessError) throw businessError;
+      
+      // 3. Convertir horario del negocio a formato de empleado
+      const businessHours = businessData?.settings?.operating_hours || {};
+      const dayMapping = {
+        'sunday': 0,
+        'monday': 1,
+        'tuesday': 2,
+        'wednesday': 3,
+        'thursday': 4,
+        'friday': 5,
+        'saturday': 6
+      };
+      
+      const initialSchedules = dayNames.map(day => {
+        const dayKey = Object.keys(dayMapping).find(key => dayMapping[key] === day.id);
+        const businessDay = businessHours[dayKey];
+        
+        // Si el negocio tiene horario configurado para este día
+        if (businessDay && !businessDay.closed && businessDay.shifts && businessDay.shifts.length > 0) {
+          return {
+            day_of_week: day.id,
+            is_working: true,
+            shifts: businessDay.shifts.map(shift => ({
+              start: shift.start,
+              end: shift.end
+            }))
+          };
+        } else {
+          // Por defecto: cerrado con un turno vacío
+          return {
+            day_of_week: day.id,
+            is_working: false,
+            shifts: [{ start: '09:00', end: '18:00' }]
+          };
+        }
+      });
+      
+      setSchedules(initialSchedules);
+      
     } catch (error) {
-      console.error('Error cargando recursos:', error);
+      console.error('Error cargando datos iniciales:', error);
+      toast.error('Error al cargar datos iniciales');
+      
+      // Fallback: horario por defecto Lun-Vie 9-18h si falla
+      setSchedules([
+        { day_of_week: 0, is_working: false, shifts: [{ start: '09:00', end: '18:00' }] },
+        { day_of_week: 1, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },
+        { day_of_week: 2, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },
+        { day_of_week: 3, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },
+        { day_of_week: 4, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },
+        { day_of_week: 5, is_working: true, shifts: [{ start: '09:00', end: '18:00' }] },
+        { day_of_week: 6, is_working: false, shifts: [{ start: '09:00', end: '18:00' }] }
+      ]);
     } finally {
       setLoading(false);
     }
@@ -499,8 +554,9 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
       return;
     }
 
-    if (!formData.assigned_resource_id) {
-      toast.error('Debes asignar un recurso (Silla, Camilla, Box...)');
+    // Validación de recurso: puede ser 'auto' o un ID específico
+    if (!formData.assigned_resource_id || formData.assigned_resource_id === '') {
+      toast.error('Debes seleccionar un recurso o dejar en Automático');
       return;
     }
     
@@ -577,7 +633,159 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
 
     setSaving(true);
     try {
-      // 1. Crear empleado
+      // 🎯 ASIGNACIÓN AUTOMÁTICA DE RECURSOS
+      let finalResourceId = formData.assigned_resource_id;
+      
+      if (formData.assigned_resource_id === 'auto') {
+        // Buscar recursos disponibles
+        const { data: availableResources, error: resError } = await supabase
+          .from('resources')
+          .select('id, name')
+          .eq('business_id', businessId)
+          .eq('is_active', true);
+        
+        if (resError) throw resError;
+        
+        if (!availableResources || availableResources.length === 0) {
+          toast.error('❌ No hay recursos disponibles. Crea primero un recurso en Configuración → Recursos');
+          setSaving(false);
+          return;
+        }
+        
+        // 🎯 ALGORITMO INTELIGENTE: Optimizar uso horario de recursos
+        // Obtener empleados actuales con sus horarios
+        const { data: currentEmployees, error: empError } = await supabase
+          .from('employees')
+          .select(`
+            id, 
+            assigned_resource_id,
+            employee_schedules (
+              day_of_week,
+              is_working,
+              shifts
+            )
+          `)
+          .eq('business_id', businessId)
+          .eq('is_active', true);
+        
+        if (empError) throw empError;
+        
+        // Convertir horarios del nuevo empleado a minutos totales por día
+        const newEmployeeMinutes = {};
+        schedules.forEach(schedule => {
+          if (!schedule.is_working) return;
+          
+          let totalMinutes = 0;
+          schedule.shifts.forEach(shift => {
+            const [hStart, mStart] = shift.start.split(':').map(Number);
+            const [hEnd, mEnd] = shift.end.split(':').map(Number);
+            const startMin = hStart * 60 + mStart;
+            const endMin = hEnd * 60 + mEnd;
+            totalMinutes += (endMin - startMin);
+          });
+          
+          newEmployeeMinutes[schedule.day_of_week] = {
+            totalMinutes,
+            shifts: schedule.shifts
+          };
+        });
+        
+        // Calcular para cada recurso:
+        // 1. Minutos ya ocupados por día
+        // 2. Si hay conflictos horarios con el nuevo empleado
+        // 3. Puntuación de "fit" (mejor aprovechamiento)
+        const resourceAnalysis = availableResources.map(resource => {
+          const employeesInResource = (currentEmployees || []).filter(emp => 
+            emp.assigned_resource_id === resource.id
+          );
+          
+          let totalConflictMinutes = 0;
+          let totalOccupiedMinutes = 0;
+          let hasConflict = false;
+          
+          // Analizar cada día
+          for (const [dayOfWeek, newEmpData] of Object.entries(newEmployeeMinutes)) {
+            const day = parseInt(dayOfWeek);
+            
+            // Minutos ocupados por empleados existentes en este día
+            let occupiedRanges = [];
+            
+            employeesInResource.forEach(emp => {
+              const schedDay = emp.employee_schedules?.find(s => s.day_of_week === day && s.is_working);
+              if (schedDay && schedDay.shifts) {
+                schedDay.shifts.forEach(shift => {
+                  const [hStart, mStart] = shift.start.split(':').map(Number);
+                  const [hEnd, mEnd] = shift.end.split(':').map(Number);
+                  occupiedRanges.push({
+                    start: hStart * 60 + mStart,
+                    end: hEnd * 60 + mEnd
+                  });
+                });
+              }
+            });
+            
+            // Verificar si el nuevo empleado solapa con empleados existentes
+            newEmpData.shifts.forEach(newShift => {
+              const [hStart, mStart] = newShift.start.split(':').map(Number);
+              const [hEnd, mEnd] = newShift.end.split(':').map(Number);
+              const newStart = hStart * 60 + mStart;
+              const newEnd = hEnd * 60 + mEnd;
+              
+              occupiedRanges.forEach(occupied => {
+                // Verificar solapamiento
+                const overlapStart = Math.max(newStart, occupied.start);
+                const overlapEnd = Math.min(newEnd, occupied.end);
+                
+                if (overlapStart < overlapEnd) {
+                  hasConflict = true;
+                  totalConflictMinutes += (overlapEnd - overlapStart);
+                }
+              });
+              
+              totalOccupiedMinutes += occupiedRanges.reduce((sum, range) => 
+                sum + (range.end - range.start), 0
+              );
+            });
+          }
+          
+          // Puntuación de "fit":
+          // - Si hay conflicto, puntuación muy baja (no viable)
+          // - Si no hay conflicto, puntuación = minutos ya ocupados (queremos llenar recursos)
+          const score = hasConflict ? -1000 : totalOccupiedMinutes;
+          
+          return {
+            resource,
+            score,
+            hasConflict,
+            employeeCount: employeesInResource.length,
+            occupiedMinutes: totalOccupiedMinutes
+          };
+        });
+        
+        // Ordenar por puntuación (mayor = mejor aprovechamiento)
+        resourceAnalysis.sort((a, b) => b.score - a.score);
+        
+        // Seleccionar el mejor recurso sin conflictos
+        const bestResource = resourceAnalysis.find(r => !r.hasConflict);
+        
+        if (bestResource) {
+          finalResourceId = bestResource.resource.id;
+          console.log(`✅ Asignación inteligente: ${bestResource.resource.name}`);
+          console.log(`   - ${bestResource.employeeCount} empleados actuales`);
+          console.log(`   - ${bestResource.occupiedMinutes} minutos ocupados`);
+          console.log(`   - Aprovechamiento óptimo del recurso`);
+          
+          window.__lastAutoAssignedResource = bestResource.resource.name;
+        } else {
+          toast.error('❌ No hay recursos disponibles sin conflictos horarios. Crea un nuevo recurso.');
+          setSaving(false);
+          return;
+        }
+      } else {
+        window.__lastAutoAssignedResource = null;
+      }
+      
+      // 1. Crear empleado con recurso asignado
       const { data: newEmployee, error: empError } = await supabase
         .from('employees')
         .insert([{
@@ -587,7 +795,7 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
           phone: formData.phone.trim() || null,
           role: formData.role,
           color: formData.color,
-          assigned_resource_id: formData.assigned_resource_id,
+          assigned_resource_id: finalResourceId,
           is_active: true,
           is_owner: false,
           position_order: 999
@@ -607,7 +815,10 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
             shifts: schedule.is_working ? schedule.shifts : [],
             start_time: schedule.is_working && schedule.shifts.length > 0 ? schedule.shifts[0].start : null,
             end_time: schedule.is_working && schedule.shifts.length > 0 ? schedule.shifts[schedule.shifts.length - 1].end : null,
-            breaks: []
+            breaks: [],
+            // ⭐ Asignar el recurso calculado
+            resource_id: finalResourceId,
+            resource_assignment_type: formData.assigned_resource_id === 'auto' ? 'auto' : 'manual'
           })
           .eq('employee_id', newEmployee.id)
           .eq('day_of_week', schedule.day_of_week);
@@ -619,7 +830,14 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
         }
       }
 
-      toast.success(`¡${formData.name} añadido con horario! 🎉`);
+      // Mensaje de éxito con información del recurso asignado
+      if (window.__lastAutoAssignedResource) {
+        toast.success(`¡${formData.name} añadido! 🎉\n✅ Recurso asignado automáticamente: ${window.__lastAutoAssignedResource}`);
+        window.__lastAutoAssignedResource = null;
+      } else {
+        toast.success(`¡${formData.name} añadido con horario! 🎉`);
+      }
+      
       onSuccess();
     } catch (error) {
       console.error('Error añadiendo empleado:', error);
@@ -718,26 +936,26 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
               Recurso asignado <span className="text-red-500">*</span>
             </label>
             <select
-              value={formData.assigned_resource_id || ''}
-              onChange={(e) => setFormData({ ...formData, assigned_resource_id: e.target.value || null })}
+              value={formData.assigned_resource_id || 'auto'}
+              onChange={(e) => setFormData({ ...formData, assigned_resource_id: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
               required
             >
-              <option value="">Selecciona un recurso</option>
+              <option value="auto">✨ Automático (Recomendado)</option>
               {resources.map(resource => (
                 <option key={resource.id} value={resource.id}>
                   {resource.name}
                 </option>
               ))}
             </select>
-            {resources.length === 0 && (
-              <p className="text-xs text-red-600 mt-1 font-medium">
-                ⚠️ No hay recursos. Créalos primero en Configuración → Recursos
+            {formData.assigned_resource_id === 'auto' && (
+              <p className="text-xs text-green-600 mt-1 font-medium">
+                ✓ El sistema asignará el mejor recurso disponible según horario
               </p>
             )}
-            {resources.length > 0 && (
-              <p className="text-xs text-gray-500 mt-1">
-                💡 Ej: Silla 1, Camilla 2, Box 3... (configurable en Configuración)
+            {resources.length === 0 && (
+              <p className="text-xs text-amber-600 mt-1 font-medium">
+                💡 No hay recursos. El modo automático los asignará cuando los crees.
               </p>
             )}
           </div>
@@ -916,7 +1134,7 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
             </button>
             <button
               type="submit"
-              disabled={saving || !formData.name.trim() || !formData.assigned_resource_id}
+              disabled={saving || !formData.name.trim()}
               className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
             >
               {saving ? (
@@ -1176,8 +1394,8 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
             : existing?.start_time && existing?.end_time
               ? [{ start: existing.start_time, end: existing.end_time }]
               : [{ start: '09:00', end: '18:00' }],
-          // ⭐ NUEVO: Asignación de recurso (manual o automática)
-          resource_id: existing?.resource_id || null,
+          // ⭐ Asignación de recurso (automática por defecto, pero respeta lo guardado)
+          resource_id: existing?.resource_id !== undefined ? existing.resource_id : null,
           resource_assignment_type: existing?.resource_assignment_type || 'auto'
         };
       });
@@ -1381,24 +1599,24 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
   };
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-2xl w-full my-8 shadow-2xl">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-2xl max-w-xl w-full max-h-[85vh] shadow-2xl flex flex-col">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
+        <div className="px-5 py-3 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
               <div 
-                className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-md"
+                className="w-8 h-8 rounded-lg flex items-center justify-center text-white text-sm font-bold shadow-md"
                 style={{ backgroundColor: employee.color || '#6366f1' }}
               >
                 {employee.name.charAt(0)}
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900">
+                <h3 className="text-base font-bold text-gray-900">
                   📅 Horario de {employee.name}
                 </h3>
-                <p className="text-xs text-gray-600">
-                  Define cuándo trabaja cada día de la semana
+                <p className="text-[10px] text-gray-600">
+                  Define cuándo trabaja cada día
                 </p>
               </div>
             </div>
@@ -1412,7 +1630,7 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
         </div>
 
         {/* Contenido */}
-        <div className="p-6">
+        <div className="p-5 overflow-y-auto flex-1">
           {loading ? (
             <div className="text-center py-8">
               <Loader2 className="w-8 h-8 text-purple-600 animate-spin mx-auto mb-3" />
@@ -1421,7 +1639,7 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
           ) : (
             <>
               {/* Botón copiar semana - Sutil y compacto */}
-              <div className="flex justify-end mb-3">
+              <div className="flex justify-end mb-2">
                 <button
                   type="button"
                   onClick={() => {
@@ -1467,7 +1685,7 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
                 return (
                   <div 
                     key={day.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-all ${
+                    className={`flex items-center gap-2 p-2 rounded-lg border-2 transition-all ${
                       schedule.is_working
                         ? 'bg-white border-purple-200 hover:border-purple-400'
                         : 'bg-gray-50 border-gray-200'
@@ -1485,8 +1703,8 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
                     </label>
 
                     {/* Nombre del día */}
-                    <div className="w-20">
-                      <p className={`text-sm font-bold ${schedule.is_working ? 'text-gray-900' : 'text-gray-400'}`}>
+                    <div className="w-16">
+                      <p className={`text-xs font-bold ${schedule.is_working ? 'text-gray-900' : 'text-gray-400'}`}>
                         {day.name}
                       </p>
                     </div>
@@ -1505,14 +1723,14 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
                               type="time"
                               value={shift.start}
                               onChange={(e) => handleShiftTimeChange(idx, shiftIdx, 'start', e.target.value)}
-                              className="px-2 py-1 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                              className="px-1.5 py-0.5 border border-gray-300 rounded text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:border-transparent"
                             />
-                            <span className="text-gray-400">—</span>
+                            <span className="text-gray-400 text-xs">—</span>
                             <input
                               type="time"
                               value={shift.end}
                               onChange={(e) => handleShiftTimeChange(idx, shiftIdx, 'end', e.target.value)}
-                              className="px-2 py-1 border border-gray-300 rounded text-sm font-medium focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                              className="px-1.5 py-0.5 border border-gray-300 rounded text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:border-transparent"
                             />
                             
                             {/* Botón Quitar (solo si hay más de 1 turno) */}
@@ -1528,28 +1746,23 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
                           </div>
                         ))}
                         
-                        {/* ⭐ NUEVO: Selector de Recurso */}
-                        <div className="pt-2 border-t border-gray-200 mt-2">
-                          <label className="block text-xs font-semibold text-gray-700 mb-1">
-                            🪑 Sillón/Recurso:
+                        {/* ⭐ Selector de Recurso - Compacto */}
+                        <div className="flex items-center gap-2 mt-2">
+                          <label className="text-[10px] font-semibold text-gray-600 whitespace-nowrap">
+                            🪑 Sillón:
                           </label>
                           <select
                             value={schedule.resource_id || 'auto'}
                             onChange={(e) => handleResourceChange(idx, e.target.value)}
-                            className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white"
+                            className="flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-purple-500 focus:border-transparent bg-white"
                           >
-                            <option value="auto">✨ Automático (Recomendado)</option>
+                            <option value="auto">✨ Automático</option>
                             {resources.map(resource => (
                               <option key={resource.id} value={resource.id}>
                                 {resource.name}
                               </option>
                             ))}
                           </select>
-                          {schedule.resource_assignment_type === 'auto' && (
-                            <p className="text-[10px] text-gray-500 mt-0.5">
-                              El sistema asignará el mejor sillón disponible
-                            </p>
-                          )}
                         </div>
                         
                         {/* Botón Añadir Turno */}
@@ -1573,34 +1786,27 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
             </>
           )}
 
-          {/* Nota informativa */}
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-3 space-y-1.5">
-            <p className="text-xs text-gray-700">
-              <strong>💡 Turnos partidos:</strong> Usa "Añadir turno" para horarios de mañana y tarde 
-              (ej: 9-14h y 16-20h).
-            </p>
-            <p className="text-xs text-gray-700">
-              <strong>🪑 Sillón Automático:</strong> El sistema asigna el mejor sillón disponible evitando conflictos.
-            </p>
-            <p className="text-xs text-gray-700">
-              <strong>🔄 Sillón Manual:</strong> Útil si quieres que use siempre el mismo o cambiar por día.
+          {/* Nota informativa - Compacta */}
+          <div className="mt-3 bg-blue-50 border border-blue-200 rounded p-2">
+            <p className="text-[10px] text-gray-700">
+              <strong>💡 Tip:</strong> Usa "Añadir turno" para turnos partidos (ej: 9-14h y 16-20h). El sillón automático asigna el mejor disponible.
             </p>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex gap-3">
+        <div className="px-5 py-3 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+          <div className="flex gap-2">
             <button
               onClick={onClose}
-              className="flex-1 px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors"
+              className="flex-1 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-lg transition-colors text-sm"
             >
               Cancelar
             </button>
             <button
               onClick={handleSave}
               disabled={saving || loading}
-              className="flex-1 px-4 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+              className="flex-1 px-3 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-lg transition-all shadow-lg flex items-center justify-center gap-2 text-sm"
             >
               {saving ? (
                 <>

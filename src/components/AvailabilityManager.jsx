@@ -1447,96 +1447,120 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
         }
     };
 
-    // Cargar disponibilidades de un día específico
+    // Cargar disponibilidades de un día específico - VERSIÓN MEJORADA
     const loadDayAvailability = async (date) => {
         try {
             setLoadingDayView(true);
             
-            console.log('🔍 Buscando disponibilidades para:', {
+            console.log('🔍 Consultando disponibilidades detalladas para:', {
                 business_id: businessId,
                 date: date
             });
             
-            // MOSTRAR EL RESTAURANT ID PARA DEBUG
-            console.log('🏪 TU RESTAURANT ID ES:', businessId);
-            console.log('📋 Copia este ID para usar en SQL:', businessId);
-            
-            const { data, error } = await supabase
-                .from('availability_slots')
-                .select(`
-                    id,
-                    slot_date,
-                    start_time,
-                    end_time,
-                    status,
-                    is_available,
-                    duration_minutes,
-                    table_id,
-                    metadata,
-                    tables(name, capacity, zone)
-                `)
-                .eq('business_id', businessId)
-                .eq('slot_date', date)
-                // ✅ MOSTRAR TODOS LOS SLOTS (libres y ocupados)
-                .order('start_time', { ascending: true })
-                .order('table_id', { ascending: true });
+            // 🆕 Usar función RPC mejorada que incluye empleados, recursos y reservas
+            const { data, error } = await supabase.rpc('get_day_availability_details', {
+                p_business_id: businessId,
+                p_date: date
+            });
 
             if (error) {
-                console.error('❌ Error en consulta:', error);
-                throw error;
+                console.error('❌ Error en consulta RPC:', error);
+                // Fallback a consulta directa si RPC falla (sin JOIN a resources)
+                const { data: fallbackData, error: fallbackError } = await supabase
+                    .from('availability_slots')
+                    .select(`
+                        id,
+                        slot_date,
+                        start_time,
+                        end_time,
+                        status,
+                        is_available,
+                        duration_minutes,
+                        resource_id
+                    `)
+                    .eq('business_id', businessId)
+                    .eq('slot_date', date)
+                    .order('start_time', { ascending: true });
+                
+                if (fallbackError) {
+                    throw fallbackError;
+                }
+                
+                // Procesar datos fallback
+                if (!fallbackData || fallbackData.length === 0) {
+                    setDayAvailability({
+                        'SIN DISPONIBILIDADES': [{
+                            id: 'no-slots',
+                            start_time: '❌',
+                            message: 'No hay disponibilidades generadas para este día',
+                            isEmpty: true
+                        }]
+                    });
+                    return;
+                }
+                
+                // Agrupar por recurso (sin JOIN, usar solo resource_id)
+                const groupedByResource = {};
+                fallbackData.forEach(slot => {
+                    const resourceKey = `Recurso ${slot.resource_id || 'Sin asignar'}`;
+                    if (!groupedByResource[resourceKey]) groupedByResource[resourceKey] = [];
+                    groupedByResource[resourceKey].push({
+                        ...slot,
+                        resource_name: resourceKey,
+                        employee_name: null,
+                        has_appointment: slot.status !== 'free'
+                    });
+                });
+                
+                setDayAvailability(groupedByResource);
+                return;
             }
             
             console.log(`📊 Slots encontrados: ${data?.length || 0}`, data);
 
-            // Verificar si es un día cerrado
-            const closedDaySlot = data?.find(slot => 
-                slot.metadata?.type === 'closed_day' && 
-                slot.start_time === '00:00:00'
-            );
-
-            if (closedDaySlot) {
-                // Mostrar mensaje de día cerrado
-                setDayAvailability({
-                    'RESTAURANTE CERRADO': [{
-                        id: 'closed',
-                        start_time: '🚫',
-                        message: closedDaySlot.metadata?.message || 'Restaurante cerrado este día',
-                        isClosed: true
-                    }]
-                });
-                return;
-            }
-
-            // Si no hay slots normales, mostrar mensaje de sin disponibilidades
+            // Si no hay slots, mostrar mensaje
             if (!data || data.length === 0) {
                 setDayAvailability({
                     'SIN DISPONIBILIDADES': [{
                         id: 'no-slots',
                         start_time: '❌',
-                        message: 'No hay disponibilidades generadas para este día',
+                        message: 'No hay disponibilidades generadas para este día. Verifica que haya empleados activos con horarios configurados.',
                         isEmpty: true
                     }]
                 });
                 return;
             }
 
-            // Agrupar por mesa (slots normales)
-            // ✅ La query ya filtró solo slots libres (status='free' y is_available=true)
-            const groupedByTable = {};
+            // Agrupar por recurso (con información completa)
+            const groupedByResource = {};
             data.forEach(slot => {
-                const tableKey = `${slot.tables.name} (Zona: ${slot.tables.zone || 'Sin zona'}) - Cap: ${slot.tables.capacity}`;
-                if (!groupedByTable[tableKey]) groupedByTable[tableKey] = [];
+                const resourceKey = slot.resource_name || `Recurso ${slot.resource_id}`;
+                const employeeInfo = slot.employee_name ? ` 👤 ${slot.employee_name}` : '';
+                const statusBadge = slot.has_appointment 
+                    ? ` 🔴 RESERVADO: ${slot.customer_name || 'Cliente'}` 
+                    : ' 🟢 LIBRE';
                 
-                groupedByTable[tableKey].push({
+                if (!groupedByResource[resourceKey]) {
+                    groupedByResource[resourceKey] = {
+                        resource_id: slot.resource_id,
+                        resource_name: slot.resource_name,
+                        employee_id: slot.employee_id,
+                        employee_name: slot.employee_name,
+                        slots: []
+                    };
+                }
+                
+                groupedByResource[resourceKey].slots.push({
                     ...slot,
-                    hasReservation: false
+                    display_time: `${slot.slot_time.substring(0, 5)} - ${slot.end_time.substring(0, 5)}`,
+                    status_badge: statusBadge
                 });
             });
 
-            setDayAvailability(groupedByTable);
+            setDayAvailability(groupedByResource);
         } catch (error) {
             console.error('Error cargando disponibilidades del día:', error);
-            toast.error('Error cargando disponibilidades del día');
+            toast.error('Error cargando disponibilidades del día: ' + error.message);
         } finally {
             setLoadingDayView(false);
         }
@@ -2015,56 +2039,108 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                     </div>
                 </div>
 
-                {/* Mostrar disponibilidades del día seleccionado */}
+                {/* Mostrar disponibilidades del día seleccionado - VERSIÓN MEJORADA */}
                 {Object.keys(dayAvailability).length > 0 && (
                     <div className="mt-3 border-t border-blue-200 pt-3">
-                        <div className="space-y-3 max-h-[calc(100vh-350px)] overflow-y-auto">
-                            {Object.entries(dayAvailability).map(([tableName, slots]) => (
-                                <div key={tableName} className={`p-2 rounded border ${
-                                    slots[0]?.isClosed 
-                                        ? 'bg-red-50 border-red-200' 
-                                        : slots[0]?.isEmpty
-                                        ? 'bg-yellow-50 border-yellow-200'
-                                        : 'bg-white border-blue-200'
-                                }`}>
-                                    <div className="font-medium text-gray-900 mb-2">{tableName}</div>
-                                    
-                                    {/* Mensaje especial para días cerrados o sin disponibilidades */}
-                                    {(slots[0]?.isClosed || slots[0]?.isEmpty) ? (
-                                        <div className={`text-center py-4 ${
-                                            slots[0]?.isClosed 
-                                                ? 'text-red-600' 
-                                                : 'text-yellow-600'
-                                        }`}>
-                                            <div className="text-lg mb-2">
-                                                {slots[0]?.isClosed ? '🚫' : '❌'}
+                        <div className="space-y-4 max-h-[calc(100vh-350px)] overflow-y-auto">
+                            {Object.entries(dayAvailability).map(([resourceKey, resourceData]) => {
+                                // Manejar formato antiguo (array de slots) y nuevo (objeto con metadata)
+                                const isNewFormat = resourceData.slots !== undefined;
+                                const slots = isNewFormat ? resourceData.slots : resourceData;
+                                const resourceName = isNewFormat ? resourceData.resource_name : resourceKey;
+                                const employeeName = isNewFormat ? resourceData.employee_name : null;
+                                
+                                return (
+                                    <div key={resourceKey} className={`p-3 rounded-lg border-2 ${
+                                        slots[0]?.isClosed 
+                                            ? 'bg-red-50 border-red-300' 
+                                            : slots[0]?.isEmpty
+                                            ? 'bg-yellow-50 border-yellow-300'
+                                            : 'bg-white border-blue-300 shadow-sm'
+                                    }`}>
+                                        {/* Header del recurso */}
+                                        <div className="flex items-center justify-between mb-3">
+                                            <div>
+                                                <div className="font-bold text-gray-900 flex items-center gap-2">
+                                                    <Users className="w-4 h-4 text-blue-600" />
+                                                    {resourceName}
+                                                </div>
+                                                {employeeName && (
+                                                    <div className="text-xs text-gray-600 mt-1 flex items-center gap-1">
+                                                        <User className="w-3 h-3" />
+                                                        Empleado: {employeeName}
+                                                    </div>
+                                                )}
                                             </div>
-                                            <div className="font-medium">
-                                                {slots[0]?.message}
+                                            <div className="text-xs text-gray-500">
+                                                {slots.filter(s => !s.isClosed && !s.isEmpty).length} slots
                                             </div>
                                         </div>
-                                    ) : (
-                                        /* Slots normales */
-                                                        <div className="flex flex-wrap gap-2">
-                                                            {slots.map((slot) => (
-                                                                <span
-                                                                    key={slot.id}
-                                                                    className={`px-2 py-1 text-xs font-medium rounded ${
-                                                                        slot.status === 'free'
-                                                                            ? 'bg-green-100 text-green-700 border border-green-300'
-                                                                            : 'bg-red-100 text-red-700 border border-red-300'
-                                                                    }`}
-                                                                    title={`${slot.start_time.slice(0, 5)} - Estado: ${slot.status}`}
-                                                                >
-                                                                    {slot.start_time.slice(0, 5)} {
-                                                                        slot.status === 'free' ? '✅' : '❌'
-                                                                    }
+                                        
+                                        {/* Mensaje especial para días cerrados o sin disponibilidades */}
+                                        {(slots[0]?.isClosed || slots[0]?.isEmpty) ? (
+                                            <div className={`text-center py-4 ${
+                                                slots[0]?.isClosed 
+                                                    ? 'text-red-600' 
+                                                    : 'text-yellow-600'
+                                            }`}>
+                                                <div className="text-2xl mb-2">
+                                                    {slots[0]?.isClosed ? '🚫' : '❌'}
+                                                </div>
+                                                <div className="font-medium">
+                                                    {slots[0]?.message}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            /* Slots normales con información detallada */
+                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                                                {slots.map((slot) => (
+                                                    <div
+                                                        key={slot.id}
+                                                        className={`p-2 rounded-lg border-2 transition-all ${
+                                                            slot.has_appointment || slot.status === 'reserved' || slot.status === 'booked'
+                                                                ? 'bg-red-50 border-red-400 hover:bg-red-100'
+                                                                : slot.status === 'free'
+                                                                ? 'bg-green-50 border-green-400 hover:bg-green-100'
+                                                                : 'bg-gray-50 border-gray-300'
+                                                        }`}
+                                                        title={
+                                                            slot.has_appointment 
+                                                                ? `RESERVADO: ${slot.customer_name || 'Cliente'} - ${slot.display_time || slot.slot_time}`
+                                                                : `LIBRE: ${slot.display_time || slot.slot_time} - ${slot.duration_minutes || 30} min`
+                                                        }
+                                                    >
+                                                        <div className="flex items-center justify-between mb-1">
+                                                            <span className="font-bold text-sm text-gray-900">
+                                                                {slot.display_time || slot.slot_time?.substring(0, 5) || slot.start_time?.substring(0, 5)}
+                                                            </span>
+                                                            {slot.has_appointment ? (
+                                                                <span className="text-xs bg-red-200 text-red-800 px-1.5 py-0.5 rounded font-bold">
+                                                                    🔴
                                                                 </span>
-                                                            ))}
+                                                            ) : (
+                                                                <span className="text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded font-bold">
+                                                                    🟢
+                                                                </span>
+                                                            )}
                                                         </div>
-                                    )}
-                                </div>
-                            ))}
+                                                        {slot.has_appointment && slot.customer_name && (
+                                                            <div className="text-xs text-red-700 font-semibold truncate">
+                                                                👤 {slot.customer_name}
+                                                            </div>
+                                                        )}
+                                                        {slot.duration_minutes && (
+                                                            <div className="text-xs text-gray-500 mt-1">
+                                                                ⏱️ {slot.duration_minutes} min
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                );
+                            })}
                         </div>
                     </div>
                 )}
