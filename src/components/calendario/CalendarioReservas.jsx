@@ -711,13 +711,55 @@ function VistaDia({
     
     const fechaStr = format(fecha, 'yyyy-MM-dd');
     const diaSemanaActual = fecha.getDay(); // 0=Domingo, 1=Lunes, ..., 6=Sábado
-    // 🎯 FILTRAR: SIEMPRE ocultar canceladas y no-shows del calendario (estilo Booksy)
-    // Para ver canceladas → Click en estadística 🟥 Canceladas
-    const reservasDelDia = reservations.filter(r => 
-        r.reservation_date === fechaStr && 
-        r.status !== 'cancelled' && 
-        r.status !== 'no_show'
-    );
+    
+    // 🔍 DIAGNÓSTICO: Log de reservas recibidas
+    React.useEffect(() => {
+        if (reservations.length > 0) {
+            console.log('📅 CALENDARIO - Fecha mostrada:', fechaStr);
+            console.log('📋 CALENDARIO - Total reservas recibidas:', reservations.length);
+            console.log('📋 CALENDARIO - Fechas de reservas:', reservations.map(r => ({
+                customer: r.customer_name,
+                fecha: r.reservation_date || r.appointment_date,
+                status: r.status,
+                tieneReservationDate: !!r.reservation_date,
+                tieneAppointmentDate: !!r.appointment_date
+            })));
+            console.log('📋 CALENDARIO - Estados de reservas:', reservations.map(r => r.status));
+        }
+    }, [reservations, fechaStr]);
+    
+    // 🎯 FILTRAR: Ocultar solo canceladas del calendario
+    // Las reservas "no_show" se muestran pero con estilo diferente (tachadas/opacidad)
+    const reservasDelDia = reservations.filter(r => {
+        const fechaReserva = r.reservation_date || r.appointment_date;
+        const coincideFecha = fechaReserva === fechaStr;
+        const noEstaCancelada = r.status !== 'cancelled'; // Solo ocultar canceladas
+        
+        if (!coincideFecha && noEstaCancelada) {
+            // Log solo para reservas que deberían mostrarse pero no coinciden fecha
+            console.log('⚠️ Reserva no mostrada (fecha diferente):', {
+                customer: r.customer_name,
+                fechaReserva,
+                fechaMostrada: fechaStr,
+                status: r.status
+            });
+        }
+        
+        return coincideFecha && noEstaCancelada;
+    });
+    
+    // 🔍 DIAGNÓSTICO: Log de reservas filtradas
+    React.useEffect(() => {
+        if (reservations.length > 0) {
+            console.log('✅ CALENDARIO - Reservas del día filtradas:', reservasDelDia.length);
+            if (reservasDelDia.length === 0 && reservations.length > 0) {
+                console.warn('⚠️ CALENDARIO - No hay reservas para mostrar. Posibles causas:');
+                console.warn('   1. Fecha diferente (mostrando:', fechaStr, 'vs reservas en otras fechas)');
+                console.warn('   2. Todas están canceladas o no_show');
+                console.warn('   3. Problema con mapeo reservation_date/appointment_date');
+            }
+        }
+    }, [reservasDelDia.length, reservations.length, fechaStr]);
     const bloqueosDelDia = blockages.filter(b => b.blocked_date === fechaStr);
     
     // 🎯 Referencia a la tabla para buscar filas por minuto exacto
@@ -1121,6 +1163,8 @@ function VistaDia({
                                                         onCellClick(recurso, fechaStr, timeStr, reserva, null);
                                                     }}
                                                     className={`${colors.bg} ${colors.border} ${colors.bgHover} rounded-lg shadow-md transition-all ${
+                                                        reserva.status === 'no_show' ? 'opacity-50 line-through' : ''
+                                                    } ${
                                                         isDragging ? 'opacity-50 scale-95 rotate-2 cursor-grabbing' : 'hover:shadow-lg hover:scale-105 hover:-translate-y-0.5 cursor-grab'
                                                     }`}
                                                     style={{
@@ -1400,6 +1444,8 @@ function VistaDia({
                                                                     onCellClick(recurso, fechaStr, timeStr, reservaQueEmpiezaAqui, null);
                                                                 }}
                                                                 className={`${colors.bg} ${colors.border} ${colors.bgHover} rounded-lg shadow-md transition-all ${
+                                                                    reservaQueEmpiezaAqui.status === 'no_show' ? 'opacity-50 line-through' : ''
+                                                                } ${
                                                                     isDragging ? 'opacity-50 scale-95 rotate-2 cursor-grabbing' : 'hover:shadow-lg hover:scale-105 hover:-translate-y-0.5 cursor-grab'
                                                                 }`}
                                                                 style={{

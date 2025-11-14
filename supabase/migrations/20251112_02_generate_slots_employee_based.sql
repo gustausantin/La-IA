@@ -34,7 +34,7 @@ DECLARE
     v_schedule RECORD;
     v_resource_id UUID;
     v_slot_time TIME;
-    v_slot_interval INTERVAL := '30 minutes'; -- Intervalo por defecto
+    v_slot_interval INTERVAL := '15 minutes'; -- Intervalo de 15 minutos (cada cuarto de hora)
     v_slots_count INTEGER := 0;
     v_days_count INTEGER := 0;
     v_employees_count INTEGER := 0;

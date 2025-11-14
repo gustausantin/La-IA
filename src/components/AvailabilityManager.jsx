@@ -218,38 +218,167 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // ⚠️ Usamos RPC para obtener fechas únicas sin límite de 1000 registros
             console.log('🔍 CÓDIGO ACTUALIZADO - Consultando días únicos directamente');
             
-            // Query optimizado: obtener fechas DISTINTAS (no todos los slots)
-            const { data: slotsData, error: slotsError } = await supabase
+            // 🔍 DIAGNÓSTICO: Primero verificar si hay slots en absoluto (sin filtros)
+            const { data: diagnosticSlots, error: diagnosticError } = await supabase
+                .from('availability_slots')
+                .select('id, business_id, slot_date')
+                .limit(10);
+            
+            console.log('🔍 DIAGNÓSTICO loadDayStats - Slots en la tabla (sin filtros):', {
+                encontrados: diagnosticSlots?.length || 0,
+                error: diagnosticError,
+                muestra: diagnosticSlots?.slice(0, 3),
+                businessIds: [...new Set(diagnosticSlots?.map(s => s.business_id) || [])],
+                fechas: [...new Set(diagnosticSlots?.map(s => s.slot_date) || [])]
+            });
+            
+            let slotsData = [];
+            let uniqueDates = [];
+            
+            // Intentar primero con RPC
+            try {
+                const { data: rpcData, error: slotsError } = await supabase
                 .rpc('get_unique_slot_dates', {
                     p_business_id: businessId,
                     p_from_date: today
                 });
 
-            if (slotsError) throw slotsError;
+                if (!slotsError && rpcData && rpcData.length > 0) {
+                    slotsData = rpcData;
+                    console.log('✅ RPC devolvió datos:', rpcData.length, 'fechas');
+                } else {
+                    console.warn('⚠️ RPC no devolvió datos o hubo error:', slotsError);
+                    // Fallback: consulta directa más robusta - SIN LÍMITE
+                    const { data: directData, error: directError } = await supabase
+                        .from('availability_slots')
+                        .select('slot_date, id, business_id')
+                        .eq('business_id', businessId)
+                        .gte('slot_date', today)
+                        .order('slot_date', { ascending: true });
+                    
+                    console.log('🔍 Consulta directa completa:', {
+                        encontrados: directData?.length || 0,
+                        error: directError,
+                        businessIdBuscado: businessId,
+                        fechaDesde: today
+                    });
+                    
+                    if (!directError && directData && directData.length > 0) {
+                        console.log('✅ Consulta directa encontró', directData.length, 'slots');
+                        // Obtener fechas únicas y contar slots por fecha
+                        const dateCounts = {};
+                        directData.forEach(slot => {
+                            const date = slot.slot_date;
+                            dateCounts[date] = (dateCounts[date] || 0) + 1;
+                        });
+                        
+                        slotsData = Object.keys(dateCounts).map(date => ({
+                            slot_date: date,
+                            slots_count: dateCounts[date]
+                        })).sort((a, b) => a.slot_date.localeCompare(b.slot_date));
+                        
+                        console.log('✅ Fechas únicas procesadas:', slotsData.length);
+                    } else {
+                        console.error('❌ Error también en fallback directo o no hay datos:', directError);
+                        if (directData && directData.length === 0) {
+                            console.warn('⚠️ No se encontraron slots en la base de datos para business_id:', businessId);
+                            console.warn('⚠️ Verifica que los slots se hayan generado correctamente en Supabase');
+                        }
+                    }
+                }
+            } catch (err) {
+                console.error('❌ Error consultando slots:', err);
+                // Fallback: consulta directa
+                try {
+                    const { data: directData, error: directError } = await supabase
+                        .from('availability_slots')
+                        .select('slot_date, id')
+                        .eq('business_id', businessId)
+                        .gte('slot_date', today)
+                        .order('slot_date', { ascending: true });
+                    
+                    if (!directError && directData && directData.length > 0) {
+                        const dateCounts = {};
+                        directData.forEach(slot => {
+                            const date = slot.slot_date;
+                            dateCounts[date] = (dateCounts[date] || 0) + 1;
+                        });
+                        
+                        slotsData = Object.keys(dateCounts).map(date => ({
+                            slot_date: date,
+                            slots_count: dateCounts[date]
+                        })).sort((a, b) => a.slot_date.localeCompare(b.slot_date));
+                    }
+                } catch (fallbackErr) {
+                    console.error('❌ Error en fallback:', fallbackErr);
+                }
+            }
 
             console.log(`✅ SLOTS RECIBIDOS: ${slotsData?.length} registros`);
+            console.log(`📊 Datos de slots recibidos:`, slotsData);
             
             // Debug: Ver fechas únicas en los slots
-            const uniqueDates = [...new Set(slotsData?.map(s => s.slot_date) || [])].sort();
+            uniqueDates = [...new Set(slotsData?.map(s => s.slot_date) || [])].sort();
             console.log(`📅 FECHAS ÚNICAS EN SLOTS: ${uniqueDates.length} días`);
             console.log(`📅 Primera fecha: ${uniqueDates[0]}`);
             console.log(`📅 Última fecha: ${uniqueDates[uniqueDates.length - 1]}`);
             console.log(`📅 Todas las fechas:`, uniqueDates);
 
-            // 3.5. Obtener días CERRADOS manualmente (festivos, vacaciones) desde special_events
-            const { data: closedDays, error: closedError } = await supabase
-                .from('special_events')
-                .select('event_date')
+            // Si no hay slots pero debería haberlos, hacer consulta directa de debug
+            if (slotsData?.length === 0) {
+                console.warn('⚠️ No se encontraron slots. Haciendo consulta directa de debug...');
+                const { data: debugData, error: debugError } = await supabase
+                    .from('availability_slots')
+                    .select('slot_date, business_id')
                 .eq('business_id', businessId)
-                .eq('is_closed', true)
-                .gte('event_date', today)
-                .lte('event_date', endDate);
+                    .gte('slot_date', today)
+                    .limit(10);
+                
+                console.log('🔍 DEBUG - Consulta directa:', {
+                    encontrados: debugData?.length || 0,
+                    error: debugError,
+                    datos: debugData,
+                    businessId,
+                    today,
+                    mensaje: debugData?.length === 0 
+                        ? '⚠️ No hay slots en la BD. ¿Se generaron correctamente?' 
+                        : '✅ Slots encontrados en la BD'
+                });
+                
+                // Si hay slots pero no se encontraron con RPC, puede ser problema de fecha
+                if (debugData && debugData.length > 0) {
+                    console.log('✅ Slots EXISTEN en la BD pero no se encontraron con RPC. Verificar:');
+                    console.log('   - Fechas de slots:', debugData.map(s => s.slot_date));
+                    console.log('   - Fecha de búsqueda (today):', today);
+                }
+            }
 
-            if (closedError) console.warn('⚠️ Error obteniendo días cerrados:', closedError);
+            // 3.5. Obtener días CERRADOS manualmente (festivos, vacaciones) desde calendar_exceptions
+            // Nota: Si la tabla no existe o no tiene la columna exception_type, simplemente continuamos sin días cerrados
+            let closedDays = [];
+            try {
+                // Consulta simple sin filtro de exception_type (puede no existir)
+                const { data, error: closedError } = await supabase
+                    .from('calendar_exceptions')
+                    .select('exception_date')
+                .eq('business_id', businessId)
+                    .gte('exception_date', today)
+                    .lte('exception_date', endDate);
+                
+                if (!closedError && data) {
+                    closedDays = data;
+                } else if (closedError) {
+                    // Si falla, simplemente continuar sin días cerrados (no es crítico)
+                    console.warn('⚠️ No se pudieron obtener días cerrados (tabla puede no existir o tener estructura diferente):', closedError.message);
+                }
+            } catch (err) {
+                // Si hay error, simplemente continuar sin días cerrados (no es crítico)
+                console.warn('⚠️ No se pudo consultar días cerrados:', err);
+            }
 
             // Crear set de días cerrados
             const closedDaysSet = new Set(
-                closedDays?.map(d => d.event_date) || []
+                closedDays?.map(d => d.exception_date) || []
             );
 
             console.log('🚫 DEBUG - Días cerrados manualmente (desde special_events):', Array.from(closedDaysSet));
@@ -273,9 +402,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // que protegen días aunque estén fuera del rango de configuración
             const { data: reservations, error: resError } = await supabase
                 .from('appointments')
-                .select('reservation_date, status')
+                .select('appointment_date, status')
                 .eq('business_id', businessId)
-                .gte('reservation_date', today);  // Solo desde hoy en adelante
+                .gte('appointment_date', today);  // Solo desde hoy en adelante
 
             if (resError) throw resError;
 
@@ -287,11 +416,11 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // 7. Calcular días únicos con reservas activas QUE TIENEN SLOTS
             // ⚠️ CRÍTICO: Solo contar reservas en días que TIENEN slots generados
             const reservationsInSlotsRange = activeReservations.filter(r => 
-                uniqueDaysWithSlots.has(r.reservation_date)
+                uniqueDaysWithSlots.has(r.appointment_date)
             );
             
             const uniqueDaysWithReservations = new Set(
-                reservationsInSlotsRange.map(r => r.reservation_date)
+                reservationsInSlotsRange.map(r => r.appointment_date)
             ).size;
 
             // 8. Calcular días libres = días REALES con slots - días con reservas
@@ -352,17 +481,16 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 .from('appointments')
                 .select(`
                     id,
-                    reservation_date,
-                    reservation_time,
-                    table_id,
+                    appointment_date,
+                    appointment_time,
+                    resource_id,
                     customer_name,
                     party_size,
-                    status,
-                    tables(name)
+                    status
                 `)
                 .eq('business_id', businessId)
-                .gte('reservation_date', startDate)
-                .lte('reservation_date', endDate)
+                .gte('appointment_date', startDate)
+                .lte('appointment_date', endDate)
                 .in('status', ['confirmed', 'pending']);
 
             if (error) throw error;
@@ -428,9 +556,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // Obtener TODAS las reservas futuras agrupadas por día
             const { data: reservations, error } = await supabase
                 .from('appointments')
-                .select('reservation_date, customer_name, status')
+                .select('appointment_date, customer_name, status')
                 .eq('business_id', businessId)
-                .gte('reservation_date', today)
+                .gte('appointment_date', today)
                 .not('status', 'in', '(cancelled,completed)');  // Solo activas
             
             if (error) {
@@ -438,13 +566,14 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 return [];
             }
 
-            // Agrupar por fecha
+            // Agrupar por fecha (mapear appointment_date a reservation_date para compatibilidad)
             const groupedByDate = {};
             reservations?.forEach(res => {
-                if (!groupedByDate[res.reservation_date]) {
-                    groupedByDate[res.reservation_date] = [];
+                const fecha = res.appointment_date || res.reservation_date;
+                if (!groupedByDate[fecha]) {
+                    groupedByDate[fecha] = [];
                 }
-                groupedByDate[res.reservation_date].push(res);
+                groupedByDate[fecha].push({ ...res, reservation_date: fecha });
             });
 
             // Convertir a array ordenado con formato
@@ -490,7 +619,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // Debug: Todas las reservas
             const { data: allReservationsDebug } = await supabase
                 .from('appointments')
-                .select('id, reservation_date, status, customer_name')
+                .select('id, appointment_date, status, customer_name')
                 .eq('business_id', businessId);
 
             console.log('📊 TODAS las reservas del restaurante:', allReservationsDebug);
@@ -499,9 +628,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // CRÍTICO: Incluir reservas fuera del rango porque también protegen días
             const { data: reservationsDataBefore, error: resError } = await supabase
                 .from('appointments')
-                .select('id, reservation_date, status, customer_name')
+                .select('id, appointment_date, status, customer_name')
                 .eq('business_id', businessId)
-                .gte('reservation_date', today);  // Solo desde hoy, SIN límite superior
+                .gte('appointment_date', today);  // Solo desde hoy, SIN límite superior
 
             if (resError) {
                 console.error('❌ Error consultando reservas:', resError);
@@ -510,9 +639,10 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             console.log('📊 TODAS las reservas consultadas:', reservationsDataBefore);
 
             // ✅ FILTRAR: Solo contar las ACTIVAS (excluir cancelled y completed)
-            const activeReservationsArray = reservationsDataBefore?.filter(r => 
+            // Mapear appointment_date a reservation_date para compatibilidad
+            const activeReservationsArray = (reservationsDataBefore?.filter(r => 
                 r.status !== 'cancelled' && r.status !== 'completed'
-            ) || [];
+            ) || []).map(r => ({ ...r, reservation_date: r.appointment_date }));
 
             const activeReservations = activeReservationsArray.length;
             
@@ -624,10 +754,10 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // 2. Buscar reservas activas en esos días de la semana
             const { data: reservations, error } = await supabase
                 .from('appointments')
-                .select('id, customer_name, customer_phone, reservation_date, reservation_time, party_size, status')
+                .select('id, customer_name, customer_phone, appointment_date, appointment_time, party_size, status')
                 .eq('business_id', businessId)
                 .in('status', ['pending', 'confirmed', 'pending_approval'])
-                .gte('reservation_date', format(new Date(), 'yyyy-MM-dd'));
+                .gte('appointment_date', format(new Date(), 'yyyy-MM-dd'));
             
             if (error) throw error;
             
@@ -715,11 +845,18 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             const endDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
 
 
-            // Usar cleanup_and_regenerate_availability ya que regenerate_availability_smart no existe
-            const { data, error } = await supabase.rpc('cleanup_and_regenerate_availability', {
+            // Usar generate_availability_slots_employee_based (función que existe)
+            // Calcular días a generar
+            const startDateObj = new Date(today);
+            const endDateObj = new Date(endDate);
+            const daysToGenerate = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24)) + 1;
+            
+            // Parámetros correctos: p_business_id, p_start_date, p_days_ahead, p_regenerate
+            const { data, error } = await supabase.rpc('generate_availability_slots_employee_based', {
                 p_business_id: businessId,
                 p_start_date: today,
-                p_end_date: endDate
+                p_days_ahead: daysToGenerate,
+                p_regenerate: true // Regenerar slots existentes
             });
 
             if (error) {
@@ -744,10 +881,22 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             console.log('🔍 Resultado de regeneración:', results);
             
+            // La función RPC puede devolver un array o un objeto
+            const resultData = Array.isArray(results) ? results[0] : results;
+            
             // Actualizar estado local con datos correctos
-            const slotsCreated = results?.slots_created || 0;
-            const slotsMarked = results?.slots_marked || 0;
-            const daysProtected = results?.days_protected || 0;
+            // La función puede devolver diferentes formatos según la versión
+            const slotsCreated = resultData?.slots_created || resultData?.total_slots_generated || 0;
+            const slotsMarked = resultData?.slots_marked || 0;
+            const daysProtected = resultData?.days_protected || resultData?.days_processed || 0;
+            
+            console.log('📊 Datos extraídos del resultado:', {
+                slotsCreated,
+                slotsMarked,
+                daysProtected,
+                rawResult: results,
+                processedResult: resultData
+            });
             
             const successData = {
                 slotsCreated: slotsCreated,
@@ -771,8 +920,28 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // 🔒 RECARGAR ESTADÍSTICAS INMEDIATAMENTE
             console.log('🔄 Recargando estadísticas después de regenerar...');
-            await loadAvailabilityStats();
-            await loadDayStats(); // 📊 Recargar estadísticas de días
+            
+            // Esperar un momento para que la BD se actualice completamente
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Recargar TODAS las estadísticas en paralelo
+            await Promise.all([
+                loadAvailabilityStats(),
+                loadDayStats() // 📊 Recargar estadísticas de días
+            ]);
+            
+            // Esperar un poco más y forzar recarga adicional
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Recargar de nuevo para asegurar que los datos se reflejen
+            await loadDayStats();
+            
+            // Si hay una fecha seleccionada, recargar también esa vista
+            if (selectedDate) {
+                console.log('🔄 Recargando vista de día específico:', selectedDate);
+                await loadDayAvailability(selectedDate);
+            }
+            
             console.log('✅ Estadísticas recargadas');
             
             // 🎯 CALCULAR DÍAS Y RESERVAS REALES
@@ -787,7 +956,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // Obtener TODAS las reservas primero (para debug)
             const { data: allReservations } = await supabase
                 .from('appointments')
-                .select('id, reservation_date, status, customer_name')
+                .select('id, appointment_date, status, customer_name')
                 .eq('business_id', businessId);
 
             console.log('📊 TODAS las reservas del restaurante:', allReservations);
@@ -795,10 +964,10 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             // TODAS las reservas en el rango (sin filtrar por status)
             const { data: reservationsData, error: reservationsError } = await supabase
                 .from('appointments')
-                .select('id, reservation_date, status, customer_name')
+                .select('id, appointment_date, status, customer_name')
                 .eq('business_id', businessId)
-                .gte('reservation_date', today)
-                .lte('reservation_date', endDate);
+                .gte('appointment_date', today)
+                .lte('appointment_date', endDate);
 
             if (reservationsError) {
                 console.error('❌ Error consultando reservas:', reservationsError);
@@ -807,9 +976,10 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             console.log('📊 TODAS las reservas consultadas:', reservationsData);
 
             // ✅ FILTRAR: Solo contar las ACTIVAS (excluir cancelled y completed)
-            const activeReservationsArray = reservationsData?.filter(r => 
+            // Mapear appointment_date a reservation_date para compatibilidad
+            const activeReservationsArray = (reservationsData?.filter(r => 
                 r.status !== 'cancelled' && r.status !== 'completed'
-            ) || [];
+            ) || []).map(r => ({ ...r, reservation_date: r.appointment_date }));
 
             const activeReservations = activeReservationsArray.length;
             
@@ -1159,8 +1329,28 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // 🔒 RECARGAR ESTADÍSTICAS INMEDIATAMENTE
             console.log('🔄 Recargando estadísticas después de generar...');
-            await loadAvailabilityStats();
-            await loadDayStats(); // 📊 Recargar estadísticas de días
+            
+            // Esperar un momento para que la BD se actualice completamente
+            await new Promise(resolve => setTimeout(resolve, 1500));
+            
+            // Recargar TODAS las estadísticas en paralelo
+            await Promise.all([
+                loadAvailabilityStats(),
+                loadDayStats() // 📊 Recargar estadísticas de días
+            ]);
+            
+            // Esperar un poco más y forzar recarga adicional
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Recargar de nuevo para asegurar que los datos se reflejen
+            await loadDayStats();
+            
+            // Si hay una fecha seleccionada, recargar también esa vista
+            if (selectedDate) {
+                console.log('🔄 Recargando vista de día específico:', selectedDate);
+                await loadDayAvailability(selectedDate);
+            }
+            
             console.log('✅ Estadísticas recargadas');
             
             // 🎯 Obtener estadísticas REALES
@@ -1325,11 +1515,24 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             console.log('   📅 Período:', today, 'hasta', endDate);
             console.log('   🕒 Duración:', duration, 'minutos');
 
-            const { data, error } = await supabase.rpc('cleanup_and_regenerate_availability', {
+            // Calcular días a generar
+            const startDateObj = new Date(today);
+            const endDateObj = new Date(endDate);
+            const daysToGenerate = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24)) + 1;
+            
+            let data, error;
+            
+            // Usar generate_availability_slots_employee_based con parámetros correctos
+            // Parámetros: p_business_id, p_start_date, p_days_ahead, p_regenerate
+            const result1 = await supabase.rpc('generate_availability_slots_employee_based', {
                 p_business_id: businessId,
                 p_start_date: today,
-                p_end_date: endDate
+                p_days_ahead: daysToGenerate,
+                p_regenerate: true
             });
+            
+            data = result1.data;
+            error = result1.error;
 
             if (error) {
                 console.error('❌ Error en limpieza inteligente:', error);
@@ -1447,79 +1650,80 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
         }
     };
 
-    // Cargar disponibilidades de un día específico - VERSIÓN MEJORADA
+    // Cargar disponibilidades de un día específico - CONSULTA DIRECTA A SUPABASE
     const loadDayAvailability = async (date) => {
         try {
             setLoadingDayView(true);
             
-            console.log('🔍 Consultando disponibilidades detalladas para:', {
+            console.log('🔍 CONSULTANDO DIRECTAMENTE EN SUPABASE para:', {
                 business_id: businessId,
                 date: date
             });
             
-            // 🆕 Usar función RPC mejorada que incluye empleados, recursos y reservas
-            const { data, error } = await supabase.rpc('get_day_availability_details', {
-                p_business_id: businessId,
-                p_date: date
+            // 🔍 DIAGNÓSTICO: Primero verificar si hay slots en absoluto (sin filtros)
+            const { data: allSlots, error: diagnosticError } = await supabase
+                .from('availability_slots')
+                .select('id, business_id, slot_date')
+                .limit(10);
+            
+            console.log('🔍 DIAGNÓSTICO - Slots en la tabla (sin filtros):', {
+                encontrados: allSlots?.length || 0,
+                error: diagnosticError,
+                muestra: allSlots?.slice(0, 3),
+                businessIds: [...new Set(allSlots?.map(s => s.business_id) || [])]
             });
-
-            if (error) {
-                console.error('❌ Error en consulta RPC:', error);
-                // Fallback a consulta directa si RPC falla (sin JOIN a resources)
-                const { data: fallbackData, error: fallbackError } = await supabase
+            
+            // ✅ CONSULTA DIRECTA - Ir directamente a la tabla availability_slots
+            const { data: slotsData, error: slotsError } = await supabase
+                .from('availability_slots')
+                .select(`
+                    id,
+                    slot_date,
+                    start_time,
+                    end_time,
+                    status,
+                    is_available,
+                    duration_minutes,
+                    resource_id,
+                    business_id
+                `)
+                .eq('business_id', businessId)
+                .eq('slot_date', date)
+                .order('start_time', { ascending: true });
+            
+            console.log('📊 RESULTADO CONSULTA DIRECTA:', {
+                encontrados: slotsData?.length || 0,
+                error: slotsError,
+                datos: slotsData,
+                businessIdBuscado: businessId,
+                fechaBuscada: date
+            });
+            
+            // Si no encuentra con fecha exacta, buscar en un rango
+            if ((!slotsData || slotsData.length === 0) && !slotsError) {
+                console.log('🔍 No se encontraron slots para fecha exacta, buscando en rango...');
+                const { data: rangeData } = await supabase
                     .from('availability_slots')
-                    .select(`
-                        id,
-                        slot_date,
-                        start_time,
-                        end_time,
-                        status,
-                        is_available,
-                        duration_minutes,
-                        resource_id
-                    `)
+                    .select('id, slot_date, start_time, business_id')
                     .eq('business_id', businessId)
-                    .eq('slot_date', date)
-                    .order('start_time', { ascending: true });
+                    .gte('slot_date', format(addDays(new Date(date), -7), 'yyyy-MM-dd'))
+                    .lte('slot_date', format(addDays(new Date(date), 7), 'yyyy-MM-dd'))
+                    .limit(20);
                 
-                if (fallbackError) {
-                    throw fallbackError;
-                }
-                
-                // Procesar datos fallback
-                if (!fallbackData || fallbackData.length === 0) {
-                    setDayAvailability({
-                        'SIN DISPONIBILIDADES': [{
-                            id: 'no-slots',
-                            start_time: '❌',
-                            message: 'No hay disponibilidades generadas para este día',
-                            isEmpty: true
-                        }]
-                    });
-                    return;
-                }
-                
-                // Agrupar por recurso (sin JOIN, usar solo resource_id)
-                const groupedByResource = {};
-                fallbackData.forEach(slot => {
-                    const resourceKey = `Recurso ${slot.resource_id || 'Sin asignar'}`;
-                    if (!groupedByResource[resourceKey]) groupedByResource[resourceKey] = [];
-                    groupedByResource[resourceKey].push({
-                        ...slot,
-                        resource_name: resourceKey,
-                        employee_name: null,
-                        has_appointment: slot.status !== 'free'
-                    });
+                console.log('🔍 Slots encontrados en rango ±7 días:', {
+                    encontrados: rangeData?.length || 0,
+                    fechas: [...new Set(rangeData?.map(s => s.slot_date) || [])]
                 });
-                
-                setDayAvailability(groupedByResource);
-                return;
             }
             
-            console.log(`📊 Slots encontrados: ${data?.length || 0}`, data);
-
+            if (slotsError) {
+                console.error('❌ Error en consulta directa:', slotsError);
+                throw slotsError;
+            }
+            
             // Si no hay slots, mostrar mensaje
-            if (!data || data.length === 0) {
+            if (!slotsData || slotsData.length === 0) {
+                console.warn('⚠️ No se encontraron slots para la fecha:', date);
                 setDayAvailability({
                     'SIN DISPONIBILIDADES': [{
                         id: 'no-slots',
@@ -1528,40 +1732,111 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                         isEmpty: true
                     }]
                 });
+                setLoadingDayView(false);
                 return;
             }
-
-            // Agrupar por recurso (con información completa)
-            const groupedByResource = {};
-            data.forEach(slot => {
-                const resourceKey = slot.resource_name || `Recurso ${slot.resource_id}`;
-                const employeeInfo = slot.employee_name ? ` 👤 ${slot.employee_name}` : '';
-                const statusBadge = slot.has_appointment 
-                    ? ` 🔴 RESERVADO: ${slot.customer_name || 'Cliente'}` 
-                    : ' 🟢 LIBRE';
+            
+            console.log(`✅ ${slotsData.length} slots encontrados para ${date}`);
+            
+            // Obtener información de recursos y empleados
+            const resourceIds = [...new Set(slotsData.map(s => s.resource_id).filter(Boolean))];
+            let resourcesMap = {};
+            let employeesMap = {};
+            
+            if (resourceIds.length > 0) {
+                // Obtener recursos
+                const { data: resourcesData } = await supabase
+                    .from('resources')
+                    .select('id, name, capacity')
+                    .in('id', resourceIds);
                 
-                if (!groupedByResource[resourceKey]) {
-                    groupedByResource[resourceKey] = {
+                if (resourcesData) {
+                    resourcesMap = resourcesData.reduce((acc, r) => {
+                        acc[r.id] = r;
+                        return acc;
+                    }, {});
+                }
+                
+                // Obtener empleados que tienen estos recursos asignados
+                const { data: employeesData } = await supabase
+                    .from('employees')
+                    .select('id, name, assigned_resource_id, position_order')
+                    .eq('business_id', businessId)
+                    .eq('is_active', true)
+                    .in('assigned_resource_id', resourceIds);
+                
+                if (employeesData) {
+                    employeesMap = employeesData.reduce((acc, e) => {
+                        if (e.assigned_resource_id) {
+                            acc[e.assigned_resource_id] = e;
+                        }
+                        return acc;
+                    }, {});
+                }
+            }
+            
+            // ✅ AGRUPAR POR EMPLEADO (no por recurso)
+            const groupedByEmployee = {};
+            
+            slotsData.forEach(slot => {
+                const resource = resourcesMap[slot.resource_id];
+                const employee = slot.resource_id ? employeesMap[slot.resource_id] : null;
+                
+                // Si hay empleado, agrupar por empleado. Si no, agrupar por "Sin asignar"
+                const employeeKey = employee 
+                    ? employee.name 
+                    : resource 
+                        ? `Sin empleado - ${resource.name}` 
+                        : 'Sin asignar';
+                
+                if (!groupedByEmployee[employeeKey]) {
+                    groupedByEmployee[employeeKey] = {
+                        employee_id: employee?.id || null,
+                        employee_name: employee?.name || null,
+                        resource_name: resource?.name || null,
                         resource_id: slot.resource_id,
-                        resource_name: slot.resource_name,
-                        employee_id: slot.employee_id,
-                        employee_name: slot.employee_name,
                         slots: []
                     };
                 }
                 
-                groupedByResource[resourceKey].slots.push({
+                groupedByEmployee[employeeKey].slots.push({
                     ...slot,
-                    display_time: `${slot.slot_time.substring(0, 5)} - ${slot.end_time.substring(0, 5)}`,
-                    status_badge: statusBadge
+                    resource_name: resource?.name || null,
+                    resource_capacity: resource?.capacity || null,
+                    employee_name: employee?.name || null,
+                    has_appointment: slot.status !== 'free' && slot.status !== 'available',
+                    isEmpty: false
                 });
             });
-
-            setDayAvailability(groupedByResource);
+            
+            // Ordenar empleados por position_order
+            const sortedEmployees = Object.entries(groupedByEmployee).sort((a, b) => {
+                const empA = employeesMap[groupedByEmployee[a[0]].resource_id];
+                const empB = employeesMap[groupedByEmployee[b[0]].resource_id];
+                const orderA = empA?.position_order ?? 999;
+                const orderB = empB?.position_order ?? 999;
+                return orderA - orderB;
+            });
+            
+            const finalGrouped = {};
+            sortedEmployees.forEach(([key, data]) => {
+                finalGrouped[key] = data;
+            });
+            
+            console.log('✅ Slots agrupados por EMPLEADO:', Object.keys(finalGrouped));
+            setDayAvailability(finalGrouped);
+            setLoadingDayView(false);
+            
         } catch (error) {
-            console.error('Error cargando disponibilidades del día:', error);
-            toast.error('Error cargando disponibilidades del día: ' + error.message);
-        } finally {
+            console.error('❌ Error cargando disponibilidades del día:', error);
+            setDayAvailability({
+                'ERROR': [{
+                    id: 'error',
+                    start_time: '❌',
+                    message: `Error al consultar: ${error.message}`,
+                    isEmpty: true
+                }]
+            });
             setLoadingDayView(false);
         }
     };
@@ -1580,6 +1855,9 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             }
             
             loadbusinessesettings();
+            
+            // ✅ CARGAR DATOS DIRECTAMENTE DESDE SUPABASE (sin depender de regeneraciones)
+            console.log('🔄 Cargando datos directamente desde Supabase...');
             loadAvailabilityStats().then(() => {
                 // Cargar estadísticas de días después de las stats normales
                 loadDayStats();
@@ -1587,6 +1865,12 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
             // 🆕 Cargar configuración de disponibilidades desde la BD
             loadAvailabilityConfig();
+            
+            // ✅ Si hay una fecha seleccionada, cargar sus slots directamente
+            if (selectedDate) {
+                console.log('🔄 Cargando slots para fecha seleccionada:', selectedDate);
+                loadDayAvailability(selectedDate);
+            }
         }
     }, [businessId]);
 
@@ -1646,34 +1930,27 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
     }, [availabilityStats, generationSuccess, businessId]);
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-3">
-            <div className="flex items-center justify-between mb-3">
-                <div>
-                    <h2 className="text-sm font-semibold text-gray-900 flex items-center gap-2">
-                        <Calendar className="w-4 h-4 text-blue-600" />
-                        Gestión de Horarios de Reserva
-                    </h2>
-                    <p className="text-xs text-gray-600 mt-0.5">
-                        Controla cuándo están disponibles tus mesas para reservas
-                    </p>
-                </div>
-                
+        <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            <div className="mb-4">
+                <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                    <Calendar className="w-6 h-6 text-blue-600" />
+                    Disponibilidades
+                </h2>
+                <p className="text-sm text-gray-500 mt-1">Gestiona horarios disponibles para reservas</p>
             </div>
 
-            {/* 🆕 CONFIGURACIÓN SIMPLIFICADA DE DISPONIBILIDADES */}
-            <div className="mb-4 p-3 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
+            {/* Configuración - COMPACTA */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-purple-50 to-blue-50 border border-purple-200 rounded-lg">
                 <div className="flex items-center gap-2 mb-3">
-                    <Settings className="w-4 h-4 text-purple-600" />
-                    <h3 className="text-sm font-bold text-purple-900">
-                        ⚙️ Configuración de Disponibilidades
-                    </h3>
+                    <Settings className="w-5 h-5 text-purple-600" />
+                    <h3 className="text-base font-bold text-purple-900">Configuración</h3>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {/* Campo 1: Días de antelación máxima */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                            📅 Días de antelación máxima
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                            Días de antelación máxima
                         </label>
                         <input
                             type="number"
@@ -1687,15 +1964,13 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                             step="1"
                             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                         />
-                        <p className="text-xs text-gray-600 mt-1">
-                            Cuántos días hacia el futuro se pueden hacer reservas (ej: 90 días)
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Días hacia el futuro</p>
                     </div>
 
                     {/* Campo 2: Minutos de antelación mínima */}
                     <div>
-                        <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-                            ⏰ Minutos de antelación mínima
+                        <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                            Minutos de antelación mínima
                         </label>
                         <input
                             type="number"
@@ -1709,26 +1984,13 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                             step="15"
                             className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                         />
-                        <p className="text-xs text-gray-600 mt-1">
-                            Tiempo mínimo en MINUTOS para aceptar una reserva (ej: 120 = 2 horas)
-                        </p>
+                        <p className="text-xs text-gray-500 mt-1">Minutos de antelación mínima</p>
                     </div>
                 </div>
 
-                {/* Info adicional */}
-                <div className="mt-3 p-2 bg-white/80 rounded-lg border border-purple-200">
-                    <div className="flex items-start gap-2">
-                        <Info className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
-                        <div>
-                            <p className="text-xs text-purple-900 font-semibold">
-                                💡 ¿Cómo funciona?
-                            </p>
-                            <p className="text-xs text-purple-800 mt-1 leading-tight">
-                                • <strong>Días máximos:</strong> Si pones 90, solo se aceptan reservas hasta dentro de 90 días.<br/>
-                                • <strong>Minutos mínimos:</strong> Si pones 120 (2h), no se aceptan reservas con menos de 2 horas de antelación.
-                            </p>
-                        </div>
-                    </div>
+                {/* Info compacta */}
+                <div className="mt-2 text-xs text-gray-500 text-center">
+                    💡 Define cuántos días hacia el futuro y tiempo mínimo de antelación para reservas
                 </div>
 
                 {/* Botón Guardar */}
@@ -1782,195 +2044,79 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 </div>
             </div>
 
-            {/* Panel de Estado de Disponibilidades - CONDICIONAL */}
-            
-            {/* 🎯 CASO 1: SÍ HAY SLOTS GENERADOS (libres, no solo protegidos) */}
+            {/* Panel de Estado - SIMPLIFICADO */}
             {availabilityStats?.free > 0 && (
-                <div className="bg-white rounded-xl border border-blue-200 shadow-sm mb-3">
-                    {/* Header compacto con fondo azul */}
-                    <div className="flex items-center justify-between p-3 border-b border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
-                        <div className="flex items-center gap-2">
-                            <div className="p-1.5 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200">
-                                <CheckCircle2 className="w-4 h-4 text-green-600" />
-                            </div>
-                            <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <h3 className="text-sm font-bold text-blue-900">
-                                        📅 Días Disponibles
-                                    </h3>
-                                    <span className="text-[10px] text-blue-600 italic">
-                                        (según Política de Reservas)
-                                    </span>
-                                </div>
-                                
-                                {/* Rango de fechas compacto */}
-                                <div className="flex items-center gap-2">
-                                    <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 border border-blue-200 rounded-lg">
-                                        <Calendar className="w-3.5 h-3.5 text-blue-600" />
-                                        <span className="text-xs font-medium text-gray-900">
-                                            Desde hoy: <span className="font-bold">{format(new Date(), 'dd/MM/yyyy')}</span>
-                                        </span>
-                                    </div>
-                                    {dayStats?.fechaHasta && (
-                                        <div className="flex items-center gap-1 px-2 py-1 bg-green-50 border border-green-200 rounded-lg">
-                                            <CalendarCheck className="w-3.5 h-3.5 text-green-600" />
-                                            <span className="text-xs font-medium text-gray-900">
-                                                Hasta: <span className="font-bold">{dayStats.fechaHasta}</span>
-                                            </span>
-                                        </div>
-                                    )}
-                                    <div className="flex items-center gap-1 px-2 py-1 bg-gray-100 border border-gray-300 rounded-lg">
-                                        <Clock className="w-3.5 h-3.5 text-gray-600" />
-                                        <span className="text-xs font-medium text-gray-900">
-                                            <span className="font-bold">{dayStats?.advanceDaysConfig || 30}</span> días configurados
-                                        </span>
-                                    </div>
-                                </div>
+                <div className="bg-white rounded-lg border border-blue-200 shadow-sm mb-4">
+                    {/* Header compacto */}
+                    <div className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border-b border-blue-200">
+                        <div className="flex items-center gap-3">
+                            <CheckCircle2 className="w-5 h-5 text-green-600" />
+                            <div>
+                                <h3 className="text-base font-bold text-gray-900">Días Disponibles</h3>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                    {format(new Date(), 'dd/MM/yyyy')} - {dayStats?.fechaHasta || 'N/A'} ({dayStats?.advanceDaysConfig || 30} días)
+                                </p>
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
                             <button
                                 onClick={handleShowRegenerateModal}
                                 disabled={loading}
-                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 transition-colors font-medium text-sm"
+                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 transition-all font-medium text-sm"
                             >
                                 {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                {loading ? 'Generando...' : 'Generar Horarios'}
+                                {loading ? 'Generando...' : 'Generar'}
                             </button>
                             <button 
                                 onClick={handleSmartCleanup}
                                 disabled={loading}
-                                className="inline-flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white font-medium text-sm rounded-lg shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all disabled:opacity-50 text-sm"
                             >
                                 <Trash2 className="w-4 h-4" />
-                                Borrar
                             </button>
                         </div>
                     </div>
                     
-                    {/* Grid de estadísticas - PROFESIONAL Y UNIFORME */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 p-3 bg-gradient-to-br from-blue-50 to-indigo-50">
-                        <div className="bg-white rounded-lg p-1.5 shadow-md border-2 border-blue-200">
-                            <div className="flex items-center justify-center gap-0.5 mb-0.5 text-blue-600">
-                                <Calendar className="w-3 h-3" />
-                                <span className="text-[9px] font-medium uppercase tracking-wide">Días Totales</span>
-                            </div>
-                            <div className="text-sm font-bold text-gray-900 text-center">
-                                {dayStats?.diasTotales || 0}
-                            </div>
+                    {/* Estadísticas - COMPACTA */}
+                    <div className="grid grid-cols-4 gap-3 p-4">
+                        <div className="text-center">
+                            <div className="text-xs text-gray-600 mb-1">Días Totales</div>
+                            <div className="text-xl font-bold text-gray-900">{dayStats?.diasTotales || 0}</div>
                         </div>
-                        <div className="bg-white rounded-lg p-1.5 shadow-md border-2 border-blue-200">
-                            <div className="flex items-center justify-center gap-0.5 mb-0.5 text-green-600">
-                                <CalendarCheck className="w-3 h-3" />
-                                <span className="text-[9px] font-medium uppercase tracking-wide">Días Libres</span>
-                            </div>
-                            <div className="text-sm font-bold text-gray-900 text-center">
-                                {dayStats?.diasLibres || 0}
-                            </div>
+                        <div className="text-center">
+                            <div className="text-xs text-gray-600 mb-1">Libres</div>
+                            <div className="text-xl font-bold text-green-600">{dayStats?.diasLibres || 0}</div>
                         </div>
-                        <div className="bg-white rounded-lg p-1.5 shadow-md border-2 border-blue-200">
-                            <div className="flex items-center justify-center gap-0.5 mb-0.5 text-amber-600">
-                                <CalendarClock className="w-3 h-3" />
-                                <span className="text-[9px] font-medium uppercase tracking-wide">Días Ocupados</span>
-                            </div>
-                            <div className="text-sm font-bold text-gray-900 text-center">
-                                {dayStats?.diasConReservas || 0}
-                            </div>
+                        <div className="text-center">
+                            <div className="text-xs text-gray-600 mb-1">Ocupados</div>
+                            <div className="text-xl font-bold text-amber-600">{dayStats?.diasConReservas || 0}</div>
                         </div>
-                        <div className="bg-white rounded-lg p-1.5 shadow-md border-2 border-blue-200">
-                            <div className="flex items-center justify-center gap-0.5 mb-0.5 text-purple-600">
-                                <Users className="w-3 h-3" />
-                                <span className="text-[9px] font-medium uppercase tracking-wide">Reservas</span>
-                            </div>
-                            <div className="text-sm font-bold text-gray-900 text-center">
-                                {dayStats?.reservasActivas || 0}
-                            </div>
-                        </div>
-                    </div>
-                    
-                    {/* Footer con info de mantenimiento automático - PIE DE PÁGINA */}
-                    <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 rounded-b-xl">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                                <RefreshCw className="w-3 h-3 text-gray-400" />
-                                <p className="text-[10px] text-gray-500">
-                                    <span className="font-medium">Mantenimiento Automático:</span> Cada día a las 04:00 se mantiene ventana de {dayStats?.advanceDaysConfig || 30} días
-                                </p>
-                            </div>
-                            <div className="flex items-center gap-1 px-2 py-0.5 bg-green-50 border border-green-200 rounded-md">
-                                <CheckCircle2 className="w-3 h-3 text-green-600" />
-                                <span className="text-[10px] font-medium text-green-900">Activo</span>
-                            </div>
+                        <div className="text-center">
+                            <div className="text-xs text-gray-600 mb-1">Reservas</div>
+                            <div className="text-xl font-bold text-purple-600">{dayStats?.reservasActivas || 0}</div>
                         </div>
                     </div>
                 </div>
             )}
 
-            {/* 🎯 CASO 2: NO HAY SLOTS LIBRES - CON MÁS PRESENCIA */}
+            {/* Sin slots - SIMPLIFICADO */}
             {availabilityStats?.free === 0 && dayStats && (
-                <div className="bg-white rounded-xl border border-amber-200 shadow-md mb-6">
-                    {/* Header con advertencia */}
-                    <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-amber-50 to-white">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 bg-gradient-to-br from-amber-100 to-orange-50 rounded-xl border border-amber-300 shadow-sm">
-                                <AlertCircle className="w-6 h-6 text-amber-600" />
-                            </div>
+                <div className="bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-lg p-4 mb-4">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <AlertCircle className="w-6 h-6 text-amber-600" />
                             <div>
-                                <h3 className="text-xl font-bold text-gray-900">
-                                    Sin Disponibilidades Generadas
-                                </h3>
-                                <p className="text-sm text-gray-600 mt-1 font-medium">
-                                    No hay horarios activos para nuevas reservas
-                                </p>
+                                <h3 className="text-base font-bold text-gray-900">Sin Disponibilidades</h3>
+                                <p className="text-xs text-gray-600 mt-0.5">No hay horarios activos para nuevas reservas</p>
                             </div>
                         </div>
-                    </div>
-
-                    {/* Info de reservas protegidas (si las hay) */}
-                    {dayStats.diasConReservas > 0 && (
-                        <div className="p-6 border-b border-gray-200 bg-gray-50">
-                            <h4 className="text-base font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                <CheckCircle2 className="w-5 h-5 text-green-600" />
-                                Reservas Protegidas
-                            </h4>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
-                                    <div className="flex items-center justify-center gap-2 mb-2 text-amber-600">
-                                        <CalendarClock className="w-5 h-5" />
-                                        <span className="text-xs font-semibold uppercase tracking-wider">Días Ocupados</span>
-                                    </div>
-                                    <div className="text-3xl font-bold text-gray-900 text-center">
-                                        {dayStats.diasConReservas}
-                                    </div>
-                                </div>
-                                <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-100">
-                                    <div className="flex items-center justify-center gap-2 mb-2 text-purple-600">
-                                        <Users className="w-5 h-5" />
-                                        <span className="text-xs font-semibold uppercase tracking-wider">Reservas</span>
-                                    </div>
-                                    <div className="text-3xl font-bold text-gray-900 text-center">
-                                        {dayStats.reservasActivas}
-                                    </div>
-                                </div>
-                            </div>
-                            <p className="text-sm text-gray-600 mt-3 text-center font-medium">
-                                Estos días y reservas están protegidos
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Botón para generar */}
-                    <div className="p-6 text-center bg-white">
                         <button
                             onClick={handleShowRegenerateModal}
-                            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-medium rounded-lg shadow-md hover:shadow-lg transition-all text-sm"
+                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all font-medium text-sm"
                         >
                             <Plus className="w-4 h-4" />
-                            Generar Horarios de Reserva
+                            Generar
                         </button>
-                        <p className="text-xs text-gray-600 mt-2 font-medium">
-                            Crear disponibilidades para los próximos {dayStats.advanceDaysConfig || 20} días
-                        </p>
                     </div>
                 </div>
             )}
@@ -2007,137 +2153,123 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 </div>
             )}
 
-            {/* Selector de día específico - TODO EN UNA LÍNEA */}
-            <div className="mt-4 p-2 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-center gap-3">
-                    {/* Título compacto */}
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                        <Calendar className="w-4 h-4 text-blue-600" />
-                        <span className="text-sm font-medium text-blue-900">Consultar Día Específico</span>
-                    </div>
-                    
-                    {/* Input de fecha */}
-                    <div className="flex-1 max-w-xs">
-                        <input
-                            type="date"
-                            value={selectedDate}
-                            onChange={(e) => setSelectedDate(e.target.value)}
-                            className="w-full border border-blue-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                    </div>
-                    
-                    {/* Botón Ver Horarios */}
-                    <div className="flex-shrink-0">
-                        <button
-                            onClick={() => loadDayAvailability(selectedDate)}
-                            disabled={loadingDayView}
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 transition-colors font-medium text-sm whitespace-nowrap"
-                        >
-                            {loadingDayView ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-                            Ver Horarios de Reserva
-                        </button>
-                    </div>
+            {/* Selector de día específico - SIMPLIFICADO */}
+            <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center gap-3 flex-wrap">
+                    <Calendar className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                    <input
+                        type="date"
+                        value={selectedDate}
+                        onChange={(e) => setSelectedDate(e.target.value)}
+                        className="flex-1 min-w-[150px] max-w-[200px] border border-blue-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    />
+                    <button
+                        onClick={() => loadDayAvailability(selectedDate)}
+                        disabled={loadingDayView}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 transition-all font-medium text-sm shadow-md hover:shadow-lg"
+                    >
+                        {loadingDayView ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                        Ver Horarios
+                    </button>
                 </div>
 
-                {/* Mostrar disponibilidades del día seleccionado - VERSIÓN MEJORADA */}
+                {/* Dashboard visual - TODOS LOS EMPLEADOS EN COLUMNAS */}
                 {Object.keys(dayAvailability).length > 0 && (
-                    <div className="mt-3 border-t border-blue-200 pt-3">
-                        <div className="space-y-4 max-h-[calc(100vh-350px)] overflow-y-auto">
-                            {Object.entries(dayAvailability).map(([resourceKey, resourceData]) => {
-                                // Manejar formato antiguo (array de slots) y nuevo (objeto con metadata)
-                                const isNewFormat = resourceData.slots !== undefined;
-                                const slots = isNewFormat ? resourceData.slots : resourceData;
-                                const resourceName = isNewFormat ? resourceData.resource_name : resourceKey;
-                                const employeeName = isNewFormat ? resourceData.employee_name : null;
+                    <div className="mt-4">
+                        {/* Resumen general */}
+                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-4 border border-blue-200">
+                            <div className="text-center">
+                                <div className="text-3xl font-bold text-gray-900 mb-1">
+                                    {Object.values(dayAvailability).reduce((sum, emp) => {
+                                        const slots = emp.slots || [];
+                                        return sum + slots.filter(s => s.status === 'free').length;
+                                    }, 0)}
+                                </div>
+                                <div className="text-sm text-gray-600">
+                                    slots disponibles creados para {selectedDate}
+                                </div>
+                            </div>
+                        </div>
+                        
+                        {/* Grid de empleados tipo columnas */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {Object.entries(dayAvailability).map(([employeeKey, employeeData]) => {
+                                const slots = employeeData.slots || [];
+                                const employeeName = employeeData.employee_name || employeeKey;
+                                const resourceName = employeeData.resource_name;
                                 
-                                return (
-                                    <div key={resourceKey} className={`p-3 rounded-lg border-2 ${
-                                        slots[0]?.isClosed 
-                                            ? 'bg-red-50 border-red-300' 
-                                            : slots[0]?.isEmpty
-                                            ? 'bg-yellow-50 border-yellow-300'
-                                            : 'bg-white border-blue-300 shadow-sm'
-                                    }`}>
-                                        {/* Header del recurso */}
-                                        <div className="flex items-center justify-between mb-3">
-                                            <div>
-                                                <div className="font-bold text-gray-900 flex items-center gap-2">
-                                                    <Users className="w-4 h-4 text-blue-600" />
-                                                    {resourceName}
-                                                </div>
-                                                {employeeName && (
-                                                    <div className="text-xs text-gray-600 mt-1 flex items-center gap-1">
-                                                        <User className="w-3 h-3" />
-                                                        Empleado: {employeeName}
-                                                    </div>
-                                                )}
-                                            </div>
-                                            <div className="text-xs text-gray-500">
-                                                {slots.filter(s => !s.isClosed && !s.isEmpty).length} slots
+                                if (slots[0]?.isEmpty || slots[0]?.isClosed) {
+                                    return (
+                                        <div key={employeeKey} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                                            <div className="text-center text-gray-500 text-sm">
+                                                {slots[0]?.message || 'Sin disponibilidades'}
                                             </div>
                                         </div>
+                                    );
+                                }
+                                
+                                const freeSlots = slots.filter(s => s.status === 'free').length;
+                                const totalSlots = slots.length;
+                                
+                                // Agrupar slots por hora para visualización
+                                const slotsByHour = {};
+                                slots.forEach(slot => {
+                                    const hour = slot.start_time?.substring(0, 2) || '00';
+                                    if (!slotsByHour[hour]) {
+                                        slotsByHour[hour] = [];
+                                    }
+                                    slotsByHour[hour].push(slot);
+                                });
+                                
+                                return (
+                                    <div key={employeeKey} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
+                                        {/* Header empleado */}
+                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-2 border-b border-gray-200">
+                                            <div className="font-bold text-gray-900 text-sm">{employeeName}</div>
+                                            {resourceName && (
+                                                <div className="text-xs text-gray-500 mt-0.5">📍 {resourceName}</div>
+                                            )}
+                                        </div>
                                         
-                                        {/* Mensaje especial para días cerrados o sin disponibilidades */}
-                                        {(slots[0]?.isClosed || slots[0]?.isEmpty) ? (
-                                            <div className={`text-center py-4 ${
-                                                slots[0]?.isClosed 
-                                                    ? 'text-red-600' 
-                                                    : 'text-yellow-600'
-                                            }`}>
-                                                <div className="text-2xl mb-2">
-                                                    {slots[0]?.isClosed ? '🚫' : '❌'}
-                                                </div>
-                                                <div className="font-medium">
-                                                    {slots[0]?.message}
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            /* Slots normales con información detallada */
-                                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-                                                {slots.map((slot) => (
-                                                    <div
-                                                        key={slot.id}
-                                                        className={`p-2 rounded-lg border-2 transition-all ${
-                                                            slot.has_appointment || slot.status === 'reserved' || slot.status === 'booked'
-                                                                ? 'bg-red-50 border-red-400 hover:bg-red-100'
-                                                                : slot.status === 'free'
-                                                                ? 'bg-green-50 border-green-400 hover:bg-green-100'
-                                                                : 'bg-gray-50 border-gray-300'
-                                                        }`}
-                                                        title={
-                                                            slot.has_appointment 
-                                                                ? `RESERVADO: ${slot.customer_name || 'Cliente'} - ${slot.display_time || slot.slot_time}`
-                                                                : `LIBRE: ${slot.display_time || slot.slot_time} - ${slot.duration_minutes || 30} min`
-                                                        }
-                                                    >
-                                                        <div className="flex items-center justify-between mb-1">
-                                                            <span className="font-bold text-sm text-gray-900">
-                                                                {slot.display_time || slot.slot_time?.substring(0, 5) || slot.start_time?.substring(0, 5)}
-                                                            </span>
-                                                            {slot.has_appointment ? (
-                                                                <span className="text-xs bg-red-200 text-red-800 px-1.5 py-0.5 rounded font-bold">
-                                                                    🔴
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-xs bg-green-200 text-green-800 px-1.5 py-0.5 rounded font-bold">
-                                                                    🟢
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                        {slot.has_appointment && slot.customer_name && (
-                                                            <div className="text-xs text-red-700 font-semibold truncate">
-                                                                👤 {slot.customer_name}
+                                        {/* Resumen numérico */}
+                                        <div className="p-3 text-center border-b border-gray-100">
+                                            <div className="text-2xl font-bold text-gray-900">{freeSlots}</div>
+                                            <div className="text-xs text-gray-500">de {totalSlots} slots creados</div>
+                                        </div>
+                                        
+                                        {/* Visualización tipo timeline compacta */}
+                                        <div className="p-3">
+                                            <div className="space-y-1">
+                                                {Object.entries(slotsByHour)
+                                                    .sort(([a], [b]) => a.localeCompare(b))
+                                                    .slice(0, 12) // Mostrar solo primeras 12 horas
+                                                    .map(([hour, hourSlots]) => {
+                                                        const freeCount = hourSlots.filter(s => s.status === 'free').length;
+                                                        const totalCount = hourSlots.length;
+                                                        const percentage = (freeCount / totalCount) * 100;
+                                                        
+                                                        return (
+                                                            <div key={hour} className="flex items-center gap-2 text-xs">
+                                                                <div className="w-12 text-gray-600 font-medium">{hour}:00</div>
+                                                                <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                                                                    <div 
+                                                                        className={`h-full ${percentage === 100 ? 'bg-green-500' : percentage > 0 ? 'bg-amber-400' : 'bg-gray-300'}`}
+                                                                        style={{ width: `${percentage}%` }}
+                                                                    ></div>
+                                                                </div>
+                                                                <div className="w-8 text-right text-gray-500 text-[10px]">
+                                                                    {freeCount}/{totalCount}
+                                                                </div>
                                                             </div>
-                                                        )}
-                                                        {slot.duration_minutes && (
-                                                            <div className="text-xs text-gray-500 mt-1">
-                                                                ⏱️ {slot.duration_minutes} min
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                ))}
+                                                        );
+                                                    })}
                                             </div>
-                                        )}
+                                            {Object.keys(slotsByHour).length > 12 && (
+                                                <div className="text-center text-xs text-gray-400 mt-2">
+                                                    +{Object.keys(slotsByHour).length - 12} horas más
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -2418,12 +2550,19 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                                             data = result.data;
                                             error = result.error;
                                         } else {
-                                            // Viene de smartRegeneration - usar función de limpieza
-                                            const result = await supabase.rpc('cleanup_and_regenerate_availability', {
+                                            // Viene de smartRegeneration - usar función de generación
+                                            const startDateObj = new Date(today);
+                                            const endDateObj = new Date(endDate);
+                                            const daysToGenerate = Math.ceil((endDateObj - startDateObj) / (1000 * 60 * 60 * 24)) + 1;
+                                            
+                                            // Usar generate_availability_slots_employee_based con parámetros correctos
+                                            const result = await supabase.rpc('generate_availability_slots_employee_based', {
                                                 p_business_id: businessId,
                                                 p_start_date: today,
-                                                p_end_date: endDate
+                                                p_days_ahead: daysToGenerate,
+                                                p_regenerate: true
                                             });
+                                            
                                             data = result.data;
                                             error = result.error;
                                         }

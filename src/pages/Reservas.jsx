@@ -671,7 +671,7 @@ export default function Reservas() {
     // 🤖 AUTOMATIZACIÓN: Completar reservas automáticamente (estilo industria)
     // Lógica:
     // - Reservas "confirmed" pasadas → "completed" (se completaron)
-    // - Reservas "pending" pasadas → "no_show" (no se confirmaron, asumimos no-show)
+    // - Reservas "pending" pasadas → "no_show" (no se confirmaron, cliente no se presentó)
     const autoCompleteReservations = useCallback(async () => {
         if (!businessId) {
             console.log('⚠️ No hay businessId, saltando auto-completar');
@@ -795,7 +795,7 @@ export default function Reservas() {
             if (pendingToNoShow.length > 0) {
                 console.log(`⚠️ Encontradas ${pendingToNoShow.length} reservas PENDING para marcar como no-show:`);
                 pendingToNoShow.forEach(r => {
-                    console.log(`  📋 ${r.customer_name} - ${r.appointment_date} ${r.appointment_time} (no confirmada)`);
+                    console.log(`  📋 ${r.customer_name} - ${r.appointment_date} ${r.appointment_time} (no confirmada, no se presentó)`);
                 });
                 
                 const pendingIds = pendingToNoShow.map(r => r.id);
