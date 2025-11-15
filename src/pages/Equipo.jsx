@@ -96,12 +96,132 @@ export default function Equipo() {
     if (!confirm('¿Seguro que quieres eliminar este empleado?')) return;
 
     try {
+      // 🛡️ PASO 1: Obtener el recurso asignado al empleado
+      const { data: employeeData } = await supabase
+        .from('employees')
+        .select('assigned_resource_id, name')
+        .eq('id', employeeId)
+        .single();
+
+      const assignedResourceId = employeeData?.assigned_resource_id;
+
+      // 🛡️ PASO 2: Verificar si tiene reservas activas (usando el recurso asignado)
+      let activeReservations = [];
+      if (assignedResourceId) {
+        const { data: reservations, error: reservationsError } = await supabase
+          .from('appointments')
+          .select('id, appointment_date, appointment_time, customer_name, resource_id')
+          .eq('business_id', business.id)
+          .eq('resource_id', assignedResourceId) // resource_id en appointments apunta al recurso (silla/sillón)
+          .not('status', 'in', '(cancelled,completed)');
+
+        if (reservationsError) {
+          console.error('Error verificando reservas:', reservationsError);
+        } else {
+          activeReservations = reservations || [];
+        }
+      }
+
+      const hasActiveReservations = activeReservations.length > 0;
+
+      // 🛡️ PASO 3: Si tiene reservas, preguntar si transferir
+      if (hasActiveReservations) {
+        const transfer = confirm(
+          `⚠️ Este empleado tiene ${activeReservations.length} reserva(s) activa(s).\n\n` +
+          `¿Quieres transferir las reservas a otro empleado?\n\n` +
+          `- Aceptar: Abrir selector para transferir\n` +
+          `- Cancelar: Eliminar empleado y cancelar reservas`
+        );
+
+        if (transfer) {
+          // Mostrar modal de transferencia (implementar después)
+          // Por ahora, solo informar
+          toast.loading('Funcionalidad de transferencia en desarrollo...', { id: 'transfer' });
+          
+          // Obtener otros empleados disponibles
+          const { data: otherEmployees } = await supabase
+            .from('employees')
+            .select('id, name')
+            .eq('business_id', business.id)
+            .neq('id', employeeId)
+            .eq('is_active', true);
+
+          if (otherEmployees && otherEmployees.length > 0) {
+            // Obtener el recurso asignado del empleado destino
+            const { data: targetEmployeeData } = await supabase
+              .from('employees')
+              .select('assigned_resource_id, name')
+              .eq('id', otherEmployees[0].id)
+              .single();
+
+            const targetResourceId = targetEmployeeData?.assigned_resource_id;
+
+            if (targetResourceId) {
+              // Transferir reservas al recurso del nuevo empleado
+              const { error: transferError } = await supabase
+                .from('appointments')
+                .update({ resource_id: targetResourceId })
+                .eq('resource_id', assignedResourceId)
+                .not('status', 'in', '(cancelled,completed)');
+
+            if (transferError) {
+              console.error('Error transfiriendo reservas:', transferError);
+              toast.error('Error al transferir reservas');
+            } else {
+              toast.dismiss('transfer');
+              toast.success(`✅ ${activeReservations.length} reserva(s) transferida(s) a ${targetEmployeeData.name}`);
+            }
+          } else {
+            toast.dismiss('transfer');
+            toast.error('El empleado destino no tiene recurso asignado');
+            return;
+          }
+        } else {
+          toast.dismiss('transfer');
+          toast.error('No hay otros empleados disponibles para transferir');
+          return; // No eliminar si no hay a quién transferir
+        }
+        } else {
+          // Cancelar todas las reservas activas
+          if (assignedResourceId) {
+            const { error: cancelError } = await supabase
+              .from('appointments')
+              .update({ status: 'cancelled' })
+              .eq('resource_id', assignedResourceId)
+              .not('status', 'in', '(cancelled,completed)');
+
+            if (cancelError) {
+              console.error('Error cancelando reservas:', cancelError);
+            } else {
+              toast.info(`⚠️ ${activeReservations.length} reserva(s) cancelada(s)`);
+            }
+          }
+        }
+      }
+
+      // 🗑️ PASO 4: Eliminar empleado
       const { error } = await supabase
         .from('employees')
         .delete()
         .eq('id', employeeId);
 
       if (error) throw error;
+
+      // 🗑️ PASO 5: Eliminar disponibilidad del empleado (usando el recurso asignado)
+      if (assignedResourceId) {
+        const { error: slotsError } = await supabase
+          .from('availability_slots')
+          .delete()
+          .eq('business_id', business.id)
+          .eq('resource_id', assignedResourceId);
+
+        if (slotsError) {
+          console.error('Error eliminando slots:', slotsError);
+          // No es crítico, continuar
+        } else {
+          console.log('✅ Slots de disponibilidad eliminados para el empleado');
+        }
+      }
 
       toast.success('Empleado eliminado');
       loadEmployees();
@@ -836,6 +956,29 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
         window.__lastAutoAssignedResource = null;
       } else {
         toast.success(`¡${formData.name} añadido con horario! 🎉`);
+      }
+      
+      // ⚡ GENERAR DISPONIBILIDAD AUTOMÁTICAMENTE
+      // Solo si el empleado tiene recurso asignado Y horarios configurados
+      const hasResource = finalResourceId !== null;
+      const hasSchedules = schedules.some(s => s.is_working && s.shifts.length > 0);
+      
+      if (hasResource && hasSchedules) {
+        console.log('⚡ Empleado con recurso y horarios → Generando disponibilidad automáticamente...');
+        try {
+          const AutoSlotRegenerationService = (await import('../services/AutoSlotRegenerationService')).default;
+          await AutoSlotRegenerationService.regenerate(
+            businessId,
+            'employee_added_with_resource_and_schedule',
+            { silent: true } // Silencioso para no molestar
+          );
+          console.log('✅ Disponibilidad generada automáticamente para nuevo empleado');
+        } catch (regError) {
+          console.error('⚠️ Error generando disponibilidad (no crítico):', regError);
+          // No bloquear el flujo si falla la generación
+        }
+      } else {
+        console.log('ℹ️ Empleado sin recurso o sin horarios → No se genera disponibilidad aún');
       }
       
       onSuccess();

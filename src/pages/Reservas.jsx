@@ -625,13 +625,6 @@ export default function Reservas() {
     }, [location]);
     const [tables, setTables] = useState([]);
     const [resources, setResources] = useState([]); // 🆕 Recursos/Profesionales para el calendario
-    const [policySettings, setPolicySettings] = useState({
-        min_party_size: 1,
-        max_party_size: 20,
-        advance_booking_days: 30,
-        reservation_duration: 90,
-        min_advance_hours: 2
-    });
     const [savingPolicy, setSavingPolicy] = useState(false);
     const [agentStats, setAgentStats] = useState({
         agentReservations: 0,
@@ -2319,9 +2312,20 @@ export default function Reservas() {
                         <button
                             onClick={async () => {
                                 setLoading(true);
-                                await loadReservations();
-                                toast.success("Datos actualizados");
-                                setLoading(false);
+                                try {
+                                    // Recargar reservas
+                                    await loadReservations();
+                                    
+                                    // Disparar evento para recargar datos de disponibilidad
+                                    window.dispatchEvent(new CustomEvent('refreshAvailabilityData'));
+                                    
+                                    toast.success("Datos actualizados");
+                                    setLoading(false);
+                                } catch (error) {
+                                    console.error('Error actualizando:', error);
+                                    toast.error('Error al actualizar datos');
+                                    setLoading(false);
+                                }
                             }}
                             disabled={loading}
                             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 shadow-md font-medium"
@@ -2782,7 +2786,7 @@ export default function Reservas() {
                 </div>
             )}
 
-            {/* ❌ Pestaña de Política de Reservas ELIMINADA - Configuración movida a "Generar Disponibilidad" */}
+            {/* ❌ Pestaña de Política de Reservas ELIMINADA - Configuración movida a Configuración → Reservas */}
             {/* ❌ Pestaña de Ocupación ELIMINADA - Funcionalidad fusionada en Reservas */}
 
             {/* 🚀 NUEVA PESTAÑA DE RESERVAS - CALENDARIO PROFESIONAL */}

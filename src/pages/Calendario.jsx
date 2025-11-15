@@ -7,6 +7,8 @@ import { useOccupancy } from '../hooks/useOccupancy';
 import { useAvailabilityChangeDetection } from '../hooks/useAvailabilityChangeDetection';
 import { useRegenerationModal } from '../hooks/useRegenerationModal';
 import RegenerationRequiredModal from '../components/RegenerationRequiredModal';
+import ProtectedReservationsInfoModal from '../components/ProtectedReservationsInfoModal';
+import AutoSlotRegenerationService from '../services/AutoSlotRegenerationService';
 import CalendarioErrorBoundary from '../components/CalendarioErrorBoundary';
 import { 
     format, 
@@ -95,6 +97,10 @@ export default function Calendario() {
     const { occupancy: occupancyData } = useOccupancy(7);
     const changeDetection = useAvailabilityChangeDetection(businessId);
     const { isModalOpen, modalChangeReason, modalChangeDetails, showRegenerationModal, closeModal } = useRegenerationModal();
+    
+    // 🛡️ Estados para modal de reservas protegidas
+    const [protectedReservations, setProtectedReservations] = useState([]);
+    const [showProtectedModal, setShowProtectedModal] = useState(false);
 
     // Estados principales
     const [loading, setLoading] = useState(true);
@@ -1010,13 +1016,69 @@ export default function Calendario() {
             });
             console.log("✅ Guardado exitoso - horarios simples");
             
-            // 🚨 MOSTRAR MODAL BLOQUEANTE DE REGENERACIÓN (solo si existen slots)
-            changeDetection.checkExistingSlots().then(slotsExist => {
+            // ⚡ REGENERACIÓN AUTOMÁTICA EN BACKGROUND (solo si existen slots)
+            changeDetection.checkExistingSlots().then(async (slotsExist) => {
                 if (slotsExist) {
-                    changeDetection.onScheduleChange('weekly_schedule');
-                    showRegenerationModal('schedule_changed', 'Horarios semanales del restaurante modificados');
+                    console.log('⚡ Regenerando disponibilidad automáticamente después de cambiar horarios...');
+                    
+                    // Obtener días de antelación configurados
+                    const { data: businessData } = await supabase
+                        .from('businesses')
+                        .select('settings')
+                        .eq('id', businessId)
+                        .single();
+                    
+                    const advanceDays = businessData?.settings?.advance_booking_days || 30;
+                    
+                    // Mostrar toast informativo mientras se regenera
+                    const regenerationToast = toast.loading(
+                        '⚡ Actualizando disponibilidad con los nuevos horarios...',
+                        { duration: 5000 }
+                    );
+                    
+                    try {
+                        // Regenerar automáticamente en background
+                        const result = await AutoSlotRegenerationService.regenerate(businessId, 'business_hours_changed', {
+                            silent: false,
+                            advanceDays: advanceDays
+                        });
+                        
+                        toast.dismiss(regenerationToast);
+                        
+                        if (result.success) {
+                            toast.success(
+                                `✅ Disponibilidad actualizada: ${result.slotsUpdated || 0} slots generados`,
+                                { duration: 3000, icon: '✅' }
+                            );
+                            
+                            // 🛡️ Si hay reservas protegidas, mostrar modal informativo (NO bloqueante)
+                            if (result.protectedReservations && result.protectedReservations.length > 0) {
+                                setProtectedReservations(result.protectedReservations);
+                                setShowProtectedModal(true);
+                            }
+                            
+                            // Disparar evento para que otros componentes se actualicen
+                            window.dispatchEvent(new CustomEvent('availabilityRegenerated', {
+                                detail: { reason: 'business_hours_changed', slotsUpdated: result.slotsUpdated }
+                            }));
+                        } else {
+                            // Si falla, solo mostrar toast de error (NO modal bloqueante)
+                            toast.error('⚠️ Error al actualizar disponibilidad. Intenta regenerar manualmente desde Disponibilidades.', {
+                                duration: 5000
+                            });
+                            console.error('❌ Regeneración automática falló:', result.error);
+                        }
+                    } catch (error) {
+                        console.error('❌ Error en regeneración automática:', error);
+                        toast.dismiss(regenerationToast);
+                        
+                        // Si hay error, solo mostrar toast (NO modal bloqueante)
+                        toast.error('⚠️ Error al actualizar disponibilidad. Intenta regenerar manualmente desde Disponibilidades.', {
+                            duration: 5000
+                        });
+                    }
                 } else {
-                    console.log('✅ No se muestra aviso: usuario está configurando el sistema por primera vez');
+                    console.log('✅ No se regenera: usuario está configurando el sistema por primera vez');
                 }
             });
             
@@ -2120,7 +2182,14 @@ export default function Calendario() {
                 </div>
             )}
 
-            {/* 🚨 MODAL BLOQUEANTE DE REGENERACIÓN */}
+            {/* 🛡️ Modal informativo de reservas protegidas (NO bloqueante) */}
+            <ProtectedReservationsInfoModal
+                isOpen={showProtectedModal}
+                onClose={() => setShowProtectedModal(false)}
+                protectedReservations={protectedReservations}
+            />
+            
+            {/* 🚨 Modal bloqueante (solo como fallback en casos extremos - NO debería mostrarse) */}
             <RegenerationRequiredModal
                 isOpen={isModalOpen}
                 onClose={closeModal}

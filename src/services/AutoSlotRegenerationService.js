@@ -42,18 +42,20 @@ export class AutoSlotRegenerationService {
       console.log('📋 Configuración del negocio obtenida');
 
       // 3. Llamar a función de regeneración en Supabase
+      // 🛡️ Usar función que protege reservas existentes
       let data, error;
       
-      // ⭐ NUEVO: Intentar primero con función employee-based
-      const result1 = await supabase.rpc('generate_employee_slots', {
+      // ⭐ PRIORIDAD 1: Función employee-based que protege reservas
+      const result1 = await supabase.rpc('generate_availability_slots_employee_based', {
         p_business_id: businessId,
         p_start_date: today,
-        p_days_ahead: advanceDays
+        p_days_ahead: advanceDays,
+        p_regenerate: true // Regenerar slots existentes
       });
 
-      // Si falla, intentar con función legacy (resource-based)
+      // Si falla, intentar con función simple (fallback)
       if (result1.error && result1.error.code === 'PGRST202') {
-        console.log('⚠️ RPC generate_employee_slots no existe, intentando legacy...');
+        console.log('⚠️ RPC generate_availability_slots_employee_based no existe, intentando simple...');
         
         const result2 = await supabase.rpc('generate_availability_slots_simple', {
           p_business_id: businessId,
@@ -64,7 +66,7 @@ export class AutoSlotRegenerationService {
         data = result2.data;
         error = result2.error;
 
-        // Si tampoco existe el legacy, operación silenciosa
+        // Si tampoco existe, operación silenciosa
         if (error && error.code === 'PGRST202') {
           console.log('ℹ️ RPCs de regeneración no disponibles - operación silenciosa');
           data = { total_slots_generated: 0 };
@@ -84,7 +86,57 @@ export class AutoSlotRegenerationService {
 
       console.log(`✅ Regeneración completada: ${slotsUpdated} slots actualizados`);
 
-      // 4. Toast informativo (no bloqueante)
+      // 🛡️ 4. Consultar reservas activas en el rango para informar al usuario
+      let protectedReservations = [];
+      try {
+        // Primero obtener las reservas
+        const { data: reservationsData, error: reservationsError } = await supabase
+          .from('appointments')
+          .select('appointment_date, appointment_time, customer_name, resource_id')
+          .eq('business_id', businessId)
+          .gte('appointment_date', today)
+          .lte('appointment_date', endDate)
+          .not('status', 'in', '(cancelled,completed)')
+          .order('appointment_date', { ascending: true });
+
+        if (!reservationsError && reservationsData && reservationsData.length > 0) {
+          // Obtener resource_ids únicos
+          const resourceIds = [...new Set(reservationsData.map(r => r.resource_id).filter(Boolean))];
+          let resourcesMap = {};
+          
+          // Si hay resource_ids, obtener los nombres de recursos
+          if (resourceIds.length > 0) {
+            const { data: resourcesData } = await supabase
+              .from('resources')
+              .select('id, name')
+              .in('id', resourceIds);
+            
+            if (resourcesData) {
+              resourcesMap = resourcesData.reduce((acc, r) => {
+                acc[r.id] = r.name;
+                return acc;
+              }, {});
+            }
+          }
+          
+          // Mapear reservas con nombres de recursos
+          protectedReservations = reservationsData.map(r => ({
+            appointment_date: r.appointment_date,
+            date: r.appointment_date, // Alias para compatibilidad
+            appointment_time: r.appointment_time,
+            customer_name: r.customer_name,
+            resource_id: r.resource_id,
+            resource_name: r.resource_id ? (resourcesMap[r.resource_id] || null) : null
+          }));
+          
+          console.log(`🛡️ ${protectedReservations.length} reservas activas encontradas en el rango`);
+        }
+      } catch (error) {
+        console.warn('⚠️ Error consultando reservas protegidas:', error);
+        // No fallar si hay error consultando reservas
+      }
+
+      // 5. Toast informativo (no bloqueante)
       if (!silent) {
         toast.success(`⚡ ${slotsUpdated} slots actualizados`, {
           duration: 2000,
@@ -96,7 +148,8 @@ export class AutoSlotRegenerationService {
       return {
         success: true,
         slotsUpdated,
-        reason
+        reason,
+        protectedReservations // 🛡️ Información de reservas protegidas
       };
 
     } catch (error) {

@@ -1,5 +1,5 @@
 // AvailabilityManager.jsx - Gestor de Tabla de Disponibilidades
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { format, addDays, startOfDay } from 'date-fns';
@@ -132,10 +132,11 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             setbusinessesettings(processedSettings);
             
-            // Actualizar fechas según configuración
+            // Actualizar fechas y configuración según valores guardados
             if (processedSettings.advance_booking_days) {
                 setGenerationSettings(prev => ({
                     ...prev,
+                    advanceBookingDays: processedSettings.advance_booking_days,
                     endDate: format(addDays(new Date(), processedSettings.advance_booking_days), 'yyyy-MM-dd')
                 }));
             }
@@ -725,6 +726,85 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
         }
     };
 
+    // 🛡️ FUNCIÓN AUXILIAR: Verificar y proteger slots con reservas activas
+    // ✅ MEJORADO: Protege por fecha Y resource_id (trabajador específico)
+    const protectSlotsWithReservations = async (slotsToCheck, endDate) => {
+        if (!slotsToCheck || slotsToCheck.length === 0) {
+            return { 
+                datesWithReservations: new Set(), 
+                slotsProtectedByResource: new Map(), // Map<`${date}_${resource_id}`, true>
+                reservationsCount: 0 
+            };
+        }
+        
+        // Obtener fechas únicas de los slots a verificar
+        const datesToCheck = [...new Set(slotsToCheck.map(s => s.slot_date))];
+        
+        console.log(`🛡️ Verificando reservas activas en ${datesToCheck.length} fechas...`);
+        
+        // Consultar reservas activas en esas fechas CON resource_id
+        const { data: activeReservations, error: reservationsError } = await supabase
+            .from('appointments')
+            .select('appointment_date, id, status, customer_name, resource_id')
+            .eq('business_id', businessId)
+            .in('appointment_date', datesToCheck)
+            .not('status', 'in', '(cancelled,completed)');
+        
+        if (reservationsError) {
+            console.error('❌ Error verificando reservas:', reservationsError);
+            // ⚠️ Si hay error, NO eliminar nada por seguridad
+            throw new Error('Error verificando reservas. No se eliminarán slots por seguridad.');
+        }
+        
+        // Crear set de fechas con reservas activas (para compatibilidad)
+        const datesWithReservations = new Set(
+            activeReservations?.map(r => r.appointment_date) || []
+        );
+        
+        // 🆕 Crear mapa de slots protegidos por fecha + resource_id
+        // Clave: `${appointment_date}_${resource_id}` o `${appointment_date}_null` si no tiene resource_id
+        const slotsProtectedByResource = new Map();
+        activeReservations?.forEach(reservation => {
+            const date = reservation.appointment_date;
+            const resourceId = reservation.resource_id || 'null';
+            const key = `${date}_${resourceId}`;
+            slotsProtectedByResource.set(key, true);
+            
+            // Si la reserva NO tiene resource_id específico, proteger TODOS los slots de esa fecha
+            // (comportamiento opcional: proteger todo el día si no hay trabajador asignado)
+            if (!reservation.resource_id) {
+                // Proteger todos los resource_id de esa fecha
+                const allResourceIds = [...new Set(slotsToCheck
+                    .filter(s => s.slot_date === date)
+                    .map(s => s.resource_id || 'null')
+                )];
+                allResourceIds.forEach(rid => {
+                    slotsProtectedByResource.set(`${date}_${rid}`, true);
+                });
+            }
+        });
+        
+        console.log(`🛡️ Fechas con reservas activas encontradas:`, Array.from(datesWithReservations));
+        console.log(`🛡️ Total reservas activas: ${activeReservations?.length || 0}`);
+        console.log(`🛡️ Slots protegidos por resource_id:`, Array.from(slotsProtectedByResource.keys()));
+        
+        if (activeReservations && activeReservations.length > 0) {
+            console.log(`🛡️ Detalle de reservas activas:`, activeReservations.map(r => ({
+                fecha: r.appointment_date,
+                cliente: r.customer_name,
+                resource_id: r.resource_id || 'sin asignar',
+                status: r.status
+            })));
+        }
+        
+        return { 
+            datesWithReservations, // Para compatibilidad (protección de todo el día)
+            slotsProtectedByResource, // 🆕 Protección por trabajador específico
+            reservationsCount: activeReservations?.length || 0,
+            reservations: activeReservations || []
+        };
+    };
+
     // 🛡️ VALIDAR RESERVAS EN DÍAS QUE SE QUIEREN CERRAR
     const validateReservationsOnClosedDays = async (operatingHours) => {
         try {
@@ -841,9 +921,153 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             toast.loading('Regeneración inteligente en proceso...', { id: 'smart-generating' });
             
             const today = format(new Date(), 'yyyy-MM-dd');
-            const advanceDays = businessesettings?.advance_booking_days || 30;
+            // Usar el valor configurado por el usuario (generationSettings) o el guardado en BD
+            const advanceDays = generationSettings.advanceBookingDays || businessesettings?.advance_booking_days || 30;
             const endDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
+            
+            console.log('🔍 Días de antelación a usar (Regeneración):', {
+                desdeGenerationSettings: generationSettings.advanceBookingDays,
+                desdeBusinessSettings: businessesettings?.advance_booking_days,
+                valorFinal: advanceDays,
+                endDate
+            });
 
+            // 🗑️ PASO 1: ELIMINAR SLOTS QUE ESTÁN FUERA DEL RANGO CONFIGURADO
+            // ⚠️ IMPORTANTE: Solo eliminar si los días DISMINUYERON, no si aumentaron
+            const previousAdvanceDays = businessesettings?.advance_booking_days || 30;
+            const daysDecreased = advanceDays < previousAdvanceDays;
+            
+            console.log('🗑️ PASO 1 (Regeneración): Verificando slots fuera del rango configurado');
+            console.log('🗑️ Días anteriores:', previousAdvanceDays);
+            console.log('🗑️ Días nuevos:', advanceDays);
+            console.log('🗑️ ¿Días disminuyeron?:', daysDecreased);
+            console.log('🗑️ endDate configurado:', endDate);
+            console.log('🗑️ today:', today);
+            
+            // Solo eliminar slots si los días DISMINUYERON
+            if (daysDecreased) {
+                const { data: slotsToDelete, error: deleteCheckError } = await supabase
+                    .from('availability_slots')
+                    .select('id, slot_date, resource_id')
+                    .eq('business_id', businessId)
+                    .gt('slot_date', endDate);
+                
+                console.log('🗑️ Slots encontrados fuera del rango:', {
+                    cantidad: slotsToDelete?.length || 0,
+                    error: deleteCheckError,
+                    fechas: slotsToDelete?.map(s => s.slot_date).slice(0, 5) || []
+                });
+                
+                if (deleteCheckError) {
+                    console.error('❌ Error buscando slots para eliminar:', deleteCheckError);
+                }
+                
+                if (slotsToDelete && slotsToDelete.length > 0) {
+                    console.log(`🗑️ Encontrados ${slotsToDelete.length} slots fuera del rango. Verificando reservas activas...`);
+                    
+                    try {
+                        // 🛡️ PROTECCIÓN CRÍTICA: Verificar reservas activas antes de eliminar
+                        const { datesWithReservations, slotsProtectedByResource, reservationsCount, reservations } = await protectSlotsWithReservations(slotsToDelete, endDate);
+                        
+                        if (slotsProtectedByResource.size > 0) {
+                            console.log(`🛡️ PROTEGIENDO ${slotsProtectedByResource.size} combinaciones fecha+resource con ${reservationsCount} reservas activas`);
+                            toast.info(`🛡️ Protegiendo slots de trabajadores con reservas activas`);
+                        }
+                        
+                        // 🚨 SOLO eliminar slots que NO tienen reservas activas en esa fecha Y ese resource_id
+                        // Filtrar en JavaScript para excluir slots protegidos por trabajador específico
+                        const slotsToDeleteSafe = slotsToDelete.filter(slot => {
+                            const slotKey = `${slot.slot_date}_${slot.resource_id || 'null'}`;
+                            // NO eliminar si tiene reserva en esa fecha Y ese resource_id
+                            return !slotsProtectedByResource.has(slotKey);
+                        });
+                        
+                        console.log(`🛡️ Slots a eliminar: ${slotsToDeleteSafe.length} de ${slotsToDelete.length} (${slotsToDelete.length - slotsToDeleteSafe.length} protegidos)`);
+                        
+                        if (slotsToDeleteSafe.length === 0) {
+                            console.log('🛡️ Todos los slots están protegidos por reservas. No se elimina nada.');
+                            toast.info('🛡️ Todos los slots fuera del rango están protegidos por reservas activas');
+                            
+                            // Verificar cuántos slots quedan protegidos
+                            if (slotsProtectedByResource.size > 0) {
+                                const protectedDates = [...new Set(Array.from(slotsProtectedByResource.keys()).map(k => k.split('_')[0]))];
+                                const { count: protectedCount } = await supabase
+                                    .from('availability_slots')
+                                    .select('id', { count: 'exact', head: true })
+                                    .eq('business_id', businessId)
+                                    .gt('slot_date', endDate)
+                                    .in('slot_date', protectedDates);
+                                
+                                if (protectedCount && protectedCount > 0) {
+                                    console.log(`🛡️ ${protectedCount} slots PROTEGIDOS en ${protectedDates.length} fechas con reservas`);
+                                    toast.success(`🛡️ ${protectedCount} slots protegidos por ${reservationsCount} reservas activas`);
+                                }
+                            }
+                            return; // No continuar con la eliminación
+                        }
+                        
+                        // Obtener IDs de slots seguros para eliminar (solo los sin reservas)
+                        const safeSlotIds = slotsToDeleteSafe.map(s => s.id);
+                        
+                        // Eliminar en lotes para evitar problemas con arrays grandes
+                        const batchSize = 500;
+                        let deletedCount = 0;
+                        let deleteError = null;
+                        
+                        for (let i = 0; i < safeSlotIds.length; i += batchSize) {
+                            const batch = safeSlotIds.slice(i, i + batchSize);
+                            const { error: batchError } = await supabase
+                                .from('availability_slots')
+                                .delete()
+                                .in('id', batch);
+                            
+                            if (batchError) {
+                                console.error(`❌ Error eliminando lote ${Math.floor(i / batchSize) + 1}:`, batchError);
+                                deleteError = batchError;
+                                break;
+                            } else {
+                                deletedCount += batch.length;
+                                console.log(`✅ Lote ${Math.floor(i / batchSize) + 1}: ${batch.length} slots eliminados`);
+                            }
+                        }
+                        
+                        if (deleteError) {
+                            console.error('❌ Error eliminando slots fuera del rango:', deleteError);
+                            toast.error(`Error eliminando slots: ${deleteError.message}`);
+                        } else {
+                            console.log(`✅ TOTAL: ${deletedCount} slots eliminados fuera del rango (sin reservas)`);
+                            
+                            // Verificar cuántos slots quedan protegidos
+                            if (slotsProtectedByResource.size > 0) {
+                                const protectedDates = [...new Set(Array.from(slotsProtectedByResource.keys()).map(k => k.split('_')[0]))];
+                                const { count: protectedCount } = await supabase
+                                    .from('availability_slots')
+                                    .select('id', { count: 'exact', head: true })
+                                    .eq('business_id', businessId)
+                                    .gt('slot_date', endDate)
+                                    .in('slot_date', protectedDates);
+                                
+                                if (protectedCount && protectedCount > 0) {
+                                    console.log(`🛡️ ${protectedCount} slots PROTEGIDOS en ${protectedDates.length} fechas con reservas`);
+                                    toast.success(`🛡️ ${protectedCount} slots protegidos por ${reservationsCount} reservas activas`);
+                                }
+                            }
+                            
+                            if (deletedCount > 0) {
+                                toast.success(`🗑️ ${deletedCount} slots eliminados fuera del rango configurado`);
+                            }
+                        }
+                    } catch (protectionError) {
+                        console.error('❌ Error en protección de reservas:', protectionError);
+                        toast.error('🛡️ No se eliminaron slots por seguridad. Error verificando reservas.');
+                        // NO continuar con la eliminación si hay error
+                    }
+                } else {
+                    console.log('✅ No hay slots fuera del rango configurado para eliminar');
+                }
+            } else {
+                console.log('✅ Días aumentaron o se mantuvieron - No se eliminan slots existentes');
+            }
 
             // Usar generate_availability_slots_employee_based (función que existe)
             // Calcular días a generar
@@ -1109,20 +1333,23 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 }
             }
 
-            // 3. CARGAR POLÍTICA DE RESERVAS REAL ANTES DE GENERAR
-            console.log('📋 Cargando política de reservas REAL...');
-            const { useReservationStore } = await import('../stores/reservationStore.js');
+            // 3. USAR VALOR CONFIGURADO POR EL USUARIO (generationSettings.advanceBookingDays)
+            // Este es el valor que el usuario configuró y guardó, no el del store
+            console.log('📋 Usando días de antelación configurados:', generationSettings.advanceBookingDays);
             
             // Declarar variables fuera del try para usarlas después
             let advanceDays, duration, today, endDate;
             
             try {
+                // Cargar política para obtener duration, pero usar advanceBookingDays del usuario
+                const { useReservationStore } = await import('../stores/reservationStore.js');
                 await useReservationStore.getState().loadReservationPolicy(businessId);
                 const settings = useReservationStore.getState().settings;
                 console.log('✅ Política cargada:', settings);
                 
-                // Usar valores REALES de la política
-                advanceDays = settings.maxAdvanceBooking;
+                // Usar el valor configurado por el usuario (generationSettings.advanceBookingDays)
+                // Si no está configurado, usar el de la política como fallback
+                advanceDays = generationSettings.advanceBookingDays || settings.maxAdvanceBooking;
                 duration = settings.slotDuration;
                 
                 if (!advanceDays || !duration) {
@@ -1132,11 +1359,12 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 today = format(new Date(), 'yyyy-MM-dd');
                 endDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
                 
-                console.log('🎯 Usando política REAL:', {
+                console.log('🎯 Usando días configurados por el usuario:', {
                     advanceDays,
                     duration,
                     startDate: today,
-                    endDate
+                    endDate,
+                    source: 'generationSettings.advanceBookingDays'
                 });
                 
             } catch (policyError) {
@@ -1157,6 +1385,143 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 toast.error('❌ No hay mesas activas. Añade mesas antes de generar disponibilidades.');
                 toast.dismiss('generating');
                 return;
+            }
+            
+            // 🗑️ PASO 1: ELIMINAR SLOTS QUE ESTÁN FUERA DEL RANGO CONFIGURADO
+            // ⚠️ IMPORTANTE: Solo eliminar si los días DISMINUYERON, no si aumentaron
+            const previousAdvanceDays = businessesettings?.advance_booking_days || 30;
+            const daysDecreased = advanceDays < previousAdvanceDays;
+            
+            console.log('🗑️ PASO 1: Verificando slots fuera del rango configurado');
+            console.log('🗑️ Días anteriores:', previousAdvanceDays);
+            console.log('🗑️ Días nuevos:', advanceDays);
+            console.log('🗑️ ¿Días disminuyeron?:', daysDecreased);
+            console.log('🗑️ endDate configurado:', endDate);
+            console.log('🗑️ today:', today);
+            
+            // Solo eliminar slots si los días DISMINUYERON
+            if (daysDecreased) {
+                const { data: slotsToDelete, error: deleteCheckError } = await supabase
+                    .from('availability_slots')
+                    .select('id, slot_date, resource_id')
+                    .eq('business_id', businessId)
+                    .gt('slot_date', endDate);
+                
+                console.log('🗑️ Slots encontrados fuera del rango:', {
+                    cantidad: slotsToDelete?.length || 0,
+                    error: deleteCheckError,
+                    fechas: slotsToDelete?.map(s => s.slot_date).slice(0, 5) || []
+                });
+                
+                if (deleteCheckError) {
+                    console.error('❌ Error buscando slots para eliminar:', deleteCheckError);
+                }
+                
+                if (slotsToDelete && slotsToDelete.length > 0) {
+                    console.log(`🗑️ Encontrados ${slotsToDelete.length} slots fuera del rango. Verificando reservas activas...`);
+                    
+                    try {
+                        // 🛡️ PROTECCIÓN CRÍTICA: Verificar reservas activas antes de eliminar
+                        const { datesWithReservations, slotsProtectedByResource, reservationsCount, reservations } = await protectSlotsWithReservations(slotsToDelete, endDate);
+                        
+                        if (slotsProtectedByResource.size > 0) {
+                            console.log(`🛡️ PROTEGIENDO ${slotsProtectedByResource.size} combinaciones fecha+resource con ${reservationsCount} reservas activas`);
+                            toast.info(`🛡️ Protegiendo slots de trabajadores con reservas activas`);
+                        }
+                        
+                        // 🚨 SOLO eliminar slots que NO tienen reservas activas en esa fecha Y ese resource_id
+                        // Filtrar en JavaScript para excluir slots protegidos por trabajador específico
+                        const slotsToDeleteSafe = slotsToDelete.filter(slot => {
+                            const slotKey = `${slot.slot_date}_${slot.resource_id || 'null'}`;
+                            // NO eliminar si tiene reserva en esa fecha Y ese resource_id
+                            return !slotsProtectedByResource.has(slotKey);
+                        });
+                        
+                        console.log(`🛡️ Slots a eliminar: ${slotsToDeleteSafe.length} de ${slotsToDelete.length} (${slotsToDelete.length - slotsToDeleteSafe.length} protegidos)`);
+                        
+                        if (slotsToDeleteSafe.length === 0) {
+                            console.log('🛡️ Todos los slots están protegidos por reservas. No se elimina nada.');
+                            toast.info('🛡️ Todos los slots fuera del rango están protegidos por reservas activas');
+                            
+                            // Verificar cuántos slots quedan protegidos
+                            if (slotsProtectedByResource.size > 0) {
+                                const protectedDates = [...new Set(Array.from(slotsProtectedByResource.keys()).map(k => k.split('_')[0]))];
+                                const { count: protectedCount } = await supabase
+                                    .from('availability_slots')
+                                    .select('id', { count: 'exact', head: true })
+                                    .eq('business_id', businessId)
+                                    .gt('slot_date', endDate)
+                                    .in('slot_date', protectedDates);
+                                
+                                if (protectedCount && protectedCount > 0) {
+                                    console.log(`🛡️ ${protectedCount} slots PROTEGIDOS en ${protectedDates.length} fechas con reservas`);
+                                    toast.success(`🛡️ ${protectedCount} slots protegidos por ${reservationsCount} reservas activas`);
+                                }
+                            }
+                            return; // No continuar con la eliminación
+                        }
+                        
+                        // Obtener IDs de slots seguros para eliminar (solo los sin reservas)
+                        const safeSlotIds = slotsToDeleteSafe.map(s => s.id);
+                        
+                        // Eliminar en lotes para evitar problemas con arrays grandes
+                        const batchSize = 500;
+                        let deletedCount = 0;
+                        let deleteError = null;
+                        
+                        for (let i = 0; i < safeSlotIds.length; i += batchSize) {
+                            const batch = safeSlotIds.slice(i, i + batchSize);
+                            const { error: batchError } = await supabase
+                                .from('availability_slots')
+                                .delete()
+                                .in('id', batch);
+                            
+                            if (batchError) {
+                                console.error(`❌ Error eliminando lote ${Math.floor(i / batchSize) + 1}:`, batchError);
+                                deleteError = batchError;
+                                break;
+                            } else {
+                                deletedCount += batch.length;
+                                console.log(`✅ Lote ${Math.floor(i / batchSize) + 1}: ${batch.length} slots eliminados`);
+                            }
+                        }
+                        
+                        if (deleteError) {
+                            console.error('❌ Error eliminando slots fuera del rango:', deleteError);
+                            toast.error(`Error eliminando slots: ${deleteError.message}`);
+                        } else {
+                            console.log(`✅ TOTAL: ${deletedCount} slots eliminados fuera del rango (sin reservas)`);
+                            
+                            // Verificar cuántos slots quedan protegidos
+                            if (slotsProtectedByResource.size > 0) {
+                                const protectedDates = [...new Set(Array.from(slotsProtectedByResource.keys()).map(k => k.split('_')[0]))];
+                                const { count: protectedCount } = await supabase
+                                    .from('availability_slots')
+                                    .select('id', { count: 'exact', head: true })
+                                    .eq('business_id', businessId)
+                                    .gt('slot_date', endDate)
+                                    .in('slot_date', protectedDates);
+                                
+                                if (protectedCount && protectedCount > 0) {
+                                    console.log(`🛡️ ${protectedCount} slots PROTEGIDOS en ${protectedDates.length} fechas con reservas`);
+                                    toast.success(`🛡️ ${protectedCount} slots protegidos por ${reservationsCount} reservas activas`);
+                                }
+                            }
+                            
+                            if (deletedCount > 0) {
+                                toast.success(`🗑️ ${deletedCount} slots eliminados fuera del rango configurado`);
+                            }
+                        }
+                    } catch (protectionError) {
+                        console.error('❌ Error en protección de reservas:', protectionError);
+                        toast.error('🛡️ No se eliminaron slots por seguridad. Error verificando reservas.');
+                        // NO continuar con la eliminación si hay error
+                    }
+                } else {
+                    console.log('✅ No hay slots fuera del rango configurado para eliminar');
+                }
+            } else {
+                console.log('✅ Días aumentaron o se mantuvieron - No se eliminan slots existentes');
             }
             
             // USAR FUNCIÓN SIMPLIFICADA (sin turnos)
@@ -1674,6 +2039,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             });
             
             // ✅ CONSULTA DIRECTA - Ir directamente a la tabla availability_slots
+            // 🆕 Incluir appointment_id para detectar slots ocupados
             const { data: slotsData, error: slotsError } = await supabase
                 .from('availability_slots')
                 .select(`
@@ -1685,7 +2051,8 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                     is_available,
                     duration_minutes,
                     resource_id,
-                    business_id
+                    business_id,
+                    appointment_id
                 `)
                 .eq('business_id', businessId)
                 .eq('slot_date', date)
@@ -1805,6 +2172,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                     resource_capacity: resource?.capacity || null,
                     employee_name: employee?.name || null,
                     has_appointment: slot.status !== 'free' && slot.status !== 'available',
+                    is_occupied: slot.appointment_id !== null || slot.status === 'reserved' || slot.status === 'occupied',
                     isEmpty: false
                 });
             });
@@ -1840,6 +2208,52 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             setLoadingDayView(false);
         }
     };
+
+    // 🔄 Función de recarga completa de datos
+    const reloadAllData = useCallback(async () => {
+        if (!businessId) return;
+        
+        console.log('🔄 RECARGA COMPLETA: Limpiando estado y recargando desde Supabase...');
+        
+        // Limpiar estado local
+        setAvailabilityStats(null);
+        setAvailabilityGrid([]);
+        setDayStats(null);
+        setGenerationSuccess(null);
+        
+        // Limpiar localStorage
+        try {
+            localStorage.removeItem(`generationSuccess_${businessId}`);
+        } catch (error) {
+            // Silencioso
+        }
+        
+        // Recargar todo desde Supabase
+        await loadbusinessesettings();
+        await loadAvailabilityStats();
+        await loadDayStats();
+        await loadAvailabilityConfig();
+        
+        // Si hay una fecha seleccionada, recargar también esa vista
+        if (selectedDate) {
+            await loadDayAvailability(selectedDate);
+        }
+        
+        console.log('✅ RECARGA COMPLETA: Datos actualizados desde Supabase');
+    }, [businessId, selectedDate]);
+
+    // Escuchar evento personalizado para recargar datos
+    useEffect(() => {
+        const handleRefresh = () => {
+            reloadAllData();
+        };
+        
+        window.addEventListener('refreshAvailabilityData', handleRefresh);
+        
+        return () => {
+            window.removeEventListener('refreshAvailabilityData', handleRefresh);
+        };
+    }, [reloadAllData]);
 
     // Cargar estado persistente cuando cambie el businessId
     useEffect(() => {
@@ -1931,12 +2345,34 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
     return (
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
+            {/* 🧪 BANNER MODO TEST/CONSULTA */}
+            <div className="mb-4 p-4 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-lg">
+                <div className="flex items-start gap-3">
+                    <div className="bg-amber-500 p-2 rounded-full">
+                        <Eye className="w-5 h-5 text-white" />
+                    </div>
+                    <div className="flex-1">
+                        <h3 className="font-bold text-amber-900 mb-1 flex items-center gap-2">
+                            🧪 MODO TEST - SOLO CONSULTA
+                        </h3>
+                        <p className="text-sm text-amber-800 mb-2">
+                            Esta página es solo para <strong>verificar y testear</strong> que la disponibilidad se genera correctamente.
+                            La regeneración ahora es <strong>automática</strong> cuando cambias horarios o configuración.
+                        </p>
+                        <div className="bg-white/60 rounded p-2 text-xs text-amber-900">
+                            <strong>ℹ️ Información:</strong> Los slots se generan automáticamente al guardar cambios en Configuración → Horarios o Reservas.
+                            No necesitas generar manualmente.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <div className="mb-4">
                 <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
                     <Calendar className="w-6 h-6 text-blue-600" />
-                    Disponibilidades
+                    Disponibilidades (Vista de Prueba)
                 </h2>
-                <p className="text-sm text-gray-500 mt-1">Gestiona horarios disponibles para reservas</p>
+                <p className="text-sm text-gray-500 mt-1">Consulta y verifica que los slots se generan correctamente</p>
             </div>
 
             {/* Configuración - COMPACTA */}
@@ -2026,6 +2462,16 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
 
                                 toast.dismiss('save-config');
                                 toast.success('✅ Configuración guardada correctamente');
+                                
+                                // Actualizar generationSettings con los valores guardados
+                                setGenerationSettings(prev => ({
+                                    ...prev,
+                                    advanceBookingDays: generationSettings.advanceBookingDays,
+                                    endDate: format(addDays(new Date(), generationSettings.advanceBookingDays), 'yyyy-MM-dd')
+                                }));
+                                
+                                // Recargar configuración para sincronizar
+                                await loadbusinessesettings();
 
                             } catch (error) {
                                 console.error('Error guardando configuración:', error);
@@ -2059,18 +2505,21 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                             </div>
                         </div>
                         <div className="flex items-center gap-2">
+                            {/* 🧪 BOTONES DESHABILITADOS EN MODO TEST */}
                             <button
-                                onClick={handleShowRegenerateModal}
-                                disabled={loading}
-                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 transition-all font-medium text-sm"
+                                onClick={() => toast.info('🧪 Modo test: La regeneración es automática. Cambia horarios en Configuración.')}
+                                disabled={true}
+                                className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-medium text-sm opacity-50"
+                                title="Modo test: La regeneración es automática"
                             >
-                                {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                                {loading ? 'Generando...' : 'Generar'}
+                                <Plus className="w-4 h-4" />
+                                Generar (Auto)
                             </button>
                             <button 
-                                onClick={handleSmartCleanup}
-                                disabled={loading}
-                                className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-all disabled:opacity-50 text-sm"
+                                onClick={() => toast.info('🧪 Modo test: No se puede eliminar. La limpieza es automática.')}
+                                disabled={true}
+                                className="px-3 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed text-sm opacity-50"
+                                title="Modo test: La limpieza es automática"
                             >
                                 <Trash2 className="w-4 h-4" />
                             </button>
@@ -2107,15 +2556,19 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                             <AlertCircle className="w-6 h-6 text-amber-600" />
                             <div>
                                 <h3 className="text-base font-bold text-gray-900">Sin Disponibilidades</h3>
-                                <p className="text-xs text-gray-600 mt-0.5">No hay horarios activos para nuevas reservas</p>
+                                <p className="text-xs text-gray-600 mt-0.5">
+                                    No hay horarios activos. Los slots se generan automáticamente al guardar cambios en Configuración.
+                                </p>
                             </div>
                         </div>
                         <button
-                            onClick={handleShowRegenerateModal}
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all font-medium text-sm"
+                            onClick={() => toast.info('🧪 Modo test: La regeneración es automática. Ve a Configuración → Horarios y guarda cambios.')}
+                            disabled={true}
+                            className="flex items-center gap-2 px-4 py-2 bg-gray-300 text-gray-500 rounded-lg cursor-not-allowed font-medium text-sm opacity-50"
+                            title="Modo test: La regeneración es automática"
                         >
                             <Plus className="w-4 h-4" />
-                            Generar
+                            Generar (Auto)
                         </button>
                     </div>
                 </div>
@@ -2176,17 +2629,23 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 {/* Dashboard visual - TODOS LOS EMPLEADOS EN COLUMNAS */}
                 {Object.keys(dayAvailability).length > 0 && (
                     <div className="mt-4">
-                        {/* Resumen general */}
-                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-4 border border-blue-200">
-                            <div className="text-center">
-                                <div className="text-3xl font-bold text-gray-900 mb-1">
-                                    {Object.values(dayAvailability).reduce((sum, emp) => {
-                                        const slots = emp.slots || [];
-                                        return sum + slots.filter(s => s.status === 'free').length;
-                                    }, 0)}
-                                </div>
-                                <div className="text-sm text-gray-600">
-                                    slots disponibles creados para {selectedDate}
+                        {/* Resumen general - Estilo elegante y profesional */}
+                        <div className="bg-white rounded-lg p-4 mb-4 shadow-sm border-l-4 border-blue-600 hover:shadow-md transition-shadow">
+                            <div className="flex items-center gap-4">
+                                {/* Icono y número */}
+                                <div className="flex items-center gap-4">
+                                    <div className="bg-blue-50 rounded-lg p-2.5">
+                                        <CalendarCheck className="w-5 h-5 text-blue-600" />
+                                    </div>
+                                    <div className="flex items-baseline gap-2">
+                                        <span className="text-3xl font-bold text-gray-900">
+                                            {Object.values(dayAvailability).reduce((sum, emp) => {
+                                                const slots = emp.slots || [];
+                                                return sum + slots.filter(s => s.status === 'free').length;
+                                            }, 0)}
+                                        </span>
+                                        <span className="text-sm font-medium text-gray-600">horarios disponibles</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2222,50 +2681,108 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                                 });
                                 
                                 return (
-                                    <div key={employeeKey} className="bg-white rounded-lg border border-gray-200 shadow-sm overflow-hidden">
-                                        {/* Header empleado */}
-                                        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-3 py-2 border-b border-gray-200">
-                                            <div className="font-bold text-gray-900 text-sm">{employeeName}</div>
-                                            {resourceName && (
-                                                <div className="text-xs text-gray-500 mt-0.5">📍 {resourceName}</div>
-                                            )}
+                                    <div key={employeeKey} className="bg-white rounded-lg border-l-4 border-blue-400 border-r border-t border-b border-gray-200 shadow-sm overflow-hidden hover:shadow-md hover:border-blue-500 transition-all">
+                                        {/* Header empleado - Horizontal y compacto con fondo diferenciado */}
+                                        <div className="px-4 py-2.5 border-b border-gray-200 bg-gray-100">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="flex items-center gap-2 min-w-0">
+                                                    <span className="font-semibold text-gray-900 text-sm truncate">{employeeName}</span>
+                                                    {resourceName && (
+                                                        <span className="text-xs font-medium text-gray-600 flex items-center gap-1 flex-shrink-0">
+                                                            <span className="text-gray-400 text-xs">📍</span>
+                                                            <span className="truncate">{resourceName}</span>
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                {/* Resumen numérico compacto a la derecha - Número en gris */}
+                                                <div className="flex items-baseline gap-1.5 flex-shrink-0">
+                                                    <span className="text-2xl font-bold text-gray-900">{freeSlots}</span>
+                                                    <span className="text-xs font-medium text-gray-500">de {totalSlots}</span>
+                                                </div>
+                                            </div>
                                         </div>
                                         
-                                        {/* Resumen numérico */}
-                                        <div className="p-3 text-center border-b border-gray-100">
-                                            <div className="text-2xl font-bold text-gray-900">{freeSlots}</div>
-                                            <div className="text-xs text-gray-500">de {totalSlots} slots creados</div>
-                                        </div>
-                                        
-                                        {/* Visualización tipo timeline compacta */}
-                                        <div className="p-3">
-                                            <div className="space-y-1">
+                                        {/* Visualización de slots individuales */}
+                                        <div className="p-4">
+                                            <div className="space-y-3">
                                                 {Object.entries(slotsByHour)
                                                     .sort(([a], [b]) => a.localeCompare(b))
                                                     .slice(0, 12) // Mostrar solo primeras 12 horas
                                                     .map(([hour, hourSlots]) => {
-                                                        const freeCount = hourSlots.filter(s => s.status === 'free').length;
-                                                        const totalCount = hourSlots.length;
-                                                        const percentage = (freeCount / totalCount) * 100;
+                                                        // Ordenar slots por hora de inicio
+                                                        const sortedSlots = hourSlots.sort((a, b) => 
+                                                            (a.start_time || '').localeCompare(b.start_time || '')
+                                                        );
+                                                        
+                                                        // Agrupar en cuartos (00, 15, 30, 45)
+                                                        const quarters = {
+                                                            '00': sortedSlots.filter(s => {
+                                                                const minutes = s.start_time?.substring(3, 5) || '00';
+                                                                return minutes === '00';
+                                                            }),
+                                                            '15': sortedSlots.filter(s => {
+                                                                const minutes = s.start_time?.substring(3, 5) || '00';
+                                                                return minutes === '15';
+                                                            }),
+                                                            '30': sortedSlots.filter(s => {
+                                                                const minutes = s.start_time?.substring(3, 5) || '00';
+                                                                return minutes === '30';
+                                                            }),
+                                                            '45': sortedSlots.filter(s => {
+                                                                const minutes = s.start_time?.substring(3, 5) || '00';
+                                                                return minutes === '45';
+                                                            })
+                                                        };
                                                         
                                                         return (
-                                                            <div key={hour} className="flex items-center gap-2 text-xs">
-                                                                <div className="w-12 text-gray-600 font-medium">{hour}:00</div>
-                                                                <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
-                                                                    <div 
-                                                                        className={`h-full ${percentage === 100 ? 'bg-green-500' : percentage > 0 ? 'bg-amber-400' : 'bg-gray-300'}`}
-                                                                        style={{ width: `${percentage}%` }}
-                                                                    ></div>
+                                                            <div key={hour} className="space-y-2 mb-3">
+                                                                <div className="text-xs font-bold text-gray-800 mb-2.5 flex items-center gap-2">
+                                                                    <span className="w-1 h-1 bg-gray-400 rounded-full"></span>
+                                                                    {hour}:00
                                                                 </div>
-                                                                <div className="w-8 text-right text-gray-500 text-[10px]">
-                                                                    {freeCount}/{totalCount}
+                                                                <div className="flex flex-wrap gap-2">
+                                                                    {['00', '15', '30', '45'].map((quarter) => {
+                                                                        const quarterSlots = quarters[quarter] || [];
+                                                                        const freeSlot = quarterSlots.find(s => s.status === 'free' && !s.is_occupied);
+                                                                        const occupiedSlot = quarterSlots.find(s => s.is_occupied || s.appointment_id);
+                                                                        const hasSlot = quarterSlots.length > 0;
+                                                                        const slotTime = `${hour}:${quarter}`;
+                                                                        
+                                                                        return (
+                                                                            <div
+                                                                                key={quarter}
+                                                                                className={`
+                                                                                    text-center px-3 py-1.5 rounded-md text-xs font-medium min-w-[60px]
+                                                                                    transition-all duration-200
+                                                                                    ${hasSlot && occupiedSlot
+                                                                                        ? 'bg-red-100 text-red-700 border-2 border-red-300 hover:bg-red-200 hover:border-red-400 font-bold'
+                                                                                        : hasSlot && freeSlot
+                                                                                        ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+                                                                                        : hasSlot
+                                                                                        ? 'bg-gray-100 text-gray-500 border border-gray-200'
+                                                                                        : 'bg-gray-50 text-gray-400 border border-gray-100'
+                                                                                    }
+                                                                                `}
+                                                                                title={hasSlot && occupiedSlot 
+                                                                                    ? `${slotTime} - 🔴 OCUPADO/RESERVADO` 
+                                                                                    : hasSlot && freeSlot 
+                                                                                    ? `${slotTime} - 🟢 Disponible` 
+                                                                                    : hasSlot 
+                                                                                    ? `${slotTime} - Ocupado` 
+                                                                                    : `${slotTime} - No disponible`}
+                                                                            >
+                                                                                {slotTime}
+                                                                                {hasSlot && occupiedSlot && <span className="ml-1">🔴</span>}
+                                                                            </div>
+                                                                        );
+                                                                    })}
                                                                 </div>
                                                             </div>
                                                         );
                                                     })}
                                             </div>
                                             {Object.keys(slotsByHour).length > 12 && (
-                                                <div className="text-center text-xs text-gray-400 mt-2">
+                                                <div className="text-center text-xs font-semibold text-gray-500 mt-3 pt-2 border-t border-gray-200">
                                                     +{Object.keys(slotsByHour).length - 12} horas más
                                                 </div>
                                             )}

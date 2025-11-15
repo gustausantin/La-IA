@@ -62,7 +62,7 @@ const RegenerationRequiredModal = ({
             case 'table_modified':
                 return '✏️ Has MODIFICADO una mesa';
             case 'schedule_changed':
-                return '📅 Has CAMBIADO el horario del restaurante';
+                return '📅 Has CAMBIADO los horarios del negocio';
             case 'special_event_created':
                 return '🎉 Has CREADO un evento especial';
             case 'special_event_closed':
@@ -155,7 +155,7 @@ const RegenerationRequiredModal = ({
                                 ✅ <strong>SOLUCIÓN:</strong>
                             </p>
                             <p className="text-gray-700">
-                                Actualiza los horarios de reserva <strong>AHORA</strong> para que los cambios se reflejen correctamente en el calendario de reservas.
+                                Actualiza la disponibilidad <strong>AHORA</strong> para que los cambios se reflejen correctamente en el calendario de reservas.
                             </p>
                         </div>
 
@@ -170,7 +170,7 @@ const RegenerationRequiredModal = ({
                                 }}
                             >
                                 <RefreshCw className="w-6 h-6" />
-                                ACTUALIZAR HORARIOS DE RESERVA AHORA
+                                ACTUALIZAR DISPONIBILIDAD AHORA
                                 <ArrowRight className="w-6 h-6" />
                             </button>
 

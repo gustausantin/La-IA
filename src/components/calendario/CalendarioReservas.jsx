@@ -103,6 +103,7 @@ export default function CalendarioReservas({
     const [fechaActual, setFechaActual] = useState(new Date());
     const [currentTime, setCurrentTime] = useState(new Date()); // 🔴 Hora actual para línea roja
     const [showCancelledModal, setShowCancelledModal] = useState(false); // 📋 Modal de lista de canceladas
+    const [showNoShowsModal, setShowNoShowsModal] = useState(false); // 📋 Modal de lista de no-shows
     
     // 🕐 CALCULAR HORAS DINÁMICAMENTE - Buscar en negocio y empleados
     const [horaInicio, horaFin] = useMemo(() => {
@@ -230,7 +231,12 @@ export default function CalendarioReservas({
     }, [reservationsFiltradas]);
 
     // 🗓️ NAVEGACIÓN
-    const irAHoy = () => setFechaActual(new Date());
+    const irAHoy = () => {
+        // Forzar actualización incluso si ya estamos en hoy
+        const hoy = new Date();
+        setFechaActual(new Date(hoy.getTime() - 1)); // Establecer 1ms antes
+        setTimeout(() => setFechaActual(hoy), 0); // Luego establecer hoy (fuerza re-render)
+    };
     const irAAnterior = () => {
         if (vista === 'dia') setFechaActual(subDays(fechaActual, 1));
         else if (vista === 'semana') setFechaActual(subDays(fechaActual, 7));
@@ -330,33 +336,33 @@ export default function CalendarioReservas({
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2.5">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
                     {/* Selector de Vista */}
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2.5">
                         <button
                             onClick={() => setVista('dia')}
-                            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all ${
+                            className={`px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
                                 vista === 'dia'
-                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
+                                    : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
                             }`}
                         >
                             📅 Día
                         </button>
                         <button
                             onClick={() => setVista('semana')}
-                            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all ${
+                            className={`px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
                                 vista === 'semana'
-                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
+                                    : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
                             }`}
                         >
                             📆 Semana
                         </button>
                         <button
                             onClick={() => setVista('mes')}
-                            className={`px-3 py-1.5 rounded-lg font-medium text-xs transition-all ${
+                            className={`px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
                                 vista === 'mes'
-                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
+                                    : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
                             }`}
                         >
                             📊 Mes
@@ -364,17 +370,18 @@ export default function CalendarioReservas({
                     </div>
 
                     {/* 📅 NAVEGACIÓN DE FECHAS MEJORADA */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2.5">
                         <button
                             onClick={irAAnterior}
-                            className="p-1.5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-lg transition-all"
+                            className="p-2.5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-200"
+                            aria-label="Día anterior"
                         >
-                            <ChevronLeft className="w-4 h-4 text-gray-700" />
+                            <ChevronLeft className="w-5 h-5 text-gray-700" />
                         </button>
                         
                         <button
                             onClick={irAHoy}
-                            className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100 rounded-lg font-semibold text-xs text-gray-900 transition-all border border-blue-200"
+                            className="px-6 py-3 bg-gradient-to-r from-blue-100 to-purple-100 hover:from-blue-200 hover:to-purple-200 rounded-xl font-bold text-sm text-gray-900 transition-all duration-200 border-2 border-blue-300 hover:border-blue-400 shadow-md hover:shadow-lg transform hover:scale-105"
                         >
                             Hoy
                         </button>
@@ -394,23 +401,38 @@ export default function CalendarioReservas({
 
                         <button
                             onClick={irASiguiente}
-                            className="p-1.5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-lg transition-all"
+                            className="p-2.5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-200"
+                            aria-label="Día siguiente"
                         >
-                            <ChevronRight className="w-4 h-4 text-gray-700" />
+                            <ChevronRight className="w-5 h-5 text-gray-700" />
                         </button>
                     </div>
 
                     {/* 🔄 BOTONES DE ACCIÓN */}
-                    <div className="flex items-center gap-2">
-                        {/* Botón Ver Canceladas - GRANDE Y ROJO */}
-                        <button
-                            onClick={() => setShowCancelledModal(true)}
-                            className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm bg-white text-red-600 border-2 border-red-400 hover:bg-red-50 hover:shadow-md"
-                            title="Ver lista de reservas canceladas"
-                        >
-                            <span className="text-base">👁️</span>
-                            Ver Canceladas ({stats.canceladas})
-                        </button>
+                    <div className="flex items-center gap-2 flex-wrap">
+                        {/* Botón Ver Canceladas - ROJO */}
+                        {stats.canceladas > 0 && (
+                            <button
+                                onClick={() => setShowCancelledModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm bg-white text-red-600 border-2 border-red-400 hover:bg-red-50 hover:shadow-md"
+                                title="Ver lista de reservas canceladas"
+                            >
+                                <span className="text-base">❌</span>
+                                Canceladas ({stats.canceladas})
+                            </button>
+                        )}
+                        
+                        {/* Botón Ver No-Shows - NARANJA/AMARILLO */}
+                        {stats.noShows > 0 && (
+                            <button
+                                onClick={() => setShowNoShowsModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm bg-white text-orange-600 border-2 border-orange-400 hover:bg-orange-50 hover:shadow-md"
+                                title="Ver lista de no-shows"
+                            >
+                                <span className="text-base">⚠️</span>
+                                No-Shows ({stats.noShows})
+                            </button>
+                        )}
                         
                         {/* Botón Actualizar */}
                         <button
@@ -588,16 +610,16 @@ export default function CalendarioReservas({
                             </button>
                         </div>
                         
-                        {/* Lista de canceladas */}
+                        {/* Lista de canceladas - SOLO CANCELADAS */}
                         <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
-                            {reservationsFiltradas.filter(r => r.status === 'cancelled' || r.status === 'no_show').length === 0 ? (
+                            {reservationsFiltradas.filter(r => r.status === 'cancelled').length === 0 ? (
                                 <p className="text-center text-gray-500 py-8">
                                     No hay reservas canceladas
                                 </p>
                             ) : (
                                 <div className="space-y-3">
                                     {reservationsFiltradas
-                                        .filter(r => r.status === 'cancelled' || r.status === 'no_show')
+                                        .filter(r => r.status === 'cancelled')
                                         .map(reserva => {
                                             const horaFin = calcularHoraFin(
                                                 reserva.reservation_time || reserva.appointment_time || '00:00',
@@ -637,12 +659,89 @@ export default function CalendarioReservas({
                                                             </div>
                                                         </div>
                                                         <div className="text-right">
-                                                            <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
-                                                                reserva.status === 'cancelled' 
-                                                                    ? 'bg-red-100 text-red-700' 
-                                                                    : 'bg-gray-200 text-gray-700'
-                                                            }`}>
-                                                                {reserva.status === 'cancelled' ? '❌ Cancelada' : '⚠️ No-Show'}
+                                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                                                                ❌ Cancelada
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 📋 MODAL DE NO-SHOWS */}
+            {showNoShowsModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-orange-600 to-orange-700 px-6 py-4 flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                ⚠️ No-Shows ({stats.noShows})
+                            </h2>
+                            <button
+                                onClick={() => setShowNoShowsModal(false)}
+                                className="text-white hover:bg-white/20 rounded-lg p-2 transition-all"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        {/* Lista de no-shows - SOLO NO-SHOWS */}
+                        <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+                            {reservationsFiltradas.filter(r => r.status === 'no_show').length === 0 ? (
+                                <p className="text-center text-gray-500 py-8">
+                                    No hay no-shows registrados
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {reservationsFiltradas
+                                        .filter(r => r.status === 'no_show')
+                                        .map(reserva => {
+                                            const horaFin = calcularHoraFin(
+                                                reserva.reservation_time || reserva.appointment_time || '00:00',
+                                                reserva.duration_minutes || reserva.service_duration_minutes || 60
+                                            );
+                                            
+                                            return (
+                                                <div 
+                                                    key={reserva.id}
+                                                    className="bg-orange-50 border-l-4 border-orange-500 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                                >
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="flex-1">
+                                                            <h3 className="font-bold text-gray-900 text-base mb-1">
+                                                                {reserva.customer_name}
+                                                            </h3>
+                                                            <div className="space-y-1 text-sm text-gray-700">
+                                                                <p className="flex items-center gap-2">
+                                                                    <CalendarIcon className="w-4 h-4" />
+                                                                    {format(parseISO(reserva.reservation_date || reserva.appointment_date), "EEE dd MMM yyyy", { locale: es })}
+                                                                </p>
+                                                                <p className="flex items-center gap-2">
+                                                                    <Clock className="w-4 h-4" />
+                                                                    {(reserva.reservation_time || reserva.appointment_time || '00:00').substring(0, 5)} - {horaFin}
+                                                                    <span className="text-gray-500">({reserva.duration_minutes || 60}min)</span>
+                                                                </p>
+                                                                {reserva.service_name && (
+                                                                    <p className="flex items-center gap-2">
+                                                                        ✂️ {reserva.service_name}
+                                                                    </p>
+                                                                )}
+                                                                {reserva.notes && (
+                                                                    <p className="text-xs text-gray-600 italic mt-2">
+                                                                        💬 {reserva.notes}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                                                                ⚠️ No-Show
                                                             </span>
                                                         </div>
                                                     </div>

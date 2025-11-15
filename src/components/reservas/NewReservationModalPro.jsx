@@ -6,7 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
     X, Calendar, User, Phone, Mail, Clock, Scissors, Search, Check, 
-    AlertCircle, Loader2, Users, Star, MessageSquare, Sparkles, CakeIcon
+    AlertCircle, Loader2, Users, Star, MessageSquare, Sparkles, CakeIcon, CheckCircle2
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { format } from 'date-fns';
@@ -46,6 +46,7 @@ export default function NewReservationModalPro({
         appointment_date: prefilledData.date || format(new Date(), 'yyyy-MM-dd'), // ✅ appointment_date
         appointment_time: prefilledData.time || '10:00', // ✅ appointment_time
         duration_minutes: 60, // ✅ duration_minutes
+        status: 'pending', // ✅ Estado de la reserva
         
         // OPCIONES
         flexible_time: false,
@@ -75,6 +76,7 @@ export default function NewReservationModalPro({
                 appointment_date: editingReservation.appointment_date || editingReservation.reservation_date || format(new Date(), 'yyyy-MM-dd'),
                 appointment_time: editingReservation.appointment_time || editingReservation.reservation_time || '10:00',
                 duration_minutes: editingReservation.duration_minutes || 60,
+                status: editingReservation.status || 'pending', // ✅ Cargar estado actual
                 flexible_time: false,
                 special_requests: editingReservation.special_requests || ''
             });
@@ -404,6 +406,7 @@ export default function NewReservationModalPro({
                         appointment_date: formData.appointment_date,
                         appointment_time: formData.appointment_time,
                         duration_minutes: formData.duration_minutes,
+                        status: formData.status, // ✅ Incluir estado en la actualización
                         special_requests: formData.special_requests || null,
                         customer_name: fullName,
                         customer_phone: formData.customer_phone,
@@ -484,6 +487,7 @@ export default function NewReservationModalPro({
             appointment_date: format(new Date(), 'yyyy-MM-dd'),
             appointment_time: '10:00',
             duration_minutes: 60,
+            status: 'pending',
             flexible_time: false,
             special_requests: ''
         });
@@ -851,6 +855,31 @@ export default function NewReservationModalPro({
                                             required
                                         />
                                     </div>
+
+                                    {/* 🆕 Selector de Estado - Solo visible en modo edición */}
+                                    {isEditMode && (
+                                        <div className="md:col-span-2">
+                                            <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center gap-1">
+                                                <CheckCircle2 className="w-3 h-3" />
+                                                Estado de la Reserva *
+                                            </label>
+                                            <select
+                                                value={formData.status}
+                                                onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value }))}
+                                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                                                required
+                                            >
+                                                <option value="pending">Pendiente</option>
+                                                <option value="confirmed">Confirmada</option>
+                                                <option value="completed">Completada</option>
+                                                <option value="cancelled">Cancelada</option>
+                                                <option value="no_show">No-Show</option>
+                                            </select>
+                                            <p className="text-xs text-gray-500 mt-1">
+                                                💡 Puedes cambiar manualmente el estado si el cliente confirma por teléfono, WhatsApp u otro medio
+                                            </p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
@@ -909,12 +938,12 @@ export default function NewReservationModalPro({
                                     {loading ? (
                                         <>
                                             <Loader2 className="w-5 h-5 animate-spin" />
-                                            Creando...
+                                            {isEditMode ? 'Guardando...' : 'Creando...'}
                                         </>
                                     ) : (
                                         <>
                                             <Check className="w-5 h-5" />
-                                            Crear Reserva
+                                            {isEditMode ? 'Guardar Cambios' : 'Crear Reserva'}
                                         </>
                                     )}
                                 </button>

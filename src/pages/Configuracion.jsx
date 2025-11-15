@@ -40,6 +40,7 @@ import { useVertical } from "../hooks/useVertical";
 import IntegracionesContent from "../components/configuracion/IntegracionesContent"; // 🆕 Integraciones
 import RecursosContent from "../components/configuracion/RecursosContent"; // 🆕 Recursos
 import ServiciosContent from "./configuracion/Servicios"; // 🆕 Servicios
+import RestaurantSettings from "../components/configuracion/RestaurantSettings"; // 🆕 Configuración de Reservas
 import AvatarSelector from "../components/configuracion/AvatarSelector"; // 🆕 Selector de avatares predefinidos
 import AgentToggle from "../components/configuracion/AgentToggle"; // 🆕 Toggle ON/OFF del agente
 import { AVATARS_PREDEFINIDOS, getAvatarById } from "../config/avatars"; // Config de avatares
@@ -135,7 +136,7 @@ const Configuracion = () => {
     const audioRef = React.useRef(null);
     
     // 🆕 IDs válidos de las nuevas pestañas
-    const validTabs = ['asistente', 'negocio', 'canales', 'integraciones', 'cuenta'];
+    const validTabs = ['asistente', 'negocio', 'reservas', 'canales', 'integraciones', 'cuenta'];
     
     // Leer tab de la URL o del state al cargar
     useEffect(() => {
@@ -297,6 +298,12 @@ const Configuracion = () => {
             label: "Servicios",
             icon: <Tag className="w-4 h-4" />,
             description: "Servicios que ofreces, duraciones y precios"
+        },
+        {
+            id: "reservas",
+            label: "Reservas",
+            icon: <Calendar className="w-4 h-4" />,
+            description: "Configuración de disponibilidad y políticas de reserva"
         },
         {
             id: "canales",
@@ -1069,6 +1076,53 @@ const Configuracion = () => {
                     {activeTab === "servicios" && (
                         <div className="space-y-4">
                             <ServiciosContent />
+                        </div>
+                    )}
+
+                    {/* 📅 RESERVAS - Configuración de disponibilidad */}
+                    {activeTab === "reservas" && (
+                        <div className="space-y-4">
+                            <RestaurantSettings 
+                                restaurant={business} 
+                                onUpdate={async (updatedSettings) => {
+                                    try {
+                                        setSaving(true);
+                                        const { error } = await supabase
+                                            .from('businesses')
+                                            .update({
+                                                ...updatedSettings,
+                                                settings: {
+                                                    ...business?.settings,
+                                                    ...updatedSettings.settings
+                                                }
+                                            })
+                                            .eq('id', businessId);
+                                        
+                                        if (error) throw error;
+                                        
+                                        toast.success('Configuración guardada correctamente');
+                                        
+                                        // Recargar datos
+                                        const { data: updatedBusiness } = await supabase
+                                            .from('businesses')
+                                            .select('*')
+                                            .eq('id', businessId)
+                                            .single();
+                                        
+                                        if (updatedBusiness) {
+                                            window.dispatchEvent(new CustomEvent('restaurant-updated', {
+                                                detail: { restaurant: updatedBusiness }
+                                            }));
+                                        }
+                                    } catch (error) {
+                                        console.error('Error guardando configuración:', error);
+                                        toast.error('Error al guardar la configuración');
+                                    } finally {
+                                        setSaving(false);
+                                    }
+                                }}
+                                showOnlyReservas={true} 
+                            />
                         </div>
                     )}
 

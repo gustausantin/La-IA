@@ -16,33 +16,40 @@ import {
   DollarSign,
   CheckCircle,
   AlertCircle,
+  Info,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAvailabilityChangeDetection } from '../../hooks/useAvailabilityChangeDetection';
 import { useRegenerationModal } from '../../hooks/useRegenerationModal';
 import RegenerationRequiredModal from '../RegenerationRequiredModal';
+import ProtectedReservationsInfoModal from '../ProtectedReservationsInfoModal';
 import { useAuthContext } from '../../contexts/AuthContext';
+import { useVertical } from '../../hooks/useVertical';
+import AutoSlotRegenerationService from '../../services/AutoSlotRegenerationService';
 
-const businessesettings = React.memo(({ restaurant, onUpdate }) => {
-  const { businessId: businessId } = useAuthContext();
+const businessesettings = React.memo(({ restaurant, onUpdate, showOnlyReservas = false }) => {
+  const { businessId: businessId, business } = useAuthContext();
+  const { labels, name: verticalName } = useVertical(); // 🆕 Hook para adaptar según tipo de negocio
+  // Usar restaurant de props o business del contexto como fallback
+  const restaurantData = restaurant || business;
+  // Los hooks siempre deben llamarse (reglas de React)
   const changeDetection = useAvailabilityChangeDetection(businessId);
   const { isModalOpen, modalChangeReason, modalChangeDetails, showRegenerationModal, closeModal } = useRegenerationModal();
   const [settings, setSettings] = useState({
-    name: restaurant?.name || '',
-    contact_name: restaurant?.settings?.contact_name || restaurant?.contact_name || '',
-    description: restaurant?.settings?.description || restaurant?.description || '',
-    cuisine_type: restaurant?.cuisine_type || '',
-    phone: restaurant?.phone || '',
-    email: restaurant?.email || '',
-    website: restaurant?.settings?.website || restaurant?.website || '',
-    address: restaurant?.address || '',
-    city: restaurant?.city || '',
-    postal_code: restaurant?.postal_code || '',
-    capacity: restaurant?.settings?.capacity_total || restaurant?.capacity || 50,
-    average_ticket: restaurant?.settings?.average_ticket || restaurant?.average_ticket || 45,
+    name: restaurantData?.name || '',
+    contact_name: restaurantData?.settings?.contact_name || restaurantData?.contact_name || '',
+    description: restaurantData?.settings?.description || restaurantData?.description || '',
+    cuisine_type: restaurantData?.cuisine_type || '',
+    phone: restaurantData?.phone || '',
+    email: restaurantData?.email || '',
+    website: restaurantData?.settings?.website || restaurantData?.website || '',
+    address: restaurantData?.address || '',
+    city: restaurantData?.city || '',
+    postal_code: restaurantData?.postal_code || '',
+    capacity: restaurantData?.settings?.capacity_total || restaurantData?.capacity || 50,
     
     // Horarios
-    opening_hours: restaurant?.opening_hours || {
+    opening_hours: restaurantData?.opening_hours || {
       monday: { open: '12:00', close: '23:00', closed: false },
       tuesday: { open: '12:00', close: '23:00', closed: false },
       wednesday: { open: '12:00', close: '23:00', closed: false },
@@ -53,9 +60,10 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
     },
     
     // Configuración de reservas
-    booking_settings: restaurant?.booking_settings || {
+    booking_settings: restaurantData?.booking_settings || restaurantData?.settings?.booking_settings || {
       advance_booking_days: 30,
       min_booking_hours: 2,
+      min_advance_minutes: 120, // ⚡ Minutos de antelación mínima (para disponibilidad)
       max_party_size: 12,
       require_confirmation: true,
       allow_modifications: true,
@@ -64,7 +72,9 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
   });
 
   const [isLoading, setIsLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState('general');
+  const [activeTab, setActiveTab] = useState(showOnlyReservas ? 'reservas' : 'general');
+  const [protectedReservations, setProtectedReservations] = useState([]);
+  const [showProtectedModal, setShowProtectedModal] = useState(false);
 
   const handleInputChange = useCallback((field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));
@@ -82,31 +92,97 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
     
     // 🔍 Detectar cambios en configuración crítica
     const previousSettings = {
-      opening_hours: restaurant?.opening_hours,
-      booking_settings: restaurant?.booking_settings
+      opening_hours: restaurantData?.opening_hours,
+      booking_settings: restaurantData?.booking_settings || restaurantData?.settings?.booking_settings
     };
     
     try {
-      await onUpdate(settings);
+      // Filtrar campos que no existen en la tabla businesses
+      const { average_ticket, ...settingsToSave } = settings;
+      await onUpdate(settingsToSave);
       
       toast.success('Configuración guardada correctamente');
       
-      // 🚨 CRÍTICO: Detectar cambios en parámetros de disponibilidad (solo si existen slots)
+      // 🚨 CRÍTICO: Detectar cambios en parámetros de disponibilidad
       const hoursChanged = JSON.stringify(previousSettings.opening_hours) !== JSON.stringify(settings.opening_hours);
       const policyChanged = JSON.stringify(previousSettings.booking_settings) !== JSON.stringify(settings.booking_settings);
       
-      if (hoursChanged || policyChanged) {
-        changeDetection.checkExistingSlots().then(slotsExist => {
+      // Detectar cambios específicos en configuración de disponibilidad
+      const advanceDaysChanged = previousSettings.booking_settings?.advance_booking_days !== settings.booking_settings?.advance_booking_days;
+      const minAdvanceChanged = (previousSettings.booking_settings?.min_advance_minutes || previousSettings.booking_settings?.min_booking_hours * 60) !== 
+                                (settings.booking_settings?.min_advance_minutes || settings.booking_settings?.min_booking_hours * 60);
+      
+      if (hoursChanged || policyChanged || advanceDaysChanged || minAdvanceChanged) {
+        if (!changeDetection || !businessId) {
+          console.warn('⚠️ No se puede regenerar: businessId o changeDetection no disponible');
+          return;
+        }
+        changeDetection.checkExistingSlots().then(async (slotsExist) => {
           if (slotsExist) {
+            // ⚡ REGENERACIÓN AUTOMÁTICA EN BACKGROUND
+            // En lugar de mostrar modal bloqueante, regenerar automáticamente
+            let reason = 'booking_policy_changed';
+            let toastMessage = '⚡ Actualizando disponibilidad con la nueva política...';
+            
             if (hoursChanged) {
-              changeDetection.onScheduleChange('operating_hours');
-              showRegenerationModal('schedule_changed', 'Horarios del restaurante modificados');
-            } else if (policyChanged) {
-              changeDetection.onPolicyChange('booking_settings');
-              showRegenerationModal('policy_changed', 'Política de reservas modificada');
+              reason = 'business_hours_changed';
+              toastMessage = '⚡ Actualizando disponibilidad con los nuevos horarios...';
+            } else if (advanceDaysChanged || minAdvanceChanged) {
+              reason = 'availability_settings_changed';
+              toastMessage = '⚡ Actualizando disponibilidad con la nueva configuración...';
+            }
+            
+            console.log(`⚡ Regenerando disponibilidad automáticamente - Motivo: ${reason}`);
+            
+            // Mostrar toast informativo mientras se regenera
+            const regenerationToast = toast.loading(
+              toastMessage,
+              { duration: 5000 }
+            );
+            
+            try {
+              // Regenerar automáticamente en background (silent: false para mostrar toast de éxito)
+              const result = await AutoSlotRegenerationService.regenerate(businessId, reason, {
+                silent: false, // Mostrar toast de éxito
+                advanceDays: settings.booking_settings?.advance_booking_days || 30
+              });
+              
+              toast.dismiss(regenerationToast);
+              
+              if (result.success) {
+                toast.success(
+                  `✅ Disponibilidad actualizada: ${result.slotsUpdated || 0} slots generados`,
+                  { duration: 3000, icon: '✅' }
+                );
+                
+                // 🛡️ Si hay reservas protegidas, mostrar modal informativo (NO bloqueante)
+                if (result.protectedReservations && result.protectedReservations.length > 0) {
+                  setProtectedReservations(result.protectedReservations);
+                  setShowProtectedModal(true);
+                }
+                
+                // Disparar evento para que otros componentes se actualicen
+                window.dispatchEvent(new CustomEvent('availabilityRegenerated', {
+                  detail: { reason, slotsUpdated: result.slotsUpdated }
+                }));
+              } else {
+                // Si falla, solo mostrar toast de error (NO modal bloqueante)
+                toast.error('⚠️ Error al actualizar disponibilidad. Intenta regenerar manualmente desde Disponibilidades.', {
+                  duration: 5000
+                });
+                console.error('❌ Regeneración automática falló:', result.error);
+              }
+            } catch (error) {
+              console.error('❌ Error en regeneración automática:', error);
+              toast.dismiss(regenerationToast);
+              
+              // Si hay error, solo mostrar toast (NO modal bloqueante)
+              toast.error('⚠️ Error al actualizar disponibilidad. Intenta regenerar manualmente desde Disponibilidades.', {
+                duration: 5000
+              });
             }
           } else {
-            console.log('✅ No se muestra aviso: usuario está configurando el sistema por primera vez');
+            console.log('✅ No se regenera: usuario está configurando el sistema por primera vez');
           }
         });
       }
@@ -115,7 +191,7 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [settings, onUpdate, restaurant, changeDetection, showRegenerationModal]);
+  }, [settings, onUpdate, restaurantData, changeDetection, showRegenerationModal]);
 
   const InputField = ({ label, value, onChange, type = 'text', placeholder, required = false, help, icon: Icon }) => (
     <div className="space-y-2">
@@ -141,7 +217,7 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
     </div>
   );
 
-  const SelectField = ({ label, value, onChange, options, required = false }) => (
+  const SelectField = ({ label, value, onChange, options, required = false, help }) => (
     <div className="space-y-2">
       <label className="block text-sm font-medium text-gray-700">
         {label} {required && <span className="text-red-500">*</span>}
@@ -158,6 +234,7 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
           </option>
         ))}
       </select>
+      {help && <p className="text-xs text-gray-500">{help}</p>}
     </div>
   );
 
@@ -210,11 +287,13 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
     { value: 'vegana', label: 'Vegana' },
   ];
 
-  const tabs = [
-    { id: 'general', label: 'General', icon: Building2 },
-    { id: 'horarios', label: 'Horarios', icon: Clock },
-    { id: 'reservas', label: 'Reservas', icon: Calendar },
-  ];
+  const tabs = showOnlyReservas 
+    ? [{ id: 'reservas', label: 'Reservas', icon: Calendar }]
+    : [
+        { id: 'general', label: 'General', icon: Building2 },
+        { id: 'horarios', label: 'Horarios', icon: Clock },
+        { id: 'reservas', label: 'Reservas', icon: Calendar },
+      ];
 
   return (
     <div className="bg-white rounded-xl border border-gray-200">
@@ -222,55 +301,62 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
       <div className="p-6 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
           <Building2 className="w-5 h-5 text-purple-600" />
-          Configuración del Restaurante
+          {showOnlyReservas ? 'Configuración de Reservas' : `Configuración del Negocio`}
         </h3>
         <p className="text-sm text-gray-600 mt-1">
-          Información básica y configuración general del establecimiento
+          {showOnlyReservas 
+            ? 'Configuración de disponibilidad y políticas de reserva'
+            : 'Información básica y configuración general del establecimiento'}
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="px-6 pt-6">
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`
-                flex-1 py-2 px-3 text-sm font-medium rounded transition-colors flex items-center justify-center gap-2
-                ${activeTab === tab.id
-                  ? 'bg-white text-purple-600 shadow-sm'
-                  : 'text-gray-600 hover:text-gray-900'
-                }
-              `}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
+      {/* Tabs - Solo mostrar si NO es solo reservas */}
+      {!showOnlyReservas && (
+        <div className="px-6 pt-6">
+          <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`
+                  flex-1 py-2 px-3 text-sm font-medium rounded transition-colors flex items-center justify-center gap-2
+                  ${activeTab === tab.id
+                    ? 'bg-white text-purple-600 shadow-sm'
+                    : 'text-gray-600 hover:text-gray-900'
+                  }
+                `}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Content */}
       <div className="p-6">
-        {activeTab === 'general' && (
+        {!showOnlyReservas && activeTab === 'general' && (
           <div className="space-y-6">
-            {/* FILA 1: Nombre del Restaurante | Tipo de Cocina */}
+            {/* FILA 1: Nombre del Negocio | Tipo (solo si es restaurante) */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <InputField
-                label="Nombre del Restaurante"
+                label="Nombre del Negocio"
                 value={settings.name}
                 onChange={(value) => handleInputChange('name', value)}
-                placeholder="Mi Restaurante"
+                placeholder={`Mi ${verticalName}`}
                 required
               />
               
-              <SelectField
-                label="Tipo de Cocina"
-                value={settings.cuisine_type}
-                onChange={(value) => handleInputChange('cuisine_type', value)}
-                options={cuisineTypes}
-              />
+              {/* Solo mostrar "Tipo de Cocina" si es restaurante */}
+              {restaurantData?.vertical_type === 'restaurante' && (
+                <SelectField
+                  label="Tipo de Cocina"
+                  value={settings.cuisine_type}
+                  onChange={(value) => handleInputChange('cuisine_type', value)}
+                  options={cuisineTypes}
+                />
+              )}
             </div>
             
             {/* FILA 2: Email de contacto | Nombre del contacto */}
@@ -280,7 +366,7 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
                 value={settings.email}
                 onChange={(value) => handleInputChange('email', value)}
                 type="email"
-                placeholder="contacto@restaurante.com"
+                placeholder="contacto@tunegocio.com"
                 icon={Mail}
               />
               
@@ -300,7 +386,7 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
                 label="Sitio web"
                 value={settings.website}
                 onChange={(value) => handleInputChange('website', value)}
-                placeholder="https://www.turestaurante.com"
+                placeholder="https://www.tunegocio.com"
                 icon={Globe}
               />
               
@@ -357,15 +443,6 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
                 help="Número máximo de comensales"
               />
               
-              <InputField
-                label="Ticket Promedio (€)"
-                value={settings.average_ticket}
-                onChange={(value) => handleInputChange('average_ticket', parseFloat(value) || 0)}
-                type="number"
-                step="0.01"
-                placeholder="45.00"
-                help="Gasto promedio por persona"
-              />
             </div>
           </div>
         )}
@@ -392,43 +469,62 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
           </div>
         )}
 
-        {activeTab === 'reservas' && (
+        {(showOnlyReservas || activeTab === 'reservas') && (
           <div className="space-y-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Calendar className="w-5 h-5 text-purple-600" />
-              <h4 className="font-medium text-gray-900">Configuración de Reservas</h4>
-            </div>
+            {!showOnlyReservas && (
+              <div className="flex items-center gap-2 mb-4">
+                <Calendar className="w-5 h-5 text-purple-600" />
+                <h4 className="font-medium text-gray-900">Configuración de Reservas</h4>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <InputField
-                label="Días de Anticipación"
+                label="Días de Anticipación Máxima"
                 value={settings.booking_settings.advance_booking_days}
                 onChange={(value) => handleNestedChange('booking_settings', 'advance_booking_days', parseInt(value) || 0)}
                 type="number"
                 placeholder="30"
-                help="Máximo días para reservar con anticipación"
+                help="Máximo días hacia el futuro para generar horarios disponibles"
               />
               
               <InputField
-                label="Horas Mínimas de Anticipación"
-                value={settings.booking_settings.min_booking_hours}
-                onChange={(value) => handleNestedChange('booking_settings', 'min_booking_hours', parseInt(value) || 0)}
+                label="Minutos de Antelación Mínima"
+                value={settings.booking_settings.min_advance_minutes || settings.booking_settings.min_booking_hours * 60 || 120}
+                onChange={(value) => handleNestedChange('booking_settings', 'min_advance_minutes', parseInt(value) || 120)}
                 type="number"
-                placeholder="2"
-                help="Tiempo mínimo para hacer una reserva"
+                placeholder="120"
+                help="Tiempo mínimo (en minutos) antes de la cita para permitir nuevas reservas"
               />
             </div>
+            
+            {/* Info sobre generación automática */}
+            <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex items-start gap-2">
+                <Info className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-blue-800">
+                  <strong>⚡ Generación Automática:</strong> Los horarios disponibles se generan automáticamente 
+                  cuando guardas esta configuración. No necesitas hacer nada más.
+                </div>
+              </div>
+            </div>
 
+            {/* Tamaño Máximo de Grupo - Solo para restaurantes y negocios que lo necesiten */}
+            {(restaurantData?.vertical_type === 'restaurante' || restaurantData?.vertical_type === 'yoga_pilates') && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <InputField
+                  label="Tamaño Máximo de Grupo"
+                  value={settings.booking_settings.max_party_size}
+                  onChange={(value) => handleNestedChange('booking_settings', 'max_party_size', parseInt(value) || 0)}
+                  type="number"
+                  placeholder="12"
+                  help="Número máximo de personas por reserva"
+                />
+              </div>
+            )}
+
+            {/* Política de Cancelación - Útil para todos los negocios */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <InputField
-                label="Tamaño Máximo de Grupo"
-                value={settings.booking_settings.max_party_size}
-                onChange={(value) => handleNestedChange('booking_settings', 'max_party_size', parseInt(value) || 0)}
-                type="number"
-                placeholder="12"
-                help="Número máximo de personas por reserva"
-              />
-
               <SelectField
                 label="Política de Cancelación"
                 value={settings.booking_settings.cancellation_policy}
@@ -439,7 +535,9 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
                   { value: '4h', label: '4 horas antes' },
                   { value: '24h', label: '24 horas antes' },
                   { value: '48h', label: '48 horas antes' },
+                  { value: 'none', label: 'Sin política (cancelación libre)' },
                 ]}
+                help="Tiempo mínimo de antelación para cancelar sin penalización"
               />
             </div>
 
@@ -452,8 +550,9 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
                   className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                 />
                 <label className="text-sm font-medium text-gray-700">
-                  Requerir confirmación de reservas
+                  Requerir confirmación de {labels?.bookings || 'reservas'}
                 </label>
+                <p className="text-xs text-gray-500 ml-7">Las reservas quedarán pendientes hasta confirmar</p>
               </div>
 
               <div className="flex items-center gap-3">
@@ -464,8 +563,9 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
                   className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                 />
                 <label className="text-sm font-medium text-gray-700">
-                  Permitir modificaciones de reservas
+                  Permitir modificaciones de {labels?.bookings || 'reservas'}
                 </label>
+                <p className="text-xs text-gray-500 ml-7">Los clientes pueden cambiar fecha/hora después de reservar</p>
               </div>
             </div>
           </div>
@@ -495,7 +595,14 @@ const businessesettings = React.memo(({ restaurant, onUpdate }) => {
         </div>
       </div>
 
-      {/* 🚨 MODAL BLOQUEANTE DE REGENERACIÓN */}
+      {/* 🛡️ Modal informativo de reservas protegidas (NO bloqueante) */}
+      <ProtectedReservationsInfoModal
+        isOpen={showProtectedModal}
+        onClose={() => setShowProtectedModal(false)}
+        protectedReservations={protectedReservations}
+      />
+      
+      {/* 🚨 MODAL BLOQUEANTE (solo como fallback en casos extremos - NO debería mostrarse) */}
       <RegenerationRequiredModal
         isOpen={isModalOpen}
         onClose={closeModal}
