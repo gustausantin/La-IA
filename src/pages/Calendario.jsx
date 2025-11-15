@@ -1237,7 +1237,7 @@ export default function Calendario() {
                                                                     newSchedule[index].open_time = newSchedule[index].shifts[0].start;
                                                                 setSchedule(newSchedule);
                                                             }}
-                                                                className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:border-transparent w-[85px]"
+                                                                className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:border-transparent w-full min-w-[85px] max-w-[120px]"
                                                         />
                                                             <span className="text-gray-400 text-xs">—</span>
                                                         <input
@@ -1253,7 +1253,7 @@ export default function Calendario() {
                                                                     newSchedule[index].close_time = newSchedule[index].shifts[newSchedule[index].shifts.length - 1].end;
                                                                 setSchedule(newSchedule);
                                                             }}
-                                                                className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:border-transparent w-[85px]"
+                                                                className="px-2 py-1 border border-gray-300 rounded text-xs font-medium focus:ring-1 focus:ring-purple-500 focus:border-transparent w-full min-w-[85px] max-w-[120px]"
                                                             />
                                                             
                                                             {/* Botón Quitar (solo si hay más de 1 turno) */}
@@ -1382,7 +1382,7 @@ export default function Calendario() {
                                     >
                                         <ChevronLeft className="w-5 h-5 text-gray-700" />
                                     </button>
-                                    <h3 className="text-lg font-bold text-gray-900 capitalize min-w-[180px] text-center">
+                                    <h3 className="text-lg font-bold text-gray-900 capitalize text-center flex-1 min-w-0">
                                         {format(currentDate, 'MMMM yyyy', { locale: es })}
                                     </h3>
                                     <button
@@ -1617,17 +1617,17 @@ export default function Calendario() {
                 </div>
             </div>
 
-            {/* Modal de Eventos Especiales */}
+            {/* Modal de Eventos Especiales - Mobile-first */}
             {showEventModal && selectedDay && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+                    <div className="bg-white rounded-t-xl md:rounded-lg p-4 md:p-6 w-full md:max-w-md md:mx-4 max-h-[90vh] overflow-y-auto safe-area-inset-bottom">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-semibold text-gray-900">
                                 {eventForm.isRange ? 'Crear evento (rango de fechas)' : `Crear evento - ${format(selectedDay, 'dd/MM/yyyy')}`}
                             </h3>
                             <button
                                 onClick={() => setShowEventModal(false)}
-                                className="text-gray-400 hover:text-gray-600"
+                                className="min-w-[44px] min-h-[44px] text-gray-400 hover:text-gray-600 touch-target flex items-center justify-center rounded-lg hover:bg-gray-100"
                             >
                                 <X className="w-5 h-5" />
                             </button>
@@ -2083,10 +2083,10 @@ export default function Calendario() {
                 </div>
             )}
 
-            {/* ⭐ MODAL DE LISTA DE AUSENCIAS (cuando hay +1 más) */}
+            {/* ⭐ MODAL DE LISTA DE AUSENCIAS (cuando hay +1 más) - Mobile-first */}
             {showAbsenceListModal && selectedDayAbsences.length > 0 && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg p-6 w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto">
+                <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center p-0 md:p-4">
+                    <div className="bg-white rounded-t-xl md:rounded-lg p-4 md:p-6 w-full md:max-w-lg md:mx-4 max-h-[80vh] overflow-y-auto safe-area-inset-bottom">
                         <div className="flex items-center justify-between mb-4">
                             <h3 className="text-lg font-bold text-gray-900">
                                 Ausencias del día ({selectedDayAbsences.length})
@@ -2096,7 +2096,7 @@ export default function Calendario() {
                                     setShowAbsenceListModal(false);
                                     setSelectedDayAbsences([]);
                                 }}
-                                className="text-gray-400 hover:text-gray-600"
+                                className="min-w-[44px] min-h-[44px] text-gray-400 hover:text-gray-600 touch-target flex items-center justify-center rounded-lg hover:bg-gray-100"
                             >
                                 <X className="w-5 h-5" />
                             </button>

@@ -729,27 +729,27 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-100 to-gray-50 pb-24 lg:pb-8">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         
-        <div className="grid grid-cols-1 lg:grid-cols-[400px_1fr] gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
-          {/* AVATAR - GLASSMORPHISM PREMIUM */}
+          {/* AVATAR - GLASSMORPHISM PREMIUM - HUMANIZADO */}
           <div className="space-y-4">
-            <div className="relative bg-white/40 backdrop-blur-xl rounded-[36px] sticky top-6 shadow-2xl shadow-gray-900/10 border border-white/60 overflow-visible">
+            <div className="relative bg-white/40 backdrop-blur-xl rounded-2xl sticky top-6 shadow-2xl shadow-gray-900/10 border border-white/60 overflow-hidden">
               
-              {/* Avatar con efecto 3D - SIN FONDO, SOBRESALE DEL MARCO */}
-              <div className="relative group -mt-6 px-6">
+              {/* Avatar con efecto 3D - MÁS PROMINENTE Y CENTRAL */}
+              <div className="relative group -mt-2 px-6 pt-8 pb-2">
                 {/* Glow effect sutil y profesional */}
-                <div className="absolute -inset-6 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 opacity-0 group-hover:opacity-20 blur-3xl transition-all duration-700"></div>
+                <div className="absolute -inset-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 opacity-0 group-hover:opacity-20 blur-3xl transition-all duration-700"></div>
                 
-                {/* Contenedor del avatar - overflow visible para que sobresalga */}
-                <div className="relative">
-                  {/* Imagen del avatar - sobresale del contenedor */}
-                  <div className="relative transform transition-all duration-700 group-hover:scale-105 group-hover:-translate-y-2">
-                    {/* Sombra profunda para dar sensación 3D - más sutil y oscura */}
-                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-900/10 to-gray-900/20 blur-2xl transform translate-y-6 scale-95 opacity-50"></div>
+                {/* Contenedor del avatar - más grande y centrado */}
+                <div className="relative flex justify-center">
+                  {/* Imagen del avatar - más prominente */}
+                  <div className="relative transform transition-all duration-700 group-hover:scale-105 group-hover:-translate-y-1">
+                    {/* Sombra profunda para dar sensación 3D */}
+                    <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-900/10 to-gray-900/20 blur-2xl transform translate-y-4 scale-95 opacity-50"></div>
                     
-                    {/* Borde sutil - glassmorphism style */}
-                    <div className="relative p-[2px] rounded-[36px] bg-gradient-to-br from-white/80 via-white/60 to-white/80 shadow-2xl">
-                      <div className="relative w-full aspect-[3/4] overflow-hidden rounded-[33px]">
+                    {/* Borde sutil - glassmorphism style - PERFECTAMENTE ALINEADO */}
+                    <div className="relative p-[2px] rounded-2xl bg-gradient-to-br from-white/80 via-white/60 to-white/80 shadow-2xl">
+                      <div className="relative w-full max-w-[360px] mx-auto aspect-[3/4] overflow-hidden rounded-[15px]">
                         {avatarUrl ? (
                           <img 
                             src={avatarUrl} 
@@ -762,7 +762,7 @@ export default function Dashboard() {
                           />
                         ) : (
                           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-purple-500 via-pink-500 to-blue-500">
-                            <Bot className="w-24 h-24 text-white" />
+                            <Bot className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 text-white" />
                           </div>
                         )}
                         
@@ -776,8 +776,8 @@ export default function Dashboard() {
                   </div>
                 </div>
                 
-                {/* Badge con más punch - ahora con z-index mayor */}
-                <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 transform group-hover:scale-110 transition-transform duration-300 z-30">
+                {/* Badge con más punch - mejor posicionado */}
+                <div className="absolute -bottom-3 left-1/2 -translate-x-1/2 transform group-hover:scale-105 transition-transform duration-300 z-30">
                   <div className={`relative px-5 py-2 rounded-full border-2 shadow-2xl ${
                     agentStatus === 'active' 
                       ? 'bg-gradient-to-r from-green-400 to-emerald-500 border-white/50' 
@@ -804,11 +804,11 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              {/* Nombre + Conversación - VISUAL Y ATRACTIVA */}
-              <div className="relative px-6 pt-8 pb-6">
-                {/* Nombre con gradiente profesional */}
-                <div className="text-center mb-4">
-                  <h1 className="text-[36px] font-black bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 bg-clip-text text-transparent tracking-tight leading-none" 
+              {/* Nombre + Conversación - PERFECTAMENTE ALINEADO Y HUMANIZADO */}
+              <div className="relative px-6 pt-4 pb-6">
+                {/* Nombre con gradiente profesional - más cercano al avatar */}
+                <div className="text-center mb-5">
+                  <h1 className="text-[40px] font-black bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 bg-clip-text text-transparent tracking-tight leading-none" 
                       style={{
                         filter: 'drop-shadow(0 2px 8px rgba(59, 130, 246, 0.15))'
                       }}>
@@ -816,22 +816,22 @@ export default function Dashboard() {
                   </h1>
                 </div>
 
-                {/* Burbuja de conversación - PROFESIONAL */}
-                <div className="relative">
-                  {/* Triangulito de la burbuja */}
+                {/* Burbuja de conversación - PERFECTAMENTE ALINEADA CON EL AVATAR */}
+                <div className="relative max-w-[360px] mx-auto">
+                  {/* Triangulito de la burbuja - conecta con el nombre */}
                   <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 bg-gradient-to-br from-blue-500 to-indigo-500 transform rotate-45"></div>
                   
-                  {/* Burbuja con gradiente profesional */}
+                  {/* Burbuja con gradiente - MISMO ANCHO Y ESTILO QUE EL AVATAR */}
                   <div className="relative bg-gradient-to-br from-blue-500 via-indigo-500 to-blue-600 p-[2px] rounded-2xl shadow-xl shadow-blue-500/20">
-                    <div className="bg-white rounded-2xl px-5 py-4">
-                      {/* Icono de mensaje */}
+                    <div className="bg-white rounded-[15px] px-5 py-4">
+                      {/* Icono de mensaje más humano */}
                       <div className="flex items-start gap-3">
-                        <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mt-0.5">
-                          <Bot className="w-4 h-4 text-white" />
+                        <div className="flex-shrink-0 w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mt-0.5 shadow-md">
+                          <Bot className="w-5 h-5 text-white" />
                         </div>
                         
                         <div className="flex-1 min-w-0">
-                          <p className="text-[15px] text-gray-900 font-semibold leading-relaxed">
+                          <p className="text-[16px] text-gray-900 font-semibold leading-relaxed">
                             {greeting}
                           </p>
                         </div>
@@ -839,11 +839,11 @@ export default function Dashboard() {
                     </div>
                   </div>
                   
-                  {/* Efecto de "escribiendo..." sutil */}
-                  <div className="mt-2 flex items-center justify-center gap-1 opacity-40">
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  {/* Efecto de "escribiendo..." más visible */}
+                  <div className="mt-3 flex items-center justify-center gap-1.5 opacity-50">
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
                   </div>
                 </div>
               </div>
@@ -869,14 +869,20 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* MÉTRICAS DEL NEGOCIO */}
+            {/* MÉTRICAS DEL NEGOCIO - ESTILO CONVERSACIONAL */}
             {businessMetrics && (
-              <div className="bg-white rounded-3xl rounded-tl-sm p-6 shadow-lg border-2 border-purple-200 relative">
+              <div className="bg-white rounded-2xl rounded-tl-sm p-6 shadow-lg border-2 border-purple-200 relative">
                 <div className="absolute -left-2 top-6 w-4 h-4 bg-white border-l-2 border-t-2 border-purple-200 transform rotate-45"></div>
                 
-                <p className="text-gray-800 font-medium mb-4">
-                  Así va tu negocio hoy:
-                </p>
+                {/* Mensaje más conversacional y humano */}
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                  <p className="text-gray-800 font-semibold text-lg leading-relaxed">
+                    Así va tu negocio hoy:
+                  </p>
+                </div>
 
                 <div className="grid grid-cols-3 gap-4 mb-4">
                   <div className="text-center">
@@ -918,14 +924,20 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* MÉTRICAS DEL AGENTE */}
+            {/* MÉTRICAS DEL AGENTE - ESTILO CONVERSACIONAL */}
             {agentMetrics && (
-              <div className="bg-white rounded-3xl rounded-tl-sm p-6 shadow-lg border-2 border-purple-200 relative">
+              <div className="bg-white rounded-2xl rounded-tl-sm p-6 shadow-lg border-2 border-purple-200 relative">
                 <div className="absolute -left-2 top-6 w-4 h-4 bg-white border-l-2 border-t-2 border-purple-200 transform rotate-45"></div>
                 
-                <p className="text-gray-800 font-medium mb-4">
-                  Te cuento lo que he hecho:
-                </p>
+                {/* Mensaje más conversacional y personal */}
+                <div className="flex items-start gap-3 mb-4">
+                  <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-white" />
+                  </div>
+                  <p className="text-gray-800 font-semibold text-lg leading-relaxed">
+                    Te cuento lo que he hecho:
+                  </p>
+                </div>
 
                 <div className="grid grid-cols-3 gap-4">
                   <div className="text-center">
@@ -959,16 +971,22 @@ export default function Dashboard() {
               </div>
             )}
 
-            {/* EQUIPO - VISUAL */}
+            {/* EQUIPO - VISUAL Y CONVERSACIONAL */}
             {(() => {
               const teamMessage = getTeamMessage();
               if (!teamMessage) return null;
               
               return (
-                <div className="bg-white rounded-3xl rounded-tl-sm p-6 shadow-lg border-2 border-purple-200 relative">
+                <div className="bg-white rounded-2xl rounded-tl-sm p-6 shadow-lg border-2 border-purple-200 relative">
                   <div className="absolute -left-2 top-6 w-4 h-4 bg-white border-l-2 border-t-2 border-purple-200 transform rotate-45"></div>
                   
-                  <p className="text-gray-800 font-semibold mb-4">{teamMessage.title}</p>
+                  {/* Mensaje más conversacional */}
+                  <div className="flex items-start gap-3 mb-4">
+                    <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-full flex items-center justify-center">
+                      <Bot className="w-4 h-4 text-white" />
+                    </div>
+                    <p className="text-gray-800 font-semibold text-lg leading-relaxed">{teamMessage.title}</p>
+                  </div>
 
                   {teamMessage.type === 'available' ? (
                     // EQUIPO DISPONIBLE

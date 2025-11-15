@@ -32,6 +32,7 @@ const CRMProximosMensajes = lazy(() => import('./pages/CRMProximosMensajes'));
 const Consumos = lazy(() => import('./pages/Consumos'));
 // const CRMv2 = lazy(() => import('./pages/CRMSimple')); // ❌ ARCHIVO NO EXISTE
 const AvailabilityTester = lazy(() => import('./components/AvailabilityTester'));
+const Disponibilidad = lazy(() => import('./pages/Disponibilidad')); // ⚠️ TEMPORAL - Para verificar lógica y métricas
 const Equipo = lazy(() => import('./pages/Equipo'));
 const TuEquipo = Equipo; // Alias para claridad
 
@@ -201,6 +202,15 @@ function AppContent() {
                 element={
                   <Suspense fallback={<PageLoading />}>
                     <Consumos />
+                  </Suspense>
+                } 
+              />
+              {/* ⚠️ TEMPORAL - Página de Disponibilidad para verificar lógica y métricas */}
+              <Route 
+                path="/disponibilidad" 
+                element={
+                  <Suspense fallback={<PageLoading />}>
+                    <Disponibilidad />
                   </Suspense>
                 } 
               />

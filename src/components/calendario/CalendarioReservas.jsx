@@ -332,14 +332,17 @@ export default function CalendarioReservas({
 
     return (
         <div className="space-y-3">
-            {/* 🎛️ CONTROLES SUPERIORES */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-2.5">
-                <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-2.5">
+            {/* ========================================
+                CONTROLES SUPERIORES - REORGANIZADOS Y LIMPIOS
+            ======================================== */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 space-y-4">
+                {/* SECCIÓN 1: Vistas y Navegación - Agrupadas */}
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                     {/* Selector de Vista */}
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2 sm:gap-2.5">
                         <button
                             onClick={() => setVista('dia')}
-                            className={`px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                            className={`px-4 sm:px-6 py-2.5 sm:py-3 min-h-[44px] rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 touch-target ${
                                 vista === 'dia'
                                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
                                     : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
@@ -349,7 +352,7 @@ export default function CalendarioReservas({
                         </button>
                         <button
                             onClick={() => setVista('semana')}
-                            className={`px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                            className={`px-4 sm:px-6 py-2.5 sm:py-3 min-h-[44px] rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 touch-target ${
                                 vista === 'semana'
                                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
                                     : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
@@ -359,7 +362,7 @@ export default function CalendarioReservas({
                         </button>
                         <button
                             onClick={() => setVista('mes')}
-                            className={`px-6 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                            className={`px-4 sm:px-6 py-2.5 sm:py-3 min-h-[44px] rounded-xl font-semibold text-xs sm:text-sm transition-all duration-200 touch-target ${
                                 vista === 'mes'
                                     ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/30 transform scale-105'
                                     : 'bg-white text-gray-700 hover:bg-gray-50 border-2 border-gray-200 hover:border-gray-300 shadow-sm hover:shadow-md'
@@ -369,11 +372,11 @@ export default function CalendarioReservas({
                         </button>
                     </div>
 
-                    {/* 📅 NAVEGACIÓN DE FECHAS MEJORADA */}
-                    <div className="flex items-center gap-2.5">
+                    {/* 📅 NAVEGACIÓN DE FECHAS - Centrada y clara */}
+                    <div className="flex items-center justify-center gap-2 sm:gap-2.5">
                         <button
                             onClick={irAAnterior}
-                            className="p-2.5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-200"
+                            className="p-2 sm:p-2.5 min-w-[44px] min-h-[44px] hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-200 touch-target flex items-center justify-center"
                             aria-label="Día anterior"
                         >
                             <ChevronLeft className="w-5 h-5 text-gray-700" />
@@ -381,19 +384,19 @@ export default function CalendarioReservas({
                         
                         <button
                             onClick={irAHoy}
-                            className="px-6 py-3 bg-gradient-to-r from-blue-100 to-purple-100 hover:from-blue-200 hover:to-purple-200 rounded-xl font-bold text-sm text-gray-900 transition-all duration-200 border-2 border-blue-300 hover:border-blue-400 shadow-md hover:shadow-lg transform hover:scale-105"
+                            className="px-4 sm:px-6 py-2.5 sm:py-3 min-h-[44px] bg-gradient-to-r from-blue-100 to-purple-100 hover:from-blue-200 hover:to-purple-200 rounded-xl font-bold text-xs sm:text-sm text-gray-900 transition-all duration-200 border-2 border-blue-300 hover:border-blue-400 shadow-md hover:shadow-lg transform hover:scale-105 touch-target"
                         >
                             Hoy
                         </button>
 
                         {/* ✨ FECHA CON DISEÑO MEJORADO */}
-                        <div className="relative px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg min-w-[240px]">
+                        <div className="relative px-3 sm:px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl shadow-lg min-w-[200px] sm:min-w-[240px]">
                             <div className="absolute inset-0 bg-white/10 rounded-xl"></div>
                             <div className="relative text-center">
-                                <p className="font-bold text-white text-sm capitalize tracking-wide">
+                                <p className="font-bold text-white text-xs sm:text-sm capitalize tracking-wide">
                                     {format(fechaActual, "EEEE d 'de' MMMM", { locale: es })}
                                 </p>
-                                <p className="text-[10px] text-white/80 font-medium mt-0.5">
+                                <p className="text-[9px] sm:text-[10px] text-white/80 font-medium mt-0.5">
                                     {format(fechaActual, 'yyyy')}
                                 </p>
                             </div>
@@ -401,50 +404,15 @@ export default function CalendarioReservas({
 
                         <button
                             onClick={irASiguiente}
-                            className="p-2.5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-200"
+                            className="p-2 sm:p-2.5 min-w-[44px] min-h-[44px] hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-xl transition-all duration-200 hover:shadow-md border border-transparent hover:border-gray-200 touch-target flex items-center justify-center"
                             aria-label="Día siguiente"
                         >
                             <ChevronRight className="w-5 h-5 text-gray-700" />
                         </button>
                     </div>
-
-                    {/* 🔄 BOTONES DE ACCIÓN */}
-                    <div className="flex items-center gap-2 flex-wrap">
-                        {/* Botón Ver Canceladas - ROJO */}
-                        {stats.canceladas > 0 && (
-                            <button
-                                onClick={() => setShowCancelledModal(true)}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm bg-white text-red-600 border-2 border-red-400 hover:bg-red-50 hover:shadow-md"
-                                title="Ver lista de reservas canceladas"
-                            >
-                                <span className="text-base">❌</span>
-                                Canceladas ({stats.canceladas})
-                            </button>
-                        )}
-                        
-                        {/* Botón Ver No-Shows - NARANJA/AMARILLO */}
-                        {stats.noShows > 0 && (
-                            <button
-                                onClick={() => setShowNoShowsModal(true)}
-                                className="flex items-center gap-2 px-4 py-2 rounded-lg font-semibold text-sm transition-all shadow-sm bg-white text-orange-600 border-2 border-orange-400 hover:bg-orange-50 hover:shadow-md"
-                                title="Ver lista de no-shows"
-                            >
-                                <span className="text-base">⚠️</span>
-                                No-Shows ({stats.noShows})
-                            </button>
-                        )}
-                        
-                        {/* Botón Actualizar */}
-                        <button
-                            onClick={onRefresh}
-                            disabled={loading}
-                            className="p-1.5 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 rounded-lg transition-all"
-                            title="Actualizar"
-                        >
-                            <RefreshCw className={`w-4 h-4 text-gray-700 ${loading ? 'animate-spin' : ''}`} />
-                        </button>
-                    </div>
                 </div>
+
+                {/* SECCIÓN 2: Botón Actualizar eliminado - Ahora está en el header principal */}
             </div>
 
             {/* 📱 MOBILE: Selector de Recurso Único */}

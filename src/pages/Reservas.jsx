@@ -45,7 +45,8 @@ import {
     Save,
     Settings,
     Trash2,
-    MapPin
+    MapPin,
+    X
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ReservationWizard } from "../components/reservas/ReservationWizard";
@@ -54,8 +55,6 @@ import { ReservationDetailsModal } from "../components/reservas/ReservationDetai
 import { ConfirmDeleteModal } from "../components/reservas/ConfirmDeleteModal";
 import { ConfirmCancelModal } from "../components/reservas/ConfirmCancelModal";
 import { processReservationCompletion } from "../services/CRMService";
-import AvailabilityManager from "../components/AvailabilityManager";
-import { useAvailabilityChangeDetection } from '../hooks/useAvailabilityChangeDetection';
 import { OccupancyHeatMap } from "../components/reservas/OccupancyHeatMap";
 import { OccupancyMetrics } from "../components/reservas/OccupancyMetrics";
 import { useOccupancyData } from "../hooks/useOccupancyData";
@@ -592,13 +591,10 @@ export default function Reservas() {
         useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();
-    const changeDetection = useAvailabilityChangeDetection(businessId);
 
     const [loading, setLoading] = useState(true);
     const [reservations, setReservations] = useState([]);
     const [selectedReservations, setSelectedReservations] = useState(new Set());
-    const [activeTab, setActiveTab] = useState('reservas'); // 'reservas', 'disponibilidades'
-    const [autoTriggerRegeneration, setAutoTriggerRegeneration] = useState(false);
     const [blockages, setBlockages] = useState([]); // 🆕 Bloqueos de horas
     
     // 🔥 NUEVO: Estado para Heat Map de Ocupación
@@ -614,15 +610,6 @@ export default function Reservas() {
         reload: reloadOccupancy 
     } = useOccupancyData(businessId, occupancyDate, occupancyZone);
 
-    // 🚨 Auto-abrir tab de disponibilidades si viene desde el modal de regeneración
-    useEffect(() => {
-        if (location.state?.autoOpenAvailability) {
-            setActiveTab('disponibilidades');
-            setAutoTriggerRegeneration(true); // Activar auto-trigger
-            // Limpiar el state para que no se repita
-            window.history.replaceState({}, document.title);
-        }
-    }, [location]);
     const [tables, setTables] = useState([]);
     const [resources, setResources] = useState([]); // 🆕 Recursos/Profesionales para el calendario
     const [savingPolicy, setSavingPolicy] = useState(false);
@@ -656,6 +643,10 @@ export default function Reservas() {
     const [viewingReservation, setViewingReservation] = useState(null);
     const [deletingReservation, setDeletingReservation] = useState(null);
     const [cancellingReservation, setCancellingReservation] = useState(null);  // ✅ NUEVO para cancelar
+    
+    // 🆕 Estados para modales de métricas interactivas
+    const [showStatusModal, setShowStatusModal] = useState(false);
+    const [statusModalType, setStatusModalType] = useState(null); // 'confirmed', 'pending', 'completed', 'cancelled', 'no_show'
 
     // Subscription de real-time
     const [realtimeSubscription, setRealtimeSubscription] = useState(null);
@@ -2245,6 +2236,12 @@ export default function Reservas() {
         const pending = filteredReservations.filter(
             (r) => r.status === "pending",
         ).length;
+        const completed = filteredReservations.filter(
+            (r) => r.status === "completed",
+        ).length;
+        const cancelled = filteredReservations.filter(
+            (r) => r.status === "cancelled",
+        ).length;
         const noShows = filteredReservations.filter(
             (r) => r.status === "no_show",
         ).length;
@@ -2253,7 +2250,7 @@ export default function Reservas() {
             0,
         );
 
-        return { total, confirmed, pending, noShows, covers };
+        return { total, confirmed, pending, completed, cancelled, noShows, covers };
     }, [filteredReservations]);
 
     if (!isReady) {
@@ -2268,90 +2265,59 @@ export default function Reservas() {
     }
 
     return (
-        <div className="max-w-[85%] mx-auto space-y-2">
-            {/* Header con estadísticas */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-4">
-                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-2">
-                    <div>
-                        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-                            Gestión de Reservas
-                            <Bot className="w-5 h-5 text-purple-600" />
-                        </h1>
-                        <p className="text-xs text-gray-600 mt-1">
+        <div className="max-w-[85%] mx-auto space-y-4 sm:space-y-6">
+            {/* ========================================
+                SECCIÓN 1: HEADER PRINCIPAL - LIMPIO Y ORGANIZADO
+            ======================================== */}
+            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-2 sm:p-3">
+                {/* Header compacto - Todo en una línea */}
+                <div className="flex items-center justify-between gap-2 sm:gap-3">
+                    {/* Título y fecha - Compactos */}
+                    <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5 sm:gap-2">
+                            <h1 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-1.5 truncate">
+                                <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 flex-shrink-0" />
+                                <span className="truncate">Reservas</span>
+                            </h1>
+                        </div>
+                        <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 truncate">
                             {format(new Date(), "EEEE d 'de' MMMM, yyyy", {
                                 locale: es,
                             })}
                         </p>
-                        
-                        {/* Sistema de Pestañas - MOBILE-FIRST: 2 PESTAÑAS */}
-                        <div className="flex gap-2 mt-4 overflow-x-auto scrollbar-hide pb-2">
-                            <button
-                                onClick={() => setActiveTab('reservas')}
-                                className={`px-4 sm:px-6 py-2.5 rounded-lg font-medium transition-all text-xs sm:text-sm shadow-sm whitespace-nowrap ${
-                                    activeTab === 'reservas'
-                                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:border-blue-300'
-                                }`}
-                            >
-                                📅 Reservas
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('disponibilidades')}
-                                className={`px-4 sm:px-6 py-2.5 rounded-lg font-medium transition-all text-xs sm:text-sm shadow-sm whitespace-nowrap ${
-                                    activeTab === 'disponibilidades'
-                                        ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
-                                        : 'bg-white text-gray-700 border border-gray-200 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:border-blue-300'
-                                }`}
-                            >
-                                ⚡ Disponibilidad
-                            </button>
-                        </div>
                     </div>
 
-                    <div className="flex flex-wrap gap-2">
+                    {/* Botones de acción principales */}
+                    <div className="flex items-center gap-2">
+                        {/* Botón Actualizar */}
                         <button
-                            onClick={async () => {
-                                setLoading(true);
-                                try {
-                                    // Recargar reservas
-                                    await loadReservations();
-                                    
-                                    // Disparar evento para recargar datos de disponibilidad
-                                    window.dispatchEvent(new CustomEvent('refreshAvailabilityData'));
-                                    
-                                    toast.success("Datos actualizados");
-                                    setLoading(false);
-                                } catch (error) {
-                                    console.error('Error actualizando:', error);
-                                    toast.error('Error al actualizar datos');
-                                    setLoading(false);
-                                }
-                            }}
+                            onClick={loadReservations}
                             disabled={loading}
-                            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 shadow-md font-medium"
+                            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[40px] bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm font-medium text-xs sm:text-sm transition-all touch-target flex-shrink-0 disabled:opacity-50"
+                            title="Actualizar reservas"
                         >
-                            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                            Actualizar
+                            <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? 'animate-spin' : ''}`} />
+                            <span className="hidden sm:inline">Actualizar</span>
                         </button>
 
-                        {/* Botón Nueva Reserva solo en pestaña "reservas" */}
-                        {activeTab === 'reservas' && (
-                            <button
-                                onClick={() => handleCreateReservation(null)}
-                                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 shadow-md font-medium"
-                            >
-                                <Plus className="w-4 h-4" />
-                                Nueva Reserva
-                            </button>
-                        )}
+                        {/* Botón Nueva Reserva */}
+                        <button
+                            onClick={() => handleCreateReservation(null)}
+                            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[40px] bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 shadow-md font-medium text-xs sm:text-sm transition-all touch-target flex-shrink-0"
+                        >
+                            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <span className="hidden sm:inline">Nueva Reserva</span>
+                            <span className="sm:hidden">Nueva</span>
+                        </button>
                     </div>
                 </div>
             </div>
 
-            {/* Contenido según pestaña activa */}
-            {activeTab === 'reservas' && (
-                <div className="space-y-4">
-                    {/* 🚀 NUEVO CALENDARIO PROFESIONAL */}
+            {/* ========================================
+                SECCIÓN 2: CONTENIDO PRINCIPAL
+            ======================================== */}
+            <div className="space-y-4 sm:space-y-6">
+                    {/* 🚀 CALENDARIO PROFESIONAL */}
                     <CalendarioReservas 
                         reservations={reservations}
                         resources={resources} // ✅ Recursos/profesionales desde BD
@@ -2381,12 +2347,11 @@ export default function Reservas() {
                         onRefresh={loadReservations}
                         loading={loading}
                     />
-                </div>
-            )}
+            </div>
 
 
             {/* 🗂️ SECCIÓN ANTIGUA DE RESERVAS (Oculta temporalmente) */}
-            {activeTab === 'reservas_old' && (
+            {false && (
                 <>
                     {/* 🆕 Nuevo sistema de vistas principales */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-2 mb-2">
@@ -2560,9 +2525,10 @@ export default function Reservas() {
                 </div>
             </div>
 
-            {/* Estadísticas mejoradas */}
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                <div className="bg-white p-2 rounded-lg border border-gray-200">
+            {/* 🎯 MÉTRICAS COMO BOTONES - Diseño con borde vertical izquierdo y aspecto de botón */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+                {/* Total - Solo métrica, no clickeable */}
+                <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
                     <div className="flex items-center justify-between">
                         <div>
                             <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Total</p>
@@ -2570,87 +2536,119 @@ export default function Reservas() {
                                 {stats.total}
                             </p>
                         </div>
-                        <CalendarIcon className="w-8 h-8 text-blue-500" />
+                        <CalendarIcon className="w-6 h-6 text-blue-500" />
                     </div>
                 </div>
 
+                {/* Confirmadas - Botón con borde vertical izquierdo */}
                 <button 
-                    onClick={() => setFilters(prev => ({ 
-                        ...prev, 
-                        status: prev.status === 'confirmada' ? '' : 'confirmada' 
-                    }))}
-                    className={`p-2 rounded-lg border transition-colors w-full text-left ${
-                        filters.status === 'confirmada' 
-                            ? 'bg-green-100 border-green-400 shadow-md' 
-                            : 'bg-white border-green-200 hover:bg-green-50'
-                    }`}
+                    onClick={() => {
+                        setStatusModalType('confirmed');
+                        setShowStatusModal(true);
+                    }}
+                    className="bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border-l-4 border-blue-600 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    title="Ver todas las reservas confirmadas"
                 >
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Confirmadas</p>
-                            <p className="text-lg font-bold text-green-600">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <CheckCircle2 className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">Confirmadas</p>
+                            <p className="text-2xl font-black text-blue-600 leading-tight">
                                 {stats.confirmed}
                             </p>
                         </div>
-                        <CheckCircle2 className="w-8 h-8 text-green-500" />
                     </div>
                 </button>
 
+                {/* Pendientes - Botón con borde vertical izquierdo */}
                 <button 
-                    onClick={() => setFilters(prev => ({ 
-                        ...prev, 
-                        status: prev.status === 'pendiente' ? '' : 'pendiente' 
-                    }))}
-                    className={`p-2 rounded-lg border transition-colors w-full text-left ${
-                        filters.status === 'pendiente' 
-                            ? 'bg-yellow-100 border-yellow-400 shadow-md' 
-                            : 'bg-white border-yellow-200 hover:bg-yellow-50'
-                    }`}
+                    onClick={() => {
+                        setStatusModalType('pending');
+                        setShowStatusModal(true);
+                    }}
+                    className="bg-yellow-50 hover:bg-yellow-100 active:bg-yellow-200 border-l-4 border-yellow-500 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    title="Ver todas las reservas pendientes"
                 >
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Pendientes</p>
-                            <p className="text-lg font-bold text-yellow-600">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <Clock className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">Pendientes</p>
+                            <p className="text-2xl font-black text-yellow-600 leading-tight">
                                 {stats.pending}
                             </p>
                         </div>
-                        <AlertCircle className="w-8 h-8 text-yellow-500" />
                     </div>
                 </button>
 
+                {/* Completadas - Botón con borde vertical izquierdo */}
                 <button 
-                    onClick={() => setFilters(prev => ({ 
-                        ...prev, 
-                        status: prev.status === 'no_show' ? '' : 'no_show' 
-                    }))}
-                    className={`p-2 rounded-lg border transition-colors w-full text-left ${
-                        filters.status === 'no_show' 
-                            ? 'bg-red-100 border-red-400 shadow-md' 
-                            : 'bg-white border-red-200 hover:bg-red-50'
-                    }`}
+                    onClick={() => {
+                        setStatusModalType('completed');
+                        setShowStatusModal(true);
+                    }}
+                    className="bg-green-50 hover:bg-green-100 active:bg-green-200 border-l-4 border-green-600 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    title="Ver todas las reservas completadas"
                 >
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">No-Shows</p>
-                            <p className="text-lg font-bold text-red-600">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <CheckCircle2 className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">Completadas</p>
+                            <p className="text-2xl font-black text-green-600 leading-tight">
+                                {stats.completed}
+                            </p>
+                        </div>
+                    </div>
+                </button>
+
+                {/* Canceladas - Botón con borde vertical izquierdo */}
+                <button 
+                    onClick={() => {
+                        setStatusModalType('cancelled');
+                        setShowStatusModal(true);
+                    }}
+                    className="bg-red-50 hover:bg-red-100 active:bg-red-200 border-l-4 border-red-600 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    title="Ver todas las reservas canceladas"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <XCircle className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">Canceladas</p>
+                            <p className="text-2xl font-black text-red-600 leading-tight">
+                                {stats.cancelled}
+                            </p>
+                        </div>
+                    </div>
+                </button>
+
+                {/* No-Shows - Botón con borde vertical izquierdo */}
+                <button 
+                    onClick={() => {
+                        setStatusModalType('no_show');
+                        setShowStatusModal(true);
+                    }}
+                    className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 border-l-4 border-gray-600 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    title="Ver todos los no-shows"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
+                            <AlertTriangle className="w-6 h-6 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">No-Shows</p>
+                            <p className="text-2xl font-black text-gray-700 leading-tight">
                                 {stats.noShows}
                             </p>
                         </div>
-                        <AlertTriangle className="w-8 h-8 text-red-500" />
                     </div>
                 </button>
-
-                <div className="bg-white p-2 rounded-lg border border-purple-200">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-[10px] font-medium text-gray-500 uppercase tracking-wide">Comensales</p>
-                            <p className="text-lg font-bold text-purple-600">
-                                {stats.covers}
-                            </p>
-                        </div>
-                        <Users className="w-8 h-8 text-purple-500" />
-                    </div>
-                </div>
             </div>
 
             {/* Controles de selección */}
@@ -2779,18 +2777,12 @@ export default function Reservas() {
                 </>
             )}
 
-            {/* Pestaña de Horarios de Reserva */}
-            {activeTab === 'disponibilidades' && (
-                <div className="space-y-6">
-                    <AvailabilityManager autoTriggerRegeneration={autoTriggerRegeneration} />
-                </div>
-            )}
-
             {/* ❌ Pestaña de Política de Reservas ELIMINADA - Configuración movida a Configuración → Reservas */}
             {/* ❌ Pestaña de Ocupación ELIMINADA - Funcionalidad fusionada en Reservas */}
+            {/* ❌ Pestaña de Disponibilidad MOVIDA - Ahora es una página separada en /disponibilidad */}
 
             {/* 🚀 NUEVA PESTAÑA DE RESERVAS - CALENDARIO PROFESIONAL */}
-            {activeTab === 'reservas' && false && (
+            {false && (
                 <div className="space-y-3">
                     {/* Controles compactos en una línea */}
                     <div className="bg-blue-50 rounded-lg border border-blue-200 p-2">
@@ -3030,9 +3022,186 @@ export default function Reservas() {
                 />
             )}
 
+            {/* 🎯 MODAL DE RESERVAS POR ESTADO - Reutilizable */}
+            {showStatusModal && statusModalType && (
+                <StatusReservationsModal
+                    isOpen={showStatusModal}
+                    onClose={() => {
+                        setShowStatusModal(false);
+                        setStatusModalType(null);
+                    }}
+                    statusType={statusModalType}
+                    reservations={filteredReservations.filter(r => {
+                        const statusMap = {
+                            'confirmed': 'confirmed',
+                            'pending': 'pending',
+                            'completed': 'completed',
+                            'cancelled': 'cancelled',
+                            'no_show': 'no_show'
+                        };
+                        return r.status === statusMap[statusModalType];
+                    })}
+                    onReservationClick={(reserva) => {
+                        setViewingReservation(reserva);
+                        setShowDetailsModal(true);
+                        setShowStatusModal(false);
+                    }}
+                />
+            )}
+
         </div>
     );
 }
+
+// 🎯 Modal de Reservas por Estado - Diseño recuperado del modal antiguo que funcionaba
+const StatusReservationsModal = ({ isOpen, onClose, statusType, reservations, onReservationClick }) => {
+    // Función para calcular hora de fin
+    const calcularHoraFin = (horaInicio, duracionMinutos) => {
+        const [hora, minuto] = horaInicio.split(':').map(Number);
+        const totalMinutos = hora * 60 + minuto + duracionMinutos;
+        const horaFin = Math.floor(totalMinutos / 60);
+        const minutoFin = totalMinutos % 60;
+        return `${horaFin.toString().padStart(2, '0')}:${minutoFin.toString().padStart(2, '0')}`;
+    };
+
+    const statusConfig = {
+        'confirmed': {
+            title: '✅ Reservas Confirmadas',
+            emoji: '✅',
+            bgGradient: 'from-blue-600 to-blue-700',
+            bgLight: 'bg-blue-50',
+            borderColor: 'border-blue-500',
+            badgeBg: 'bg-blue-100',
+            badgeText: 'text-blue-700',
+            badgeEmoji: '✅'
+        },
+        'pending': {
+            title: '⏳ Reservas Pendientes',
+            emoji: '⏳',
+            bgGradient: 'from-yellow-500 to-amber-600',
+            bgLight: 'bg-yellow-50',
+            borderColor: 'border-yellow-500',
+            badgeBg: 'bg-yellow-100',
+            badgeText: 'text-yellow-700',
+            badgeEmoji: '⏳'
+        },
+        'completed': {
+            title: '✅ Reservas Completadas',
+            emoji: '✅',
+            bgGradient: 'from-green-600 to-green-700',
+            bgLight: 'bg-green-50',
+            borderColor: 'border-green-500',
+            badgeBg: 'bg-green-100',
+            badgeText: 'text-green-700',
+            badgeEmoji: '✅'
+        },
+        'cancelled': {
+            title: '🗑️ Reservas Canceladas',
+            emoji: '🗑️',
+            bgGradient: 'from-red-600 to-red-700',
+            bgLight: 'bg-red-50',
+            borderColor: 'border-red-500',
+            badgeBg: 'bg-red-100',
+            badgeText: 'text-red-700',
+            badgeEmoji: '❌'
+        },
+        'no_show': {
+            title: '⚠️ No-Shows',
+            emoji: '⚠️',
+            bgGradient: 'from-orange-600 to-orange-700',
+            bgLight: 'bg-orange-50',
+            borderColor: 'border-orange-500',
+            badgeBg: 'bg-orange-100',
+            badgeText: 'text-orange-700',
+            badgeEmoji: '⚠️'
+        }
+    };
+
+    const config = statusConfig[statusType] || statusConfig['pending'];
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+                {/* Header */}
+                <div className={`bg-gradient-to-r ${config.bgGradient} px-6 py-4 flex items-center justify-between`}>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        {config.title} ({reservations.length})
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="text-white hover:bg-white/20 rounded-lg p-2 transition-all"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                
+                {/* Lista de reservas */}
+                <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+                    {reservations.length === 0 ? (
+                        <p className="text-center text-gray-500 py-8">
+                            No hay reservas en este estado
+                        </p>
+                    ) : (
+                        <div className="space-y-3">
+                            {reservations.map((reserva) => {
+                                const horaFin = calcularHoraFin(
+                                    reserva.reservation_time || reserva.appointment_time || '00:00',
+                                    reserva.duration_minutes || reserva.service_duration_minutes || 60
+                                );
+                                
+                                return (
+                                    <div 
+                                        key={reserva.id}
+                                        onClick={() => onReservationClick(reserva)}
+                                        className={`${config.bgLight} border-l-4 ${config.borderColor} rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer touch-target`}
+                                    >
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <h3 className="font-bold text-gray-900 text-base mb-1">
+                                                    {reserva.customer_name || 'Sin nombre'}
+                                                </h3>
+                                                <div className="space-y-1 text-sm text-gray-700">
+                                                    <p className="flex items-center gap-2">
+                                                        <CalendarIcon className="w-4 h-4" />
+                                                        {reserva.reservation_date || reserva.appointment_date 
+                                                            ? format(parseISO(reserva.reservation_date || reserva.appointment_date), "EEE dd MMM yyyy", { locale: es })
+                                                            : 'Sin fecha'}
+                                                    </p>
+                                                    <p className="flex items-center gap-2">
+                                                        <Clock className="w-4 h-4" />
+                                                        {(reserva.reservation_time || reserva.appointment_time || '00:00').substring(0, 5)} - {horaFin}
+                                                        <span className="text-gray-500">({reserva.duration_minutes || 60}min)</span>
+                                                    </p>
+                                                    {reserva.service_name && (
+                                                        <p className="flex items-center gap-2">
+                                                            ✂️ {reserva.service_name}
+                                                        </p>
+                                                    )}
+                                                    {reserva.notes && (
+                                                        <p className="text-xs text-gray-600 italic mt-2">
+                                                            💬 {reserva.notes}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className={`px-2 py-1 rounded-full text-xs font-semibold ${config.badgeBg} ${config.badgeText}`}>
+                                                    {config.badgeEmoji} {statusType === 'cancelled' ? 'Cancelada' : statusType === 'no_show' ? 'No-Show' : statusType === 'confirmed' ? 'Confirmada' : statusType === 'pending' ? 'Pendiente' : 'Completada'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 // Modal para crear/editar reserva
 const ReservationFormModal = ({
@@ -3606,8 +3775,8 @@ const ReservationFormModal = ({
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 z-50">
-            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-end md:items-center justify-center p-0 md:p-2">
+            <div className="bg-white rounded-t-xl md:rounded-xl md:max-w-2xl w-full max-h-[90vh] overflow-y-auto safe-area-inset-bottom">
                 <div className="p-6 border-b border-gray-200">
                     <h3 className="text-base font-semibold text-gray-900">
                         {reservation

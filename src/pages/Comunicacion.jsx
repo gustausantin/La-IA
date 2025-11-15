@@ -343,8 +343,8 @@ export default function Comunicacion() {
                         </div>
                     </div>
 
-                    {/* 📊 MÉTRICAS POR TIPOLOGÍA - COMPACTAS (igual que No-Shows) */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 w-full mb-3">
+                    {/* 📊 MÉTRICAS POR TIPOLOGÍA - Mobile-first: 1 columna en móvil */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 w-full mb-3">
                         {/* 🔴 Incidencias */}
                         <div 
                             className={`p-3 rounded-lg border-2 cursor-pointer transition-all ${
@@ -414,8 +414,8 @@ export default function Comunicacion() {
                             </div>
                         </div>
                         
-                    {/* 📊 MÉTRICAS GENERALES - COMPACTAS */}
-                    <div className="grid grid-cols-3 gap-2 mb-3">
+                    {/* 📊 MÉTRICAS GENERALES - Mobile-first: responsive */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
                         <div className="bg-white p-2 rounded-md border border-gray-200">
                             <p className="text-[10px] font-medium text-gray-500 uppercase">Total</p>
                             <p className="text-base font-bold text-gray-900">{stats.total}</p>

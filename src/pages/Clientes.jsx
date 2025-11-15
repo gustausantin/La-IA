@@ -584,8 +584,8 @@ export default function Clientes() {
                         </div>
                     </div>
 
-                    {/* Cards de Segmentos - COMPACTAS (50% más pequeñas) */}
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                    {/* Cards de Segmentos - Mobile-first: 1 columna en móvil */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                         {Object.entries(CUSTOMER_SEGMENTS).map(([key, segment]) => {
                             const count = customers.filter(c => c.segment === key).length;
                             const percentage = customers.length > 0 ? Math.round((count / customers.length) * 100) : 0;
@@ -922,14 +922,14 @@ export default function Clientes() {
                                                         e.stopPropagation();
                                                         handleEditCustomer(customer);
                                                     }}
-                                                    className="p-2 hover:bg-gray-200 rounded-lg transition-colors flex-shrink-0"
+                                                    className="p-2.5 min-w-[44px] min-h-[44px] hover:bg-gray-200 rounded-lg transition-colors flex-shrink-0 touch-target flex items-center justify-center"
                                                 >
                                                     <Edit2 className="w-4 h-4 text-gray-600" />
                                                 </button>
                                             </div>
 
-                                            {/* Métricas en grid */}
-                                            <div className="grid grid-cols-3 gap-2 text-center">
+                                            {/* Métricas en grid - Mobile-first: responsive */}
+                                            <div className="grid grid-cols-3 gap-1 sm:gap-2 text-center">
                                                 <div className="bg-gray-50 rounded-lg p-2">
                                                     <div className="text-xs text-gray-500 mb-0.5">Visitas</div>
                                                     <div className="text-sm font-bold text-gray-900">{visits}</div>
@@ -1451,7 +1451,7 @@ export default function Clientes() {
                                     <Target className="w-5 h-5 text-green-600" />
                                     Resumen de Impacto Potencial
                                 </h3>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center">
                                     <div>
                                         <div className="text-3xl font-bold text-purple-600">{totalAlcance}</div>
                                         <div className="text-sm text-gray-600">Clientes objetivo</div>

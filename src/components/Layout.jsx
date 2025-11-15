@@ -21,6 +21,7 @@ import {
     AlertTriangle,
     Menu,
     X,
+    Zap,
 } from "lucide-react";
 
 export default function Layout() {
@@ -49,18 +50,29 @@ export default function Layout() {
     const [showMobileMenu, setShowMobileMenu] = useState(false);
 
     // Menú principal - OPTIMIZADO PARA MÓVIL
+    // Orden basado en frecuencia de uso diario para dueño de peluquería
     const menuItems = [
+        // 🏠 Nivel 1: Visión general (siempre primero)
         { name: "Dashboard", path: "/dashboard", icon: Home, showInBottom: true },
+        
+        // 📅 Nivel 2: Operaciones diarias (más usadas)
         { name: "Reservas", path: "/reservas", icon: Calendar, showInBottom: true },
-        { name: "No-Shows", path: "/no-shows", icon: AlertTriangle, showInBottom: false },
-        { name: "Comunicación", path: "/comunicacion", icon: MessageSquare, showInBottom: true },
-        { name: "Tu Equipo", path: "/equipo", icon: Users, showInBottom: false },
-        { name: "Horario/Calendario", path: "/calendario", icon: Calendar, showInBottom: false },
-        // { name: "Mesas", path: "/mesas", icon: Briefcase, showInBottom: false }, // ⚠️ DEPRECADO - Ahora en Configuración
+        { name: "Horario/Calendario", path: "/calendario", icon: Calendar, showInBottom: true },
         { name: "Clientes", path: "/clientes", icon: Users, showInBottom: true },
-        // { name: "CRM", path: "/crm-inteligente", icon: Brain, showInBottom: false }, // ❌ ARCHIVO NO EXISTE
+        
+        // 💬 Nivel 3: Comunicación y gestión
+        { name: "Comunicación", path: "/comunicacion", icon: MessageSquare, showInBottom: false },
+        { name: "Tu Equipo", path: "/equipo", icon: Users, showInBottom: false },
+        
+        // ⚠️ Nivel 4: Revisión y control
+        { name: "No-Shows", path: "/no-shows", icon: AlertTriangle, showInBottom: false },
         { name: "Facturación", path: "/consumos", icon: Receipt, showInBottom: false },
+        
+        // ⚙️ Nivel 5: Configuración (al final)
         { name: "Configuración", path: "/configuracion", icon: Settings, showInBottom: true },
+        
+        // 🧪 TEMPORAL - Se eliminará cuando se confíe en la lógica
+        { name: "Disponibilidad", path: "/disponibilidad", icon: Zap, showInBottom: false }, // ⚠️ TEMPORAL - Para verificar lógica y métricas
     ];
 
     const handleLogout = async () => {

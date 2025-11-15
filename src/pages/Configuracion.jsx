@@ -883,9 +883,9 @@ const Configuracion = () => {
                     </div>
                 </div>
 
-                {/* 📱 Tabs MOBILE-FIRST - Scroll horizontal en móvil */}
+                {/* 📱 Tabs MOBILE-FIRST - Grid responsive sin scroll horizontal */}
                 <div className="bg-white rounded-xl shadow-sm border p-1.5 mb-4">
-                    <div className="flex gap-1.5 overflow-x-auto scrollbar-hide pb-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-1.5">
                             {tabs.map((tab) => (
                                 <button
                                     key={tab.id}
@@ -897,8 +897,8 @@ const Configuracion = () => {
                                         }
                                     }}
                                 className={`
-                                    min-w-[140px] px-4 py-3 rounded-lg font-semibold text-sm whitespace-nowrap 
-                                    flex flex-col items-center gap-1.5 transition-all
+                                    w-full min-h-[44px] px-2 sm:px-4 py-2 sm:py-3 rounded-lg font-semibold text-xs sm:text-sm
+                                    flex flex-col items-center gap-1 sm:gap-1.5 transition-all touch-target
                                     ${activeTab === tab.id
                                         ? "bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md"
                                         : "text-gray-600 hover:bg-gray-100"
