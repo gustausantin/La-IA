@@ -394,38 +394,49 @@ export default function Equipo() {
 // COMPONENTE: Tarjeta de Empleado
 // ====================================
 function EmployeeCard({ employee, onEdit, onEditSchedule, onManageAbsences, onDelete }) {
-  const [resource, setResource] = useState(null);
-
-  useEffect(() => {
-    if (employee.assigned_resource_id) {
-      loadResource();
-    }
-  }, [employee.assigned_resource_id]);
-
-  const loadResource = async () => {
-    try {
-      const { data } = await supabase
-        .from('resources')
-        .select('name')
-        .eq('id', employee.assigned_resource_id)
-        .single();
-      
-      setResource(data);
-    } catch (error) {
-      console.error('Error cargando recurso:', error);
-    }
-  };
-
-  // Calcular resumen de horario
+  // ✅ Calcular información precisa del horario a partir de los schedules reales
   const workingDays = (employee.employee_schedules || [])
-    .filter(s => s.is_working)
+    .filter((s) => s.is_working && s.shifts && s.shifts.length > 0)
     .sort((a, b) => a.day_of_week - b.day_of_week);
 
   const dayNames = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
-  
-  const scheduleText = workingDays.length > 0
-    ? `${dayNames[workingDays[0].day_of_week]}-${dayNames[workingDays[workingDays.length - 1].day_of_week]} ${workingDays[0].start_time?.slice(0, 5)}-${workingDays[0].end_time?.slice(0, 5)}`
-    : 'Sin horario';
+
+  const getScheduleSummary = () => {
+    if (workingDays.length === 0) {
+      return 'Sin horario';
+    }
+
+    // Construir rangos horarios por día
+    const uniqueSchedules = new Set();
+    workingDays.forEach((day) => {
+      const shifts = day.shifts || [];
+      if (shifts.length > 0) {
+        const firstShift = shifts[0];
+        const lastShift = shifts[shifts.length - 1];
+        uniqueSchedules.add(`${firstShift.start.slice(0, 5)}-${lastShift.end.slice(0, 5)}`);
+      }
+    });
+
+    // Si todos los días comparten el mismo horario, mostramos rango de días + horario
+    if (uniqueSchedules.size === 1) {
+      const timeRange = Array.from(uniqueSchedules)[0];
+      if (workingDays.length === 1) {
+        return `${dayNames[workingDays[0].day_of_week]} ${timeRange}`;
+      }
+      return `${dayNames[workingDays[0].day_of_week]}-${dayNames[workingDays[workingDays.length - 1].day_of_week]} ${timeRange}`;
+    }
+
+    // Si tiene horarios distintos según el día:
+    // - Hasta 3 días: listamos los días
+    // - Más de 3: mostramos número de días trabajados
+    if (workingDays.length <= 3) {
+      return workingDays.map((d) => dayNames[d.day_of_week]).join(', ');
+    }
+
+    return `${workingDays.length} días/semana`;
+  };
+
+  const scheduleText = getScheduleSummary();
 
   return (
     <div className="bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200 rounded-xl p-4 hover:shadow-md transition-all">
@@ -459,12 +470,6 @@ function EmployeeCard({ employee, onEdit, onEditSchedule, onManageAbsences, onDe
               <Clock className="w-3 h-3" />
               <span>{scheduleText}</span>
             </div>
-            {resource && (
-              <div className="flex items-center gap-1 text-xs text-purple-600">
-                <span>📍</span>
-                <span className="font-semibold">{resource.name}</span>
-              </div>
-            )}
             {employee.email && (
               <span className="text-xs text-gray-500">{employee.email}</span>
             )}

@@ -647,6 +647,7 @@ export default function Reservas() {
     // 🆕 Estados para modales de métricas interactivas
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [statusModalType, setStatusModalType] = useState(null); // 'confirmed', 'pending', 'completed', 'cancelled', 'no_show'
+    const [showNotesModal, setShowNotesModal] = useState(false); // 🆕 Modal para reservas con notas
 
     // Subscription de real-time
     const [realtimeSubscription, setRealtimeSubscription] = useState(null);
@@ -2249,8 +2250,15 @@ export default function Reservas() {
             (sum, r) => sum + r.party_size,
             0,
         );
+        
+        // 🆕 Contar reservas con notas (special_requests o notes)
+        const withNotes = filteredReservations.filter(
+            (r) =>
+                (r.special_requests && r.special_requests.trim() !== "") ||
+                (r.notes && r.notes.trim() !== ""),
+        ).length;
 
-        return { total, confirmed, pending, completed, cancelled, noShows, covers };
+        return { total, confirmed, pending, completed, cancelled, noShows, covers, withNotes };
     }, [filteredReservations]);
 
     if (!isReady) {
@@ -2525,8 +2533,8 @@ export default function Reservas() {
                 </div>
             </div>
 
-            {/* 🎯 MÉTRICAS COMO BOTONES - Diseño con borde vertical izquierdo y aspecto de botón */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
+            {/* 🎯 MÉTRICAS COMO BOTONES - Rediseñados para verse más clickeables */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-7 gap-3">
                 {/* Total - Solo métrica, no clickeable */}
                 <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm">
                     <div className="flex items-center justify-between">
@@ -2540,114 +2548,153 @@ export default function Reservas() {
                     </div>
                 </div>
 
-                {/* Confirmadas - Botón con borde vertical izquierdo */}
+                {/* Confirmadas - Botón rediseñado con efectos más pronunciados */}
                 <button 
-                    onClick={() => {
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setStatusModalType('confirmed');
                         setShowStatusModal(true);
                     }}
-                    className="bg-blue-50 hover:bg-blue-100 active:bg-blue-200 border-l-4 border-blue-600 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    className="group relative w-full bg-gradient-to-br from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 active:from-blue-200 active:to-blue-300 border-l-4 border-blue-600 rounded-lg p-4 shadow-md hover:shadow-xl active:shadow-lg transition-all duration-300 cursor-pointer transform hover:scale-105 active:scale-100 hover:-translate-y-1"
                     title="Ver todas las reservas confirmadas"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <CheckCircle2 className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
+                            <CheckCircle2 className="w-7 h-7 text-white" />
                         </div>
                         <div className="flex-1 text-left">
-                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">Confirmadas</p>
-                            <p className="text-2xl font-black text-blue-600 leading-tight">
+                            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Confirmadas</p>
+                            <p className="text-3xl font-black text-blue-600 leading-none group-hover:text-blue-700 transition-colors">
                                 {stats.confirmed}
                             </p>
                         </div>
                     </div>
+                    <div className="absolute inset-0 rounded-lg border-2 border-blue-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </button>
 
-                {/* Pendientes - Botón con borde vertical izquierdo */}
+                {/* Pendientes - Botón rediseñado con efectos más pronunciados */}
                 <button 
-                    onClick={() => {
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setStatusModalType('pending');
                         setShowStatusModal(true);
                     }}
-                    className="bg-yellow-50 hover:bg-yellow-100 active:bg-yellow-200 border-l-4 border-yellow-500 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    className="group relative w-full bg-gradient-to-br from-yellow-50 to-yellow-100 hover:from-yellow-100 hover:to-yellow-200 active:from-yellow-200 active:to-yellow-300 border-l-4 border-yellow-500 rounded-lg p-4 shadow-md hover:shadow-xl active:shadow-lg transition-all duration-300 cursor-pointer transform hover:scale-105 active:scale-100 hover:-translate-y-1"
                     title="Ver todas las reservas pendientes"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <Clock className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
+                            <Clock className="w-7 h-7 text-white" />
                         </div>
                         <div className="flex-1 text-left">
-                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">Pendientes</p>
-                            <p className="text-2xl font-black text-yellow-600 leading-tight">
+                            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Pendientes</p>
+                            <p className="text-3xl font-black text-yellow-600 leading-none group-hover:text-yellow-700 transition-colors">
                                 {stats.pending}
                             </p>
                         </div>
                     </div>
+                    <div className="absolute inset-0 rounded-lg border-2 border-yellow-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </button>
 
-                {/* Completadas - Botón con borde vertical izquierdo */}
+                {/* Completadas - Botón rediseñado con efectos más pronunciados */}
                 <button 
-                    onClick={() => {
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setStatusModalType('completed');
                         setShowStatusModal(true);
                     }}
-                    className="bg-green-50 hover:bg-green-100 active:bg-green-200 border-l-4 border-green-600 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    className="group relative w-full bg-gradient-to-br from-green-50 to-green-100 hover:from-green-100 hover:to-green-200 active:from-green-200 active:to-green-300 border-l-4 border-green-600 rounded-lg p-4 shadow-md hover:shadow-xl active:shadow-lg transition-all duration-300 cursor-pointer transform hover:scale-105 active:scale-100 hover:-translate-y-1"
                     title="Ver todas las reservas completadas"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <CheckCircle2 className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
+                            <CheckCircle2 className="w-7 h-7 text-white" />
                         </div>
                         <div className="flex-1 text-left">
-                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">Completadas</p>
-                            <p className="text-2xl font-black text-green-600 leading-tight">
+                            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Completadas</p>
+                            <p className="text-3xl font-black text-green-600 leading-none group-hover:text-green-700 transition-colors">
                                 {stats.completed}
                             </p>
                         </div>
                     </div>
+                    <div className="absolute inset-0 rounded-lg border-2 border-green-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </button>
 
-                {/* Canceladas - Botón con borde vertical izquierdo */}
+                {/* Canceladas - Botón rediseñado con efectos más pronunciados */}
                 <button 
-                    onClick={() => {
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setStatusModalType('cancelled');
                         setShowStatusModal(true);
                     }}
-                    className="bg-red-50 hover:bg-red-100 active:bg-red-200 border-l-4 border-red-600 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    className="group relative w-full bg-gradient-to-br from-red-50 to-red-100 hover:from-red-100 hover:to-red-200 active:from-red-200 active:to-red-300 border-l-4 border-red-600 rounded-lg p-4 shadow-md hover:shadow-xl active:shadow-lg transition-all duration-300 cursor-pointer transform hover:scale-105 active:scale-100 hover:-translate-y-1"
                     title="Ver todas las reservas canceladas"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <XCircle className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
+                            <XCircle className="w-7 h-7 text-white" />
                         </div>
                         <div className="flex-1 text-left">
-                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">Canceladas</p>
-                            <p className="text-2xl font-black text-red-600 leading-tight">
+                            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Canceladas</p>
+                            <p className="text-3xl font-black text-red-600 leading-none group-hover:text-red-700 transition-colors">
                                 {stats.cancelled}
                             </p>
                         </div>
                     </div>
+                    <div className="absolute inset-0 rounded-lg border-2 border-red-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </button>
 
-                {/* No-Shows - Botón con borde vertical izquierdo */}
+                {/* No-Shows - Botón rediseñado con efectos más pronunciados */}
                 <button 
-                    onClick={() => {
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
                         setStatusModalType('no_show');
                         setShowStatusModal(true);
                     }}
-                    className="bg-gray-100 hover:bg-gray-200 active:bg-gray-300 border-l-4 border-gray-600 rounded-lg p-3 shadow-md hover:shadow-lg active:shadow-sm transition-all duration-150 cursor-pointer touch-target hover:scale-[1.02] active:scale-[0.98]"
+                    className="group relative w-full bg-gradient-to-br from-gray-50 to-gray-100 hover:from-gray-100 hover:to-gray-200 active:from-gray-200 active:to-gray-300 border-l-4 border-gray-600 rounded-lg p-4 shadow-md hover:shadow-xl active:shadow-lg transition-all duration-300 cursor-pointer transform hover:scale-105 active:scale-100 hover:-translate-y-1"
                     title="Ver todos los no-shows"
                 >
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm">
-                            <AlertTriangle className="w-6 h-6 text-white" />
+                        <div className="w-12 h-12 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
+                            <AlertTriangle className="w-7 h-7 text-white" />
                         </div>
                         <div className="flex-1 text-left">
-                            <p className="text-[10px] font-bold text-gray-600 uppercase tracking-wide">No-Shows</p>
-                            <p className="text-2xl font-black text-gray-700 leading-tight">
+                            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">No-Shows</p>
+                            <p className="text-3xl font-black text-gray-700 leading-none group-hover:text-gray-800 transition-colors">
                                 {stats.noShows}
                             </p>
                         </div>
                     </div>
+                    <div className="absolute inset-0 rounded-lg border-2 border-gray-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                </button>
+
+                {/* Notes - Botón nuevo para mostrar reservas con notas */}
+                <button 
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setShowNotesModal(true);
+                    }}
+                    className="group relative w-full bg-gradient-to-br from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 active:from-purple-200 active:to-purple-300 border-l-4 border-purple-600 rounded-lg p-4 shadow-md hover:shadow-xl active:shadow-lg transition-all duration-300 cursor-pointer transform hover:scale-105 active:scale-100 hover:-translate-y-1"
+                    title="Ver todas las reservas con notas"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-lg group-hover:shadow-xl group-hover:scale-110 transition-all duration-300">
+                            <FileText className="w-7 h-7 text-white" />
+                        </div>
+                        <div className="flex-1 text-left">
+                            <p className="text-xs font-bold text-gray-700 uppercase tracking-wide mb-1">Notas</p>
+                            <p className="text-3xl font-black text-purple-600 leading-none group-hover:text-purple-700 transition-colors">
+                                {stats.withNotes}
+                            </p>
+                        </div>
+                    </div>
+                    <div className="absolute inset-0 rounded-lg border-2 border-purple-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                 </button>
             </div>
 
@@ -3031,13 +3078,13 @@ export default function Reservas() {
                         setStatusModalType(null);
                     }}
                     statusType={statusModalType}
-                    reservations={filteredReservations.filter(r => {
+                    reservations={filteredReservations.filter((r) => {
                         const statusMap = {
-                            'confirmed': 'confirmed',
-                            'pending': 'pending',
-                            'completed': 'completed',
-                            'cancelled': 'cancelled',
-                            'no_show': 'no_show'
+                            confirmed: "confirmed",
+                            pending: "pending",
+                            completed: "completed",
+                            cancelled: "cancelled",
+                            no_show: "no_show",
                         };
                         return r.status === statusMap[statusModalType];
                     })}
@@ -3045,6 +3092,27 @@ export default function Reservas() {
                         setViewingReservation(reserva);
                         setShowDetailsModal(true);
                         setShowStatusModal(false);
+                    }}
+                />
+            )}
+
+            {/* 🆕 MODAL DE RESERVAS CON NOTAS */}
+            {showNotesModal && (
+                <NotesReservationsModal
+                    isOpen={showNotesModal}
+                    onClose={() => {
+                        setShowNotesModal(false);
+                    }}
+                    reservations={filteredReservations.filter(
+                        (r) =>
+                            (r.special_requests &&
+                                r.special_requests.trim() !== "") ||
+                            (r.notes && r.notes.trim() !== ""),
+                    )}
+                    onReservationClick={(reserva) => {
+                        setViewingReservation(reserva);
+                        setShowDetailsModal(true);
+                        setShowNotesModal(false);
                     }}
                 />
             )}
@@ -3189,6 +3257,136 @@ const StatusReservationsModal = ({ isOpen, onClose, statusType, reservations, on
                                             <div className="text-right">
                                                 <span className={`px-2 py-1 rounded-full text-xs font-semibold ${config.badgeBg} ${config.badgeText}`}>
                                                     {config.badgeEmoji} {statusType === 'cancelled' ? 'Cancelada' : statusType === 'no_show' ? 'No-Show' : statusType === 'confirmed' ? 'Confirmada' : statusType === 'pending' ? 'Pendiente' : 'Completada'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// 🆕 Modal de Reservas con Notas
+const NotesReservationsModal = ({ isOpen, onClose, reservations, onReservationClick }) => {
+    // Función para calcular hora de fin
+    const calcularHoraFin = (horaInicio, duracionMinutos) => {
+        const [hora, minuto] = horaInicio.split(":").map(Number);
+        const totalMinutos = hora * 60 + minuto + duracionMinutos;
+        const horaFin = Math.floor(totalMinutos / 60);
+        const minutoFin = totalMinutos % 60;
+        return `${horaFin.toString().padStart(2, "0")}:${minutoFin.toString().padStart(2, "0")}`;
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+                {/* Header */}
+                <div className="bg-gradient-to-r from-purple-600 to-purple-700 px-6 py-4 flex items-center justify-between">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        📝 Reservas con Notas ({reservations.length})
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="text-white hover:bg-white/20 rounded-lg p-2 transition-all"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+                
+                {/* Lista de reservas */}
+                <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+                    {reservations.length === 0 ? (
+                        <p className="text-center text-gray-500 py-8">
+                            No hay reservas con notas
+                        </p>
+                    ) : (
+                        <div className="space-y-3">
+                            {reservations.map((reserva) => {
+                                const horaFin = calcularHoraFin(
+                                    reserva.reservation_time || reserva.appointment_time || "00:00",
+                                    reserva.duration_minutes || reserva.service_duration_minutes || 60,
+                                );
+
+                                // Mapear estado para badge
+                                const statusMapping = {
+                                    pending: { label: "Pendiente", color: "bg-yellow-100 text-yellow-700" },
+                                    confirmed: { label: "Confirmada", color: "bg-blue-100 text-blue-700" },
+                                    completed: { label: "Completada", color: "bg-green-100 text-green-700" },
+                                    cancelled: { label: "Cancelada", color: "bg-red-100 text-red-700" },
+                                    no_show: { label: "No-Show", color: "bg-orange-100 text-orange-700" },
+                                };
+                                const statusInfo =
+                                    statusMapping[reserva.status] || {
+                                        label: reserva.status,
+                                        color: "bg-gray-100 text-gray-700",
+                                    };
+
+                                return (
+                                    <div
+                                        key={reserva.id}
+                                        onClick={() => onReservationClick(reserva)}
+                                        className="bg-purple-50 border-l-4 border-purple-500 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer touch-target"
+                                    >
+                                        <div className="flex items-start justify-between">
+                                            <div className="flex-1">
+                                                <h3 className="font-bold text-gray-900 text-base mb-1">
+                                                    {reserva.customer_name || "Sin nombre"}
+                                                </h3>
+                                                <div className="space-y-1 text-sm text-gray-700">
+                                                    <p className="flex items-center gap-2">
+                                                        <CalendarIcon className="w-4 h-4" />
+                                                        {reserva.reservation_date || reserva.appointment_date
+                                                            ? format(
+                                                                  parseISO(
+                                                                      reserva.reservation_date ||
+                                                                          reserva.appointment_date,
+                                                                  ),
+                                                                  "EEE dd MMM yyyy",
+                                                                  { locale: es },
+                                                              )
+                                                            : "Sin fecha"}
+                                                    </p>
+                                                    <p className="flex items-center gap-2">
+                                                        <Clock className="w-4 h-4" />
+                                                        {(reserva.reservation_time ||
+                                                            reserva.appointment_time ||
+                                                            "00:00"
+                                                        ).substring(0, 5)}{" "}
+                                                        - {horaFin}
+                                                        <span className="text-gray-500">
+                                                            ({reserva.duration_minutes || 60}min)
+                                                        </span>
+                                                    </p>
+                                                    {reserva.service_name && (
+                                                        <p className="flex items-center gap-2">
+                                                            ✂️ {reserva.service_name}
+                                                        </p>
+                                                    )}
+                                                    {(reserva.special_requests || reserva.notes) && (
+                                                        <div className="mt-3 p-3 bg-white rounded-lg border border-purple-200">
+                                                            <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide mb-1 flex items-center gap-1">
+                                                                <FileText className="w-3 h-3" />
+                                                                {reserva.special_requests ? "Petición Especial" : "Nota"}:
+                                                            </p>
+                                                            <p className="text-sm text-gray-800 italic">
+                                                                {reserva.special_requests || reserva.notes}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span
+                                                    className={`px-2 py-1 rounded-full text-xs font-semibold ${statusInfo.color}`}
+                                                >
+                                                    {statusInfo.label}
                                                 </span>
                                             </div>
                                         </div>
