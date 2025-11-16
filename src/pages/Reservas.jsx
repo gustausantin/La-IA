@@ -613,6 +613,13 @@ export default function Reservas() {
     const [tables, setTables] = useState([]);
     const [resources, setResources] = useState([]); // 🆕 Recursos/Profesionales para el calendario
     const [savingPolicy, setSavingPolicy] = useState(false);
+    const [policySettings, setPolicySettings] = useState({
+        min_party_size: 1,
+        max_party_size: 20,
+        advance_booking_days: 30,
+        reservation_duration: 90,
+        min_advance_hours: 2,
+    });
     const [agentStats, setAgentStats] = useState({
         agentReservations: 0,
         conversionRate: 0,
@@ -648,6 +655,7 @@ export default function Reservas() {
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [statusModalType, setStatusModalType] = useState(null); // 'confirmed', 'pending', 'completed', 'cancelled', 'no_show'
     const [showNotesModal, setShowNotesModal] = useState(false); // 🆕 Modal para reservas con notas
+    const [showDebugModal, setShowDebugModal] = useState(false); // 🧪 Modal mínimo de prueba
 
     // Subscription de real-time
     const [realtimeSubscription, setRealtimeSubscription] = useState(null);
@@ -2319,6 +2327,16 @@ export default function Reservas() {
                         </button>
                     </div>
                 </div>
+
+                {/* 🧪 Botón de prueba de modal súper simple */}
+                <div className="mt-2">
+                    <button
+                        onClick={() => setShowDebugModal(true)}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-black/5 hover:bg-black/10 text-gray-700"
+                    >
+                        TEST MODAL (debug)
+                    </button>
+                </div>
             </div>
 
             {/* ========================================
@@ -3117,12 +3135,33 @@ export default function Reservas() {
                 />
             )}
 
+            {/* 🧪 MODAL DE PRUEBA SÚPER SIMPLE */}
+            {showDebugModal && (
+                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full text-center space-y-4">
+                        <h2 className="text-lg font-bold text-gray-900">✅ Modal de prueba</h2>
+                        <p className="text-sm text-gray-600">
+                            Si estás viendo este cuadro blanco con fondo oscuro,
+                            los modales de la página de reservas FUNCIONAN. 
+                            Si los otros no se ven, el problema es de datos/filtros, no de los modales.
+                        </p>
+                        <button
+                            onClick={() => setShowDebugModal(false)}
+                            className="mt-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
+                        >
+                            Cerrar
+                        </button>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 }
 
 // 🎯 Modal de Reservas por Estado - Diseño recuperado del modal antiguo que funcionaba
 const StatusReservationsModal = ({ isOpen, onClose, statusType, reservations, onReservationClick }) => {
+    const [visibleCount, setVisibleCount] = useState(30);
     // Función para calcular hora de fin
     const calcularHoraFin = (horaInicio, duracionMinutos) => {
         const [hora, minuto] = horaInicio.split(':').map(Number);
@@ -3185,9 +3224,11 @@ const StatusReservationsModal = ({ isOpen, onClose, statusType, reservations, on
         }
     };
 
-    const config = statusConfig[statusType] || statusConfig['pending'];
+    const config = statusConfig[statusType] || statusConfig["pending"];
 
     if (!isOpen) return null;
+
+    const visibleReservations = reservations.slice(0, visibleCount);
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -3213,7 +3254,7 @@ const StatusReservationsModal = ({ isOpen, onClose, statusType, reservations, on
                         </p>
                     ) : (
                         <div className="space-y-3">
-                            {reservations.map((reserva) => {
+                            {visibleReservations.map((reserva) => {
                                 const horaFin = calcularHoraFin(
                                     reserva.reservation_time || reserva.appointment_time || '00:00',
                                     reserva.duration_minutes || reserva.service_duration_minutes || 60
@@ -3263,6 +3304,17 @@ const StatusReservationsModal = ({ isOpen, onClose, statusType, reservations, on
                                     </div>
                                 );
                             })}
+
+                            {reservations.length > visibleCount && (
+                                <div className="pt-4 flex justify-center">
+                                    <button
+                                        onClick={() => setVisibleCount((prev) => prev + 30)}
+                                        className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50"
+                                    >
+                                        Ver 30 más ({reservations.length - visibleCount} restantes)
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>
@@ -3273,16 +3325,20 @@ const StatusReservationsModal = ({ isOpen, onClose, statusType, reservations, on
 
 // 🆕 Modal de Reservas con Notas
 const NotesReservationsModal = ({ isOpen, onClose, reservations, onReservationClick }) => {
+    const [visibleCount, setVisibleCount] = useState(30);
+
     // Función para calcular hora de fin
     const calcularHoraFin = (horaInicio, duracionMinutos) => {
-        const [hora, minuto] = horaInicio.split(":").map(Number);
-        const totalMinutos = hora * 60 + minuto + duracionMinutos;
+        const [hora, minuto] = (horaInicio || "00:00").split(":").map(Number);
+        const totalMinutos = hora * 60 + minuto + (duracionMinutos || 60);
         const horaFin = Math.floor(totalMinutos / 60);
         const minutoFin = totalMinutos % 60;
         return `${horaFin.toString().padStart(2, "0")}:${minutoFin.toString().padStart(2, "0")}`;
     };
 
     if (!isOpen) return null;
+
+    const visibleReservations = reservations.slice(0, visibleCount);
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -3308,7 +3364,7 @@ const NotesReservationsModal = ({ isOpen, onClose, reservations, onReservationCl
                         </p>
                     ) : (
                         <div className="space-y-3">
-                            {reservations.map((reserva) => {
+                            {visibleReservations.map((reserva) => {
                                 const horaFin = calcularHoraFin(
                                     reserva.reservation_time || reserva.appointment_time || "00:00",
                                     reserva.duration_minutes || reserva.service_duration_minutes || 60,
@@ -3393,6 +3449,17 @@ const NotesReservationsModal = ({ isOpen, onClose, reservations, onReservationCl
                                     </div>
                                 );
                             })}
+
+                            {reservations.length > visibleCount && (
+                                <div className="pt-4 flex justify-center">
+                                    <button
+                                        onClick={() => setVisibleCount((prev) => prev + 30)}
+                                        className="px-4 py-2 rounded-lg bg-white border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50"
+                                    >
+                                        Ver 30 más ({reservations.length - visibleCount} restantes)
+                                    </button>
+                                </div>
+                            )}
                         </div>
                     )}
                 </div>

@@ -27,6 +27,7 @@ import {
         EyeOff,
     FileText,
     Zap,
+    CreditCard,
     Play,
     Tag,
     Pause,
@@ -135,8 +136,8 @@ const Configuracion = () => {
     const [isPlayingAudio, setIsPlayingAudio] = useState(false);
     const audioRef = React.useRef(null);
     
-    // 🆕 IDs válidos de las nuevas pestañas
-    const validTabs = ['asistente', 'negocio', 'reservas', 'canales', 'integraciones', 'cuenta'];
+    // 🆕 IDs válidos de las pestañas (ya agrupadas en 5 bloques)
+    const validTabs = ['asistente', 'negocio', 'reservas', 'canales', 'cuenta'];
     
     // Leer tab de la URL o del state al cargar
     useEffect(() => {
@@ -153,10 +154,15 @@ const Configuracion = () => {
         }
         // 🔄 Mapeo de tabs antiguos a nuevos (compatibilidad)
         const legacyMapping = {
+            // Tabs antiguos mapeados a la nueva estructura de 5 grupos
             'general': 'negocio',
+            'negocio': 'negocio',
+            'recursos': 'negocio',
+            'servicios': 'negocio',
             'agent': 'asistente',
             'channels': 'canales',
             'notifications': 'canales',
+            'integraciones': 'canales',
             'documentos': 'cuenta'
         };
         const legacyTab = location.state?.activeTab || searchParams.get('tab');
@@ -273,7 +279,7 @@ const Configuracion = () => {
     return { error };
   };
 
-    // 📋 Nueva estructura de configuración (Mobile-First)
+    // 📋 Nueva estructura de configuración (Mobile-First, 5 grupos)
     const tabs = [
         {
             id: "asistente",
@@ -283,21 +289,9 @@ const Configuracion = () => {
         },
         {
             id: "negocio",
-            label: "Mi Negocio",
+            label: "Negocio",
             icon: <Building2 className="w-4 h-4" />,
-            description: "Información, horarios y servicios"
-        },
-        {
-            id: "recursos",
-            label: `Mis ${labels?.resources || 'Recursos'}`,
-            icon: <Briefcase className="w-4 h-4" />,
-            description: `Gestiona tus ${labels?.resources?.toLowerCase() || 'recursos'} disponibles`
-        },
-        {
-            id: "servicios",
-            label: "Servicios",
-            icon: <Tag className="w-4 h-4" />,
-            description: "Servicios que ofreces, duraciones y precios"
+            description: "Información del negocio, sillones y servicios"
         },
         {
             id: "reservas",
@@ -307,15 +301,9 @@ const Configuracion = () => {
         },
         {
             id: "canales",
-            label: "Canales y Alertas",
+            label: "Comunicación",
             icon: <MessageSquare className="w-4 h-4" />,
-            description: "Teléfono, WhatsApp, redes sociales y alertas"
-        },
-        {
-            id: "integraciones",
-            label: "Integraciones",
-            icon: <Zap className="w-4 h-4" />,
-            description: "Google Calendar y otras integraciones"
+            description: "Canales de contacto, alertas y notificaciones"
         },
         {
             id: "cuenta",
@@ -913,7 +901,7 @@ const Configuracion = () => {
                 </div>
 
                 <div className="space-y-4">
-                    {/* 🏢 MI NEGOCIO */}
+                    {/* 🏢 NEGOCIO: Información + Recursos + Servicios */}
                     {activeTab === "negocio" && (
                         <div className="space-y-4">
                             <SettingSection
@@ -1062,20 +1050,24 @@ const Configuracion = () => {
                                 </div>
                             </SettingSection>
 
-                        </div>
-                    )}
+                            {/* 🏗️ Recursos / Sillones */}
+                            <SettingSection
+                                title={`Tus ${labels?.resources || 'recursos'}`}
+                                description="Configura tus sillones, profesionales o recursos disponibles"
+                                icon={<Briefcase />}
+                            >
+                                <RecursosContent />
+                            </SettingSection>
 
-                    {/* 🏗️ MIS RECURSOS - PESTAÑA INDEPENDIENTE */}
-                    {activeTab === "recursos" && (
-                        <div className="space-y-4">
-                            <RecursosContent />
-                        </div>
-                    )}
+                            {/* 🏷️ Servicios */}
+                            <SettingSection
+                                title="Servicios"
+                                description="Define los servicios que ofreces, su duración y precio"
+                                icon={<Tag />}
+                            >
+                                <ServiciosContent />
+                            </SettingSection>
 
-                    {/* 🏷️ SERVICIOS - PESTAÑA INDEPENDIENTE */}
-                    {activeTab === "servicios" && (
-                        <div className="space-y-4">
-                            <ServiciosContent />
                         </div>
                     )}
 
@@ -1210,7 +1202,7 @@ const Configuracion = () => {
                     )}
 
 
-                    {/* 📡 CANALES Y ALERTAS - NUEVA PÁGINA MOBILE-FIRST */}
+                    {/* 📡 COMUNICACIÓN (solo canales y alertas) */}
                     {activeTab === "canales" && (
                         <div className="space-y-4">
                             {/* 1️⃣ TU ASISTENTE LA-IA (Servicio que damos) */}
@@ -1555,41 +1547,201 @@ const Configuracion = () => {
                                     </div>
                             </div>
                         </SettingSection>
+
                         </div>
                     )}
 
-                    {/* 🔗 INTEGRACIONES */}
-                    {activeTab === "integraciones" && (
-                        <IntegracionesContent 
-                            settings={settings}
-                            setSettings={setSettings}
-                            saving={saving}
-                            handleSave={handleSave}
-                        />
-                    )}
-
-                    {/* 💳 CUENTA Y FACTURACIÓN */}
+                    {/* 💳 CUENTA, FACTURACIÓN E INTEGRACIONES */}
                     {activeTab === "cuenta" && (
                         <div className="space-y-4">
+                            {/* 1️⃣ Resumen del plan */}
                             <SettingSection
-                                title="Información de la Cuenta"
-                                description="Gestiona tu plan, facturación y usuarios"
+                                title="Plan de suscripción"
+                                description="Resumen de tu plan actual y estado de la suscripción"
+                                icon={<Zap />}
+                            >
+                                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                    <div>
+                                        <p className="text-sm text-gray-700">
+                                            Estás en el plan <span className="font-semibold">LA‑IA Pro (MVP)</span>.
+                                        </p>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            Renovación automática cada mes. En el futuro verás aquí el siguiente cargo y los límites de tu plan.
+                                        </p>
+                                    </div>
+                                    <div className="flex">
+                                        <button
+                                            type="button"
+                                            className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+                                            disabled
+                                        >
+                                            Ver / cambiar plan
+                                        </button>
+                                    </div>
+                                </div>
+                            </SettingSection>
+
+                            {/* 2️⃣ Datos de facturación */}
+                            <SettingSection
+                                title="Datos de facturación"
+                                description="Información fiscal que aparecerá en tus facturas"
                                 icon={<Users />}
                             >
-                                <div className="text-center py-12">
-                                    <Users className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                                        <h3 className="text-lg font-bold text-gray-900 mb-2">
-                                        Gestión de Cuenta
-                                        </h3>
-                                    <p className="text-gray-600 mb-4">
-                                        Información del plan, facturación y usuarios
-                                    </p>
-                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-lg font-medium">
-                                        🚧 En desarrollo - Próximamente
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Nombre o razón social
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={settings.billing_name || ""}
+                                                onChange={(e) => setSettings(prev => ({ ...prev, billing_name: e.target.value }))}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="Nombre de la empresa o autónomo"
+                                            />
                                         </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                NIF / CIF
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={settings.billing_vat || ""}
+                                                onChange={(e) => setSettings(prev => ({ ...prev, billing_vat: e.target.value }))}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="ES12345678A"
+                                            />
                                         </div>
-                            </SettingSection>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Dirección de facturación
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={settings.billing_address || ""}
+                                                onChange={(e) => setSettings(prev => ({ ...prev, billing_address: e.target.value }))}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="Calle, número, piso..."
+                                            />
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                    Ciudad
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.billing_city || ""}
+                                                    onChange={(e) => setSettings(prev => ({ ...prev, billing_city: e.target.value }))}
+                                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="Madrid"
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                    Código postal
+                                                </label>
+                                                <input
+                                                    type="text"
+                                                    value={settings.billing_postal_code || ""}
+                                                    onChange={(e) => setSettings(prev => ({ ...prev, billing_postal_code: e.target.value }))}
+                                                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                    placeholder="28001"
+                                                />
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                País
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={settings.billing_country || "España"}
+                                                onChange={(e) => setSettings(prev => ({ ...prev, billing_country: e.target.value }))}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                                                Email de facturación
+                                            </label>
+                                            <input
+                                                type="email"
+                                                value={settings.billing_email || settings.email || ""}
+                                                onChange={(e) => setSettings(prev => ({ ...prev, billing_email: e.target.value }))}
+                                                className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                placeholder="facturacion@tu-negocio.com"
+                                            />
+                                        </div>
                                     </div>
+                                    <div className="flex justify-end pt-3 border-t border-gray-200">
+                                        <button
+                                            type="button"
+                                            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-900 text-white text-sm font-semibold hover:bg-black disabled:opacity-60"
+                                            disabled
+                                        >
+                                            <Save className="w-4 h-4" />
+                                            Guardar datos de facturación (MVP)
+                                        </button>
+                                    </div>
+                                </div>
+                            </SettingSection>
+
+                            {/* 3️⃣ Método de pago */}
+                            <SettingSection
+                                title="Método de pago"
+                                description="Tarjeta con la que se cobrarán tus suscripciones"
+                                icon={<CreditCard />}
+                            >
+                                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+                                    <div className="space-y-1">
+                                        <p className="text-sm text-gray-700">
+                                            Todavía no has añadido un método de pago.
+                                        </p>
+                                        <p className="text-sm text-gray-500">
+                                            Para el MVP, LA‑IA usará un sistema de cobro seguro similar a Stripe. Aquí verás la tarjeta enmascarada y su fecha de caducidad.
+                                        </p>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-purple-600 text-white text-sm font-semibold shadow hover:bg-purple-700 disabled:opacity-60"
+                                        disabled
+                                    >
+                                        <CreditCard className="w-4 h-4" />
+                                        Añadir tarjeta
+                                    </button>
+                                </div>
+                            </SettingSection>
+
+                            {/* 4️⃣ Historial de facturación */}
+                            <SettingSection
+                                title="Historial de facturas"
+                                description="Consulta y descarga tus facturas"
+                                icon={<FileText />}
+                            >
+                                <div className="border border-dashed border-gray-300 rounded-lg py-8 px-4 text-center">
+                                    <p className="text-sm text-gray-600 mb-2">
+                                        Aquí aparecerán tus facturas una vez que empieces a pagar tu suscripción.
+                                    </p>
+                                    <p className="text-xs text-gray-500">
+                                        Verás la fecha, el importe y podrás descargar el PDF de cada recibo.
+                                    </p>
+                                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium mt-4">
+                                        🚧 Módulo de facturación en diseño – todavía sin datos reales
+                                    </div>
+                                </div>
+                            </SettingSection>
+
+                            {/* 5️⃣ Integraciones debajo de la información de cuenta */}
+                            <IntegracionesContent 
+                                settings={settings}
+                                setSettings={setSettings}
+                                saving={saving}
+                                handleSave={handleSave}
+                            />
+
+                        </div>
                     )}
                             
                 </div>

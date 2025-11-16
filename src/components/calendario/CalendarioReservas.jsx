@@ -104,6 +104,8 @@ export default function CalendarioReservas({
     const [currentTime, setCurrentTime] = useState(new Date()); // 🔴 Hora actual para línea roja
     const [showCancelledModal, setShowCancelledModal] = useState(false); // 📋 Modal de lista de canceladas
     const [showNoShowsModal, setShowNoShowsModal] = useState(false); // 📋 Modal de lista de no-shows
+    const [showPendingModal, setShowPendingModal] = useState(false); // 📋 Modal de pendientes
+    const [showCompletedModal, setShowCompletedModal] = useState(false); // 📋 Modal de completadas
     
     // 🕐 CALCULAR HORAS DINÁMICAMENTE - Buscar en negocio y empleados
     const [horaInicio, horaFin] = useMemo(() => {
@@ -452,7 +454,10 @@ export default function CalendarioReservas({
                 </div>
                 
                 {/* Pendientes - AMARILLO */}
-                <div className="bg-yellow-50 rounded-lg border-l-4 border-yellow-500 px-2 py-1.5 shadow-sm hover:shadow-md transition-shadow">
+                <div
+                    className="bg-yellow-50 rounded-lg border-l-4 border-yellow-500 px-2 py-1.5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setShowPendingModal(true)}
+                >
                     <div className="flex items-center gap-1.5">
                         <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-white text-xs font-bold">⏳</span>
@@ -465,7 +470,10 @@ export default function CalendarioReservas({
                 </div>
                 
                 {/* Completadas - VERDE */}
-                <div className="bg-green-50 rounded-lg border-l-4 border-green-600 px-2 py-1.5 shadow-sm hover:shadow-md transition-shadow">
+                <div
+                    className="bg-green-50 rounded-lg border-l-4 border-green-600 px-2 py-1.5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setShowCompletedModal(true)}
+                >
                     <div className="flex items-center gap-1.5">
                         <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-white text-xs font-bold">✓</span>
@@ -478,7 +486,10 @@ export default function CalendarioReservas({
                 </div>
                 
                 {/* Canceladas - ROJO */}
-                <div className="bg-red-50 rounded-lg border-l-4 border-red-600 px-2 py-1.5 shadow-sm hover:shadow-md transition-shadow">
+                <div
+                    className="bg-red-50 rounded-lg border-l-4 border-red-600 px-2 py-1.5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setShowCancelledModal(true)}
+                >
                     <div className="flex items-center gap-1.5">
                         <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-white text-xs font-bold">✕</span>
@@ -491,7 +502,10 @@ export default function CalendarioReservas({
                 </div>
                 
                 {/* No-Shows - GRIS */}
-                <div className="bg-gray-100 rounded-lg border-l-4 border-gray-600 px-2 py-1.5 shadow-sm hover:shadow-md transition-shadow">
+                <div
+                    className="bg-gray-100 rounded-lg border-l-4 border-gray-600 px-2 py-1.5 shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                    onClick={() => setShowNoShowsModal(true)}
+                >
                     <div className="flex items-center gap-1.5">
                         <div className="w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-white text-xs font-bold">⚠</span>
@@ -561,6 +575,170 @@ export default function CalendarioReservas({
                 onAction={handleQuickAction}
             />
             
+            {/* 📋 MODAL DE RESERVAS PENDIENTES */}
+            {showPendingModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-yellow-500 to-amber-600 px-6 py-4 flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                ⏳ Reservas Pendientes ({stats.pendientes})
+                            </h2>
+                            <button
+                                onClick={() => setShowPendingModal(false)}
+                                className="text-white hover:bg-white/20 rounded-lg p-2 transition-all"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        {/* Lista de pendientes */}
+                        <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+                            {reservationsFiltradas.filter(r => r.status === 'pending').length === 0 ? (
+                                <p className="text-center text-gray-500 py-8">
+                                    No hay reservas pendientes
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {reservationsFiltradas
+                                        .filter(r => r.status === 'pending')
+                                        .slice(0, 30)
+                                        .map(reserva => {
+                                            const horaFin = calcularHoraFin(
+                                                reserva.reservation_time || reserva.appointment_time || '00:00',
+                                                reserva.duration_minutes || reserva.service_duration_minutes || 60
+                                            );
+                                            
+                                            return (
+                                                <div 
+                                                    key={reserva.id}
+                                                    className="bg-yellow-50 border-l-4 border-yellow-500 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                                >
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="flex-1">
+                                                            <h3 className="font-bold text-gray-900 text-base mb-1">
+                                                                {reserva.customer_name}
+                                                            </h3>
+                                                            <div className="space-y-1 text-sm text-gray-700">
+                                                                <p className="flex items-center gap-2">
+                                                                    <CalendarIcon className="w-4 h-4" />
+                                                                    {format(parseISO(reserva.reservation_date || reserva.appointment_date), "EEE dd MMM yyyy", { locale: es })}
+                                                                </p>
+                                                                <p className="flex items-center gap-2">
+                                                                    <Clock className="w-4 h-4" />
+                                                                    {(reserva.reservation_time || reserva.appointment_time || '00:00').substring(0, 5)} - {horaFin}
+                                                                    <span className="text-gray-500">({reserva.duration_minutes || 60}min)</span>
+                                                                </p>
+                                                                {reserva.service_name && (
+                                                                    <p className="flex items-center gap-2">
+                                                                        ✂️ {reserva.service_name}
+                                                                    </p>
+                                                                )}
+                                                                {reserva.notes && (
+                                                                    <p className="text-xs text-gray-600 italic mt-2">
+                                                                        💬 {reserva.notes}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
+                                                                ⏳ Pendiente
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 📋 MODAL DE RESERVAS COMPLETADAS */}
+            {showCompletedModal && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-hidden">
+                        {/* Header */}
+                        <div className="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 flex items-center justify-between">
+                            <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                                ✅ Reservas Completadas ({stats.completadas})
+                            </h2>
+                            <button
+                                onClick={() => setShowCompletedModal(false)}
+                                className="text-white hover:bg-white/20 rounded-lg p-2 transition-all"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        
+                        {/* Lista de completadas */}
+                        <div className="p-6 overflow-y-auto max-h-[calc(80vh-80px)]">
+                            {reservationsFiltradas.filter(r => r.status === 'completed').length === 0 ? (
+                                <p className="text-center text-gray-500 py-8">
+                                    No hay reservas completadas
+                                </p>
+                            ) : (
+                                <div className="space-y-3">
+                                    {reservationsFiltradas
+                                        .filter(r => r.status === 'completed')
+                                        .slice(0, 30)
+                                        .map(reserva => {
+                                            const horaFin = calcularHoraFin(
+                                                reserva.reservation_time || reserva.appointment_time || '00:00',
+                                                reserva.duration_minutes || reserva.service_duration_minutes || 60
+                                            );
+                                            
+                                            return (
+                                                <div 
+                                                    key={reserva.id}
+                                                    className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                                >
+                                                    <div className="flex items-start justify-between">
+                                                        <div className="flex-1">
+                                                            <h3 className="font-bold text-gray-900 text-base mb-1">
+                                                                {reserva.customer_name}
+                                                            </h3>
+                                                            <div className="space-y-1 text-sm text-gray-700">
+                                                                <p className="flex items-center gap-2">
+                                                                    <CalendarIcon className="w-4 h-4" />
+                                                                    {format(parseISO(reserva.reservation_date || reserva.appointment_date), "EEE dd MMM yyyy", { locale: es })}
+                                                                </p>
+                                                                <p className="flex items-center gap-2">
+                                                                    <Clock className="w-4 h-4" />
+                                                                    {(reserva.reservation_time || reserva.appointment_time || '00:00').substring(0, 5)} - {horaFin}
+                                                                    <span className="text-gray-500">({reserva.duration_minutes || 60}min)</span>
+                                                                </p>
+                                                                {reserva.service_name && (
+                                                                    <p className="flex items-center gap-2">
+                                                                        ✂️ {reserva.service_name}
+                                                                    </p>
+                                                                )}
+                                                                {reserva.notes && (
+                                                                    <p className="text-xs text-gray-600 italic mt-2">
+                                                                        💬 {reserva.notes}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="text-right">
+                                                            <span className="px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                                                                ✅ Completada
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* 📋 MODAL DE RESERVAS CANCELADAS */}
             {showCancelledModal && (
                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -1014,15 +1192,17 @@ function VistaDia({
                             const schedulesToday = recurso.employee_schedules?.filter(s => 
                                 s.day_of_week === diaSemanaActual && s.is_working
                             ) || [];
+
+                            const tieneHorarioHoy = schedulesToday.length > 0 && schedulesToday[0].shifts && schedulesToday[0].shifts.length > 0;
                             
                             let horarioTexto = 'Sin horario';
-                            if (schedulesToday.length > 0 && schedulesToday[0].shifts && schedulesToday[0].shifts.length > 0) {
+                            if (tieneHorarioHoy) {
                                 const shifts = schedulesToday[0].shifts;
                                 const primerTurno = shifts[0];
                                 const ultimoTurno = shifts[shifts.length - 1];
                                 horarioTexto = `${primerTurno.start.slice(0, 5)} - ${ultimoTurno.end.slice(0, 5)}`;
                             }
-                            
+
                             return (
                                 <th 
                                     key={recurso.id}
@@ -1051,7 +1231,7 @@ function VistaDia({
                                             </h3>
                                             
                                             {/* Recurso con ícono */}
-                                            {recurso.resource_name && (
+                                            {tieneHorarioHoy && recurso.resource_name && (
                                                 <p className="text-xs text-purple-600 font-semibold mt-0.5 text-center whitespace-nowrap">
                                                     📍 {recurso.resource_name}
                                                 </p>
