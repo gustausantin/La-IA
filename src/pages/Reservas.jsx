@@ -655,7 +655,6 @@ export default function Reservas() {
     const [showStatusModal, setShowStatusModal] = useState(false);
     const [statusModalType, setStatusModalType] = useState(null); // 'confirmed', 'pending', 'completed', 'cancelled', 'no_show'
     const [showNotesModal, setShowNotesModal] = useState(false); // 🆕 Modal para reservas con notas
-    const [showDebugModal, setShowDebugModal] = useState(false); // 🧪 Modal mínimo de prueba
 
     // Subscription de real-time
     const [realtimeSubscription, setRealtimeSubscription] = useState(null);
@@ -2258,7 +2257,7 @@ export default function Reservas() {
             (sum, r) => sum + r.party_size,
             0,
         );
-        
+
         // 🆕 Contar reservas con notas (special_requests o notes)
         const withNotes = filteredReservations.filter(
             (r) =>
@@ -2326,16 +2325,6 @@ export default function Reservas() {
                             <span className="sm:hidden">Nueva</span>
                         </button>
                     </div>
-                </div>
-
-                {/* 🧪 Botón de prueba de modal súper simple */}
-                <div className="mt-2">
-                    <button
-                        onClick={() => setShowDebugModal(true)}
-                        className="px-3 py-1.5 text-xs rounded-lg bg-black/5 hover:bg-black/10 text-gray-700"
-                    >
-                        TEST MODAL (debug)
-                    </button>
                 </div>
             </div>
 
@@ -3133,26 +3122,6 @@ export default function Reservas() {
                         setShowNotesModal(false);
                     }}
                 />
-            )}
-
-            {/* 🧪 MODAL DE PRUEBA SÚPER SIMPLE */}
-            {showDebugModal && (
-                <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999]">
-                    <div className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full text-center space-y-4">
-                        <h2 className="text-lg font-bold text-gray-900">✅ Modal de prueba</h2>
-                        <p className="text-sm text-gray-600">
-                            Si estás viendo este cuadro blanco con fondo oscuro,
-                            los modales de la página de reservas FUNCIONAN. 
-                            Si los otros no se ven, el problema es de datos/filtros, no de los modales.
-                        </p>
-                        <button
-                            onClick={() => setShowDebugModal(false)}
-                            className="mt-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm hover:bg-blue-700"
-                        >
-                            Cerrar
-                        </button>
-                    </div>
-                </div>
             )}
 
         </div>

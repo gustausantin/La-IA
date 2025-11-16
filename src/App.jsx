@@ -39,12 +39,6 @@ const TuEquipo = Equipo; // Alias para claridad
 // 🛡️ Sistema de No-Shows SIMPLIFICADO (Versión 3.0)
 const NoShowControl = lazy(() => import('./pages/NoShowsSimple'));
 
-// 🤖 Dashboard del Agente IA
-const DashboardAgente = lazy(() => import('./pages/DashboardAgente'));
-
-// 🎯 Dashboard Nuevo - Feed de Acciones Mobile-First (Antiguo)
-const DashboardNuevo = lazy(() => import('./pages/DashboardNuevo'));
-
 // 💎 Dashboard VIVO - La Recepcionista IA (Nuevo con Avatar y Chat)
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 
@@ -144,22 +138,12 @@ function AppContent() {
               {/* Ruta por defecto: si no tiene negocio → onboarding, si tiene → dashboard */}
               <Route index element={<Navigate to={business ? "/dashboard" : "/onboarding"} replace />} />
 
-              {/* Dashboard principal - NUEVO VIVO */}
+              {/* Dashboard principal - ÚNICO dashboard vivo */}
               <Route 
                 path="/dashboard" 
                 element={
                   <Suspense fallback={<PageLoading />}>
                     <Dashboard />
-                  </Suspense>
-                } 
-              />
-              
-              {/* Dashboard Agente (antiguo) */}
-              <Route 
-                path="/dashboard-agente" 
-                element={
-                  <Suspense fallback={<PageLoading />}>
-                    <DashboardAgente />
                   </Suspense>
                 } 
               />
