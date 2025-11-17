@@ -12,7 +12,7 @@ import { AvailabilityService } from '../services/AvailabilityService';
 
 /**
  * Hook para manejar el wizard de reservas paso a paso
- * @param {string} businessId - ID del restaurante
+ * @param {string} businessId - ID del negocio
  * @param {Object} initialData - Datos iniciales de la reserva (para edición)
  * @returns {Object} Estado y métodos del wizard
  */

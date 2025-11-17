@@ -17,6 +17,7 @@ logger.info('Starting React application...');
 const Layout = lazy(() => import('./components/Layout'));
 const Login = lazy(() => import('./pages/Login'));
 const Confirm = lazy(() => import('./pages/Confirm'));
+const GoogleOAuthCallback = lazy(() => import('./pages/GoogleOAuthCallback'));
 const Reservas = lazy(() => import('./pages/Reservas'));
 const Clientes = lazy(() => import('./pages/Clientes'));
 // const PlantillasCRM = lazy(() => import('./pages/PlantillasCRM')); // ❌ ARCHIVO NO EXISTE
@@ -118,6 +119,8 @@ function AppContent() {
           <>
             <Route path="/login" element={<Login />} />
             <Route path="/confirm" element={<Confirm />} />
+            {/* Callback de OAuth de Google (accesible sin autenticación para el redirect) */}
+            <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </>
         ) : (
@@ -131,6 +134,9 @@ function AppContent() {
                 </Suspense>
               } 
             />
+
+            {/* Callback de OAuth de Google (también accesible cuando está autenticado) */}
+            <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
 
             <Route element={<Layout />}>
               {/* Ruta por defecto: si no tiene negocio → onboarding, si tiene → dashboard */}

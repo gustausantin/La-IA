@@ -1,6 +1,6 @@
 /**
  * 🤖 MACHINE LEARNING ENGINE PARA LA-IA
- * Sistema de aprendizaje automático avanzado para restaurantes
+ * Sistema de aprendizaje automático avanzado para negocios
  */
 
 import { log } from '../utils/logger';

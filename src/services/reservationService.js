@@ -39,8 +39,8 @@ export class ReservationService {
   }
 
   /**
-   * Obtener reservas de un restaurante con datos de customers incluidos
-   * @param {string} businessId - ID del restaurante
+   * Obtener reservas de un negocio con datos de customers incluidos
+   * @param {string} businessId - ID del negocio
    * @param {string} startDate - Fecha inicio (YYYY-MM-DD)
    * @param {string} endDate - Fecha fin (YYYY-MM-DD)
    * @returns {Promise<Array>} Lista de reservas con datos de customers
@@ -72,7 +72,7 @@ export class ReservationService {
 
   /**
    * Obtener reservas de hoy con datos de customers
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @returns {Promise<Array>} Reservas de hoy
    */
   static async getTodayReservationsWithCustomers(businessId) {

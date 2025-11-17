@@ -104,7 +104,7 @@ export const sendNewReservationNotification = async (reservationId) => {
       .from('appointments')
       .select(`
         *,
-        restaurant:businesses(
+        business:businesses(
           id,
           name,
           email,
@@ -118,15 +118,15 @@ export const sendNewReservationNotification = async (reservationId) => {
       throw new Error('No se pudo obtener la reserva: ' + reservationError?.message);
     }
     
-    const restaurant = reservation.restaurant;
-    const settings = restaurant.settings || {};
+    const business = reservation.business;
+    const settings = business.settings || {};
     
     // 2. Verificar si las notificaciones están habilitadas
     const notificationSettings = settings.notifications || {};
     const reservationNotif = notificationSettings.new_reservation || {};
     
     if (!reservationNotif.enabled) {
-      log.info('⏭️ Notificaciones de nueva reserva deshabilitadas para este restaurante');
+      log.info('⏭️ Notificaciones de nueva reserva deshabilitadas para este negocio');
       return { success: true, skipped: true, reason: 'disabled' };
     }
     
@@ -137,7 +137,7 @@ export const sendNewReservationNotification = async (reservationId) => {
     }
     
     // 4. Obtener emails destino
-    const notificationEmails = settings.notification_emails || [restaurant.email];
+    const notificationEmails = settings.notification_emails || [business.email];
     
     if (!notificationEmails || notificationEmails.length === 0) {
       log.warn('⚠️ No hay emails configurados para notificaciones');
@@ -146,7 +146,7 @@ export const sendNewReservationNotification = async (reservationId) => {
     
     // 5. Preparar variables del template
     const variables = {
-      RestaurantName: restaurant.name,
+      BusinessName: business.name,
       ContactName: settings.contact_name || 'Equipo',
       CustomerName: reservation.customer_name,
       CustomerEmail: reservation.customer_email,
@@ -165,8 +165,8 @@ export const sendNewReservationNotification = async (reservationId) => {
     const transporter = createTransporter();
     
     const mailOptions = {
-      from: `La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
       subject: `🍽️ Nueva reserva - ${reservation.customer_name}`,
       html: html
@@ -203,7 +203,7 @@ export const sendCancelledReservationNotification = async (reservationId) => {
       .from('appointments')
       .select(`
         *,
-        restaurant:businesses(
+        business:businesses(
           id,
           name,
           email,
@@ -217,15 +217,15 @@ export const sendCancelledReservationNotification = async (reservationId) => {
       throw new Error('No se pudo obtener la reserva: ' + reservationError?.message);
     }
     
-    const restaurant = reservation.restaurant;
-    const settings = restaurant.settings || {};
+    const business = reservation.business;
+    const settings = business.settings || {};
     
     // 2. Verificar si las notificaciones están habilitadas
     const notificationSettings = settings.notifications || {};
     const cancelledNotif = notificationSettings.cancelled_reservation || {};
     
     if (!cancelledNotif.enabled) {
-      log.info('⏭️ Notificaciones de cancelación deshabilitadas para este restaurante');
+      log.info('⏭️ Notificaciones de cancelación deshabilitadas para este negocio');
       return { success: true, skipped: true, reason: 'disabled' };
     }
     
@@ -236,7 +236,7 @@ export const sendCancelledReservationNotification = async (reservationId) => {
     }
     
     // 4. Obtener emails destino
-    const notificationEmails = settings.notification_emails || [restaurant.email];
+    const notificationEmails = settings.notification_emails || [business.email];
     
     if (!notificationEmails || notificationEmails.length === 0) {
       log.warn('⚠️ No hay emails configurados para notificaciones');
@@ -245,7 +245,7 @@ export const sendCancelledReservationNotification = async (reservationId) => {
     
     // 5. Preparar variables del template
     const variables = {
-      RestaurantName: restaurant.name,
+      BusinessName: business.name,
       ContactName: settings.contact_name || 'Equipo',
       CustomerName: reservation.customer_name,
       CustomerEmail: reservation.customer_email,
@@ -265,8 +265,8 @@ export const sendCancelledReservationNotification = async (reservationId) => {
     const transporter = createTransporter();
     
     const mailOptions = {
-      from: `La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
       subject: `❌ Reserva cancelada - ${reservation.customer_name}`,
       html: html
@@ -307,14 +307,14 @@ function getNewReservationTemplate() {
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow: hidden;">
         <div style="background-color: #7c3aed; padding: 30px 40px; color: #ffffff; text-align: center;">
             <h1 style="margin: 0; font-size: 28px; font-weight: bold;">🍽️ Nueva Reserva</h1>
-            <p style="margin: 8px 0 0 0; font-size: 16px; opacity: 0.9;">{{ RestaurantName }}</p>
+            <p style="margin: 8px 0 0 0; font-size: 16px; opacity: 0.9;">{{ BusinessName }}</p>
         </div>
         <div style="padding: 40px;">
             <p style="font-size: 18px; color: #1a1a1a; margin: 0 0 25px 0;">
                 Hola <strong>{{ ContactName }}</strong>,
             </p>
             <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 30px 0;">
-                Se ha confirmado una nueva reserva en tu restaurante. Aquí están los detalles:
+                Se ha confirmado una nueva reserva en tu negocio. Aquí están los detalles:
             </p>
             <div style="background-color: #f9fafb; border-left: 4px solid #7c3aed; padding: 25px; border-radius: 8px; margin-bottom: 30px;">
                 <div style="margin-bottom: 15px;">
@@ -388,14 +388,14 @@ function getCancelledReservationTemplate() {
     <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); overflow: hidden;">
         <div style="background-color: #ef4444; padding: 30px 40px; color: #ffffff; text-align: center;">
             <h1 style="margin: 0; font-size: 28px; font-weight: bold;">❌ Reserva Cancelada</h1>
-            <p style="margin: 8px 0 0 0; font-size: 16px; opacity: 0.9;">{{ RestaurantName }}</p>
+            <p style="margin: 8px 0 0 0; font-size: 16px; opacity: 0.9;">{{ BusinessName }}</p>
         </div>
         <div style="padding: 40px;">
             <p style="font-size: 18px; color: #1a1a1a; margin: 0 0 25px 0;">
                 Hola <strong>{{ ContactName }}</strong>,
             </p>
             <p style="font-size: 16px; color: #333333; line-height: 1.6; margin: 0 0 30px 0;">
-                Se ha <strong style="color: #ef4444;">cancelado una reserva</strong> en tu restaurante. Aquí están los detalles:
+                Se ha <strong style="color: #ef4444;">cancelado una reserva</strong> en tu negocio. Aquí están los detalles:
             </p>
             <div style="background-color: #fef2f2; border-left: 4px solid #ef4444; padding: 25px; border-radius: 8px; margin-bottom: 30px;">
                 <div style="margin-bottom: 15px;">

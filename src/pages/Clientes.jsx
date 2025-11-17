@@ -8,7 +8,7 @@ import {
     Search, Plus, Users, Mail, Phone, Edit2, X, 
     RefreshCw, Settings, Crown, AlertTriangle,
     Clock, DollarSign, TrendingUp, CheckCircle2, Zap,
-    Target, Send, Eye, MessageSquare, Copy, Download, FileText
+    Target, Send, Eye, MessageSquare, Copy, Download, FileText, BarChart3
 } from "lucide-react";
 import toast from "react-hot-toast";
 import CustomerModal from "../components/CustomerModal";
@@ -101,7 +101,7 @@ const calculateSegmentByVertical = (customer, verticalParams) => {
 // Componente principal
 export default function Clientes() {
     const navigate = useNavigate();
-    const { restaurant, businessId, isReady } = useAuthContext();
+    const { business, businessId, isReady } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [customers, setCustomers] = useState([]);
     const [showCustomerModal, setShowCustomerModal] = useState(false);
@@ -132,23 +132,23 @@ export default function Clientes() {
 
     // 🎨 Configuración del vertical (labels e iconos personalizados)
     const verticalConfig = useMemo(() => {
-        return getVerticalConfig(restaurant?.vertical_type);
-    }, [restaurant?.vertical_type]);
+        return getVerticalConfig(business?.vertical_type);
+    }, [business?.vertical_type]);
 
     // 🆕 Cargar parámetros del vertical desde Supabase
     const loadVerticalParams = useCallback(async () => {
         try {
-            if (!restaurant?.vertical_type) {
+            if (!business?.vertical_type) {
                 console.log('📊 CRM: Sin vertical_type en el negocio');
                 return;
             }
 
-            console.log(`📊 CRM: Cargando parámetros para vertical "${restaurant.vertical_type}"`);
+            console.log(`📊 CRM: Cargando parámetros para vertical "${business.vertical_type}"`);
             
             const { data, error } = await supabase
                 .from('crm_vertical_parameters')
                 .select('*')
-                .eq('vertical_id', restaurant.vertical_type)
+                .eq('vertical_id', business.vertical_type)
                 .single();
 
             if (error) {
@@ -163,7 +163,7 @@ export default function Clientes() {
         } catch (error) {
             console.error('❌ Error cargando parámetros del vertical:', error);
         }
-    }, [restaurant]);
+    }, [business]);
 
     // Cargar clientes
     const loadCustomers = useCallback(async () => {
@@ -444,10 +444,10 @@ export default function Clientes() {
 
     // Effects
     useEffect(() => {
-        if (isReady && restaurant) {
+        if (isReady && business) {
             loadVerticalParams();
         }
-    }, [isReady, restaurant, loadVerticalParams]);
+    }, [isReady, business, loadVerticalParams]);
 
     useEffect(() => {
         if (isReady && businessId && verticalParams) {
@@ -463,7 +463,7 @@ export default function Clientes() {
                     <div className="bg-white rounded-lg shadow-sm p-8 text-center">
                         <RefreshCw className="w-8 h-8 text-gray-400 mx-auto mb-2 animate-spin" />
                         <h3 className="text-sm font-medium text-gray-900 mb-2">
-                            Cargando información del restaurante...
+                            Cargando información del negocio...
                         </h3>
                     </div>
                 </div>
@@ -481,7 +481,7 @@ export default function Clientes() {
                             Configuración Pendiente
                         </h3>
                         <p className="text-gray-600 mb-2">
-                            Para gestionar clientes necesitas completar la configuración de tu restaurante.
+                            Para gestionar clientes necesitas completar la configuración de tu negocio.
                         </p>
                         <button
                             onClick={() => navigate('/configuracion')}
@@ -1760,6 +1760,7 @@ export default function Clientes() {
                 customer={selectedCustomer}
                 isOpen={showCustomerModal}
                 businessId={businessId}
+                verticalType={business?.vertical_type}
                 mode={modalMode}
                     onClose={() => {
                     setShowCustomerModal(false);

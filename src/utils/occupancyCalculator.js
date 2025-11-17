@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { format, parseISO, differenceInHours, isWithinInterval } from 'date-fns';
 
 /**
- * Calcula la ocupación promedio real del restaurante
+ * Calcula la ocupación promedio real del negocio
  * @param {string} businessId - ID del negocio
  * @param {number} days - Número de días hacia atrás para calcular (default: 7)
  * @returns {Promise<{occupancy: number, details: object}>}
@@ -15,7 +15,7 @@ export const calculateOccupancy = async (businessId, days = 7) => {
         
         console.log(`📊 Calculando ocupación para ${days} días desde ${format(startDate, 'yyyy-MM-dd')}`);
 
-        // 1. Obtener configuración del restaurante (horarios y mesas)
+        // 1. Obtener configuración del negocio (horarios y mesas)
         const { data: business, error: businessError } = await supabase
             .from("businesses")
             .select("settings")
@@ -63,7 +63,7 @@ export const calculateOccupancy = async (businessId, days = 7) => {
             const dayKey = format(currentDate, 'EEEE').toLowerCase(); // monday, tuesday, etc.
             const dayHours = operatingHours[dayKey];
             
-            // Verificar si el restaurante está abierto ese día
+            // Verificar si el negocio está abierto ese día
             if (!dayHours || dayHours.closed) {
                 dailyOccupancy.push({
                     date: format(currentDate, 'yyyy-MM-dd'),
@@ -224,7 +224,7 @@ export const calculateTodayOccupancy = async (businessId, date = new Date()) => 
             return {
                 occupancy: 0,
                 status: 'closed',
-                message: 'Restaurante cerrado hoy'
+                message: 'Negocio cerrado hoy'
             };
         }
 

@@ -5,14 +5,14 @@ import { supabase } from "../lib/supabase";
 import { formatDistanceToNow } from "date-fns";
 import { es } from "date-fns/locale";
 
-export default function NotificationCenter({ isOpen, onClose, restaurant }) {
+export default function NotificationCenter({ isOpen, onClose, business }) {
   // No renderizar si no está abierto
   if (!isOpen) return null;
   const [loading, setLoading] = useState(true);
   const [notifications, setNotifications] = useState([]);
 
   useEffect(() => {
-    if (!restaurant?.id) {
+    if (!business?.id) {
       setNotifications([]);
       setLoading(false);
       return;
@@ -25,7 +25,7 @@ export default function NotificationCenter({ isOpen, onClose, restaurant }) {
       const { data, error } = await supabase
         .from("notifications")
         .select("*")
-        .eq("business_id", restaurant.id)
+        .eq("business_id", business.id)
         .order("created_at", { ascending: false })
         .limit(20);
 
@@ -40,7 +40,7 @@ export default function NotificationCenter({ isOpen, onClose, restaurant }) {
     })();
 
     return () => { isMounted = false; };
-  }, [restaurant?.id]);
+  }, [business?.id]);
 
   const markNotificationAsRead = async (notificationId) => {
     try {

@@ -293,7 +293,7 @@ export default function CRMProximosMensajes() {
           Configuración Requerida
         </h2>
         <p className="text-gray-600">
-          Necesitas completar la configuración del restaurante para acceder a los mensajes CRM.
+          Necesitas completar la configuración del negocio para acceder a los mensajes CRM.
         </p>
       </div>
     );

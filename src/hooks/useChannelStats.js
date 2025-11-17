@@ -20,7 +20,7 @@ export const useChannelStats = () => {
         }
 
         try {
-            const { data: restaurant, error } = await supabase
+            const { data: business, error } = await supabase
                 .from('businesses')
                 .select('settings')
                 .eq('id', businessId)
@@ -28,7 +28,7 @@ export const useChannelStats = () => {
 
             if (error) throw error;
 
-            const channels = restaurant?.settings?.channels || {};
+            const channels = business?.settings?.channels || {};
             // ✅ Siempre 5 canales principales: VAPI, WhatsApp, Instagram, Facebook, Web Chat
             const totalChannels = 5;
             

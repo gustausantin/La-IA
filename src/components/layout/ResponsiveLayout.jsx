@@ -152,7 +152,7 @@ const ResponsiveSidebar = ({ isOpen, onClose, currentPath, navigation }) => {
                 Admin User
               </p>
               <p className="text-xs text-gray-500 truncate">
-                Restaurante Demo
+                Negocio Demo
               </p>
             </div>
           </div>
@@ -185,7 +185,7 @@ const ResponsiveHeader = ({ onMenuClick, title, actions }) => {
             </h1>
             {!isMobile && (
               <p className="text-sm text-gray-600 mt-0.5">
-                Gestiona tu restaurante de forma inteligente
+                Gestiona tu negocio de forma inteligente
               </p>
             )}
           </div>

@@ -87,7 +87,7 @@ const getSatisfactionStars = (metadata) => {
 };
 
 export default function Comunicacion() {
-    const { restaurant } = useAuthContext();
+    const { business } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [conversations, setConversations] = useState([]);
     const [selectedConversation, setSelectedConversation] = useState(null);
@@ -113,13 +113,13 @@ export default function Comunicacion() {
     });
 
     const loadConversations = useCallback(async () => {
-        if (!restaurant?.id) return;
+        if (!business?.id) return;
         try {
             setLoading(true);
             const { data, error } = await supabase
                 .from('agent_conversations')
                 .select(`*, customers(id, name, email, phone), appointments(id, appointment_date, appointment_time)`)
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
                 .order('created_at', { ascending: false });
             if (error) throw error;
@@ -175,7 +175,7 @@ export default function Comunicacion() {
         } finally {
             setLoading(false);
         }
-    }, [restaurant?.id]);
+    }, [business?.id]);
 
     const loadMessages = useCallback(async (conversationId) => {
         if (!conversationId) return;
@@ -205,7 +205,7 @@ export default function Comunicacion() {
                     resolved_at: new Date().toISOString()
                 })
                 .eq('id', conversationId)
-                .eq('business_id', restaurant.id);
+                .eq('business_id', business.id);
             
             if (error) throw error;
             

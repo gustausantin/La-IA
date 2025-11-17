@@ -16,7 +16,7 @@ export class ReservationValidationService {
   
   /**
    * Validar fecha de reserva
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @returns {Promise<Object>} { valid: boolean, message: string, code: string }
    */
@@ -43,15 +43,15 @@ export class ReservationValidationService {
         };
       }
 
-      // 2. Obtener configuración del restaurante
-      const { data: restaurant, error: restaurantError } = await supabase
+      // 2. Obtener configuración del negocio
+      const { data: business, error: businessError } = await supabase
         .from('businesses')
         .select('settings')
         .eq('id', businessId)
         .single();
 
-      if (restaurantError) {
-        console.error('Error obteniendo configuración:', restaurantError);
+      if (businessError) {
+        console.error('Error obteniendo configuración:', businessError);
         return {
           valid: false,
           message: 'Error al validar la fecha',
@@ -59,7 +59,7 @@ export class ReservationValidationService {
         };
       }
 
-      const settings = restaurant?.settings || {};
+      const settings = business?.settings || {};
       const maxAdvanceDays = settings.max_advance_days || 30;
 
       // 3. Verificar rango máximo de antelación
@@ -122,7 +122,7 @@ export class ReservationValidationService {
         
         return {
           valid: false,
-          message: `El restaurante está cerrado los ${dayNameEs[dayName]}`,
+          message: `El negocio está cerrado los ${dayNameEs[dayName]}`,
           code: 'DATE_DAY_CLOSED',
           dayOfWeek: dayName
         };
@@ -146,7 +146,7 @@ export class ReservationValidationService {
 
   /**
    * Validar hora de reserva
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} time - Hora en formato HH:MM:SS
    * @returns {Promise<Object>} { valid: boolean, message: string, alternatives: array }
@@ -163,15 +163,15 @@ export class ReservationValidationService {
 
       console.log(`🔍 Validando hora ${time} para fecha ${date}`);
 
-      // 1. Obtener configuración del restaurante
-      const { data: restaurant, error: restaurantError } = await supabase
+      // 1. Obtener configuración del negocio
+      const { data: business, error: businessError } = await supabase
         .from('businesses')
         .select('settings')
         .eq('id', businessId)
         .single();
 
-      if (restaurantError) {
-        console.error('Error obteniendo configuración:', restaurantError);
+      if (businessError) {
+        console.error('Error obteniendo configuración:', businessError);
         return {
           valid: false,
           message: 'Error al validar la hora',
@@ -179,7 +179,7 @@ export class ReservationValidationService {
         };
       }
 
-      const settings = restaurant?.settings || {};
+      const settings = business?.settings || {};
       const operatingHours = settings.operating_hours || {};
       
       // 2. Verificar que la hora esté dentro del horario de apertura
@@ -192,7 +192,7 @@ export class ReservationValidationService {
       if (!dayConfig || dayConfig.closed === true) {
         return {
           valid: false,
-          message: 'El restaurante está cerrado este día',
+          message: 'El negocio está cerrado este día',
           code: 'TIME_DAY_CLOSED'
         };
       }
@@ -245,7 +245,7 @@ export class ReservationValidationService {
         
         return {
           valid: false,
-          message: `El restaurante solo acepta reservas entre ${openTime} y ${closeTime}`,
+          message: `El negocio solo acepta reservas entre ${openTime} y ${closeTime}`,
           code: 'TIME_OUTSIDE_HOURS',
           alternatives: alternatives.slice(0, 6) // Máximo 6 alternativas
         };
@@ -309,7 +309,7 @@ export class ReservationValidationService {
 
   /**
    * Buscar horas alternativas cercanas
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} requestedTime - Hora solicitada en formato HH:MM:SS
    * @param {number} rangeMinutes - Rango de búsqueda en minutos (±)
@@ -346,7 +346,7 @@ export class ReservationValidationService {
   /**
    * 🚀 BUSCAR ALTERNATIVAS MÁS CERCANAS (SIN DEPENDER DE availability_slots)
    * Genera horarios dinámicamente y verifica disponibilidad real
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} requestedTime - Hora solicitada en formato HH:MM o HH:MM:SS
    * @param {number} partySize - Número de personas
@@ -360,14 +360,14 @@ export class ReservationValidationService {
     try {
       console.log('🔍 Buscando alternativas cercanas:', { businessId, date, requestedTime, partySize, k, excludeReservationId });
 
-      // 1. Obtener configuración del restaurante
-      const { data: restaurant } = await supabase
+      // 1. Obtener configuración del negocio
+      const { data: business } = await supabase
         .from('businesses')
         .select('settings')
         .eq('id', businessId)
         .single();
 
-      const settings = restaurant?.settings || {};
+      const settings = business?.settings || {};
       const operatingHours = settings.operating_hours || {};
       const reservationDuration = settings.reservation_duration || 60;
       const slotInterval = settings.slot_interval || 30; // Intervalo entre slots (30 min por defecto)
@@ -380,7 +380,7 @@ export class ReservationValidationService {
       const dayConfig = operatingHours[dayName];
 
       if (!dayConfig || dayConfig.closed === true) {
-        console.log('⚠️ Restaurante cerrado este día');
+        console.log('⚠️ Negocio cerrado este día');
         return [];
       }
 
@@ -460,7 +460,7 @@ export class ReservationValidationService {
 
   /**
    * Validar número de personas
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {number} partySize - Número de personas
    * @returns {Promise<Object>} { valid: boolean, message: string }
    */
@@ -474,18 +474,18 @@ export class ReservationValidationService {
         };
       }
 
-      // Obtener configuración del restaurante
-      const { data: restaurant, error: restaurantError } = await supabase
+      // Obtener configuración del negocio
+      const { data: business, error: businessError } = await supabase
         .from('businesses')
         .select('settings')
         .eq('id', businessId)
         .single();
 
-      if (restaurantError) {
-        console.error('Error obteniendo configuración:', restaurantError);
+      if (businessError) {
+        console.error('Error obteniendo configuración:', businessError);
       }
 
-      const settings = restaurant?.settings || {};
+      const settings = business?.settings || {};
       const minPartySize = settings.min_party_size || 1;
       const maxPartySize = settings.max_party_size || 20;
       const largeGroupThreshold = settings.large_group_threshold || 10;
@@ -501,7 +501,7 @@ export class ReservationValidationService {
       if (partySize > maxPartySize) {
         return {
           valid: false,
-          message: `El número máximo de personas permitido es ${maxPartySize}. Para grupos más grandes, contacte directamente con el restaurante.`,
+          message: `El número máximo de personas permitido es ${maxPartySize}. Para grupos más grandes, contacte directamente con el negocio.`,
           code: 'PARTY_SIZE_TOO_LARGE',
           requiresContact: true
         };
@@ -516,7 +516,7 @@ export class ReservationValidationService {
           code: isLargeGroup ? 'PARTY_SIZE_LARGE_GROUP' : 'PARTY_SIZE_OK',
           isLargeGroup: isLargeGroup,
           warning: isLargeGroup 
-            ? `⚠️ Grupos de ${partySize} personas requieren aprobación del restaurante. La reserva quedará PENDIENTE DE APROBACIÓN.`
+            ? `⚠️ Grupos de ${partySize} personas requieren aprobación del negocio. La reserva quedará PENDIENTE DE APROBACIÓN.`
             : partySize >= 6 
               ? `Puede requerir juntar mesas. La reserva quedará pendiente de confirmación.`
               : null
@@ -541,7 +541,7 @@ export class ReservationValidationService {
 
   /**
    * 🔥 Obtener mesas disponibles SIN DEPENDER DE availability_slots
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} time - Hora en formato HH:MM:SS
    * @param {number} partySize - Número de personas
@@ -580,13 +580,13 @@ export class ReservationValidationService {
       console.log(`📋 Mesas con capacidad suficiente: ${allTables.length}`);
 
       // 2. Obtener configuración de duración de reserva
-      const { data: restaurant } = await supabase
+      const { data: business } = await supabase
         .from('businesses')
         .select('settings')
         .eq('id', businessId)
         .single();
 
-      const reservationDuration = restaurant?.settings?.reservation_duration || 60;
+      const reservationDuration = business?.settings?.reservation_duration || 60;
 
       // 3. Calcular rango de tiempo de la nueva reserva
       const [hours, minutes] = time.split(':').map(Number);
@@ -671,7 +671,7 @@ export class ReservationValidationService {
 
   /**
    * Validar mesa seleccionada
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} tableId - ID de la mesa
    * @param {number} partySize - Número de personas
    * @param {string} date - Fecha en formato YYYY-MM-DD
@@ -722,13 +722,13 @@ export class ReservationValidationService {
       }
 
       // 3. 🔥 Verificar que NO haya conflictos con reservas existentes (SIN availability_slots)
-      const { data: restaurant } = await supabase
+      const { data: business } = await supabase
         .from('businesses')
         .select('settings')
         .eq('id', businessId)
         .single();
 
-      const reservationDuration = restaurant?.settings?.reservation_duration || 60;
+      const reservationDuration = business?.settings?.reservation_duration || 60;
 
       // Calcular rango de tiempo de la nueva reserva
       const [hours, minutes] = time.split(':').map(Number);
@@ -861,7 +861,7 @@ export class ReservationValidationService {
   /**
    * 🚀 BUSCAR ALTERNATIVAS CERCANAS
    * Encuentra horarios disponibles cercanos a la hora solicitada
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} requestedTime - Hora solicitada en formato HH:MM:SS
    * @param {number} partySize - Número de personas
@@ -873,19 +873,19 @@ export class ReservationValidationService {
     try {
       console.log(`🔍 Buscando ${k} alternativas para ${date} ${requestedTime} (${partySize} personas)`);
 
-      // 1. Obtener configuración del restaurante
-      const { data: restaurant, error: restaurantError } = await supabase
+      // 1. Obtener configuración del negocio
+      const { data: business, error: businessError } = await supabase
         .from('businesses')
         .select('settings')
         .eq('id', businessId)
         .single();
 
-      if (restaurantError) {
-        console.error('Error obteniendo configuración:', restaurantError);
+      if (businessError) {
+        console.error('Error obteniendo configuración:', businessError);
         return [];
       }
 
-      const settings = restaurant?.settings || {};
+      const settings = business?.settings || {};
       const operatingHours = settings.operating_hours || {};
       const reservationDuration = settings.reservation_duration || 60;
       const slotInterval = settings.slot_interval || 30;
@@ -898,7 +898,7 @@ export class ReservationValidationService {
       const dayConfig = operatingHours[dayName];
 
       if (!dayConfig || dayConfig.closed === true) {
-        console.log('❌ Restaurante cerrado ese día');
+        console.log('❌ Negocio cerrado ese día');
         return [];
       }
 
@@ -1031,7 +1031,7 @@ export class ReservationValidationService {
   /**
    * 🔍 OBTENER MESAS DISPONIBLES
    * Encuentra todas las mesas disponibles para una fecha/hora/tamaño específicos
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} date - Fecha en formato YYYY-MM-DD
    * @param {string} time - Hora en formato HH:MM:SS
    * @param {number} partySize - Número de personas
@@ -1063,18 +1063,18 @@ export class ReservationValidationService {
       console.log(`🔍 Grupo de ${partySize} personas: Obteniendo TODAS las mesas (${allTables.length}) para buscar combinaciones`);
 
       if (allTables.length === 0) {
-        console.log('❌ No hay mesas disponibles en el restaurante');
+        console.log('❌ No hay mesas disponibles en el negocio');
         return [];
       }
 
       // 2. Obtener duración de reserva
-      const { data: restaurant } = await supabase
+      const { data: business } = await supabase
         .from('businesses')
         .select('settings')
         .eq('id', businessId)
         .single();
 
-      const reservationDuration = restaurant?.settings?.reservation_duration || 60;
+      const reservationDuration = business?.settings?.reservation_duration || 60;
 
       // 3. Calcular rango de tiempo de la nueva reserva
       const [hours, minutes] = time.split(':').map(Number);

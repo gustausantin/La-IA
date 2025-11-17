@@ -33,7 +33,7 @@ import NoShowReservationDetail from '../components/noshows/NoShowReservationDeta
 import NoShowAutomationConfigSimple from '../components/noshows/NoShowAutomationConfigSimple';
 
 export default function NoShowControlNuevo() {
-    const { restaurant } = useAuthContext();
+    const { business } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState('overview'); // overview, config, history
     
@@ -55,10 +55,10 @@ export default function NoShowControlNuevo() {
     const [showDetailModal, setShowDetailModal] = useState(false);
 
     useEffect(() => {
-        if (restaurant?.id) {
+        if (business?.id) {
             loadNoShowData();
         }
-    }, [restaurant?.id]);
+    }, [business?.id]);
 
     const loadNoShowData = async () => {
         try {
@@ -66,12 +66,12 @@ export default function NoShowControlNuevo() {
 
             // 1. Obtener métricas generales
             const { data: metrics, error: metricsError } = await supabase
-                .rpc('get_restaurant_noshow_metrics', {
-                    p_business_id: restaurant.id
+                .rpc('get_business_noshow_metrics', {
+                    p_business_id: business.id
                 });
 
             if (metricsError) {
-                console.error('❌ Error en get_restaurant_noshow_metrics:', metricsError);
+                console.error('❌ Error en get_business_noshow_metrics:', metricsError);
                 console.error('❌ Error message:', metricsError.message);
             } else {
                 console.log('📊 Métricas cargadas:', metrics);
@@ -90,7 +90,7 @@ export default function NoShowControlNuevo() {
             // 2. Obtener reservas con riesgo HOY (VERSIÓN DINÁMICA)
             const { data: predictions, error: predError } = await supabase
                 .rpc('predict_upcoming_noshows_v2', {
-                    p_business_id: restaurant.id,
+                    p_business_id: business.id,
                     p_days_ahead: 0  // 0 = solo HOY, 1 = HOY + MAÑANA
                 });
             
@@ -110,7 +110,7 @@ export default function NoShowControlNuevo() {
             const { data: actions, error: actionsError } = await supabase
                 .from('noshow_actions')
                 .select('*')
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .gte('created_at', format(subDays(new Date(), 30), 'yyyy-MM-dd'))
                 .order('created_at', { ascending: true });
             
@@ -136,7 +136,7 @@ export default function NoShowControlNuevo() {
             const { data: recentActionsData, error: recentActionsError } = await supabase
                 .from('noshow_actions')
                 .select('*')
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .order('created_at', { ascending: false })
                 .limit(10);
             
@@ -308,7 +308,7 @@ export default function NoShowControlNuevo() {
                                         </div>
                                         <div className="bg-orange-50 rounded-lg p-2 shadow-md border border-orange-300">
                                             <h3 className="font-bold text-orange-900 mb-1 text-xs">🚨 LLAMADA URGENTE (2h 15min antes)</h3>
-                                            <p className="text-xs text-gray-700 mb-2"><span className="font-bold text-orange-600">ALARMA EN DASHBOARD</span> → Personal del restaurante LLAMA al cliente</p>
+                                            <p className="text-xs text-gray-700 mb-2"><span className="font-bold text-orange-600">ALARMA EN DASHBOARD</span> → Personal del negocio LLAMA al cliente</p>
                                             <div className="flex gap-1.5 text-xs flex-wrap">
                                                 <span className="px-2 py-1 bg-green-100 text-green-700 rounded font-medium">✅ Confirma → Resolver alarma</span>
                                                 <span className="px-2 py-1 bg-red-100 text-red-700 rounded font-medium">❌ No contesta → Esperar T-2h</span>
@@ -816,7 +816,7 @@ export default function NoShowControlNuevo() {
                                 const { error: confirmError } = await supabase
                                     .from('customer_confirmations')
                                     .insert({
-                                        business_id: restaurant.id,
+                                        business_id: business.id,
                                         reservation_id: reservation.reservation_id,
                                         message_type: 'Llamada urgente',
                                         sent_at: new Date().toISOString(),

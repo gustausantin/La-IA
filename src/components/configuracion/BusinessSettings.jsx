@@ -522,7 +522,7 @@ const BusinessSettings = React.memo(({ business: businessProp, onUpdate, showOnl
                 required
               />
               
-              {/* Solo mostrar "Tipo de Cocina" si es restaurante */}
+              {/* Solo mostrar "Tipo de Cocina" si aplica al vertical */}
               {businessData?.vertical_type === 'restaurante' && (
                 <SelectField
                   label="Tipo de Cocina"

@@ -339,7 +339,7 @@ const IntegrationSettings = React.memo(({ settings, onUpdate }) => {
           Integraciones y APIs
         </h3>
         <p className="text-sm text-gray-600 mt-1">
-          Conecta tu restaurante con servicios externos y webhooks
+          Conecta tu negocio con servicios externos y webhooks
         </p>
       </div>
 
@@ -443,7 +443,7 @@ const IntegrationSettings = React.memo(({ settings, onUpdate }) => {
               <div className="space-y-4">
                 <div className="border border-gray-200 rounded-lg p-2">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="font-medium text-gray-900">API Key del Restaurante</label>
+                    <label className="font-medium text-gray-900">API Key del Negocio</label>
                     <button
                       onClick={() => copyToClipboard('sk_rest_' + Math.random().toString(36).substr(2, 9))}
                       className="flex items-center gap-1 text-sm text-blue-600 hover:text-blue-800"

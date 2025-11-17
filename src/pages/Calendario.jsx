@@ -92,7 +92,7 @@ const daysOfWeek = [
 ];
 
 export default function Calendario() {
-    const { business: restaurant, businessId: businessId, isReady, addNotification } = useAuthContext();
+    const { business, businessId: businessId, isReady, addNotification } = useAuthContext();
     const { channelStats } = useChannelStats();
     const { occupancy: occupancyData } = useOccupancy(7);
     const changeDetection = useAvailabilityChangeDetection(businessId);
@@ -146,7 +146,7 @@ export default function Calendario() {
     // Inicializar datos - SOLO UNA VEZ
     useEffect(() => {
         if (businessId) {
-            console.log('🚀 INICIALIZANDO CALENDARIO - Restaurant ID:', businessId);
+            console.log('🚀 INICIALIZANDO CALENDARIO - Business ID:', businessId);
             
             // TEST DE VERIFICACIÓN DE DÍAS
             console.log('🧪 TEST: Verificando getDay() con fechas conocidas:');
@@ -176,7 +176,7 @@ export default function Calendario() {
 
     // Escuchar cambios de horarios desde Configuración
     useEffect(() => {
-        const handleRestaurantReload = (event) => {
+        const handleBusinessReload = (event) => {
             console.log("🔄 Calendario: Recargando horarios por cambio en Configuración");
             initializeData();
         };
@@ -191,14 +191,14 @@ export default function Calendario() {
             loadEmployeeAbsences();
         };
 
-        window.addEventListener('force-restaurant-reload', handleRestaurantReload);
+        window.addEventListener('force-business-reload', handleBusinessReload);
         window.addEventListener('schedule-updated', handleScheduleUpdate);
         window.addEventListener('absences-updated', handleAbsencesUpdate); // ⭐ Nuevo listener
         
         // Nota: Removidos listeners de focus/visibility que causaban recargas innecesarias
 
         return () => {
-            window.removeEventListener('force-restaurant-reload', handleRestaurantReload);
+            window.removeEventListener('force-business-reload', handleBusinessReload);
             window.removeEventListener('schedule-updated', handleScheduleUpdate);
             window.removeEventListener('absences-updated', handleAbsencesUpdate);
         };
@@ -210,7 +210,7 @@ export default function Calendario() {
         setLoading(true);
         try {
             // Cargar horarios desde businesses.settings (donde están realmente guardados)
-            const { data: restaurantData, error: scheduleError } = await supabase
+            const { data: businessData, error: scheduleError } = await supabase
                 .from("businesses")
                 .select("settings")
                 .eq("id", businessId)
@@ -235,7 +235,7 @@ export default function Calendario() {
                 setCalendarExceptions(exceptions || []);
             }
 
-            let savedHours = restaurantData?.settings?.operating_hours || {};
+            let savedHours = businessData?.settings?.operating_hours || {};
             
             // Si no hay horarios guardados, inicializar con valores por defecto
             if (Object.keys(savedHours).length === 0) {
@@ -521,7 +521,7 @@ export default function Calendario() {
             // ✅ VERIFICAR SI EL EVENTO ELIMINADO ESTÁ DENTRO DEL RANGO
             const eventDate = event.exception_date;
             const today = format(new Date(), 'yyyy-MM-dd');
-            const advanceDays = restaurant?.settings?.advance_booking_days || 20;
+            const advanceDays = business?.settings?.advance_booking_days || 20;
             const maxDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
             
             const isWithinRange = eventDate >= today && eventDate <= maxDate;
@@ -556,7 +556,7 @@ export default function Calendario() {
             console.error('❌ Error eliminando evento:', error);
             toast.error('Error al eliminar el evento');
         }
-    }, [changeDetection, showRegenerationModal, restaurant]);
+    }, [changeDetection, showRegenerationModal, business]);
 
     // Guardar evento especial (DÍA ÚNICO o RANGO DE FECHAS)
     const handleSaveEvent = async (e) => {
@@ -680,7 +680,7 @@ export default function Calendario() {
             
             // ✅ VERIFICAR SI ALGÚN EVENTO ESTÁ DENTRO DEL RANGO DE REGENERACIÓN
             const today = format(new Date(), 'yyyy-MM-dd');
-            const advanceDays = restaurant?.settings?.advance_booking_days || 20;
+            const advanceDays = business?.settings?.advance_booking_days || 20;
             const maxDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
             
             const datesWithinRange = dateStrings.filter(d => d >= today && d <= maxDate);
@@ -819,7 +819,7 @@ export default function Calendario() {
     // Guardar horario semanal
     const saveWeeklySchedule = async () => {
         if (!businessId) {
-            toast.error("Error: No hay restaurante configurado");
+            toast.error("Error: No hay negocio configurado");
             return;
         }
 
@@ -1010,7 +1010,7 @@ export default function Calendario() {
                             `⚠️ CONFLICTO CRÍTICO DETECTADO\n\n` +
                             `Los siguientes días tienen RESERVAS CONFIRMADAS pero van a cerrarse:\n\n` +
                             `${conflictMessage}\n\n` +
-                            `🚨 IMPACTO: Los clientes podrían llegar a un restaurante cerrado\n\n` +
+                            `🚨 IMPACTO: Los clientes podrían llegar a un negocio cerrado\n\n` +
                             `OPCIONES:\n` +
                             `✅ Cancelar guardado y revisar reservas\n` +
                             `❌ Continuar (RIESGO: Clientes afectados)\n\n` +
@@ -1088,7 +1088,7 @@ export default function Calendario() {
             console.log("📊 Datos a guardar:", { operating_hours, calendar_schedule });
 
             // GUARDADO ROBUSTO EN SUPABASE
-            const { data: currentRestaurant, error: fetchError } = await supabase
+            const { data: currentBusiness, error: fetchError } = await supabase
                 .from("businesses")
                 .select("settings")
                 .eq("id", businessId)
@@ -1099,7 +1099,7 @@ export default function Calendario() {
                 throw fetchError;
             }
 
-            const currentSettings = currentRestaurant?.settings || {};
+            const currentSettings = currentBusiness?.settings || {};
 
             // Actualizar con estructura completa
             const { error } = await supabase
@@ -1133,7 +1133,7 @@ export default function Calendario() {
                     } 
                 }));
                 
-                // 2. Evento para recargar el AuthContext (actualiza restaurant.settings en Reservas)
+                // 2. Evento para recargar el AuthContext (actualiza business.settings en Reservas)
                 window.dispatchEvent(new CustomEvent('force-business-reload'));
                 console.log('✅ Eventos de actualización disparados');
             } catch (eventError) {
@@ -1291,7 +1291,7 @@ export default function Calendario() {
                 {/* Contenido de tabs */}
                 <div>
 
-                    {/* Tab: Horarios del restaurante - ESTILO EMPLEADOS */}
+                    {/* Tab: Horarios del negocio - ESTILO EMPLEADOS */}
                     {activeTab === 'horarios' && (
                         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
                             {/* Header */}
@@ -1872,7 +1872,7 @@ export default function Calendario() {
                                         onChange={(e) => setEventForm(prev => ({ ...prev, closed: e.target.checked }))}
                                         className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
                                     />
-                                    <span className="text-sm text-gray-700">Restaurante cerrado este día</span>
+                                    <span className="text-sm text-gray-700">Negocio cerrado este día</span>
                                 </label>
                                 
                                 <div className="pt-2 border-t border-gray-200">
@@ -1926,7 +1926,7 @@ export default function Calendario() {
                                 </div>
                                 
                                 <p className="text-xs text-gray-500">
-                                    Si no está marcado, es un evento especial con el restaurante abierto
+                                    Si no está marcado, es un evento especial con el negocio abierto
                                 </p>
                             </div>
 
@@ -2021,11 +2021,11 @@ export default function Calendario() {
                                 <p className="text-sm text-gray-600 mb-2">Estado:</p>
                                 {selectedEvent.is_closed ? (
                                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                                        🔒 Restaurante cerrado este día
+                                        🔒 Negocio cerrado este día
                                     </span>
                                 ) : (
                                     <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                                        🎉 Evento especial - Restaurante abierto
+                                        🎉 Evento especial - Negocio abierto
                                     </span>
                                 )}
                             </div>

@@ -30,13 +30,13 @@ export class CRMDailyJobEnhanced {
     const startTime = Date.now();
     
     try {
-      // 1. Obtener todos los restaurantes activos
+      // 1. Obtener todos los negocios activos
       const businesses = await this.getActivebusinesses();
-      console.log(`📍 Procesando ${businesses.length} restaurantes activos`);
+      console.log(`📍 Procesando ${businesses.length} negocios activos`);
       
-      // 2. Procesar cada restaurante
-      for (const restaurant of businesses) {
-        await this.processRestaurant(restaurant);
+      // 2. Procesar cada negocio
+      for (const business of businesses) {
+        await this.processBusiness(business);
       }
       
       // 3. Limpieza y mantenimiento global
@@ -70,7 +70,7 @@ export class CRMDailyJobEnhanced {
   }
   
   /**
-   * Obtiene todos los restaurantes activos
+   * Obtiene todos los negocios activos
    */
   async getActivebusinesses() {
     try {
@@ -83,41 +83,41 @@ export class CRMDailyJobEnhanced {
       return data || [];
       
     } catch (error) {
-      console.error('Error obteniendo restaurantes activos:', error);
+      console.error('Error obteniendo negocios activos:', error);
       throw error;
     }
   }
   
   /**
-   * Procesa un restaurante específico
+   * Procesa un negocio específico
    */
-  async processRestaurant(restaurant) {
-    console.log(`🏪 Procesando restaurante: ${restaurant.name}`);
+  async processBusiness(business) {
+    console.log(`🏪 Procesando negocio: ${business.name}`);
     
     try {
       // 1. Actualizar estadísticas de todos los clientes
-      await this.updateCustomerStats(restaurant.id);
+      await this.updateCustomerStats(business.id);
       
       // 2. Recalcular segmentación automática
-      await this.updateCustomerSegments(restaurant.id);
+      await this.updateCustomerSegments(business.id);
       
       // 3. Evaluar reglas de automatización
-      await this.evaluateAutomationRules(restaurant.id);
+      await this.evaluateAutomationRules(business.id);
       
-      console.log(`✅ Restaurante ${restaurant.name} procesado exitosamente`);
+      console.log(`✅ Negocio ${business.name} procesado exitosamente`);
       
     } catch (error) {
-      console.error(`❌ Error procesando restaurante ${restaurant.name}:`, error);
-      this.stats.errors.push(`${restaurant.name}: ${error.message}`);
+      console.error(`❌ Error procesando negocio ${business.name}:`, error);
+      this.stats.errors.push(`${business.name}: ${error.message}`);
     }
   }
   
   /**
-   * Actualiza estadísticas de clientes para un restaurante
+   * Actualiza estadísticas de clientes para un negocio
    */
   async updateCustomerStats(businessId) {
     try {
-      // Obtener todos los clientes del restaurante
+      // Obtener todos los clientes del negocio
       const { data: customers, error } = await supabase
         .from('customers')
         .select('id')
@@ -210,7 +210,7 @@ export class CRMDailyJobEnhanced {
   }
   
   /**
-   * Evalúa todas las reglas de automatización para un restaurante
+   * Evalúa todas las reglas de automatización para un negocio
    */
   async evaluateAutomationRules(businessId) {
     try {
@@ -401,8 +401,8 @@ export class CRMDailyJobEnhanced {
    */
   async renderTemplate(template, customer, businessId) {
     try {
-      // Obtener datos del restaurante
-      const { data: restaurant } = await supabase
+      // Obtener datos del negocio
+      const { data: business } = await supabase
         .from('businesses')
         .select('name, email, phone')
         .eq('id', businessId)
@@ -419,10 +419,10 @@ export class CRMDailyJobEnhanced {
         last_visit: customer.last_visit
       };
       
-      const restaurantData = {
-        name: restaurant?.name || 'Nuestro Restaurante',
-        email: restaurant?.email || '',
-        phone: restaurant?.phone || ''
+      const businessData = {
+        name: business?.name || 'Nuestro Negocio',
+        email: business?.email || '',
+        phone: business?.phone || ''
       };
       
       // Renderizar usando función SQL (más eficiente)
@@ -430,7 +430,7 @@ export class CRMDailyJobEnhanced {
         .rpc('render_message_template', {
           template_content: template.content_markdown,
           customer_data: customerData,
-          restaurant_data: restaurantData
+          business_data: businessData
         });
       
       if (error) throw error;

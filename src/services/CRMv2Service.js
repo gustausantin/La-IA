@@ -158,7 +158,17 @@ export async function executeAutomationRules(businessId, segment = null) {
 }
 
 // 8. OBTENER RESUMEN DE SEGMENTACIÓN
+// ⚠️ NOTA: La tabla crm_segment_overview no existe en el esquema actual.
+// Esta función está comentada hasta que se implemente la tabla o una vista equivalente.
 export async function getSegmentOverview(businessId) {
+    console.warn('⚠️ getSegmentOverview: La tabla crm_segment_overview no existe. Retornando array vacío.');
+    return {
+        success: false,
+        error: 'La tabla crm_segment_overview no existe en el esquema actual',
+        segments: []
+    };
+    
+    /* CÓDIGO ORIGINAL (comentado hasta que exista la tabla):
     try {
         const { data, error } = await supabase
             .from('crm_segment_overview')
@@ -179,6 +189,7 @@ export async function getSegmentOverview(businessId) {
             segments: []
         };
     }
+    */
 }
 
 // 9. OBTENER FEATURES DE CLIENTES
@@ -207,11 +218,12 @@ export async function getCustomerFeatures(businessId, limit = 100) {
     }
 }
 
-// 10. GESTIÓN DE CONFIGURACIÓN CRM
+// 10. GESTIÓN DE CONFIGURACIÓN CRM (usando crm_business_overrides)
+// ⚠️ NOTA: La tabla crm_settings no existe. Se usa crm_business_overrides en su lugar.
 export async function getCRMSettings(businessId) {
     try {
         const { data, error } = await supabase
-            .from('crm_settings')
+            .from('crm_business_overrides')
             .select('*')
             .eq('business_id', businessId)
             .maybeSingle();
@@ -235,7 +247,7 @@ export async function getCRMSettings(businessId) {
 export async function updateCRMSettings(businessId, settings) {
     try {
         const { data, error } = await supabase
-            .from('crm_settings')
+            .from('crm_business_overrides')
             .upsert({
                 business_id: businessId,
                 ...settings,
@@ -306,16 +318,16 @@ export function isVIP(customer, settings = {}) {
 export const DEFAULT_TEMPLATES = {
     nuevo: {
         email: {
-            subject: '¡Bienvenido a {restaurante}, {nombre}!',
+            subject: '¡Bienvenido a {negocio}, {nombre}!',
             body: '¡Gracias por visitarnos, {nombre}! Esperamos verte pronto de nuevo. Tu día favorito parece ser {fav_weekday} - ¡te esperamos! Reserva fácil: {link_reserva}'
         },
         whatsapp: {
-            body: '¡Hola {nombre}! 👋 Gracias por venir a {restaurante}. ¿Te gustó {top_dish}? ¡Reserva para {fav_weekday}! {link_reserva}'
+            body: '¡Hola {nombre}! 👋 Gracias por venir a {negocio}. ¿Te gustó {top_dish}? ¡Reserva para {fav_weekday}! {link_reserva}'
         }
     },
     activo: {
         email: {
-            subject: '{nombre}, tu mesa en {restaurante} te espera',
+            subject: '{nombre}, tu cita en {negocio} te espera',
             body: 'Hola {nombre}, este {fav_weekday} sobre las {fav_hour_block}:00 suele ser tu horario perfecto. ¿Reservamos tu mesa? {link_reserva}'
         },
         whatsapp: {
@@ -333,7 +345,7 @@ export const DEFAULT_TEMPLATES = {
     },
     inactivo: {
         email: {
-            subject: '¡Vuelve a {restaurante}, {nombre}!',
+            subject: '¡Vuelve a {negocio}, {nombre}!',
             body: 'Te echamos mucho de menos, {nombre}. Vuelve esta semana y disfruta de un 20% de descuento (válido hasta el domingo). {link_reserva}'
         },
         whatsapp: {
@@ -343,7 +355,7 @@ export const DEFAULT_TEMPLATES = {
     vip: {
         email: {
             subject: '{nombre}, tu experiencia VIP te espera',
-            body: 'Estimado {nombre}, tu mesa preferida en {restaurante} está lista cuando tú digas. Como siempre, a las {fav_hour_block}:00. {link_reserva}'
+            body: 'Estimado {nombre}, tu cita preferida en {negocio} está lista cuando tú digas. Como siempre, a las {fav_hour_block}:00. {link_reserva}'
         },
         whatsapp: {
             body: '👑 {nombre}, tu mesa VIP te espera. {fav_weekday} a las {fav_hour_block}:00 como siempre. {link_reserva}'

@@ -42,7 +42,7 @@ export const useDashboardData = (businessId) => {
     if (!businessId) return;
 
     try {
-      // LIMPIO: Datos vacíos para nuevo restaurant
+      // LIMPIO: Datos vacíos para nuevo business
       const emptyStats = {
         total_reservations: 0,
         total_covers: 0,

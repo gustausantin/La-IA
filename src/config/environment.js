@@ -42,7 +42,7 @@ export const SUPABASE_CONFIG = {
 export const APP_CONFIG = {
   name: 'La-IA',
   version: '1.0.0',
-  description: 'Sistema de Inteligencia para Restaurantes',
+  description: 'Sistema de Inteligencia para Negocios',
   company: 'La-IA Team',
   supportEmail: 'soporte@la-ia.com',
   website: 'https://la-ia.com'

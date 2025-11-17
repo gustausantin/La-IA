@@ -131,7 +131,7 @@ export class CRMIntegrationService {
   }
   
   /**
-   * Obtiene credenciales del canal para un restaurante
+   * Obtiene credenciales del canal para un negocio
    */
   static async getChannelCredentials(businessId, channel) {
     try {
@@ -144,7 +144,7 @@ export class CRMIntegrationService {
         .single();
       
       if (error || !data) {
-        console.log(`⚠️ No hay credenciales activas para ${channel} en restaurant ${businessId}`);
+        console.log(`⚠️ No hay credenciales activas para ${channel} en business ${businessId}`);
         return null;
       }
       

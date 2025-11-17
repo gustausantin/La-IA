@@ -177,7 +177,42 @@ const Configuracion = () => {
                 position: 'top-center'
             });
         }
-    }, [searchParams, location.state]);
+
+        // 🆕 Manejar callback de Google Calendar OAuth
+        const integration = searchParams.get('integration');
+        const status = searchParams.get('status');
+        const message = searchParams.get('message');
+
+        if (integration === 'google_calendar') {
+            if (status === 'success') {
+                toast.success('✅ Google Calendar conectado exitosamente!', {
+                    duration: 5000,
+                    position: 'top-center'
+                });
+                // Cambiar a la pestaña de integraciones si existe
+                if (validTabs.includes('canales')) {
+                    setActiveTab('canales');
+                }
+                // Limpiar parámetros de la URL
+                const newSearchParams = new URLSearchParams(searchParams);
+                newSearchParams.delete('integration');
+                newSearchParams.delete('status');
+                newSearchParams.delete('message');
+                navigate(`/configuracion?${newSearchParams.toString()}`, { replace: true });
+            } else if (status === 'error') {
+                toast.error(`❌ Error al conectar Google Calendar: ${message || 'Error desconocido'}`, {
+                    duration: 7000,
+                    position: 'top-center'
+                });
+                // Limpiar parámetros de la URL
+                const newSearchParams = new URLSearchParams(searchParams);
+                newSearchParams.delete('integration');
+                newSearchParams.delete('status');
+                newSearchParams.delete('message');
+                navigate(`/configuracion?${newSearchParams.toString()}`, { replace: true });
+            }
+        }
+    }, [searchParams, location.state, navigate]);
     
     const [settings, setSettings] = useState({
         name: "",

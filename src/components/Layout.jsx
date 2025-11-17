@@ -28,7 +28,7 @@ export default function Layout() {
     const location = useLocation();
     const {
         user,
-        business: restaurant,
+        business,
         signOut,
         forceLogout,
         agentStatus,
@@ -170,7 +170,7 @@ export default function Layout() {
                                     <div className="absolute right-0 mt-2 w-56 sm:w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-50">
                                         <div className="p-3 border-b border-gray-200">
                                             <p className="font-semibold text-sm sm:text-base text-gray-900 truncate">
-                                                {restaurant?.name}
+                                                {business?.name}
                                             </p>
                                             <p className="text-xs sm:text-sm text-gray-600 truncate">
                                                 {user?.email}
@@ -214,7 +214,7 @@ export default function Layout() {
                         {/* Info del negocio */}
                         <div className="px-4 py-4 bg-gray-50 border-b border-gray-200">
                             <h3 className="font-semibold text-gray-900 truncate">
-                                {restaurant?.name || "Mi Negocio"}
+                                {business?.name || "Mi Negocio"}
                             </h3>
                             <p className="text-sm text-gray-600 truncate mt-1">
                                 {user?.email}
@@ -278,7 +278,7 @@ export default function Layout() {
                                         </button>
                                     </div>
                                     <div>
-                                        <p className="font-semibold truncate">{restaurant?.name}</p>
+                                        <p className="font-semibold truncate">{business?.name}</p>
                                         <p className="text-sm opacity-90 truncate">{user?.email}</p>
                                     </div>
                                 </div>
@@ -367,7 +367,7 @@ export default function Layout() {
                 <NotificationCenter
                     isOpen={showNotifications}
                     onClose={() => setShowNotifications(false)}
-                    restaurant={restaurant}
+                    business={business}
                 />
 
                 <EmergencyActions />

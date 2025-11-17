@@ -12,7 +12,7 @@ export class CRMEligibilityService {
   /**
    * Verifica si un cliente es elegible para recibir un mensaje
    * @param {string} customerId - ID del cliente
-   * @param {string} businessId - ID del restaurante
+   * @param {string} businessId - ID del negocio
    * @param {string} automationRuleId - ID de la regla de automatización
    * @param {object} options - Opciones adicionales
    * @returns {Promise<{eligible: boolean, reasons: string[], channel: string|null}>}
@@ -373,7 +373,7 @@ export class CRMEligibilityService {
   }
   
   /**
-   * Obtiene estadísticas de elegibilidad para un restaurante
+   * Obtiene estadísticas de elegibilidad para un negocio
    */
   static async getEligibilityStats(businessId, dateRange = 7) {
     try {

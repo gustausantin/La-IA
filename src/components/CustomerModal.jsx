@@ -316,7 +316,7 @@ const CustomerModal = ({
             }
             
             if (!businessId) {
-                toast.error('❌ Error: No se encontró el ID del restaurante');
+                toast.error('❌ Error: No se encontró el ID del negocio');
                 setSaving(false);
                 return;
             }

@@ -100,7 +100,7 @@ class ConversationalAI {
       },
       
       // Información
-      'restaurant_info': {
+      'business_info': {
         patterns: [
           /horarios/i,
           /dónde están/i,
@@ -228,7 +228,7 @@ class ConversationalAI {
       make_reservation: () => this.handleReservationRequest(entities, context),
       cancel_reservation: () => this.handleCancellation(entities, context),
       modify_reservation: () => this.handleModification(entities, context),
-      restaurant_info: () => this.provideRestaurantInfo(entities, context),
+      business_info: () => this.provideBusinessInfo(entities, context),
       menu_inquiry: () => this.provideMenuInfo(entities, context),
       complaint: () => this.handleComplaint(entities, context),
       compliment: () => this.handleCompliment(entities, context),
@@ -380,7 +380,7 @@ class ConversationalAI {
   
   getFallbackResponse(message) {
     return {
-      response: 'Disculpa, no estoy seguro de cómo ayudarte con eso. ¿Podrías reformular tu pregunta o decirme si necesitas hacer una reserva, información del restaurante, o algo más específico?',
+      response: 'Disculpa, no estoy seguro de cómo ayudarte con eso. ¿Podrías reformular tu pregunta o decirme si necesitas hacer una reserva, información del negocio, o algo más específico?',
       intent: 'fallback',
       confidence: 0.1,
       entities: {},
@@ -388,7 +388,7 @@ class ConversationalAI {
       suggestions: [
         'Hacer una reserva',
         'Ver el menú',
-        'Información del restaurante',
+        'Información del negocio',
         'Hablar con un humano'
       ]
     };

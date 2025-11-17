@@ -73,7 +73,7 @@ export async function runDailyCRMJob() {
         
         console.log(`✅ Job diario CRM completado en ${jobResults.duration_minutes} minutos`);
         console.log(`📊 Resultados:`, {
-            restaurantes: jobResults.businesses_processed,
+            negocios: jobResults.businesses_processed,
             clientes_actualizados: jobResults.customers_updated,
             cambios_segmento: jobResults.segments_changed,
             automatizaciones_enviadas: jobResults.automations_sent,
@@ -215,36 +215,36 @@ async function generateDailyMetrics() {
     try {
         console.log('📈 Generando métricas diarias');
         
-        // Obtener todos los restaurantes activos
+        // Obtener todos los negocios activos
         const { data: businesses, error: businessesError } = await supabase
             .from('businesses')
             .select('id, name')
             .eq('active', true);
             
         if (businessesError) {
-            result.errors.push(`Error obteniendo restaurantes: ${businessesError.message}`);
+            result.errors.push(`Error obteniendo negocios: ${businessesError.message}`);
             return result;
         }
         
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
         
-        // Generar métricas para cada restaurante
-        for (const restaurant of businesses || []) {
+        // Generar métricas para cada negocio
+        for (const business of businesses || []) {
             try {
                 // Obtener estadísticas del día
                 const { data: customers, error: customersError } = await supabase
                     .from('customers')
                     .select('segment_auto, created_at, total_spent, visits_count')
-                    .eq('business_id', restaurant.id);
+                    .eq('business_id', business.id);
                     
                 if (customersError) {
-                    result.errors.push(`Métricas restaurante ${restaurant.id}: ${customersError.message}`);
+                    result.errors.push(`Métricas negocio ${business.id}: ${customersError.message}`);
                     continue;
                 }
-                
+
                 // Calcular métricas
                 const metrics = {
-                    business_id: restaurant.id,
+                    business_id: business.id,
                     date: today,
                     total_customers: customers?.length || 0,
                     new_customers: customers?.filter(c => 
@@ -265,7 +265,7 @@ async function generateDailyMetrics() {
                 const { error: analyticsError } = await supabase
                     .from('analytics')
                     .upsert({
-                        business_id: restaurant.id,
+                        business_id: business.id,
                         type: 'crm_daily',
                         date: today,
                         value: metrics.total_customers,
@@ -275,13 +275,13 @@ async function generateDailyMetrics() {
                     });
                     
                 if (analyticsError) {
-                    result.errors.push(`Guardando métricas ${restaurant.id}: ${analyticsError.message}`);
+                    result.errors.push(`Guardando métricas ${business.id}: ${analyticsError.message}`);
                 } else {
-                    console.log(`📊 Métricas guardadas para ${restaurant.name}: ${metrics.total_customers} clientes`);
+                    console.log(`📊 Métricas guardadas para ${business.name}: ${metrics.total_customers} clientes`);
                 }
                 
-            } catch (restaurantError) {
-                result.errors.push(`Restaurante ${restaurant.id}: ${restaurantError.message}`);
+            } catch (businessError) {
+                result.errors.push(`Negocio ${business.id}: ${businessError.message}`);
             }
         }
         
@@ -322,13 +322,13 @@ async function logJobExecution(jobResults) {
 }
 
 /**
- * EJECUTAR MANUALMENTE EL JOB PARA UN RESTAURANTE ESPECÍFICO
+ * EJECUTAR MANUALMENTE EL JOB PARA UN NEGOCIO ESPECÍFICO
  */
-export async function runCRMJobForRestaurant(businessId) {
+export async function runCRMJobForBusiness(businessId) {
     try {
-        console.log(`🏪 Ejecutando job CRM para restaurante ${businessId}`);
+        console.log(`🏪 Ejecutando job CRM para negocio ${businessId}`);
         
-        // 1. Actualizar clientes del restaurante
+        // 1. Actualizar clientes del negocio
         const { data: customers, error: customersError } = await supabase
             .from('customers')
             .select('id')
@@ -367,11 +367,11 @@ export async function runCRMJobForRestaurant(businessId) {
             automations: automationResult
         };
         
-        console.log('✅ Job CRM completado para restaurante:', result);
+        console.log('✅ Job CRM completado para negocio:', result);
         return result;
         
     } catch (error) {
-        console.error('❌ Error en runCRMJobForRestaurant:', error);
+        console.error('❌ Error en runCRMJobForBusiness:', error);
         return { success: false, error: error.message };
     }
 }
@@ -444,7 +444,7 @@ export async function getCRMHealthStatus() {
 
 export default {
     runDailyCRMJob,
-    runCRMJobForRestaurant,
+    runCRMJobForBusiness,
     getCRMHealthStatus
 };
 

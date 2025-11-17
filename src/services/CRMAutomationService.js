@@ -29,7 +29,7 @@ export class CRMAutomationProcessor {
      */
     async executeAllAutomations() {
         try {
-            console.log(`🤖 CRM: Iniciando automatizaciones para restaurante ${this.businessId}`);
+            console.log(`🤖 CRM: Iniciando automatizaciones para negocio ${this.businessId}`);
             
             // 1. Obtener reglas activas
             const { data: activeRules, error: rulesError } = await supabase
@@ -383,7 +383,7 @@ export class CRMAutomationProcessor {
                 days_since_last_visit: customer.last_visit_at 
                     ? differenceInDays(new Date(), parseISO(customer.last_visit_at))
                     : 999,
-                restaurant_name: 'Tu Restaurante' // TODO: obtener de configuración
+                business_name: 'Tu Negocio' // TODO: obtener de configuración
             };
             
             // Reemplazar variables en contenido y asunto
@@ -403,7 +403,7 @@ export class CRMAutomationProcessor {
             console.error('❌ Error personalizando plantilla:', error);
             return {
                 content: template.content || 'Mensaje automático',
-                subject: template.subject || 'Mensaje de tu restaurante',
+                subject: template.subject || 'Mensaje de tu negocio',
                 variables: []
             };
         }
@@ -514,7 +514,7 @@ export class CRMAutomationProcessor {
  */
 export async function runCRMAutomations(businessId) {
     try {
-        console.log(`🚀 Iniciando automatizaciones CRM para restaurante ${businessId}`);
+        console.log(`🚀 Iniciando automatizaciones CRM para negocio ${businessId}`);
         
         const processor = new CRMAutomationProcessor(businessId);
         const result = await processor.executeAllAutomations();
@@ -529,32 +529,32 @@ export async function runCRMAutomations(businessId) {
 }
 
 /**
- * EJECUTAR AUTOMATIZACIONES PARA TODOS LOS RESTAURANTES
+ * EJECUTAR AUTOMATIZACIONES PARA TODOS LOS NEGOCIOS
  */
 export async function runGlobalCRMAutomations() {
     try {
         console.log('🌍 Ejecutando automatizaciones globales CRM');
         
-        // Obtener todos los restaurantes activos
+        // Obtener todos los negocios activos
         const { data: businesses, error } = await supabase
             .from('businesses')
             .select('id, name')
             .eq('active', true);
             
         if (error) {
-            console.error('❌ Error obteniendo restaurantes:', error);
+            console.error('❌ Error obteniendo negocios:', error);
             throw error;
         }
         
         const results = [];
         
-        // Ejecutar para cada restaurante
-        for (const restaurant of businesses || []) {
-            console.log(`🏪 Procesando restaurante: ${restaurant.name} (${restaurant.id})`);
-            const result = await runCRMAutomations(restaurant.id);
+        // Ejecutar para cada negocio
+        for (const business of businesses || []) {
+            console.log(`🏪 Procesando negocio: ${business.name} (${business.id})`);
+            const result = await runCRMAutomations(business.id);
             results.push({
-                business_id: restaurant.id,
-                restaurant_name: restaurant.name,
+                business_id: business.id,
+                business_name: business.name,
                 ...result
             });
         }

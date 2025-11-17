@@ -9,7 +9,7 @@ export class AvailabilityService {
     
     /**
      * Verificar disponibilidad para una fecha/hora específica
-     * @param {string} businessId - ID del restaurante
+     * @param {string} businessId - ID del negocio
      * @param {string} date - Fecha en formato YYYY-MM-DD
      * @param {string} time - Hora en formato HH:MM
      * @param {number} partySize - Número de personas
@@ -132,7 +132,7 @@ export class AvailabilityService {
 
     /**
      * Generar slots de disponibilidad para un rango de fechas
-     * @param {string} businessId - ID del restaurante
+     * @param {string} businessId - ID del negocio
      * @param {string} startDate - Fecha de inicio (YYYY-MM-DD)
      * @param {string} endDate - Fecha de fin (YYYY-MM-DD, opcional)
      * @returns {Promise<Object>} Resultado de la generación
@@ -168,7 +168,7 @@ export class AvailabilityService {
 
     /**
      * Obtener slots de disponibilidad para una fecha específica
-     * @param {string} businessId - ID del restaurante
+     * @param {string} businessId - ID del negocio
      * @param {string} date - Fecha en formato YYYY-MM-DD
      * @param {string} status - Estado de los slots ('free', 'reserved', 'blocked', etc.)
      * @returns {Promise<Object>} Lista de slots
@@ -217,7 +217,7 @@ export class AvailabilityService {
 
     /**
      * Obtener horarios disponibles para una fecha (agrupados por turnos)
-     * @param {string} businessId - ID del restaurante
+     * @param {string} businessId - ID del negocio
      * @param {string} date - Fecha en formato YYYY-MM-DD
      * @param {number} partySize - Número de personas
      * @returns {Promise<Object>} Horarios disponibles agrupados
@@ -348,25 +348,25 @@ export class AvailabilityService {
 
     /**
      * Validar si una fecha/hora está disponible para reservas
-     * @param {string} businessId - ID del restaurante
+     * @param {string} businessId - ID del negocio
      * @param {string} date - Fecha en formato YYYY-MM-DD
      * @param {string} time - Hora en formato HH:MM
      * @returns {Promise<Object>} Resultado de validación
      */
     static async validateBookingTime(businessId, date, time) {
         try {
-            // 1. Verificar configuración del restaurante
-            const { data: restaurant, error: restaurantError } = await supabase
+            // 1. Verificar configuración del negocio
+            const { data: business, error: businessError } = await supabase
                 .from('businesses')
                 .select('settings')
                 .eq('id', businessId)
                 .single();
 
-            if (restaurantError) {
-                throw new Error(`Error obteniendo configuración: ${restaurantError.message}`);
+            if (businessError) {
+                throw new Error(`Error obteniendo configuración: ${businessError.message}`);
             }
 
-            const settings = restaurant.settings || {};
+            const settings = business.settings || {};
             const minAdvanceHours = settings.min_advance_hours || 2;
             const allowSameDayBookings = settings.allow_same_day_bookings !== false;
 
@@ -445,8 +445,8 @@ export class AvailabilityService {
     }
 
     /**
-     * Inicializar sistema de disponibilidades para un restaurante
-     * @param {string} businessId - ID del restaurante
+     * Inicializar sistema de disponibilidades para un negocio
+     * @param {string} businessId - ID del negocio
      * @returns {Promise<Object>} Resultado de la inicialización
      */
     static async initializeAvailabilitySystem(businessId) {

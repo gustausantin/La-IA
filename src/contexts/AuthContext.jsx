@@ -410,7 +410,7 @@ const AuthProvider = ({ children }) => {
         password: userData.password,
         options: { 
           data: { 
-            business_name: userData.businessName || userData.restaurantName, 
+            business_name: userData.businessName || userData.restaurantName, // Legacy support 
             owner_name: userData.ownerName 
           } 
         }

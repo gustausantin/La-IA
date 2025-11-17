@@ -27,7 +27,7 @@ const WEBHOOK_CONFIG = {
     external: {
         sendgrid: {
             api_key: import.meta.env.VITE_SENDGRID_API_KEY,
-            from_email: import.meta.env.VITE_FROM_EMAIL || 'noreply@tu-restaurante.com'
+            from_email: import.meta.env.VITE_FROM_EMAIL || 'noreply@tu-negocio.com'
         },
         twilio: {
             account_sid: import.meta.env.VITE_TWILIO_ACCOUNT_SID,

@@ -78,14 +78,14 @@ const sendNoShowMessage = async (reservation) => {
             return;
         }
 
-        // 2. Obtener datos del cliente y restaurante
+        // 2. Obtener datos del cliente y negocio
         const { data: customer } = await supabase
             .from('customers')
             .select('name, phone, email')
             .eq('id', reservation.customer_id)
             .single();
 
-        const { data: restaurant } = await supabase
+        const { data: business } = await supabase
             .from('businesses')
             .select('name')
             .eq('id', reservation.business_id)
@@ -99,7 +99,7 @@ const sendNoShowMessage = async (reservation) => {
         let message = template.content_markdown;
         message = message.replace(/\{\{customer_name\}\}/g, customer.name || 'Cliente');
         message = message.replace(/\{\{business_name\}\}/g, business.name || 'Negocio');
-        message = message.replace(/\{\{restaurant_name\}\}/g, business.name || 'Negocio'); // Legacy
+        message = message.replace(/\{\{restaurant_name\}\}/g, business?.name || 'Negocio'); // Legacy
         message = message.replace(/\{\{reservation_date\}\}/g, 
             new Date(reservation.reservation_date).toLocaleDateString('es-ES'));
 
@@ -3602,7 +3602,7 @@ const ReservationFormModal = ({
                     consent_sms: customerData.consent_sms || false,
                     consent_whatsapp: customerData.consent_whatsapp || false,
                     
-                    // 🏪 RESTAURANT DATA
+                    // 🏪 BUSINESS DATA
                     business_id: businessId,
                     visits_count: 1,
                     last_visit_at: reservationData.reservation_date,

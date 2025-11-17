@@ -21,7 +21,7 @@ export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
         try {
             const dateStr = format(selectedDate, 'yyyy-MM-dd');
 
-            // 1. Obtener todas las mesas activas del restaurante
+            // 1. Obtener todas las mesas activas del negocio
             let tablesQuery = supabase
                 .from('resources')
                 .select('id, name, capacity, is_active')
@@ -92,7 +92,7 @@ export const useOccupancyData = (businessId, selectedDate, selectedZone) => {
             let reservedSlots = 0;
             let freeSlots = 0;
             let totalRevenue = 0;
-            const averageTicketPrice = 45; // Esto debería venir de restaurant_settings
+            const averageTicketPrice = 45; // Esto debería venir de business_settings
             const tableStats = [];
 
             const combinedData = tables.map(table => {

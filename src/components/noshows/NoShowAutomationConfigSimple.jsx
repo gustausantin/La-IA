@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
  * El sistema decide automáticamente todo lo demás
  */
 export default function NoShowAutomationConfigSimple() {
-    const { restaurant } = useAuthContext();
+    const { business } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [enabled, setEnabled] = useState(true);
@@ -18,7 +18,7 @@ export default function NoShowAutomationConfigSimple() {
     // Cargar estado actual
     useEffect(() => {
         const loadConfig = async () => {
-            if (!restaurant?.id) return;
+            if (!business?.id) return;
 
             try {
                 setLoading(true);
@@ -26,7 +26,7 @@ export default function NoShowAutomationConfigSimple() {
                 const { data, error } = await supabase
                     .from('businesses')
                     .select('settings')
-                    .eq('id', restaurant.id)
+                    .eq('id', business.id)
                     .single();
 
                 if (error) throw error;
@@ -44,11 +44,11 @@ export default function NoShowAutomationConfigSimple() {
         };
 
         loadConfig();
-    }, [restaurant?.id]);
+    }, [business?.id]);
 
     // Guardar configuración
     const handleToggle = async (newState) => {
-        if (!restaurant?.id) return;
+        if (!business?.id) return;
 
         try {
             setSaving(true);
@@ -59,7 +59,7 @@ export default function NoShowAutomationConfigSimple() {
             const { data: currentData } = await supabase
                 .from('businesses')
                 .select('settings')
-                .eq('id', restaurant.id)
+                .eq('id', business.id)
                 .single();
 
             const currentSettings = currentData?.settings || {};
@@ -77,7 +77,7 @@ export default function NoShowAutomationConfigSimple() {
             const { error } = await supabase
                 .from('businesses')
                 .update({ settings: updatedSettings })
-                .eq('id', restaurant.id);
+                .eq('id', business.id);
 
             if (error) throw error;
 
@@ -204,7 +204,7 @@ export default function NoShowAutomationConfigSimple() {
                     : 'bg-gradient-to-r from-gray-400 to-gray-500'
             }`}>
                 <p className="text-white text-sm font-bold">
-                    {enabled ? '🛡️ Sistema Protegiendo tu Restaurante' : '⏸️ Sistema en Pausa'}
+                    {enabled ? '🛡️ Sistema Protegiendo tu Negocio' : '⏸️ Sistema en Pausa'}
                 </p>
                 <p className="text-white/90 text-xs mt-0.5">
                     {enabled 

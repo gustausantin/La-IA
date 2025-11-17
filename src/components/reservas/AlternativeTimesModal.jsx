@@ -97,7 +97,7 @@ export const AlternativeTimesModal = ({
                 No hay mesas disponibles para {partySize} persona{partySize > 1 ? 's' : ''} en esta fecha.
               </p>
               <p className="text-gray-500 text-sm mt-2">
-                Prueba con otra fecha o contacta directamente con el restaurante.
+                Prueba con otra fecha o contacta directamente con el negocio.
               </p>
             </div>
           ) : (

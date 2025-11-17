@@ -209,7 +209,7 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                     appointment_time: formData.reservation_time, // ✅ Campo real de BD
                     party_size: formData.party_size,
                     resource_id: selectedTableId, // ✅ Para salones: resource_id (empleado/recurso)
-                    table_id: selectedTableId, // ✅ Para restaurantes: table_id (mesa)
+                    table_id: selectedTableId, // ✅ Legacy: table_id (mesa) - ya no se usa para nuevos negocios
                     employee_id: selectedEmployeeId, // ✅ NUEVO: Asociar directamente con el empleado
                     special_requests: formData.special_requests || null,
                     status: 'confirmed', // ✅ Estado en inglés (confirmed, pending, cancelled, etc.)
@@ -223,7 +223,7 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
             if (reservationError) throw reservationError;
             
             // 4. Marcar slot(s) como ocupado(s) si existe(n)
-            // ✅ Los slots se generan con resource_id (para salones) o table_id (para restaurantes)
+            // ✅ Los slots se generan con resource_id (para todos los tipos de negocio)
             // Necesitamos actualizar todos los slots que corresponden a esta reserva
             if (availabilityStatus.availableSlots.length > 0) {
                 // Buscar slot que coincida con el recurso/mesa seleccionado

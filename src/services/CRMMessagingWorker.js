@@ -84,7 +84,7 @@ export class CRMMessagingWorker {
           customer:customer_id(*),
           template:template_id(*),
           automation_rule:automation_rule_id(*),
-          restaurant:business_id(*)
+          business:business_id(*)
         `)
         .eq('status', 'planned')
         .lte('scheduled_for', now)
@@ -192,7 +192,7 @@ export class CRMMessagingWorker {
    */
   async sendWhatsAppMessage(message) {
     try {
-      // 1. Obtener credenciales de Twilio para el restaurante
+      // 1. Obtener credenciales de Twilio para el negocio
       const credentials = await this.getChannelCredentials(message.business_id, 'twilio_whatsapp');
       
       if (!credentials) {
@@ -236,7 +236,7 @@ export class CRMMessagingWorker {
    */
   async sendEmailMessage(message) {
     try {
-      // 1. Obtener credenciales de email para el restaurante
+      // 1. Obtener credenciales de email para el negocio
       const credentials = await this.getChannelCredentials(message.business_id, 'sendgrid_email');
       
       if (!credentials) {
@@ -247,7 +247,7 @@ export class CRMMessagingWorker {
       const emailData = {
         from: `${credentials.from_name} <${credentials.from_email}>`,
         to: message.customer.email,
-        subject: message.subject_rendered || message.template?.subject || 'Mensaje de ' + message.restaurant.name,
+        subject: message.subject_rendered || message.template?.subject || 'Mensaje de ' + (message.business?.name || 'tu negocio'),
         html: this.convertMarkdownToHTML(message.content_rendered),
         text: message.content_rendered
       };
@@ -271,7 +271,7 @@ export class CRMMessagingWorker {
   }
   
   /**
-   * Obtiene credenciales del canal para un restaurante
+   * Obtiene credenciales del canal para un negocio
    */
   async getChannelCredentials(businessId, channel) {
     try {

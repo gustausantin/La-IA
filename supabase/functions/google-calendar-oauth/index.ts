@@ -47,7 +47,7 @@ serve(async (req) => {
         code,
         client_id: Deno.env.get('GOOGLE_CLIENT_ID') || '',
         client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') || '',
-        redirect_uri: `${Deno.env.get('PUBLIC_SITE_URL')}/oauth/google/callback`,
+        redirect_uri: `${Deno.env.get('SUPABASE_URL')}/functions/v1/google-calendar-oauth`,
         grant_type: 'authorization_code',
       }),
     })
@@ -105,7 +105,14 @@ serve(async (req) => {
     if (dbError) throw dbError
 
     // Redirect back to app
-    const redirectUrl = `${Deno.env.get('PUBLIC_SITE_URL')}/configuracion?integration=google_calendar&status=success`
+    // Construir URL de redirección - usar PUBLIC_SITE_URL o construir desde el request
+    const publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
+                          Deno.env.get('SITE_URL') || 
+                          'http://localhost:5173' // Fallback para desarrollo
+    
+    const redirectUrl = `${publicSiteUrl}/configuracion?integration=google_calendar&status=success`
+    
+    console.log('✅ Redirecting to:', redirectUrl)
     
     return new Response(null, {
       status: 302,
@@ -118,7 +125,14 @@ serve(async (req) => {
   } catch (error) {
     console.error('OAuth error:', error)
     
-    const redirectUrl = `${Deno.env.get('PUBLIC_SITE_URL')}/configuracion?integration=google_calendar&status=error&message=${encodeURIComponent(error.message)}`
+    // Construir URL de redirección con fallback
+    const publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
+                          Deno.env.get('SITE_URL') || 
+                          'http://localhost:5173' // Fallback para desarrollo
+    
+    const redirectUrl = `${publicSiteUrl}/configuracion?integration=google_calendar&status=error&message=${encodeURIComponent(error.message)}`
+    
+    console.error('❌ Redirecting to error page:', redirectUrl)
     
     return new Response(null, {
       status: 302,

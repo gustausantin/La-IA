@@ -75,11 +75,11 @@ const getNewReservationEmailHTML = (variables) => {
 <div style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.08);overflow:hidden;">
 <div style="background-color:#7c3aed;padding:30px 40px;color:#ffffff;text-align:center;">
 <h1 style="margin:0;font-size:28px;font-weight:bold;">🍽️ Nueva Reserva</h1>
-<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.RestaurantName}</p>
+<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.BusinessName}</p>
 </div>
 <div style="padding:40px;">
 <p style="font-size:18px;color:#1a1a1a;margin:0 0 25px 0;">Hola <strong>${variables.ContactName}</strong>,</p>
-<p style="font-size:16px;color:#333333;line-height:1.6;margin:0 0 30px 0;">Se ha confirmado una nueva reserva en tu restaurante:</p>
+<p style="font-size:16px;color:#333333;line-height:1.6;margin:0 0 30px 0;">Se ha confirmado una nueva reserva en tu negocio:</p>
 <div style="background-color:#f9fafb;border-left:4px solid #7c3aed;padding:25px;border-radius:8px;margin-bottom:30px;">
 <div style="margin-bottom:15px;"><span style="color:#6b7280;font-size:14px;display:block;margin-bottom:4px;">👤 Cliente</span><span style="color:#111827;font-size:18px;font-weight:600;">${variables.CustomerName}</span></div>
 <div style="margin-bottom:15px;"><span style="color:#6b7280;font-size:14px;display:block;margin-bottom:4px;">📧 Email</span><span style="color:#111827;font-size:16px;">${variables.CustomerEmail}</span></div>
@@ -125,11 +125,11 @@ const getModifiedReservationEmailHTML = (variables, changes) => {
 <div style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.08);overflow:hidden;">
 <div style="background-color:#f59e0b;padding:30px 40px;color:#ffffff;text-align:center;">
 <h1 style="margin:0;font-size:28px;font-weight:bold;">📝 Reserva Modificada</h1>
-<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.RestaurantName}</p>
+<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.BusinessName}</p>
 </div>
 <div style="padding:40px;">
 <p style="font-size:18px;color:#1a1a1a;margin:0 0 25px 0;">Hola <strong>${variables.ContactName}</strong>,</p>
-<p style="font-size:16px;color:#333333;line-height:1.6;margin:0 0 30px 0;">Se ha <strong style="color:#f59e0b;">modificado una reserva</strong> en tu restaurante:</p>
+<p style="font-size:16px;color:#333333;line-height:1.6;margin:0 0 30px 0;">Se ha <strong style="color:#f59e0b;">modificado una reserva</strong> en tu negocio:</p>
 <div style="background-color:#fffbeb;border-left:4px solid #f59e0b;padding:25px;border-radius:8px;margin-bottom:20px;">
 <div style="margin-bottom:15px;"><span style="color:#6b7280;font-size:14px;display:block;margin-bottom:4px;">👤 Cliente</span><span style="color:#111827;font-size:18px;font-weight:600;">${variables.CustomerName}</span></div>
 </div>
@@ -158,11 +158,11 @@ const getCancelledReservationEmailHTML = (variables) => {
 <div style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.08);overflow:hidden;">
 <div style="background-color:#ef4444;padding:30px 40px;color:#ffffff;text-align:center;">
 <h1 style="margin:0;font-size:28px;font-weight:bold;">❌ Reserva Cancelada</h1>
-<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.RestaurantName}</p>
+<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.BusinessName}</p>
 </div>
 <div style="padding:40px;">
 <p style="font-size:18px;color:#1a1a1a;margin:0 0 25px 0;">Hola <strong>${variables.ContactName}</strong>,</p>
-<p style="font-size:16px;color:#333333;line-height:1.6;margin:0 0 30px 0;">Se ha <strong style="color:#ef4444;">cancelado una reserva</strong> en tu restaurante:</p>
+<p style="font-size:16px;color:#333333;line-height:1.6;margin:0 0 30px 0;">Se ha <strong style="color:#ef4444;">cancelado una reserva</strong> en tu negocio:</p>
 <div style="background-color:#fef2f2;border-left:4px solid #ef4444;padding:25px;border-radius:8px;margin-bottom:30px;">
 <div style="margin-bottom:15px;"><span style="color:#6b7280;font-size:14px;display:block;margin-bottom:4px;">👤 Cliente</span><span style="color:#111827;font-size:18px;font-weight:600;">${variables.CustomerName}</span></div>
 <div style="margin-bottom:15px;"><span style="color:#6b7280;font-size:14px;display:block;margin-bottom:4px;">📅 Fecha</span><span style="color:#111827;font-size:18px;font-weight:600;text-decoration:line-through;opacity:0.6;">${variables.ReservationDate}</span></div>
@@ -183,11 +183,11 @@ ${variables.CancellationReason ? `<hr style="border:none;border-top:1px solid #f
 };
 
 // Enviar email de nueva reserva
-export const sendNewReservationEmail = async (reservation, restaurant) => {
+export const sendNewReservationEmail = async (reservation, business) => {
   try {
     console.log('📧 Enviando email de nueva reserva:', reservation.id);
     
-    const settings = restaurant.settings || {};
+    const settings = business.settings || {};
     const notificationSettings = settings.notifications || {};
     const reservationNotif = notificationSettings.new_reservation || {};
     
@@ -204,7 +204,7 @@ export const sendNewReservationEmail = async (reservation, restaurant) => {
     }
     
     // Obtener emails destino
-    const notificationEmails = settings.notification_emails || [restaurant.email];
+    const notificationEmails = settings.notification_emails || [business.email];
     
     if (!notificationEmails || notificationEmails.length === 0) {
       console.warn('⚠️ No hay emails configurados');
@@ -213,7 +213,7 @@ export const sendNewReservationEmail = async (reservation, restaurant) => {
     
     // Preparar variables
     const variables = {
-      RestaurantName: restaurant.name,
+      BusinessName: business.name,
       ContactName: settings.contact_name || 'Equipo',
       CustomerName: reservation.customer_name,
       CustomerEmail: reservation.customer_email,
@@ -234,8 +234,8 @@ export const sendNewReservationEmail = async (reservation, restaurant) => {
     console.log('📬 Enviando email a:', notificationEmails);
     
     const info = await transporter.sendMail({
-      from: `La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
       subject: `🍽️ Nueva reserva - ${reservation.customer_name}`,
       html,
@@ -261,11 +261,11 @@ const cleanAutomaticMessages = (text) => {
 };
 
 // Enviar email de reserva modificada
-export const sendModifiedReservationEmail = async (newReservation, oldReservation, restaurant) => {
+export const sendModifiedReservationEmail = async (newReservation, oldReservation, business) => {
   try {
     console.log('📧 Enviando email de modificación:', newReservation.id);
     
-    const settings = restaurant.settings || {};
+    const settings = business.settings || {};
     const notificationSettings = settings.notifications || {};
     const modifiedNotif = notificationSettings.modified_reservation || { enabled: true };
     
@@ -321,7 +321,7 @@ export const sendModifiedReservationEmail = async (newReservation, oldReservatio
       return { success: true, skipped: true, reason: 'no_changes' };
     }
     
-    const notificationEmails = settings.notification_emails || [restaurant.email];
+    const notificationEmails = settings.notification_emails || [business.email];
     
     if (!notificationEmails || notificationEmails.length === 0) {
       console.warn('⚠️ No hay emails configurados');
@@ -329,7 +329,7 @@ export const sendModifiedReservationEmail = async (newReservation, oldReservatio
     }
     
     const variables = {
-      RestaurantName: restaurant.name,
+      BusinessName: business.name,
       ContactName: settings.contact_name || 'Equipo',
       CustomerName: newReservation.customer_name,
       AppURL: `https://la-ia-app.vercel.app/reservas?id=${newReservation.id}`,
@@ -342,8 +342,8 @@ export const sendModifiedReservationEmail = async (newReservation, oldReservatio
     console.log('📬 Enviando email a:', notificationEmails);
     
     const info = await transporter.sendMail({
-      from: `La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
       subject: `📝 Reserva modificada - ${newReservation.customer_name}`,
       html,
@@ -360,11 +360,11 @@ export const sendModifiedReservationEmail = async (newReservation, oldReservatio
 };
 
 // Enviar email de reserva cancelada
-export const sendCancelledReservationEmail = async (reservation, restaurant) => {
+export const sendCancelledReservationEmail = async (reservation, business) => {
   try {
     console.log('📧 Enviando email de cancelación:', reservation.id);
     
-    const settings = restaurant.settings || {};
+    const settings = business.settings || {};
     const notificationSettings = settings.notifications || {};
     const cancelledNotif = notificationSettings.cancelled_reservation || {};
     
@@ -378,7 +378,7 @@ export const sendCancelledReservationEmail = async (reservation, restaurant) => 
       return { success: true, skipped: true, reason: 'quiet_hours' };
     }
     
-    const notificationEmails = settings.notification_emails || [restaurant.email];
+    const notificationEmails = settings.notification_emails || [business.email];
     
     if (!notificationEmails || notificationEmails.length === 0) {
       console.warn('⚠️ No hay emails configurados');
@@ -386,7 +386,7 @@ export const sendCancelledReservationEmail = async (reservation, restaurant) => 
     }
     
     const variables = {
-      RestaurantName: restaurant.name,
+      BusinessName: business.name,
       ContactName: settings.contact_name || 'Equipo',
       CustomerName: reservation.customer_name,
       CustomerEmail: reservation.customer_email,
@@ -402,8 +402,8 @@ export const sendCancelledReservationEmail = async (reservation, restaurant) => 
     
     const transporter = createTransporter();
     const info = await transporter.sendMail({
-      from: `La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
       subject: `❌ Reserva cancelada - ${reservation.customer_name}`,
       html,
@@ -419,9 +419,9 @@ export const sendCancelledReservationEmail = async (reservation, restaurant) => 
 };
 
 // 🆕 Enviar email de GRUPO GRANDE (pending_approval)
-const sendPendingApprovalEmail = async (reservation, restaurant) => {
+const sendPendingApprovalEmail = async (reservation, business) => {
   try {
-    console.log('📧 Preparando email de grupo grande para:', restaurant.email);
+    console.log('📧 Preparando email de grupo grande para:', business.email);
     
     // Obtener mesas de la reserva
     const { data: reservationTables } = await supabase
@@ -454,14 +454,14 @@ const sendPendingApprovalEmail = async (reservation, restaurant) => {
     }
     
     // Verificar horario silencioso
-    const quietHours = restaurant.settings?.notifications?.quiet_hours;
+    const quietHours = business.settings?.notifications?.quiet_hours;
     if (isQuietHours(quietHours)) {
       console.log('🔕 Horario silencioso activo, no se envía email');
       return { success: false, reason: 'quiet_hours' };
     }
     
     // Obtener emails de notificación
-    const notificationEmails = restaurant.settings?.notifications?.email_recipients || [restaurant.email];
+    const notificationEmails = business.settings?.notifications?.email_recipients || [business.email];
     
     // Leer template HTML
     const fs = await import('fs/promises');
@@ -471,8 +471,8 @@ const sendPendingApprovalEmail = async (reservation, restaurant) => {
     
     // Reemplazar variables
     const variables = {
-      RestaurantName: restaurant.name,
-      ContactName: restaurant.contact_name || 'Equipo',
+      BusinessName: business.name,
+      ContactName: business.contact_name || 'Equipo',
       CustomerName: reservation.customer_name,
       CustomerPhone: reservation.customer_phone,
       CustomerEmail: reservation.customer_email || '',
@@ -496,8 +496,8 @@ const sendPendingApprovalEmail = async (reservation, restaurant) => {
     
     const transporter = createTransporter();
     const info = await transporter.sendMail({
-      from: `La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
       subject: `⚠️ GRUPO GRANDE - Requiere tu Aprobación - ${reservation.customer_name}`,
       html,
@@ -549,21 +549,21 @@ export const startRealtimeEmailListener = () => {
         });
         
         try {
-          // Obtener datos completos del restaurante
-          const { data: restaurant } = await supabase
+          // Obtener datos completos del negocio
+          const { data: business } = await supabase
             .from('businesses')
             .select('*')
             .eq('id', payload.new.business_id)
             .single();
           
-          if (restaurant) {
+          if (business) {
             // 🆕 Si es pending_approval (grupo grande), enviar email especial
             if (payload.new.status === 'pending_approval') {
               console.log('⚠️ Reserva de GRUPO GRANDE detectada, enviando email de aprobación...');
-              await sendPendingApprovalEmail(payload.new, restaurant);
+              await sendPendingApprovalEmail(payload.new, business);
             } else {
               // Email normal para reservas regulares
-              await sendNewReservationEmail(payload.new, restaurant);
+              await sendNewReservationEmail(payload.new, business);
             }
           }
         } catch (error) {
@@ -582,14 +582,14 @@ export const startRealtimeEmailListener = () => {
         console.log('🔔 UPDATE detectado:', payload.new.id);
         
         try {
-          const { data: restaurant } = await supabase
+          const { data: business } = await supabase
             .from('businesses')
             .select('*')
             .eq('id', payload.new.business_id)
             .single();
           
-          if (!restaurant) {
-            console.log('⚠️ Restaurante no encontrado');
+          if (!business) {
+            console.log('⚠️ Negocio no encontrado');
             return;
           }
           
@@ -618,7 +618,7 @@ export const startRealtimeEmailListener = () => {
               console.log('📱 N8n se encargará de enviar WhatsApp al cliente');
               // N8n detectará este cambio y enviará WhatsApp usando template 'rechazo_grupo'
             } else {
-              await sendCancelledReservationEmail(payload.new, restaurant);
+              await sendCancelledReservationEmail(payload.new, business);
             }
           }
           // Modificación (cambios en campos relevantes, pero NO cancelación)
@@ -641,7 +641,7 @@ export const startRealtimeEmailListener = () => {
               requests: payload.new.special_requests
             });
             
-            await sendModifiedReservationEmail(payload.new, oldReservation, restaurant);
+            await sendModifiedReservationEmail(payload.new, oldReservation, business);
           }
           
           // 🔥 ACTUALIZAR CACHE CON TODOS LOS VALORES (INCLUIR STATUS)

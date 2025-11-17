@@ -29,7 +29,7 @@ const getAgentOfflineEmailHTML = (variables) => {
 <div style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.08);overflow:hidden;">
 <div style="background-color:#dc2626;padding:30px 40px;color:#ffffff;text-align:center;">
 <h1 style="margin:0;font-size:28px;font-weight:bold;">⚠️ ALERTA: Agente IA Desconectado</h1>
-<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.RestaurantName}</p>
+<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.BusinessName}</p>
 </div>
 <div style="padding:40px;">
 <p style="font-size:18px;color:#1a1a1a;margin:0 0 25px 0;">Hola <strong>${variables.ContactName}</strong>,</p>
@@ -73,7 +73,7 @@ const getCriticalErrorEmailHTML = (variables) => {
 <div style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.08);overflow:hidden;">
 <div style="background-color:#ea580c;padding:30px 40px;color:#ffffff;text-align:center;">
 <h1 style="margin:0;font-size:28px;font-weight:bold;">🔴 Error Crítico del Sistema</h1>
-<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.RestaurantName}</p>
+<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.BusinessName}</p>
 </div>
 <div style="padding:40px;">
 <p style="font-size:18px;color:#1a1a1a;margin:0 0 25px 0;">Hola <strong>${variables.ContactName}</strong>,</p>
@@ -107,7 +107,7 @@ const getAgentDeactivatedEmailHTML = (variables) => {
 <div style="max-width:600px;margin:0 auto;background-color:#ffffff;border-radius:12px;box-shadow:0 4px 15px rgba(0,0,0,0.08);overflow:hidden;">
 <div style="background-color:#6366f1;padding:30px 40px;color:#ffffff;text-align:center;">
 <h1 style="margin:0;font-size:28px;font-weight:bold;">💤 Agente Desactivado</h1>
-<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.RestaurantName}</p>
+<p style="margin:8px 0 0 0;font-size:16px;opacity:0.9;">${variables.BusinessName}</p>
 </div>
 <div style="padding:40px;">
 <p style="font-size:18px;color:#1a1a1a;margin:0 0 25px 0;">Hola <strong>${variables.ContactName}</strong>,</p>
@@ -140,15 +140,15 @@ Has <strong>desactivado tu agente IA</strong> correctamente.
 };
 
 // Enviar confirmación de agente desactivado
-export const sendAgentDeactivatedConfirmation = async (restaurant) => {
+export const sendAgentDeactivatedConfirmation = async (business) => {
   try {
-    console.log('📧 Enviando confirmación de agente desactivado:', restaurant.id);
+    console.log('📧 Enviando confirmación de agente desactivado:', business.id);
     
-    const settings = restaurant.settings || {};
-    const notificationEmails = settings.notification_emails || [restaurant.email];
+    const settings = business.settings || {};
+    const notificationEmails = settings.notification_emails || [business.email];
     
     const variables = {
-      RestaurantName: restaurant.name,
+      BusinessName: business.name,
       ContactName: settings.contact_name || 'Equipo',
       AppURL: 'https://la-ia-app.vercel.app/configuracion',
     };
@@ -157,10 +157,10 @@ export const sendAgentDeactivatedConfirmation = async (restaurant) => {
     const transporter = await createTransporter();
     
     const info = await transporter.sendMail({
-      from: `La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
-      subject: `💤 Agente desactivado - ${restaurant.name}`,
+      subject: `💤 Agente desactivado - ${business.name}`,
       html,
     });
     
@@ -174,11 +174,11 @@ export const sendAgentDeactivatedConfirmation = async (restaurant) => {
 };
 
 // Enviar alerta de agente desconectado
-export const sendAgentOfflineAlert = async (restaurant, lastSeen) => {
+export const sendAgentOfflineAlert = async (business, lastSeen) => {
   try {
-    console.log('🚨 Enviando alerta de agente desconectado:', restaurant.id);
+    console.log('🚨 Enviando alerta de agente desconectado:', business.id);
     
-    const settings = restaurant.settings || {};
+    const settings = business.settings || {};
     const notificationSettings = settings.notifications || {};
     const systemNotif = notificationSettings.system_alerts || { enabled: true };
     
@@ -187,10 +187,10 @@ export const sendAgentOfflineAlert = async (restaurant, lastSeen) => {
       return { success: true, skipped: true };
     }
     
-    const notificationEmails = settings.notification_emails || [restaurant.email];
+    const notificationEmails = settings.notification_emails || [business.email];
     
     const variables = {
-      RestaurantName: restaurant.name,
+      BusinessName: business.name,
       ContactName: settings.contact_name || 'Equipo',
       DisconnectedSince: new Date(lastSeen).toLocaleTimeString('es-ES'),
       AppURL: 'https://la-ia-app.vercel.app/configuracion',
@@ -200,10 +200,10 @@ export const sendAgentOfflineAlert = async (restaurant, lastSeen) => {
     const transporter = await createTransporter();
     
     const info = await transporter.sendMail({
-      from: `ALERTA La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `ALERTA La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
-      subject: `🚨 URGENTE: Agente IA Desconectado - ${restaurant.name}`,
+      subject: `🚨 URGENTE: Agente IA Desconectado - ${business.name}`,
       html,
     });
     
@@ -217,11 +217,11 @@ export const sendAgentOfflineAlert = async (restaurant, lastSeen) => {
 };
 
 // Enviar alerta de error crítico
-export const sendCriticalErrorAlert = async (restaurant, errorType, errorMessage, errorCount) => {
+export const sendCriticalErrorAlert = async (business, errorType, errorMessage, errorCount) => {
   try {
     console.log('🚨 Enviando alerta de error crítico:', errorType);
     
-    const settings = restaurant.settings || {};
+    const settings = business.settings || {};
     const notificationSettings = settings.notifications || {};
     const systemNotif = notificationSettings.system_alerts || { enabled: true };
     
@@ -230,10 +230,10 @@ export const sendCriticalErrorAlert = async (restaurant, errorType, errorMessage
       return { success: true, skipped: true };
     }
     
-    const notificationEmails = settings.notification_emails || [restaurant.email];
+    const notificationEmails = settings.notification_emails || [business.email];
     
     const variables = {
-      RestaurantName: restaurant.name,
+      BusinessName: business.name,
       ContactName: settings.contact_name || 'Equipo',
       ErrorType: errorType,
       ErrorMessage: errorMessage,
@@ -245,10 +245,10 @@ export const sendCriticalErrorAlert = async (restaurant, errorType, errorMessage
     const transporter = await createTransporter();
     
     const info = await transporter.sendMail({
-      from: `ALERTA La-IA - ${restaurant.name} <noreply@la-ia.site>`,
-      replyTo: restaurant.email,
+      from: `ALERTA La-IA - ${business.name} <noreply@la-ia.site>`,
+      replyTo: business.email,
       to: notificationEmails,
-      subject: `🔴 Error Crítico: ${errorType} - ${restaurant.name}`,
+      subject: `🔴 Error Crítico: ${errorType} - ${business.name}`,
       html,
     });
     
@@ -272,7 +272,7 @@ export const startAgentHealthMonitor = () => {
     console.log('🔍 Verificando salud de agentes...');
     
     try {
-      // Obtener todos los restaurantes activos
+      // Obtener todos los negocios activos
       const { data: businesses } = await supabase
         .from('businesses')
         .select('*')
@@ -280,17 +280,17 @@ export const startAgentHealthMonitor = () => {
       
       if (!businesses) return;
       
-      for (const restaurant of businesses) {
-        const lastSeen = agentHealthStatus.get(restaurant.id);
+      for (const business of businesses) {
+        const lastSeen = agentHealthStatus.get(business.id);
         const now = Date.now();
         
         // Si no hemos visto actividad en 10 minutos, alertar
         if (lastSeen && (now - lastSeen) > 10 * 60 * 1000) {
-          console.log(`⚠️ Agente inactivo detectado: ${restaurant.name}`);
-          await sendAgentOfflineAlert(restaurant, lastSeen);
+          console.log(`⚠️ Agente inactivo detectado: ${business.name}`);
+          await sendAgentOfflineAlert(business, lastSeen);
           
           // Evitar spam: quitar del tracking hasta que vuelva
-          agentHealthStatus.delete(restaurant.id);
+          agentHealthStatus.delete(business.id);
         }
       }
     } catch (error) {
@@ -321,15 +321,15 @@ export const trackError = async (businessId, errorType, errorMessage) => {
     if (existing.count >= 3 && (now - existing.firstSeen) < 10 * 60 * 1000) {
       console.log(`🚨 Error crítico detectado: ${errorType} (${existing.count} veces)`);
       
-      // Obtener restaurante
-      const { data: restaurant } = await supabase
+      // Obtener negocio
+      const { data: business } = await supabase
         .from('businesses')
         .select('*')
         .eq('id', businessId)
         .single();
       
-      if (restaurant) {
-        await sendCriticalErrorAlert(restaurant, errorType, errorMessage, existing.count);
+      if (business) {
+        await sendCriticalErrorAlert(business, errorType, errorMessage, existing.count);
       }
       
       // Reset contador para evitar spam

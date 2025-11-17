@@ -38,16 +38,34 @@ export default function IntegracionesContent() {
                 .select('*')
                 .eq('business_id', businessId)
                 .eq('provider', 'google_calendar')
-                .single();
+                .maybeSingle(); // Usar maybeSingle() en lugar de single() para manejar mejor cuando no hay resultados
 
-            if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows
+            if (error) {
+                // Log del error para debugging
+                console.error('❌ Error cargando integraciones:', error);
+                console.error('Error code:', error.code);
+                console.error('Error message:', error.message);
+                console.error('Error details:', error.details);
+                
+                // Si es un error 406, puede ser un problema de RLS o headers
+                if (error.code === 'PGRST301' || error.message?.includes('406')) {
+                    console.error('⚠️ Error 406: Problema con políticas RLS o headers. Verifica las políticas de la tabla integrations.');
+                    toast.error('Error de permisos. Por favor, recarga la página.');
+                }
+                throw error;
+            }
 
             if (data) {
-                setGoogleCalendarConnected(data.is_active);
+                setGoogleCalendarConnected(data.is_active === true);
                 setGoogleCalendarConfig(data);
+            } else {
+                // No hay integración configurada aún
+                setGoogleCalendarConnected(false);
+                setGoogleCalendarConfig(null);
             }
         } catch (error) {
-            console.error('Error cargando integraciones:', error);
+            console.error('❌ Error cargando integraciones:', error);
+            // No mostrar toast aquí para evitar spam, solo log
         } finally {
             setLoading(false);
         }
@@ -60,11 +78,37 @@ export default function IntegracionesContent() {
             toast.loading('Conectando con Google Calendar...', { id: 'google-connect' });
 
             // PASO 1: Redirigir a OAuth2 de Google
-            const redirectUri = `${window.location.origin}/oauth/google/callback`;
+            // Construir URI de redirección - Usar la Edge Function de Supabase
             const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+            const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
             
             if (!clientId) {
                 throw new Error('Google Client ID no configurado. Contacta al administrador.');
+            }
+
+            if (!supabaseUrl) {
+                throw new Error('Supabase URL no configurado. Contacta al administrador.');
+            }
+
+            // Construir URL de la Edge Function
+            // Formato: https://{project-ref}.supabase.co/functions/v1/{function-name}
+            const supabaseUrlObj = new URL(supabaseUrl);
+            const edgeFunctionUrl = `${supabaseUrlObj.origin}/functions/v1/google-calendar-oauth`;
+            const redirectUri = edgeFunctionUrl;
+            
+            // 🔍 DEBUG: Log para verificar la URI exacta
+            console.log('🔍 DEBUG OAuth:');
+            console.log('  - Supabase URL:', supabaseUrl);
+            console.log('  - Edge Function URL:', edgeFunctionUrl);
+            console.log('  - redirectUri completo:', redirectUri);
+            console.log('  - clientId:', clientId ? `${clientId.substring(0, 20)}...` : 'NO CONFIGURADO');
+            console.log('  - businessId:', businessId);
+            
+            // Verificar que la URI no tenga trailing slash ni espacios
+            const cleanRedirectUri = redirectUri.trim().replace(/\/$/, '');
+            
+            if (cleanRedirectUri !== redirectUri) {
+                console.warn('⚠️ URI tenía trailing slash o espacios, corregido:', cleanRedirectUri);
             }
 
             const scopes = [
@@ -74,22 +118,41 @@ export default function IntegracionesContent() {
 
             const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
                 `client_id=${clientId}` +
-                `&redirect_uri=${encodeURIComponent(redirectUri)}` +
+                `&redirect_uri=${encodeURIComponent(cleanRedirectUri)}` +
                 `&response_type=code` +
                 `&scope=${encodeURIComponent(scopes)}` +
                 `&access_type=offline` +
                 `&prompt=consent` +
                 `&state=${businessId}`; // Pasar businessId como state
 
+            // 🔍 DEBUG: Mostrar URL completa (sin el código por seguridad)
+            console.log('🔍 URL de autorización (sin parámetros sensibles):');
+            console.log('  - Base:', `https://accounts.google.com/o/oauth2/v2/auth`);
+            console.log('  - redirect_uri codificado:', encodeURIComponent(cleanRedirectUri));
+            console.log('  - URI completa (decodificada para verificación):', 
+                `https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=${cleanRedirectUri}&...`);
+
             // Guardar intento de conexión
             localStorage.setItem('google_calendar_connecting', 'true');
             localStorage.setItem('google_calendar_business_id', businessId);
+            localStorage.setItem('google_calendar_redirect_uri', cleanRedirectUri); // Guardar para debug
 
             toast.dismiss('google-connect');
-            toast.success('Redirigiendo a Google...');
+            
+            // Mostrar mensaje con la URI para verificación
+            console.log('✅ Redirigiendo a Google OAuth...');
+            console.log('⚠️ IMPORTANTE: Verifica que esta URI esté en Google Cloud Console:');
+            console.log(`   ${cleanRedirectUri}`);
+            
+            toast.success('Redirigiendo a Google...', {
+                duration: 2000,
+                icon: '🔗'
+            });
 
-            // Redirigir
-            window.location.href = authUrl;
+            // Pequeño delay para que el usuario vea el mensaje
+            setTimeout(() => {
+                window.location.href = authUrl;
+            }, 500);
 
         } catch (error) {
             console.error('Error conectando Google Calendar:', error);

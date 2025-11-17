@@ -31,8 +31,8 @@ export class CRMWebhookServiceEnhanced {
         throw new Error('Reserva no encontrada');
       }
       
-      // Obtener datos del restaurante
-      const { data: restaurant } = await supabase
+      // Obtener datos del negocio
+      const { data: business } = await supabase
         .from('businesses')
         .select('id, name, email, phone')
         .eq('id', businessId)
@@ -43,7 +43,7 @@ export class CRMWebhookServiceEnhanced {
         event_type: eventType,
         event_id: `${eventType}_${reservationId}_${Date.now()}`,
         timestamp: new Date().toISOString(),
-        restaurant: restaurant,
+        business: business,
         reservation: {
           id: reservation.id,
           customer_name: reservation.customer_name,
@@ -97,8 +97,8 @@ export class CRMWebhookServiceEnhanced {
         throw new Error('Cliente no encontrado');
       }
       
-      // Obtener datos del restaurante
-      const { data: restaurant } = await supabase
+      // Obtener datos del negocio
+      const { data: business } = await supabase
         .from('businesses')
         .select('id, name, email, phone')
         .eq('id', businessId)
@@ -109,7 +109,7 @@ export class CRMWebhookServiceEnhanced {
         event_type: 'segment_changed',
         event_id: `segment_changed_${customerId}_${Date.now()}`,
         timestamp: new Date().toISOString(),
-        restaurant: restaurant,
+        business: business,
         customer: {
           id: customer.id,
           name: customer.name,
@@ -157,8 +157,8 @@ export class CRMWebhookServiceEnhanced {
         throw new Error('Mensaje no encontrado');
       }
       
-      // Obtener datos del restaurante
-      const { data: restaurant } = await supabase
+      // Obtener datos del negocio
+      const { data: business } = await supabase
         .from('businesses')
         .select('id, name, email, phone')
         .eq('id', businessId)
@@ -169,7 +169,7 @@ export class CRMWebhookServiceEnhanced {
         event_type: eventType,
         event_id: `${eventType}_${messageId}_${Date.now()}`,
         timestamp: new Date().toISOString(),
-        restaurant: restaurant,
+        business: business,
         message: {
           id: message.id,
           channel: message.channel_final || message.channel_planned,
@@ -210,7 +210,7 @@ export class CRMWebhookServiceEnhanced {
    */
   static async sendWebhook(businessId, webhookType, payload) {
     try {
-      // Obtener configuración de webhooks para el restaurante
+      // Obtener configuración de webhooks para el negocio
       const { data: webhookConfigs, error } = await supabase
         .from('channel_credentials')
         .select('*')
@@ -224,7 +224,7 @@ export class CRMWebhookServiceEnhanced {
       }
       
       if (!webhookConfigs || webhookConfigs.length === 0) {
-        console.log('📭 No hay webhooks configurados para este restaurante');
+        console.log('📭 No hay webhooks configurados para este negocio');
         return;
       }
       

@@ -76,7 +76,7 @@ export const ReservationWizard = ({ businessId, initialData = null, onSave, onCa
       party_size: parseInt(formData.partySize),
       table_id: formData.tableIds && formData.tableIds.length > 0 ? formData.tableIds[0] : null,  // 🔄 Primera mesa (compatibilidad)
       special_requests: formData.specialRequests || null,
-      // 🆕 Grupos grandes (≥10 personas) requieren aprobación del restaurante
+      // 🆕 Grupos grandes (≥10 personas) requieren aprobación del negocio
       status: parseInt(formData.partySize) >= 10 ? 'pending_approval' : (formData.status || 'pending'),
       source: 'dashboard', // ✅ Fuente: creada desde dashboard
       // 🆕 ARRAY DE IDS DE MESAS (para insertar en reservation_tables)

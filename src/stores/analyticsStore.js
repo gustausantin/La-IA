@@ -107,7 +107,7 @@ export const useAnalyticsStore = create()(
       loadKPIs: async (dateRange) => {
         try {
           const { data, error } = await supabase
-            .rpc('get_restaurant_kpis', {
+            .rpc('get_business_kpis', {
               date_range: dateRange,
             });
           

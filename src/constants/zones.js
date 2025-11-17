@@ -41,7 +41,7 @@ export const ZONE_ICONS = {
 
 // ===== DESCRIPCIONES (para tooltips) =====
 export const ZONE_DESCRIPTIONS = {
-  [ZONE_OPTIONS.INTERIOR]: 'Zona interior del restaurante',
+  [ZONE_OPTIONS.INTERIOR]: 'Zona interior del negocio',
   [ZONE_OPTIONS.TERRAZA]: 'Zona al aire libre o exterior',
   [ZONE_OPTIONS.BARRA]: 'Mesas en la zona de barra',
   [ZONE_OPTIONS.PRIVADO]: 'Sala privada o reservada'

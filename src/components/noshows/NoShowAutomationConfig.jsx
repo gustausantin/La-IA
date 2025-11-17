@@ -10,7 +10,7 @@ import toast from 'react-hot-toast';
  * Guarda configuración en businesses.settings.noshow_automation (JSONB)
  */
 export default function NoShowAutomationConfig() {
-    const { restaurant } = useAuthContext();
+    const { business } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [config, setConfig] = useState({
@@ -38,7 +38,7 @@ export default function NoShowAutomationConfig() {
     // Cargar configuración actual desde Supabase
     useEffect(() => {
         const loadConfig = async () => {
-            if (!restaurant?.id) return;
+            if (!business?.id) return;
 
             try {
                 setLoading(true);
@@ -46,7 +46,7 @@ export default function NoShowAutomationConfig() {
                 const { data, error } = await supabase
                     .from('businesses')
                     .select('settings')
-                    .eq('id', restaurant.id)
+                    .eq('id', business.id)
                     .single();
 
                 if (error) throw error;
@@ -65,11 +65,11 @@ export default function NoShowAutomationConfig() {
         };
 
         loadConfig();
-    }, [restaurant?.id]);
+    }, [business?.id]);
 
     // Guardar configuración
     const handleSave = async () => {
-        if (!restaurant?.id) return;
+        if (!business?.id) return;
 
         try {
             setSaving(true);
@@ -79,7 +79,7 @@ export default function NoShowAutomationConfig() {
             const { data: currentData } = await supabase
                 .from('businesses')
                 .select('settings')
-                .eq('id', restaurant.id)
+                .eq('id', business.id)
                 .single();
 
             const currentSettings = currentData?.settings || {};
@@ -94,7 +94,7 @@ export default function NoShowAutomationConfig() {
             const { error } = await supabase
                 .from('businesses')
                 .update({ settings: updatedSettings })
-                .eq('id', restaurant.id);
+                .eq('id', business.id);
 
             if (error) throw error;
 

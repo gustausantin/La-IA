@@ -388,13 +388,13 @@ export const useBusinessStore = create()(
           if (capacity > 95) {
             alerts.push({
               type: 'error',
-              message: 'Restaurante a máxima capacidad',
+              message: 'Negocio a máxima capacidad',
               data: { capacity },
             });
           } else if (capacity > 85) {
             alerts.push({
               type: 'warning',
-              message: 'Restaurante cerca de la capacidad máxima',
+              message: 'Negocio cerca de la capacidad máxima',
               data: { capacity },
             });
           }

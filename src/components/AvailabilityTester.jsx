@@ -15,7 +15,7 @@ const AvailabilityTester = () => {
 
     const testAvailability = async () => {
         if (!businessId) {
-            toast.error('No hay restaurante configurado');
+            toast.error('No hay negocio configurado');
             return;
         }
 
@@ -61,7 +61,7 @@ const AvailabilityTester = () => {
 
     const generateSlots = async () => {
         if (!businessId) {
-            toast.error('No hay restaurante configurado');
+            toast.error('No hay negocio configurado');
             return;
         }
 
@@ -124,7 +124,7 @@ const AvailabilityTester = () => {
 
     const initializeSystem = async () => {
         if (!businessId) {
-            toast.error('No hay restaurante configurado');
+            toast.error('No hay negocio configurado');
             return;
         }
 

@@ -53,26 +53,43 @@ serve(async (req) => {
     );
 
     // Check if integration already exists
-    const { data: existing } = await supabase
+    const { data: existing, error: checkError } = await supabase
       .from('integrations')
       .select('id')
       .eq('business_id', businessId)
       .eq('provider', 'google_calendar')
-      .single();
+      .maybeSingle();
+
+    if (checkError && checkError.code !== 'PGRST116') {
+      throw checkError;
+    }
+
+    // Preparar datos de la integración
+    const integrationData = {
+      business_id: businessId,
+      provider: 'google_calendar',
+      is_active: true,
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_expires_at: expiresAt.toISOString(),
+      config: {
+        calendar_id: 'primary',
+        calendar_name: 'LA-IA Reservas',
+        sync_direction: 'bidirectional',
+        events_synced: 0
+      },
+      last_sync_at: null,
+      connected_at: new Date().toISOString(),
+      disconnected_at: null,
+      error_log: []
+    };
 
     if (existing) {
       // Update existing integration
       const { error } = await supabase
         .from('integrations')
         .update({
-          credentials: {
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            token_type: tokens.token_type,
-            scope: tokens.scope,
-          },
-          status: 'active',
-          expires_at: expiresAt.toISOString(),
+          ...integrationData,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id);
@@ -82,23 +99,7 @@ serve(async (req) => {
       // Create new integration
       const { error } = await supabase
         .from('integrations')
-        .insert({
-          business_id: businessId,
-          provider: 'google_calendar',
-          credentials: {
-            access_token: tokens.access_token,
-            refresh_token: tokens.refresh_token,
-            token_type: tokens.token_type,
-            scope: tokens.scope,
-          },
-          status: 'active',
-          scopes: tokens.scope?.split(' ') || [],
-          expires_at: expiresAt.toISOString(),
-          metadata: {
-            autoSync: false,
-            intervalMinutes: 15,
-          },
-        });
+        .insert(integrationData);
 
       if (error) throw error;
     }

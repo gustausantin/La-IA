@@ -69,8 +69,8 @@ const AgentConfiguration = React.memo(({ settings, onUpdate }) => {
       after_hours: false,
     },
 
-    // Conocimiento del restaurante
-    restaurant_knowledge: settings?.restaurant_knowledge || {
+    // Conocimiento del negocio
+    business_knowledge: settings?.business_knowledge || settings?.restaurant_knowledge || {
       menu_expertise: 9,
       allergy_awareness: 10,
       wine_knowledge: 7,
@@ -463,7 +463,7 @@ const AgentConfiguration = React.memo(({ settings, onUpdate }) => {
               label="Fuera de Horario"
               checked={agentConfig.escalation_rules.after_hours}
               onChange={(value) => handleNestedChange('escalation_rules', 'after_hours', value)}
-              help="Escalamiento automático cuando el restaurante está cerrado"
+              help="Escalamiento automático cuando el negocio está cerrado"
             />
           </div>
         )}
@@ -478,36 +478,36 @@ const AgentConfiguration = React.memo(({ settings, onUpdate }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <SliderField
                 label="Expertise en Menú"
-                value={agentConfig.restaurant_knowledge.menu_expertise}
-                onChange={(value) => handleNestedChange('restaurant_knowledge', 'menu_expertise', value)}
+                value={agentConfig.business_knowledge?.menu_expertise || agentConfig.restaurant_knowledge?.menu_expertise || 9}
+                onChange={(value) => handleNestedChange('business_knowledge', 'menu_expertise', value)}
                 help="Conocimiento detallado de platos y preparaciones"
               />
 
               <SliderField
                 label="Conciencia de Alergias"
-                value={agentConfig.restaurant_knowledge.allergy_awareness}
-                onChange={(value) => handleNestedChange('restaurant_knowledge', 'allergy_awareness', value)}
+                value={agentConfig.business_knowledge?.allergy_awareness || agentConfig.restaurant_knowledge?.allergy_awareness || 10}
+                onChange={(value) => handleNestedChange('business_knowledge', 'allergy_awareness', value)}
                 help="Identificación de alérgenos y restricciones"
               />
 
               <SliderField
                 label="Conocimiento de Vinos"
-                value={agentConfig.restaurant_knowledge.wine_knowledge}
-                onChange={(value) => handleNestedChange('restaurant_knowledge', 'wine_knowledge', value)}
+                value={agentConfig.business_knowledge?.wine_knowledge || agentConfig.restaurant_knowledge?.wine_knowledge || 7}
+                onChange={(value) => handleNestedChange('business_knowledge', 'wine_knowledge', value)}
                 help="Maridajes y recomendaciones de bebidas"
               />
 
               <SliderField
                 label="Recomendaciones Locales"
-                value={agentConfig.restaurant_knowledge.local_recommendations}
-                onChange={(value) => handleNestedChange('restaurant_knowledge', 'local_recommendations', value)}
+                value={agentConfig.business_knowledge?.local_recommendations || agentConfig.restaurant_knowledge?.local_recommendations || 8}
+                onChange={(value) => handleNestedChange('business_knowledge', 'local_recommendations', value)}
                 help="Información sobre la zona y atracciones"
               />
 
               <SliderField
                 label="Restricciones Dietéticas"
-                value={agentConfig.restaurant_knowledge.dietary_restrictions}
-                onChange={(value) => handleNestedChange('restaurant_knowledge', 'dietary_restrictions', value)}
+                value={agentConfig.business_knowledge?.dietary_restrictions || agentConfig.restaurant_knowledge?.dietary_restrictions || 9}
+                onChange={(value) => handleNestedChange('business_knowledge', 'dietary_restrictions', value)}
                 help="Opciones veganas, vegetarianas, sin gluten, etc."
               />
             </div>
