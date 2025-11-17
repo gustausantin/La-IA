@@ -64,7 +64,7 @@ class WaitlistService {
                 .select(`
                     *,
                     customer:customers(id, name, phone, email),
-                    service:services(id, name, duration_minutes),
+                    service:business_services(id, name, duration_minutes),
                     preferred_resource:resources(id, name)
                 `)
                 .eq('business_id', businessId)

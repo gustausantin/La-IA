@@ -151,13 +151,32 @@ export default function RecursosContent() {
     if (!confirm(`¿Eliminar "${name}"?\n\n⚠️ Esta acción no se puede deshacer.`)) return;
 
     try {
-      // Verificar si tiene citas futuras
+      // ✅ PASO 1: Verificar si tiene EMPLEADOS asignados
+      const { data: employeesWithResource, error: employeesError } = await supabase
+        .from('employees')
+        .select('id, name')
+        .eq('business_id', businessId)
+        .eq('assigned_resource_id', id)
+        .eq('is_active', true);
+
+      if (employeesError) throw employeesError;
+
+      if (employeesWithResource && employeesWithResource.length > 0) {
+        const employeeNames = employeesWithResource.map(e => e.name).join(', ');
+        toast.error(
+          `❌ No puedes eliminar: ${employeesWithResource.length} empleado(s) tiene(n) este recurso asignado:\n${employeeNames}\n\nPrimero desasigna el recurso de los empleados.`,
+          { duration: 6000 }
+        );
+        return;
+      }
+
+      // ✅ PASO 2: Verificar si tiene citas futuras
       const { data: futureAppointments, error: checkError } = await supabase
         .from('appointments')
         .select('id')
         .eq('resource_id', id)
         .gte('appointment_date', new Date().toISOString().split('T')[0])
-        .in('status', ['confirmed', 'pending'])
+        .in('status', ['confirmed', 'pending', 'pending_approval'])
         .limit(1);
 
       if (checkError) throw checkError;
@@ -167,7 +186,7 @@ export default function RecursosContent() {
         return;
       }
 
-      // Eliminar recurso
+      // ✅ PASO 3: Eliminar recurso (ya no tiene empleados ni citas futuras)
       const { error } = await supabase
         .from('resources')
         .delete()
@@ -191,7 +210,12 @@ export default function RecursosContent() {
       
       // Error específico de FK constraint
       if (error.code === '23503') {
-        toast.error('No se puede eliminar: tiene citas asociadas');
+        // Verificar qué tabla está causando el problema
+        if (error.details?.includes('employees')) {
+          toast.error('❌ No se puede eliminar: tiene empleados asignados. Primero desasigna el recurso de los empleados.', { duration: 5000 });
+        } else {
+          toast.error('❌ No se puede eliminar: tiene citas o datos asociados', { duration: 5000 });
+        }
       } else {
         toast.error('Error al eliminar recurso');
       }
@@ -383,7 +407,7 @@ export default function RecursosContent() {
               </p>
               <p className="text-xs text-blue-800">
                 Para bloquear horarios específicos de cada {labels?.resource?.toLowerCase() || 'recurso'}, 
-                ve a <strong>Reservas > Calendario</strong>.
+                ve a <strong>Reservas {'>'} Calendario</strong>.
               </p>
             </div>
           </div>

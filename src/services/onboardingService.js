@@ -245,13 +245,13 @@ export async function createBusinessWithOnboarding(businessData, verticalConfig)
         business_id: business.id,
         name: service.name || service,
         duration_minutes: service.duration_minutes || verticalConfig.defaultDurationMinutes || 60,
-        price: service.suggested_price || 0,
-        is_available: true,
-        display_order: index + 1
+        suggested_price: service.suggested_price || 0,
+        is_active: true,
+        position_order: index + 1
       }));
 
       const { error: servicesError } = await supabase
-        .from('services')
+        .from('business_services')
         .insert(servicesData);
 
       if (servicesError) console.warn('⚠️ Error creando servicios:', servicesError);

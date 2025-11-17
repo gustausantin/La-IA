@@ -818,6 +818,7 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
         
         // 🎯 ALGORITMO OPTIMIZADO: Priorizar recursos con empleados existentes que tienen horarios libres
         // Estrategia: Llenar primero recursos existentes antes de usar recursos vacíos
+        // ✅ MEJORA: Verificar conflictos día por día y solo descartar si hay conflicto en TODOS los días trabajados
         const resourceAnalysis = availableResources.map(resource => {
           const employeesInResource = (currentEmployees || []).filter(emp => 
             emp.assigned_resource_id === resource.id
@@ -825,12 +826,14 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
           
           let totalConflictMinutes = 0;
           let totalOccupiedMinutes = 0;
-          let hasConflict = false;
+          let daysWithConflicts = 0;
+          let daysWorkedByNewEmployee = 0;
           let hasAnyEmployee = employeesInResource.length > 0;
           
           // Analizar cada día
           for (const [dayOfWeek, newEmpData] of Object.entries(newEmployeeMinutes)) {
             const day = parseInt(dayOfWeek);
+            daysWorkedByNewEmployee++;
             
             // Minutos ocupados por empleados existentes en este día
             let occupiedRanges = [];
@@ -855,7 +858,8 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
             );
             totalOccupiedMinutes += dayOccupiedMinutes;
             
-            // Verificar si el nuevo empleado solapa con empleados existentes
+            // Verificar si el nuevo empleado solapa con empleados existentes en ESTE DÍA
+            let dayHasConflict = false;
             newEmpData.shifts.forEach(newShift => {
               const [hStart, mStart] = newShift.start.split(':').map(Number);
               const [hEnd, mEnd] = newShift.end.split(':').map(Number);
@@ -868,22 +872,31 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
                 const overlapEnd = Math.min(newEnd, occupied.end);
                 
                 if (overlapStart < overlapEnd) {
-                  hasConflict = true;
+                  dayHasConflict = true;
                   totalConflictMinutes += (overlapEnd - overlapStart);
                 }
               });
             });
+            
+            if (dayHasConflict) {
+              daysWithConflicts++;
+            }
           }
           
+          // ✅ LÓGICA CORRECTA: Si hay conflicto en AL MENOS UN día, NO podemos usar este recurso
+          // Porque un empleado tiene un solo recurso asignado para todos los días
+          // Si el nuevo empleado trabaja en horarios diferentes (ej: tarde vs mañana), NO hay conflicto
+          const hasConflict = daysWithConflicts > 0;
+          
           // 🎯 PUNTUACIÓN OPTIMIZADA:
-          // 1. Si hay conflicto → -1000 (no viable)
-          // 2. Si NO hay conflicto Y tiene empleados → +10000 + minutos ocupados (PRIORIDAD ALTA: llenar recursos existentes)
-          // 3. Si NO hay conflicto Y NO tiene empleados → minutos ocupados (0) (PRIORIDAD BAJA: recursos vacíos)
+          // 1. Si hay conflicto en TODOS los días → -1000 (no viable)
+          // 2. Si NO hay conflicto Y tiene empleados → +10000 + minutos ocupados (PRIORIDAD MÁXIMA: llenar recursos existentes)
+          // 3. Si NO hay conflicto Y NO tiene empleados → 0 (PRIORIDAD BAJA: recursos vacíos)
           // Esto asegura que siempre se prioricen recursos con empleados que tienen horarios libres
           const score = hasConflict 
             ? -1000 
             : hasAnyEmployee 
-              ? 10000 + totalOccupiedMinutes  // ✅ PRIORIDAD: Recursos con empleados pero horarios libres
+              ? 10000 + totalOccupiedMinutes  // ✅ PRIORIDAD MÁXIMA: Recursos con empleados pero horarios libres
               : 0;  // ⚠️ BAJA PRIORIDAD: Recursos vacíos (solo si no hay opciones mejores)
           
           return {
@@ -892,7 +905,9 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
             hasConflict,
             hasAnyEmployee,
             employeeCount: employeesInResource.length,
-            occupiedMinutes: totalOccupiedMinutes
+            occupiedMinutes: totalOccupiedMinutes,
+            daysWithConflicts,
+            daysWorkedByNewEmployee
           };
         });
         
@@ -904,10 +919,14 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
           score: r.score,
           hasConflict: r.hasConflict,
           hasEmployees: r.hasAnyEmployee,
-          employees: r.employeeCount
+          employees: r.employeeCount,
+          daysWithConflicts: r.daysWithConflicts,
+          daysWorked: r.daysWorkedByNewEmployee,
+          occupiedMinutes: r.occupiedMinutes
         })));
         
         // Seleccionar el mejor recurso sin conflictos
+        // ✅ PRIORIDAD: Primero recursos con empleados existentes (score más alto)
         const bestResource = resourceAnalysis.find(r => !r.hasConflict);
         
         if (bestResource) {
@@ -919,19 +938,29 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
             console.log(`   - Reutilizando recurso existente con ${bestResource.employeeCount} empleado(s)`);
             console.log(`   - ${bestResource.occupiedMinutes} minutos ya ocupados`);
             console.log(`   - Nuevo empleado completará horarios libres → Aprovechamiento máximo`);
+            console.log(`   - Score: ${bestResource.score} (prioridad alta por tener empleados existentes)`);
             toast.success(
               `✅ Asignado a ${bestResource.resource.name} (optimizado: reutiliza recurso existente)`,
               { duration: 4000 }
             );
           } else {
             console.log(`✅ Asignación: ${bestResource.resource.name}`);
-            console.log(`   - Nuevo recurso (todos los recursos existentes tienen conflictos)`);
+            console.log(`   - Nuevo recurso (todos los recursos existentes tienen conflictos o no hay recursos con empleados)`);
+            console.log(`   - Score: ${bestResource.score} (recurso vacío)`);
             toast.success(`✅ Asignado a ${bestResource.resource.name}`, { duration: 3000 });
           }
           
           window.__lastAutoAssignedResource = bestResource.resource.name;
         } else {
-          toast.error('❌ No hay recursos disponibles sin conflictos horarios. Crea un nuevo recurso.');
+          // Si no hay recursos sin conflictos, mostrar información de depuración
+          const conflictedResources = resourceAnalysis.filter(r => r.hasConflict);
+          console.error('❌ Todos los recursos tienen conflictos:', conflictedResources.map(r => ({
+            name: r.resource.name,
+            daysWithConflicts: r.daysWithConflicts,
+            daysWorked: r.daysWorkedByNewEmployee,
+            hasEmployees: r.hasAnyEmployee
+          })));
+          toast.error('❌ No hay recursos disponibles sin conflictos horarios. Crea un nuevo recurso.', { duration: 5000 });
           setSaving(false);
           return;
         }

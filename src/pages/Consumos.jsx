@@ -89,10 +89,10 @@ const Consumos = () => {
 
             // Cargar servicios por separado
             const { data: servicesData, error: servicesError } = await supabase
-                .from('services')
-                .select('id, name, price, duration_minutes, category, is_available')
+                .from('business_services')
+                .select('id, name, suggested_price, duration_minutes, category, is_active')
                 .eq('business_id', businessId)
-                .eq('is_available', true);
+                .eq('is_active', true);
 
             if (servicesError) {
                 console.error('Error cargando services:', servicesError);
@@ -106,10 +106,17 @@ const Consumos = () => {
             });
 
             // Enriquecer appointments con datos de servicios
-            const enrichedAppointments = (appointmentsData || []).map(apt => ({
-                ...apt,
-                services: servicesMap[apt.service_id] || null
-            }));
+            // Nota: business_services usa 'suggested_price' en lugar de 'price'
+            const enrichedAppointments = (appointmentsData || []).map(apt => {
+                const service = servicesMap[apt.service_id];
+                return {
+                    ...apt,
+                    services: service ? {
+                        ...service,
+                        price: service.suggested_price || 0 // Mapear suggested_price a price para compatibilidad
+                    } : null
+                };
+            });
 
             console.log('✅ Datos cargados:', {
                 appointments: enrichedAppointments.length,

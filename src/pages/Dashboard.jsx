@@ -142,12 +142,13 @@ export default function Dashboard() {
         .in('status', ['confirmed', 'completed']);
 
       const { data: services } = await supabase
-        .from('services')
-        .select('id, price')
-        .eq('business_id', business.id);
+        .from('business_services')
+        .select('id, suggested_price')
+        .eq('business_id', business.id)
+        .eq('is_active', true);
 
       const servicesMap = (services || []).reduce((map, s) => { map[s.id] = s; return map; }, {});
-      const revenue = (todayAppointments || []).reduce((sum, apt) => sum + (servicesMap[apt.service_id]?.price || 0), 0);
+      const revenue = (todayAppointments || []).reduce((sum, apt) => sum + (servicesMap[apt.service_id]?.suggested_price || 0), 0);
 
       // 2. Huecos libres HOY
       const { data: availableSlots } = await supabase
@@ -374,12 +375,13 @@ export default function Dashboard() {
           .eq('appointment_date', yesterdayStr);
 
         const { data: services } = await supabase
-          .from('services')
-          .select('id, price')
-          .eq('business_id', business.id);
+          .from('business_services')
+          .select('id, suggested_price')
+          .eq('business_id', business.id)
+          .eq('is_active', true);
 
         const servicesMap = (services || []).reduce((map, s) => { map[s.id] = s; return map; }, {});
-        const total = (appointments || []).reduce((sum, apt) => sum + (servicesMap[apt.service_id]?.price || 0), 0);
+        const total = (appointments || []).reduce((sum, apt) => sum + (servicesMap[apt.service_id]?.suggested_price || 0), 0);
         
         return total > 0 ? `Ayer facturaste **${total.toFixed(2)}€**` : `Ayer no hubo servicios completados.`;
       }
@@ -400,12 +402,13 @@ export default function Dashboard() {
           .gte('appointment_date', monthStartStr);
 
         const { data: services } = await supabase
-          .from('services')
-          .select('id, price')
-          .eq('business_id', business.id);
+          .from('business_services')
+          .select('id, suggested_price')
+          .eq('business_id', business.id)
+          .eq('is_active', true);
 
         const servicesMap = (services || []).reduce((map, s) => { map[s.id] = s; return map; }, {});
-        const total = (appointments || []).reduce((sum, apt) => sum + (servicesMap[apt.service_id]?.price || 0), 0);
+        const total = (appointments || []).reduce((sum, apt) => sum + (servicesMap[apt.service_id]?.suggested_price || 0), 0);
         
         return total > 0 ? `Este mes llevas **${total.toFixed(2)}€** facturados` : `Aún no has facturado nada este mes.`;
       }
