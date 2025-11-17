@@ -260,7 +260,7 @@ export default function IntegracionesContent() {
     // Probar sincronización
     // NOTA: La funcionalidad de sincronización estará disponible próximamente
     const handleTestSync = async () => {
-        toast.info('La sincronización automática estará disponible próximamente. Por ahora, las reservas se sincronizan automáticamente cuando se crean o modifican.', {
+        toast('ℹ️ La sincronización automática estará disponible próximamente. Por ahora, las reservas se sincronizan automáticamente cuando se crean o modifican.', {
             duration: 5000,
             icon: 'ℹ️'
         });
