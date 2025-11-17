@@ -1,5 +1,6 @@
 // IntegracionesContent.jsx - Configuración de Integraciones Externas
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
 import toast from 'react-hot-toast';
@@ -17,6 +18,7 @@ import {
 
 export default function IntegracionesContent() {
     const { businessId, business } = useAuthContext();
+    const [searchParams] = useSearchParams();
     const [loading, setLoading] = useState(false);
     const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
     const [googleCalendarConfig, setGoogleCalendarConfig] = useState(null);
@@ -27,6 +29,25 @@ export default function IntegracionesContent() {
             loadIntegrationsConfig();
         }
     }, [businessId]);
+
+    // Recargar cuando se vuelve de OAuth (detectar parámetros en URL)
+    useEffect(() => {
+        if (!businessId) return;
+        
+        const integration = searchParams.get('integration');
+        const status = searchParams.get('status');
+        
+        // Si viene de un redirect de OAuth exitoso, recargar la configuración
+        if (integration === 'google_calendar' && status === 'success') {
+            console.log('🔄 Recargando configuración después de OAuth exitoso...');
+            // Pequeño delay para asegurar que la Edge Function haya guardado los datos
+            const timeoutId = setTimeout(() => {
+                loadIntegrationsConfig();
+            }, 1500);
+            
+            return () => clearTimeout(timeoutId);
+        }
+    }, [businessId, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const loadIntegrationsConfig = async () => {
         try {

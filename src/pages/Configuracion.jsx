@@ -193,12 +193,18 @@ const Configuracion = () => {
                 if (validTabs.includes('canales')) {
                     setActiveTab('canales');
                 }
-                // Limpiar parámetros de la URL
-                const newSearchParams = new URLSearchParams(searchParams);
-                newSearchParams.delete('integration');
-                newSearchParams.delete('status');
-                newSearchParams.delete('message');
-                navigate(`/configuracion?${newSearchParams.toString()}`, { replace: true });
+                // Limpiar parámetros de la URL después de un pequeño delay
+                // para que el componente IntegracionesContent pueda detectarlos primero
+                setTimeout(() => {
+                    const newSearchParams = new URLSearchParams(searchParams);
+                    newSearchParams.delete('integration');
+                    newSearchParams.delete('status');
+                    newSearchParams.delete('message');
+                    const cleanUrl = newSearchParams.toString() 
+                        ? `/configuracion?${newSearchParams.toString()}` 
+                        : '/configuracion';
+                    navigate(cleanUrl, { replace: true });
+                }, 2000);
             } else if (status === 'error') {
                 toast.error(`❌ Error al conectar Google Calendar: ${message || 'Error desconocido'}`, {
                     duration: 7000,
@@ -209,7 +215,10 @@ const Configuracion = () => {
                 newSearchParams.delete('integration');
                 newSearchParams.delete('status');
                 newSearchParams.delete('message');
-                navigate(`/configuracion?${newSearchParams.toString()}`, { replace: true });
+                const cleanUrl = newSearchParams.toString() 
+                    ? `/configuracion?${newSearchParams.toString()}` 
+                    : '/configuracion';
+                navigate(cleanUrl, { replace: true });
             }
         }
     }, [searchParams, location.state, navigate]);
