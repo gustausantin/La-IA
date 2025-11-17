@@ -72,17 +72,27 @@ const BusinessSettings = React.memo(({ business: businessProp, onUpdate, showOnl
       };
       
       // ✅ Asegurar que los valores numéricos sean números, no strings
-      if (bookingSettings.advance_booking_days !== undefined) {
-        bookingSettings.advance_booking_days = parseInt(bookingSettings.advance_booking_days, 10) || 30;
+      // IMPORTANTE: Si advance_booking_days es undefined, null, o 0, usar el valor por defecto
+      if (bookingSettings.advance_booking_days === undefined || bookingSettings.advance_booking_days === null) {
+        bookingSettings.advance_booking_days = 30; // Valor por defecto
+        console.log('⚠️ advance_booking_days no encontrado en bookingSettings, usando 30 por defecto');
+      } else {
+        const parsed = parseInt(bookingSettings.advance_booking_days, 10);
+        bookingSettings.advance_booking_days = (isNaN(parsed) || parsed <= 0) ? 30 : parsed;
       }
-      if (bookingSettings.min_advance_minutes !== undefined) {
+      
+      if (bookingSettings.min_advance_minutes !== undefined && bookingSettings.min_advance_minutes !== null) {
         bookingSettings.min_advance_minutes = parseInt(bookingSettings.min_advance_minutes, 10) || 120;
       }
-      if (bookingSettings.max_party_size !== undefined) {
+      if (bookingSettings.max_party_size !== undefined && bookingSettings.max_party_size !== null) {
         bookingSettings.max_party_size = parseInt(bookingSettings.max_party_size, 10) || 12;
       }
       
-      console.log('📖 Leyendo booking_settings en BusinessSettings:', bookingSettings);
+      console.log('📖 Leyendo booking_settings en BusinessSettings:', {
+        ...bookingSettings,
+        advance_booking_days: bookingSettings.advance_booking_days,
+        tipo_advance_booking_days: typeof bookingSettings.advance_booking_days
+      });
       return bookingSettings;
     })(),
   });
@@ -91,6 +101,49 @@ const BusinessSettings = React.memo(({ business: businessProp, onUpdate, showOnl
   const [activeTab, setActiveTab] = useState(showOnlyReservas ? 'reservas' : 'general');
   const [protectedReservations, setProtectedReservations] = useState([]);
   const [showProtectedModal, setShowProtectedModal] = useState(false);
+
+  // ✅ Sincronizar settings cuando cambian los datos del negocio (especialmente después de guardar)
+  React.useEffect(() => {
+    if (businessData) {
+      const newBookingSettings = businessData?.booking_settings || businessData?.settings?.booking_settings;
+      
+      if (newBookingSettings) {
+        // Procesar advance_booking_days
+        let advanceDays = newBookingSettings.advance_booking_days;
+        if (advanceDays !== undefined && advanceDays !== null) {
+          const parsed = parseInt(advanceDays, 10);
+          advanceDays = (isNaN(parsed) || parsed <= 0) ? 30 : parsed;
+        } else {
+          advanceDays = 30;
+        }
+        
+        // Solo actualizar si el valor cambió
+        if (settings.booking_settings?.advance_booking_days !== advanceDays) {
+          console.log('🔄 Sincronizando advance_booking_days desde businessData:', {
+            nuevo: advanceDays,
+            actual: settings.booking_settings?.advance_booking_days,
+            desde_bd: newBookingSettings.advance_booking_days,
+            businessData_settings: businessData?.settings?.booking_settings,
+            businessData_direct: businessData?.booking_settings
+          });
+          
+          setSettings(prev => ({
+            ...prev,
+            booking_settings: {
+              ...prev.booking_settings,
+              ...newBookingSettings,
+              advance_booking_days: advanceDays
+            }
+          }));
+        }
+      }
+    }
+  }, [
+    businessData?.settings?.booking_settings?.advance_booking_days, 
+    businessData?.booking_settings?.advance_booking_days,
+    businessData?.settings?.booking_settings,
+    businessData?.booking_settings
+  ]);
 
   const handleInputChange = useCallback((field, value) => {
     setSettings(prev => ({ ...prev, [field]: value }));

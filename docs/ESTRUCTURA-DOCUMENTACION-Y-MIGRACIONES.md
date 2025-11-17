@@ -22,3 +22,4 @@ Regla:
 > Solo entran en `migrations/` las migraciones que se van a ejecutar vía Supabase CLI. Cualquier script puntual o manual debe ir a `supabase/scripts/` o documentarse en `docs/`.
 
 
+

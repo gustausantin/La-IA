@@ -107,62 +107,137 @@ export default function CalendarioReservas({
     const [showPendingModal, setShowPendingModal] = useState(false); // 📋 Modal de pendientes
     const [showCompletedModal, setShowCompletedModal] = useState(false); // 📋 Modal de completadas
     
-    // 🕐 CALCULAR HORAS DINÁMICAMENTE - Buscar en negocio y empleados
+    // 🕐 CALCULAR HORAS DINÁMICAMENTE (POR DÍA) - PRIORIZAR HORARIO DEL NEGOCIO
+    //
+    // 👉 Objetivo: que el calendario arranque en la primera hora REAL de trabajo
+    // del día seleccionado según el horario del NEGOCIO (operating_hours).
+    // Si el negocio abre a las 11:00, el calendario debe empezar a las 11:00, no a las 09:00.
     const [horaInicio, horaFin] = useMemo(() => {
         let minHora = 24;
         let maxHora = 0;
-        let encontradoAlgunHorario = false;
-        
-        // 1️⃣ Buscar en horario del NEGOCIO (operating_hours)
+        let encontradoHorarioNegocio = false;
+
+        // Día de la semana de la fecha actual: 0=domingo, 1=lunes, ..., 6=sábado
+        const diaSemanaActual = fechaActual.getDay();
+        const dayKeyMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayName = dayKeyMap[diaSemanaActual];
+
+        // 🔍 FORZAR RECÁLCULO: Log para verificar que se ejecuta cuando cambia la fecha
+        const fechaStr = fechaActual.toISOString().split('T')[0];
+        console.log(`🔄 Calendario - RECALCULANDO horario para fecha: ${fechaStr}, día: ${dayName} (${diaSemanaActual})`);
+
+        // 1️⃣ PRIORIDAD: Buscar horario del NEGOCIO SOLO para el día seleccionado (operating_hours)
         if (businessSettings?.operating_hours) {
-            Object.values(businessSettings.operating_hours).forEach(daySchedule => {
-                if (!daySchedule.closed) {
-                    encontradoAlgunHorario = true;
-                    // Si tiene turnos, usar todos los turnos
-                    if (daySchedule.shifts && daySchedule.shifts.length > 0) {
-                        daySchedule.shifts.forEach(shift => {
-                            const [horaStart] = shift.start.split(':').map(Number);
-                            const [horaEnd] = shift.end.split(':').map(Number);
-                            minHora = Math.min(minHora, horaStart);
-                            maxHora = Math.max(maxHora, horaEnd);
-                        });
+            const operating = businessSettings.operating_hours;
+            let daySchedule = null;
+
+            console.log(`🔍 Calendario - Buscando horario para ${dayName} (${diaSemanaActual})`);
+            console.log(`🔍 Calendario - operating_hours tipo:`, typeof operating, Array.isArray(operating) ? 'Array' : 'Object');
+            console.log(`🔍 Calendario - operating_hours keys:`, typeof operating === 'object' && !Array.isArray(operating) ? Object.keys(operating) : 'N/A');
+            console.log(`🔍 Calendario - operating_hours completo:`, JSON.stringify(operating, null, 2));
+
+            // Soportar distintos formatos posibles:
+            //  - Objeto con claves por día: { monday: { ... }, tuesday: { ... }, ... }
+            //  - Array de días con campo day_of_week
+            if (Array.isArray(operating)) {
+                daySchedule = operating.find(d => d.day_of_week === diaSemanaActual || d.day_of_week === dayName) || null;
+            } else if (typeof operating === 'object' && operating !== null) {
+                // Buscar por clave del día (monday, tuesday, etc.) - PRIORITARIO
+                if (operating[dayName]) {
+                    daySchedule = operating[dayName];
+                    console.log(`✅ Calendario - Encontrado por clave directa: ${dayName}`);
+                } else {
+                    // Fallback 1: buscar variaciones de nombre (mayúsculas, etc.)
+                    const dayNameLower = dayName.toLowerCase();
+                    const foundKey = Object.keys(operating).find(key => key.toLowerCase() === dayNameLower);
+                    if (foundKey) {
+                        daySchedule = operating[foundKey];
+                        console.log(`✅ Calendario - Encontrado por clave case-insensitive: ${foundKey}`);
                     } else {
-                        // Si no tiene turnos, usar open/close directo
-                        const [horaOpen] = daySchedule.open.split(':').map(Number);
-                        const [horaClose] = daySchedule.close.split(':').map(Number);
-                        minHora = Math.min(minHora, horaOpen);
-                        maxHora = Math.max(maxHora, horaClose);
+                        // Fallback 2: buscar por day_of_week dentro de los values
+                        daySchedule = Object.values(operating).find(d => 
+                            d && typeof d === 'object' && (
+                                d.day_of_week === diaSemanaActual || 
+                                d.day_of_week === dayName ||
+                                d.day_of_week === dayNameLower
+                            )
+                        ) || null;
+                        if (daySchedule) {
+                            console.log(`✅ Calendario - Encontrado por day_of_week en values`);
+                        }
                     }
                 }
-            });
-        }
-        
-        // 2️⃣ Buscar TAMBIÉN en horarios de EMPLEADOS (expandir el rango si es necesario)
-        if (resources && resources.length > 0) {
-            resources.forEach(recurso => {
-                const schedules = recurso.employee_schedules || [];
-                schedules.forEach(schedule => {
-                    if (schedule.is_working && schedule.shifts) {
-                        schedule.shifts.forEach(shift => {
-                            encontradoAlgunHorario = true;
+            }
+
+            console.log(`🔍 Calendario - daySchedule encontrado:`, daySchedule ? JSON.stringify(daySchedule, null, 2) : 'null');
+
+            if (daySchedule && typeof daySchedule === 'object' && !daySchedule.closed) {
+                encontradoHorarioNegocio = true;
+
+                // Si tiene turnos, usar todos los turnos de ese día
+                if (daySchedule.shifts && Array.isArray(daySchedule.shifts) && daySchedule.shifts.length > 0) {
+                    console.log(`🔍 Calendario - Usando ${daySchedule.shifts.length} turnos:`, daySchedule.shifts);
+                    daySchedule.shifts.forEach((shift, idx) => {
+                        if (shift && shift.start && shift.end) {
                             const [horaStart] = shift.start.split(':').map(Number);
                             const [horaEnd] = shift.end.split(':').map(Number);
+                            console.log(`  Turno ${idx + 1}: ${shift.start} - ${shift.end} → horas ${horaStart} - ${horaEnd}`);
                             minHora = Math.min(minHora, horaStart);
                             maxHora = Math.max(maxHora, horaEnd);
+                        }
+                    });
+                } else if (daySchedule.open && daySchedule.close) {
+                    // Si no tiene turnos, usar open/close directo
+                    console.log(`🔍 Calendario - Usando open/close: ${daySchedule.open} - ${daySchedule.close}`);
+                    const [horaOpen] = daySchedule.open.split(':').map(Number);
+                    const [horaClose] = daySchedule.close.split(':').map(Number);
+                    minHora = Math.min(minHora, horaOpen);
+                    maxHora = Math.max(maxHora, horaClose);
+                } else {
+                    console.warn(`⚠️ Calendario - daySchedule no tiene shifts ni open/close`);
+                }
+            } else if (daySchedule && daySchedule.closed) {
+                console.log(`🔍 Calendario - Día ${dayName} está cerrado según operating_hours`);
+            } else if (!daySchedule) {
+                console.warn(`⚠️ Calendario - No se encontró daySchedule para ${dayName}`);
+            }
+        } else {
+            console.log(`⚠️ Calendario - No hay businessSettings.operating_hours`);
+        }
+
+        // 2️⃣ SOLO SI NO HAY HORARIO DEL NEGOCIO: buscar en horarios de EMPLEADOS como fallback
+        if (!encontradoHorarioNegocio && resources && resources.length > 0) {
+            console.log(`🔍 Calendario - Buscando en horarios de empleados como fallback...`);
+            resources.forEach(recurso => {
+                const schedules = (recurso.employee_schedules || []).filter(
+                    s => s.day_of_week === diaSemanaActual && s.is_working
+                );
+
+                schedules.forEach(schedule => {
+                    if (schedule.shifts && schedule.shifts.length > 0) {
+                        schedule.shifts.forEach(shift => {
+                            if (shift.start && shift.end) {
+                                const [horaStart] = shift.start.split(':').map(Number);
+                                const [horaEnd] = shift.end.split(':').map(Number);
+                                minHora = Math.min(minHora, horaStart);
+                                maxHora = Math.max(maxHora, horaEnd);
+                            }
                         });
                     }
                 });
             });
         }
-        
-        // 3️⃣ Si encontramos algún horario, usar el rango completo (sin buffer adicional)
-        if (encontradoAlgunHorario && minHora < 24 && maxHora > 0) {
+
+        // 3️⃣ Si encontramos algún horario, usar el rango completo del día
+        if (minHora < 24 && maxHora > 0) {
+            console.log(`✅ Calendario - Día: ${dayName} (${diaSemanaActual}), Horario FINAL calculado: ${minHora}:00 - ${maxHora}:00`);
             return [minHora, maxHora];
         }
-        
+
         // 4️⃣ Por defecto: 8-22 si no hay ninguna configuración
+        console.log(`⚠️ Calendario - Día: ${dayName} (${diaSemanaActual}), Sin horario configurado, usando default: 8:00 - 22:00`);
         return [8, 22];
-    }, [businessSettings, resources]);
+    }, [businessSettings, resources, fechaActual]);
     
     // 🔴 Actualizar hora actual cada minuto
     useEffect(() => {

@@ -41,7 +41,7 @@ import { useVertical } from "../hooks/useVertical";
 import IntegracionesContent from "../components/configuracion/IntegracionesContent"; // 🆕 Integraciones
 import RecursosContent from "../components/configuracion/RecursosContent"; // 🆕 Recursos
 import ServiciosContent from "./configuracion/Servicios"; // 🆕 Servicios
-import RestaurantSettings from "../components/configuracion/RestaurantSettings"; // 🆕 Configuración de Reservas
+import BusinessSettings from "../components/configuracion/BusinessSettings"; // 🆕 Configuración de Reservas
 import AvatarSelector from "../components/configuracion/AvatarSelector"; // 🆕 Selector de avatares predefinidos
 import AgentToggle from "../components/configuracion/AgentToggle"; // 🆕 Toggle ON/OFF del agente
 import { AVATARS_PREDEFINIDOS, getAvatarById } from "../config/avatars"; // Config de avatares
@@ -375,11 +375,23 @@ const Configuracion = () => {
             }
             console.log("🏪 Restaurant ID encontrado:", currentBusinessId);
 
+            // ✅ CORRECCIÓN: Usar select('*') como en AuthContext (funciona correctamente)
+            // Supabase solo devuelve los campos que existen y el usuario tiene permisos para ver
             const { data: restaurantData, error: restError } = await supabase
                 .from("businesses")
                 .select("*")
                 .eq("id", currentBusinessId)
                 .maybeSingle();
+            
+            if (restError) {
+                console.error("❌ Error cargando business:", restError);
+                console.error("❌ Detalles:", {
+                    message: restError.message,
+                    details: restError.details,
+                    hint: restError.hint,
+                    code: restError.code
+                });
+            }
 
             console.log("📊 DATOS DEL RESTAURANTE:", restaurantData);
 
@@ -414,14 +426,35 @@ const Configuracion = () => {
                         saturday: { open: '12:00', close: '24:00', closed: false },
                         sunday: { open: '12:00', close: '23:00', closed: false },
                     },
-                    booking_settings: dbSettings.booking_settings || {
-                        advance_booking_days: 30,
-                        min_booking_hours: 2,
-                        max_party_size: 12,
-                        require_confirmation: true,
-                        allow_modifications: true,
-                        cancellation_policy: '24h',
-                    },
+                    booking_settings: (() => {
+                        const bookingSettings = dbSettings.booking_settings || {
+                            advance_booking_days: 30,
+                            min_booking_hours: 2,
+                            max_party_size: 12,
+                            require_confirmation: true,
+                            allow_modifications: true,
+                            cancellation_policy: '24h',
+                        };
+                        
+                        // ✅ Asegurar que los valores numéricos sean números, no strings
+                        if (bookingSettings.advance_booking_days !== undefined) {
+                            bookingSettings.advance_booking_days = parseInt(bookingSettings.advance_booking_days, 10) || 30;
+                        }
+                        if (bookingSettings.min_advance_minutes !== undefined) {
+                            bookingSettings.min_advance_minutes = parseInt(bookingSettings.min_advance_minutes, 10) || 120;
+                        }
+                        if (bookingSettings.max_party_size !== undefined) {
+                            bookingSettings.max_party_size = parseInt(bookingSettings.max_party_size, 10) || 12;
+                        }
+                        
+                        console.log('📖 Leyendo booking_settings desde BD:', {
+                          ...bookingSettings,
+                          advance_booking_days: bookingSettings.advance_booking_days,
+                          tipo_advance_booking_days: typeof bookingSettings.advance_booking_days,
+                          raw_advance_booking_days: dbSettings.booking_settings?.advance_booking_days
+                        });
+                        return bookingSettings;
+                    })(),
                     
                     // ✅ CONFIGURACIÓN TÉCNICA
                     country: restaurantData.country || "ES",
@@ -1074,19 +1107,61 @@ const Configuracion = () => {
                     {/* 📅 RESERVAS - Configuración de disponibilidad */}
                     {activeTab === "reservas" && (
                         <div className="space-y-4">
-                            <RestaurantSettings 
-                                restaurant={business} 
+                            <BusinessSettings 
+                                business={business} 
                                 onUpdate={async (updatedSettings) => {
                                     try {
                                         setSaving(true);
+                                        
+                                        // ✅ CORRECCIÓN: Separar campos directos de settings JSONB
+                                        // booking_settings, opening_hours, etc. van DENTRO de settings, NO como columnas directas
+                                        const directFields = {};
+                                        const settingsFields = { ...business?.settings };
+                                        
+                                        // Campos que van directamente en la tabla (si existen)
+                                        const allowedDirectFields = ['name', 'email', 'phone', 'address', 'city', 'postal_code'];
+                                        allowedDirectFields.forEach(field => {
+                                            if (updatedSettings[field] !== undefined) {
+                                                directFields[field] = updatedSettings[field];
+                                            }
+                                        });
+                                        
+                                        // Todo lo demás va dentro de settings JSONB
+                                        if (updatedSettings.settings) {
+                                            Object.assign(settingsFields, updatedSettings.settings);
+                                        }
+                                        
+                                        // booking_settings, opening_hours, etc. van en settings
+                                        if (updatedSettings.booking_settings) {
+                                            // ✅ Asegurar que advance_booking_days sea un número
+                                            const bookingSettings = { ...updatedSettings.booking_settings };
+                                            if (bookingSettings.advance_booking_days !== undefined) {
+                                                bookingSettings.advance_booking_days = parseInt(bookingSettings.advance_booking_days, 10) || 30;
+                                            }
+                                            if (bookingSettings.min_advance_minutes !== undefined) {
+                                                bookingSettings.min_advance_minutes = parseInt(bookingSettings.min_advance_minutes, 10) || 120;
+                                            }
+                                            if (bookingSettings.max_party_size !== undefined) {
+                                                bookingSettings.max_party_size = parseInt(bookingSettings.max_party_size, 10) || 12;
+                                            }
+                                            
+                                            console.log('💾 Guardando booking_settings:', {
+                                              ...bookingSettings,
+                                              advance_booking_days: bookingSettings.advance_booking_days,
+                                              tipo_advance_booking_days: typeof bookingSettings.advance_booking_days
+                                            });
+                                            settingsFields.booking_settings = bookingSettings;
+                                        }
+                                        if (updatedSettings.opening_hours) {
+                                            settingsFields.opening_hours = updatedSettings.opening_hours;
+                                        }
+                                        
                                         const { error } = await supabase
                                             .from('businesses')
                                             .update({
-                                                ...updatedSettings,
-                                                settings: {
-                                                    ...business?.settings,
-                                                    ...updatedSettings.settings
-                                                }
+                                                ...directFields,
+                                                settings: settingsFields,
+                                                updated_at: new Date().toISOString()
                                             })
                                             .eq('id', businessId);
                                         
@@ -1094,21 +1169,42 @@ const Configuracion = () => {
                                         
                                         toast.success('Configuración guardada correctamente');
                                         
-                                        // Recargar datos
-                                        const { data: updatedBusiness } = await supabase
-                                            .from('businesses')
-                                            .select('*')
-                                            .eq('id', businessId)
-                                            .single();
-                                        
-                                        if (updatedBusiness) {
-                                            window.dispatchEvent(new CustomEvent('restaurant-updated', {
-                                                detail: { restaurant: updatedBusiness }
-                                            }));
+                                        // Recargar datos (solo campos necesarios para evitar errores)
+                                        try {
+                                            const { data: updatedBusiness, error: reloadError } = await supabase
+                                                .from('businesses')
+                                                .select('id, name, settings, channels, updated_at')
+                                                .eq('id', businessId)
+                                                .single();
+                                            
+                                            if (reloadError) {
+                                                console.warn('⚠️ Error recargando business (no crítico):', reloadError);
+                                            } else if (updatedBusiness) {
+                                                console.log('🔄 Business actualizado, disparando evento:', {
+                                                    advance_booking_days: updatedBusiness.settings?.booking_settings?.advance_booking_days
+                                                });
+                                                // Disparar evento para actualizar contexto (usar 'business-updated' que es el que escucha AuthContext)
+                                                window.dispatchEvent(new CustomEvent('business-updated', {
+                                                    detail: { business: updatedBusiness }
+                                                }));
+                                                // También disparar el evento legacy por compatibilidad
+                                                window.dispatchEvent(new CustomEvent('restaurant-updated', {
+                                                    detail: { restaurant: updatedBusiness }
+                                                }));
+                                            }
+                                        } catch (reloadError) {
+                                            console.warn('⚠️ Error en recarga (no crítico):', reloadError);
+                                            // No mostrar error al usuario, el guardado ya fue exitoso
                                         }
                                     } catch (error) {
-                                        console.error('Error guardando configuración:', error);
-                                        toast.error('Error al guardar la configuración');
+                                        console.error('❌ Error guardando configuración:', error);
+                                        console.error('❌ Detalles del error:', {
+                                            message: error.message,
+                                            details: error.details,
+                                            hint: error.hint,
+                                            code: error.code
+                                        });
+                                        toast.error(`Error al guardar la configuración: ${error.message || 'Error desconocido'}`);
                                     } finally {
                                         setSaving(false);
                                     }

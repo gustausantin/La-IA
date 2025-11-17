@@ -856,6 +856,135 @@ export default function Calendario() {
         try {
             console.log("🔄 Guardando horarios simplificados...", schedule);
             
+            // 🚨 VALIDACIÓN CRÍTICA: Verificar conflictos con horarios de empleados
+            console.log("🔍 Verificando conflictos con horarios de empleados...");
+            
+            try {
+                // 1. Obtener todos los empleados activos con sus horarios
+                const { data: employees, error: employeesError } = await supabase
+                    .from('employees')
+                    .select(`
+                        id,
+                        name,
+                        employee_schedules (
+                            day_of_week,
+                            is_working,
+                            shifts
+                        )
+                    `)
+                    .eq('business_id', businessId)
+                    .eq('is_active', true);
+                
+                if (employeesError) {
+                    console.warn("⚠️ Error obteniendo empleados:", employeesError);
+                } else if (employees && employees.length > 0) {
+                    // 2. Comparar nuevo horario del negocio con horarios de empleados
+                    const conflicts = [];
+                    const dayKeyMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                    
+                    schedule.forEach(day => {
+                        if (!day.is_open) return; // Día cerrado, no hay conflicto
+                        
+                        const dayName = day.day_of_week;
+                        const dayIndex = dayKeyMap.indexOf(dayName);
+                        if (dayIndex === -1) return;
+                        
+                        // Obtener primera hora de inicio del negocio para este día
+                        const businessShifts = day.shifts || [{ start: day.open_time, end: day.close_time }];
+                        const businessFirstStart = businessShifts
+                            .map(s => s.start)
+                            .sort()
+                            [0]; // Primera hora de inicio
+                        
+                        if (!businessFirstStart) return;
+                        
+                        const [businessHour, businessMin] = businessFirstStart.split(':').map(Number);
+                        const businessStartMinutes = businessHour * 60 + businessMin;
+                        
+                        // Verificar cada empleado
+                        employees.forEach(emp => {
+                            const empSchedules = emp.employee_schedules || [];
+                            const empDaySchedule = empSchedules.find(s => 
+                                s.day_of_week === dayIndex && s.is_working
+                            );
+                            
+                            if (empDaySchedule && empDaySchedule.shifts && empDaySchedule.shifts.length > 0) {
+                                empDaySchedule.shifts.forEach(shift => {
+                                    if (shift.start) {
+                                        const [empHour, empMin] = shift.start.split(':').map(Number);
+                                        const empStartMinutes = empHour * 60 + empMin;
+                                        
+                                        // Si el empleado empieza ANTES que el negocio, hay conflicto
+                                        if (empStartMinutes < businessStartMinutes) {
+                                            conflicts.push({
+                                                employeeName: emp.name,
+                                                employeeId: emp.id,
+                                                dayName: day.day_name || dayName,
+                                                dayOfWeek: dayName,
+                                                employeeStart: shift.start,
+                                                businessStart: businessFirstStart
+                                            });
+                                        }
+                                    }
+                                });
+                            }
+                        });
+                    });
+                    
+                    // 3. Si hay conflictos, mostrar advertencia y NO permitir guardar
+                    if (conflicts.length > 0) {
+                        // Agrupar conflictos por día
+                        const conflictsByDay = conflicts.reduce((acc, conflict) => {
+                            if (!acc[conflict.dayOfWeek]) {
+                                acc[conflict.dayOfWeek] = [];
+                            }
+                            acc[conflict.dayOfWeek].push(conflict);
+                            return acc;
+                        }, {});
+                        
+                        // Crear mensaje detallado
+                        let conflictMessage = `⚠️ CONFLICTO DETECTADO\n\n`;
+                        conflictMessage += `Has configurado el horario del negocio, pero hay ${conflicts.length} empleado(s) que tienen horarios que empiezan ANTES del horario del negocio:\n\n`;
+                        
+                        Object.entries(conflictsByDay).forEach(([dayKey, dayConflicts]) => {
+                            const dayName = dayConflicts[0].dayName;
+                            conflictMessage += `📅 ${dayName}:\n`;
+                            dayConflicts.forEach(c => {
+                                conflictMessage += `   • ${c.employeeName}: empieza a las ${c.employeeStart} (negocio: ${c.businessStart})\n`;
+                            });
+                            conflictMessage += `\n`;
+                        });
+                        
+                        conflictMessage += `\n🚨 ACCIÓN REQUERIDA:\n`;
+                        conflictMessage += `Debes cambiar primero los horarios de estos empleados antes de guardar el nuevo horario del negocio.\n\n`;
+                        conflictMessage += `El horario del NEGOCIO siempre tiene prioridad sobre los horarios de empleados.\n\n`;
+                        conflictMessage += `¿Quieres cancelar el guardado para revisar los horarios de empleados?`;
+                        
+                        const userConfirmed = window.confirm(conflictMessage);
+                        
+                        if (userConfirmed) {
+                            toast.error(
+                                `❌ Guardado cancelado\n\n` +
+                                `Revisa los horarios de ${conflicts.length} empleado(s) en "Tu Equipo" antes de cambiar el horario del negocio.`,
+                                { duration: 8000 }
+                            );
+                            setSaving(false);
+                            return;
+                        } else {
+                            // Usuario quiere continuar de todas formas (no recomendado)
+                            toast.warning(
+                                `⚠️ Continuando con guardado...\n\n` +
+                                `Los horarios de empleados pueden causar confusión en el calendario.`,
+                                { duration: 6000 }
+                            );
+                        }
+                    }
+                }
+            } catch (employeeConflictError) {
+                console.warn("⚠️ Error verificando conflictos con empleados:", employeeConflictError);
+                // Continuar con el guardado aunque falle la verificación
+            }
+            
             // 🔍 DETECCIÓN DE CONFLICTOS CALENDARIO vs DISPONIBILIDADES
             console.log("🔍 Verificando conflictos calendario vs disponibilidades...");
             
@@ -868,8 +997,8 @@ export default function Calendario() {
                 if (conflictError) {
                     console.warn("⚠️ No se pudo verificar conflictos:", conflictError);
                 } else if (conflictData?.conflicts_found > 0) {
-                    const conflicts = conflictData.conflicts;
-                    const criticalConflicts = conflicts.filter(c => c.severity === 'CRITICAL');
+                    const availabilityConflicts = conflictData.conflicts;
+                    const criticalConflicts = availabilityConflicts.filter(c => c.severity === 'CRITICAL');
                     
                     if (criticalConflicts.length > 0) {
                         // Hay reservas confirmadas en días que se van a cerrar

@@ -334,9 +334,11 @@ const AuthProvider = ({ children }) => {
 
     // Event listener para sincronización manual desde Configuración
     const handleBusinessUpdate = (event) => {
-      const updatedBusiness = event.detail?.business;
+      const updatedBusiness = event.detail?.business || event.detail?.restaurant; // Soporta ambos nombres
       if (updatedBusiness) {
-        console.log('🔄 AuthContext: Recibiendo actualización del negocio desde Configuración');
+        console.log('🔄 AuthContext: Recibiendo actualización del negocio desde Configuración', {
+          advance_booking_days: updatedBusiness.settings?.booking_settings?.advance_booking_days
+        });
         setBusiness(updatedBusiness);
         setBusinessId(updatedBusiness.id);
         console.log('✅ AuthContext: Negocio actualizado en memoria');

@@ -166,6 +166,8 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
             }
             
             // 3. Crear la reserva
+            // ✅ CORRECCIÓN: Usar appointment_date y appointment_time (campos reales de la BD)
+            // NO reservation_date/reservation_time (solo para mapeo en frontend)
             const { data: reservation, error: reservationError } = await supabase
                 .from('appointments')
                 .insert({
@@ -174,12 +176,13 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                     customer_name: formData.customer_name,
                     customer_email: formData.customer_email || null,
                     customer_phone: formData.customer_phone,
-                    reservation_date: formData.reservation_date,
-                    reservation_time: formData.reservation_time,
+                    appointment_date: formData.reservation_date, // ✅ Campo real de BD
+                    appointment_time: formData.reservation_time, // ✅ Campo real de BD
                     party_size: formData.party_size,
-                    table_id: selectedTableId,
+                    resource_id: selectedTableId, // ✅ Para salones: resource_id (empleado/recurso)
+                    table_id: selectedTableId, // ✅ Para restaurantes: table_id (mesa)
                     special_requests: formData.special_requests || null,
-                    status: 'confirmada',
+                    status: 'confirmed', // ✅ Estado en inglés (confirmed, pending, cancelled, etc.)
                     source: 'dashboard', // ✅ Fuente: creada desde dashboard
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
@@ -189,24 +192,60 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
             
             if (reservationError) throw reservationError;
             
-            // 4. Marcar slot como ocupado si existe
+            // 4. Marcar slot(s) como ocupado(s) si existe(n)
+            // ✅ Los slots se generan con resource_id (para salones) o table_id (para restaurantes)
+            // Necesitamos actualizar todos los slots que corresponden a esta reserva
             if (availabilityStatus.availableSlots.length > 0) {
+                // Buscar slot que coincida con el recurso/mesa seleccionado
                 const slotToBook = availabilityStatus.availableSlots.find(slot => 
-                    slot.table_id === selectedTableId
+                    (slot.resource_id && slot.resource_id === selectedTableId) ||
+                    (slot.table_id && slot.table_id === selectedTableId)
                 ) || availabilityStatus.availableSlots[0];
                 
-                await supabase
-                    .from('availability_slots')
-                    .update({
-                        status: 'reserved',
-                        metadata: {
-                            reservation_id: reservation.id,
-                            customer_name: formData.customer_name,
-                            party_size: formData.party_size
-                        },
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', slotToBook.id);
+                if (slotToBook && slotToBook.id) {
+                    // Calcular cuántos slots necesita esta reserva (basado en duración)
+                    const durationMinutes = reservation.duration_minutes || 60;
+                    const slotInterval = 15; // Intervalo de slots (15 minutos según migración)
+                    const slotsNeeded = Math.ceil(durationMinutes / slotInterval);
+                    
+                    // Actualizar el slot principal y los siguientes slots necesarios
+                    const slotDate = formData.reservation_date;
+                    const [slotHour, slotMin] = formData.reservation_time.split(':').map(Number);
+                    
+                    // Buscar y actualizar todos los slots afectados
+                    for (let i = 0; i < slotsNeeded; i++) {
+                        const minutesOffset = i * slotInterval;
+                        const totalMinutes = slotHour * 60 + slotMin + minutesOffset;
+                        const targetHour = Math.floor(totalMinutes / 60);
+                        const targetMin = totalMinutes % 60;
+                        const targetTime = `${targetHour.toString().padStart(2, '0')}:${targetMin.toString().padStart(2, '0')}`;
+                        
+                        // Buscar slot específico
+                        const { data: slotsToUpdate } = await supabase
+                            .from('availability_slots')
+                            .select('id')
+                            .eq('business_id', businessId)
+                            .eq('slot_date', slotDate)
+                            .eq('start_time', targetTime)
+                            .or(`resource_id.eq.${selectedTableId},table_id.eq.${selectedTableId}`)
+                            .eq('status', 'free');
+                        
+                        if (slotsToUpdate && slotsToUpdate.length > 0) {
+                            await supabase
+                                .from('availability_slots')
+                                .update({
+                                    status: 'reserved',
+                                    metadata: {
+                                        appointment_id: reservation.id, // ✅ Usar appointment_id
+                                        customer_name: formData.customer_name,
+                                        party_size: formData.party_size
+                                    },
+                                    updated_at: new Date().toISOString()
+                                })
+                                .in('id', slotsToUpdate.map(s => s.id));
+                        }
+                    }
+                }
             }
             
             toast.success('✅ Reserva creada correctamente');
