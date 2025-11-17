@@ -151,10 +151,10 @@ export default function RecursosContent() {
     if (!confirm(`¿Eliminar "${name}"?\n\n⚠️ Esta acción no se puede deshacer.`)) return;
 
     try {
-      // ✅ PASO 1: Verificar si tiene EMPLEADOS asignados
+      // ✅ PASO 1: Verificar si tiene EMPLEADOS asignados CON HORARIOS ACTIVOS
       const { data: employeesWithResource, error: employeesError } = await supabase
         .from('employees')
-        .select('id, name')
+        .select('id, name, assigned_resource_id')
         .eq('business_id', businessId)
         .eq('assigned_resource_id', id)
         .eq('is_active', true);
@@ -162,15 +162,62 @@ export default function RecursosContent() {
       if (employeesError) throw employeesError;
 
       if (employeesWithResource && employeesWithResource.length > 0) {
+        // ✅ Verificar si estos empleados tienen horarios activos
+        const employeeIds = employeesWithResource.map(e => e.id);
+        
+        const { data: activeSchedules, error: schedulesError } = await supabase
+          .from('employee_schedules')
+          .select('employee_id, is_working')
+          .in('employee_id', employeeIds)
+          .eq('is_working', true)
+          .limit(1);
+
+        if (schedulesError) {
+          console.warn('⚠️ Error verificando horarios:', schedulesError);
+          // Continuar con la validación aunque falle esta verificación
+        }
+
+        // Si hay empleados con horarios activos, no permitir eliminar
+        if (activeSchedules && activeSchedules.length > 0) {
+          const employeeNames = employeesWithResource.map(e => e.name).join(', ');
+          toast.error(
+            `❌ No puedes eliminar: ${employeesWithResource.length} empleado(s) tiene(n) este recurso asignado Y horarios activos:\n${employeeNames}\n\nPrimero desasigna el recurso o elimina los horarios de los empleados.`,
+            { duration: 6000 }
+          );
+          return;
+        }
+
+        // ✅ Si los empleados NO tienen horarios activos, permitir eliminar pero advertir
+        // El recurso se desasignará automáticamente por la FK constraint (ON DELETE SET NULL)
         const employeeNames = employeesWithResource.map(e => e.name).join(', ');
-        toast.error(
-          `❌ No puedes eliminar: ${employeesWithResource.length} empleado(s) tiene(n) este recurso asignado:\n${employeeNames}\n\nPrimero desasigna el recurso de los empleados.`,
-          { duration: 6000 }
+        const confirmDelete = window.confirm(
+          `⚠️ ADVERTENCIA:\n\n${employeesWithResource.length} empleado(s) tiene(n) este recurso asignado pero SIN horarios activos:\n${employeeNames}\n\nEl recurso se desasignará automáticamente al eliminarlo.\n\n¿Continuar con la eliminación?`
         );
-        return;
+
+        if (!confirmDelete) {
+          return;
+        }
       }
 
-      // ✅ PASO 2: Verificar si tiene citas futuras
+      // ✅ PASO 2: Desasignar el recurso de los empleados (si no tienen horarios activos)
+      if (employeesWithResource && employeesWithResource.length > 0) {
+        // Ya verificamos que no tienen horarios activos, así que podemos desasignar
+        const { error: unassignError } = await supabase
+          .from('employees')
+          .update({ assigned_resource_id: null })
+          .in('id', employeesWithResource.map(e => e.id))
+          .eq('business_id', businessId);
+
+        if (unassignError) {
+          console.error('❌ Error desasignando recurso de empleados:', unassignError);
+          toast.error('Error al desasignar el recurso de los empleados');
+          return;
+        }
+
+        console.log(`✅ Recurso desasignado de ${employeesWithResource.length} empleado(s)`);
+      }
+
+      // ✅ PASO 3: Verificar si tiene citas futuras
       const { data: futureAppointments, error: checkError } = await supabase
         .from('appointments')
         .select('id')
@@ -186,7 +233,7 @@ export default function RecursosContent() {
         return;
       }
 
-      // ✅ PASO 3: Eliminar recurso (ya no tiene empleados ni citas futuras)
+      // ✅ PASO 4: Eliminar recurso (ya no tiene empleados asignados ni citas futuras)
       const { error } = await supabase
         .from('resources')
         .delete()

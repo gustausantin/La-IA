@@ -201,7 +201,7 @@ const Configuracion = () => {
             role: "Agente de Reservas",
             gender: "female",
             avatar_url: "",
-            bio: "Profesional, amable y siempre dispuesta a ayudar. Le encanta su trabajo y conoce a la perfección cada detalle del restaurante. Paciente y con una sonrisa permanente, hará que cada cliente se sienta especial.",
+            bio: "Profesional, amable y siempre dispuesta a ayudar. Le encanta su trabajo y conoce a la perfección cada detalle del negocio. Paciente y con una sonrisa permanente, hará que cada cliente se sienta especial.",
             hired_date: new Date().toISOString().split('T')[0]
         },
         channels: {
@@ -365,49 +365,49 @@ const Configuracion = () => {
             }
             
             if (!currentBusinessId) {
-                console.error("⚠️ No se pudo determinar el Restaurant ID");
+                console.error("⚠️ No se pudo determinar el Business ID");
                 console.log("📋 Información de depuración:", {
-                    contexto: { businessId, restaurant },
+                    contexto: { businessId, business },
                     usuario: authUser.id
                 });
                 setLoading(false);
                 return;
             }
-            console.log("🏪 Restaurant ID encontrado:", currentBusinessId);
+            console.log("🏪 Business ID encontrado:", currentBusinessId);
 
             // ✅ CORRECCIÓN: Usar select('*') como en AuthContext (funciona correctamente)
             // Supabase solo devuelve los campos que existen y el usuario tiene permisos para ver
-            const { data: restaurantData, error: restError } = await supabase
+            const { data: businessData, error: businessError } = await supabase
                 .from("businesses")
                 .select("*")
                 .eq("id", currentBusinessId)
                 .maybeSingle();
             
-            if (restError) {
-                console.error("❌ Error cargando business:", restError);
+            if (businessError) {
+                console.error("❌ Error cargando business:", businessError);
                 console.error("❌ Detalles:", {
-                    message: restError.message,
-                    details: restError.details,
-                    hint: restError.hint,
-                    code: restError.code
+                    message: businessError.message,
+                    details: businessError.details,
+                    hint: businessError.hint,
+                    code: businessError.code
                 });
             }
 
-            console.log("📊 DATOS DEL RESTAURANTE:", restaurantData);
+            console.log("📊 DATOS DEL NEGOCIO:", businessData);
 
-            if (restaurantData) {
+            if (businessData) {
                 
                 // Fusionar configuraciones manteniendo estructura completa
-                const dbSettings = restaurantData.settings || {};
+                const dbSettings = businessData.settings || {};
                 
                 setSettings({
                     // ✅ DATOS DIRECTOS DE LA TABLA
-                    name: restaurantData.name || "",
-                    email: restaurantData.email || "",
-                    phone: restaurantData.phone || "",
-                    address: restaurantData.address || "",
-                    city: restaurantData.city || "",
-                    postal_code: restaurantData.postal_code || "",
+                    name: businessData.name || "",
+                    email: businessData.email || "",
+                    phone: businessData.phone || "",
+                    address: businessData.address || "",
+                    city: businessData.city || "",
+                    postal_code: businessData.postal_code || "",
                     
                     // ✅ TODO LO DEMÁS DESDE SETTINGS (JSONB)
                     contact_name: dbSettings.contact_name || "",
@@ -417,7 +417,7 @@ const Configuracion = () => {
                     average_ticket: dbSettings.average_ticket || 45,
                     
                     // ✅ HORARIOS - Desde business_hours o settings
-                    opening_hours: restaurantData.business_hours || dbSettings.opening_hours || {
+                    opening_hours: businessData.business_hours || dbSettings.opening_hours || {
                         monday: { open: '12:00', close: '23:00', closed: false },
                         tuesday: { open: '12:00', close: '23:00', closed: false },
                         wednesday: { open: '12:00', close: '23:00', closed: false },
@@ -457,10 +457,10 @@ const Configuracion = () => {
                     })(),
                     
                     // ✅ CONFIGURACIÓN TÉCNICA
-                    country: restaurantData.country || "ES",
-                    timezone: restaurantData.timezone || "Europe/Madrid",
-                    currency: restaurantData.currency || "EUR",
-                    language: restaurantData.language || "es",
+                    country: businessData.country || "ES",
+                    timezone: businessData.timezone || "Europe/Madrid",
+                    currency: businessData.currency || "EUR",
+                    language: businessData.language || "es",
                     
                     // ✅ AGENTE IA
                     agent: {
@@ -471,7 +471,7 @@ const Configuracion = () => {
                         name: dbSettings.agent?.name || "Sofia",
                         role: dbSettings.agent?.role || "Agente de Reservas",
                         gender: dbSettings.agent?.gender || "female",
-                        bio: dbSettings.agent?.bio || "Profesional, amable y siempre dispuesta a ayudar. Le encanta su trabajo y conoce a la perfección cada detalle del restaurante. Paciente y con una sonrisa permanente, hará que cada cliente se sienta especial.",
+                        bio: dbSettings.agent?.bio || "Profesional, amable y siempre dispuesta a ayudar. Le encanta su trabajo y conoce a la perfección cada detalle del negocio. Paciente y con una sonrisa permanente, hará que cada cliente se sienta especial.",
                         hired_date: dbSettings.agent?.hired_date || new Date().toISOString().split('T')[0]
                     },
                     
@@ -521,20 +521,20 @@ const Configuracion = () => {
                         }
                     },
                     notifications: {
-                        reservation_emails: restaurantData.notifications?.reservation_emails || [],
-                        system_emails: restaurantData.notifications?.system_emails || [],
-                        quiet_hours: restaurantData.notifications?.quiet_hours || { start: "", end: "", mode: "mute" },
-                        new_reservation: restaurantData.notifications?.new_reservation ?? false,
-                        cancelled_reservation: restaurantData.notifications?.cancelled_reservation ?? false,
-                        reservation_modified: restaurantData.notifications?.reservation_modified ?? false,
+                        reservation_emails: businessData.notifications?.reservation_emails || [],
+                        system_emails: businessData.notifications?.system_emails || [],
+                        quiet_hours: businessData.notifications?.quiet_hours || { start: "", end: "", mode: "mute" },
+                        new_reservation: businessData.notifications?.new_reservation ?? false,
+                        cancelled_reservation: businessData.notifications?.cancelled_reservation ?? false,
+                        reservation_modified: businessData.notifications?.reservation_modified ?? false,
                         // daily_digest eliminado para MVP
-                        agent_offline: restaurantData.notifications?.agent_offline ?? true,
-                        integration_errors: restaurantData.notifications?.integration_errors ?? true,
+                        agent_offline: businessData.notifications?.agent_offline ?? true,
+                        integration_errors: businessData.notifications?.integration_errors ?? true,
                         // Nuevos errores del sistema
-                        system_save_errors: restaurantData.notifications?.system_save_errors ?? true,
-                        system_connection_errors: restaurantData.notifications?.system_connection_errors ?? true,
-                        system_reservation_conflicts: restaurantData.notifications?.system_reservation_conflicts ?? true,
-                        system_config_incomplete: restaurantData.notifications?.system_config_incomplete ?? true
+                        system_save_errors: businessData.notifications?.system_save_errors ?? true,
+                        system_connection_errors: businessData.notifications?.system_connection_errors ?? true,
+                        system_reservation_conflicts: businessData.notifications?.system_reservation_conflicts ?? true,
+                        system_config_incomplete: businessData.notifications?.system_config_incomplete ?? true
                     },
                 });
             }
@@ -597,7 +597,7 @@ const Configuracion = () => {
             }
         }
         if (!effectivebusinessId) {
-            toast.error("No se encontró el ID del restaurante");
+            toast.error("No se encontró el ID del negocio");
             return;
         }
 
@@ -734,7 +734,7 @@ const Configuracion = () => {
                 if (error) throw error;
                 
                 // 🔥 SINCRONIZAR CON channel_credentials para N8N
-                // Guardar WhatsApp en channel_credentials para que N8N pueda identificar el restaurante
+                // Guardar WhatsApp en channel_credentials para que N8N pueda identificar el negocio
                 if (updatedChannels?.whatsapp?.enabled && updatedChannels?.whatsapp?.phone_number) {
                     const whatsappNumber = updatedChannels.whatsapp.phone_number;
                     
@@ -824,12 +824,12 @@ const Configuracion = () => {
                     }
                 };
 
-                const { error } = await callRpcSafe('update_restaurant_notifications', {
+                const { error } = await callRpcSafe('update_business_notifications', {
                     p_business_id: effectivebusinessId,
                     p_notifications: updatedNotifications
                 });
                 if (error) {
-                    console.error('RPC update_restaurant_notifications error:', error);
+                    console.error('RPC update_business_notifications error:', error);
                     throw error;
                 }
             }
@@ -844,22 +844,22 @@ const Configuracion = () => {
                 console.log('✅ Evento channels-updated disparado');
             }
             
-            // SINCRONIZAR CONTEXTO: Forzar recarga del restaurant en AuthContext
+            // SINCRONIZAR CONTEXTO: Forzar recarga del business en AuthContext
             // Esto asegura que el Dashboard y otras páginas vean los cambios inmediatamente
             if (section === "Agente IA") {
                 console.log('🔄 Sincronizando datos del agente con el contexto...');
                 
-                // Recargar los datos del restaurante desde Supabase
-                const { data: updatedRestaurant, error: fetchError } = await supabase
+                // Recargar los datos del negocio desde Supabase
+                const { data: updatedBusiness, error: fetchError } = await supabase
                     .from('businesses')
                     .select('*')
                     .eq('id', effectivebusinessId)
                     .single();
                 
-                if (!fetchError && updatedRestaurant) {
+                if (!fetchError && updatedBusiness) {
                     // Disparar evento personalizado para que AuthContext se actualice
-                    window.dispatchEvent(new CustomEvent('restaurant-updated', {
-                        detail: { restaurant: updatedRestaurant }
+                    window.dispatchEvent(new CustomEvent('business-updated', {
+                        detail: { business: updatedBusiness }
                     }));
                     
                     console.log('✅ Contexto sincronizado correctamente');
@@ -1183,13 +1183,9 @@ const Configuracion = () => {
                                                 console.log('🔄 Business actualizado, disparando evento:', {
                                                     advance_booking_days: updatedBusiness.settings?.booking_settings?.advance_booking_days
                                                 });
-                                                // Disparar evento para actualizar contexto (usar 'business-updated' que es el que escucha AuthContext)
+                                                // Disparar evento para actualizar contexto
                                                 window.dispatchEvent(new CustomEvent('business-updated', {
                                                     detail: { business: updatedBusiness }
-                                                }));
-                                                // También disparar el evento legacy por compatibilidad
-                                                window.dispatchEvent(new CustomEvent('restaurant-updated', {
-                                                    detail: { restaurant: updatedBusiness }
                                                 }));
                                             }
                                         } catch (reloadError) {

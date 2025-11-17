@@ -1,5 +1,5 @@
 // ====================================
-// DASHBOARD AGENTE V2 - LA MEJOR APP DE GESTIÓN DE RESTAURANTES DEL MUNDO
+// DASHBOARD AGENTE V2 - LA MEJOR APP DE GESTIÓN DE NEGOCIOS DEL MUNDO
 // Vista ejecutiva: Todo lo importante de un vistazo
 // ====================================
 
@@ -19,17 +19,17 @@ import {
 import toast from 'react-hot-toast';
 
 export default function DashboardAgenteV2() {
-    const { business: restaurant, user } = useAuthContext();
+    const { business, user } = useAuthContext();
     const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [lastUpdate, setLastUpdate] = useState(new Date());
     
     // 🎯 Redirigir al wizard si no tiene negocio
     useEffect(() => {
-        if (user && !restaurant) {
+        if (user && !business) {
             navigate('/onboarding', { replace: true });
         }
-    }, [user, restaurant, navigate]);
+    }, [user, business, navigate]);
     
     const [dashboardData, setDashboardData] = useState({
         // Hero Section - KPIs Críticos
@@ -71,7 +71,7 @@ export default function DashboardAgenteV2() {
         // Tendencia Semanal
         weeklyTrend: [],
         
-        // Avatar y nombres (se actualizan desde freshRestaurant)
+        // Avatar y nombres (se actualizan desde freshBusiness)
         agentAvatar: null,
         agentName: 'Sofia',
         contactName: 'Jefe'
@@ -79,23 +79,23 @@ export default function DashboardAgenteV2() {
 
     // Cargar todos los datos
     const loadDashboardData = async () => {
-        if (!restaurant?.id) return;
+        if (!business?.id) return;
 
         try {
             setLoading(true);
             
-            // ✅ SIEMPRE recargar restaurant desde Supabase (para tener canales actualizados)
-            const { data: freshRestaurant } = await supabase
+            // ✅ SIEMPRE recargar business desde Supabase (para tener canales actualizados)
+            const { data: freshBusiness } = await supabase
                 .from('businesses')
                 .select('*')
-                .eq('id', restaurant.id)
+                .eq('id', business.id)
                 .single();
             
-            console.log('🔄 Restaurant recargado desde Supabase');
-            console.log('🔍 Canales actuales:', freshRestaurant?.settings?.channels);
+            console.log('🔄 Business recargado desde Supabase');
+            console.log('🔍 Canales actuales:', freshBusiness?.settings?.channels);
             
-            // Usar freshRestaurant en lugar de restaurant para tener datos actualizados
-            const currentRestaurant = freshRestaurant || restaurant;
+            // Usar freshBusiness en lugar de business para tener datos actualizados
+            const currentBusiness = freshBusiness || business;
             
             const today = new Date();
             const todayStr = format(today, 'yyyy-MM-dd');
@@ -116,15 +116,15 @@ export default function DashboardAgenteV2() {
                         segment_auto
                     )
                 `)
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .eq('reservation_date', todayStr)
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
             
             // Reservas AYER
             const { data: yesterdayReservations } = await supabase
                 .from('appointments')
-                .select('id, party_size')
-                .eq('business_id', restaurant.id)
+                .select('id')
+                .eq('business_id', business.id)
                 .eq('reservation_date', yesterdayStr)
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
             
@@ -133,10 +133,11 @@ export default function DashboardAgenteV2() {
             const reservationsDiff = reservationsToday - reservationsYesterday;
             
             // Ocupación HOY vs AYER
+            // ⚠️ NOTA: appointments NO tiene party_size, usar 1 persona por reserva
             const { data: tables } = await supabase
                 .from('resources')
                 .select('capacity')
-                .eq('business_id', restaurant.id);
+                .eq('business_id', business.id);
             
             const totalCapacity = tables?.reduce((sum, t) => sum + (t.capacity || 0), 0) || 0;
             const openingHours = 4; // 18:00 - 22:00 (simplificado)
@@ -144,45 +145,41 @@ export default function DashboardAgenteV2() {
             const turnosDisponibles = Math.floor((openingHours * 60) / avgDuration);
             const capacidadDiaria = totalCapacity * turnosDisponibles;
             
-            const totalPeopleToday = todayReservations?.reduce((sum, r) => sum + (r.party_size || 0), 0) || 0;
-            const totalPeopleYesterday = yesterdayReservations?.reduce((sum, r) => sum + (r.party_size || 0), 0) || 0;
+            // ⚠️ party_size no existe, usar 1 persona por reserva
+            const totalPeopleToday = todayReservations?.length || 0;
+            const totalPeopleYesterday = yesterdayReservations?.length || 0;
             
             const occupancyPercent = capacidadDiaria > 0 ? Math.round((totalPeopleToday / capacidadDiaria) * 100) : 0;
             const occupancyYesterday = capacidadDiaria > 0 ? Math.round((totalPeopleYesterday / capacidadDiaria) * 100) : 0;
             const occupancyDiff = occupancyPercent - occupancyYesterday;
             
             // Clientes NUEVOS HOY
-            const newCustomersToday = todayReservations?.reduce((sum, r) => {
-                if (!r.customer_id || r.customer?.visits_count === 1) {
-                    return sum + (r.party_size || 0);
-                }
-                return sum;
-            }, 0) || 0;
+            // ⚠️ party_size no existe, contar reservas como 1 persona cada una
+            const newCustomersToday = todayReservations?.filter(r => 
+                !r.customer_id || r.customer?.visits_count === 1
+            ).length || 0;
             
             const { data: yesterdayReservationsWithCustomer } = await supabase
                 .from('appointments')
                 .select(`
-                    party_size,
                     customer_id,
                     customer:customer_id (visits_count)
                 `)
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .eq('reservation_date', yesterdayStr)
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
             
-            const newCustomersYesterday = yesterdayReservationsWithCustomer?.reduce((sum, r) => {
-                if (!r.customer_id || r.customer?.visits_count === 1) {
-                    return sum + (r.party_size || 0);
-                }
-                return sum;
-            }, 0) || 0;
+            // ⚠️ party_size no existe, contar reservas como 1 persona cada una
+            const newCustomersYesterday = yesterdayReservationsWithCustomer?.filter(r => 
+                !r.customer_id || r.customer?.visits_count === 1
+            ).length || 0;
             
             const newCustomersDiff = newCustomersToday - newCustomersYesterday;
             
             // Alertas NO-SHOWS de riesgo HOY
             const { data: riskPredictions } = await supabase
                 .rpc('predict_upcoming_noshows_v2', {
-                    p_business_id: restaurant.id,
+                    p_business_id: business.id,
                     p_days_ahead: 0
                 });
             
@@ -198,7 +195,7 @@ export default function DashboardAgenteV2() {
             const { data: conversations } = await supabase
                 .from('agent_conversations')
                 .select('*')
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .gte('created_at', format(sevenDaysAgo, 'yyyy-MM-dd'));
             
             // Filtrar solo las que tienen análisis (sentiment o satisfaction)
@@ -292,7 +289,7 @@ export default function DashboardAgenteV2() {
                         segment_auto
                     )
                 `)
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
@@ -340,7 +337,7 @@ export default function DashboardAgenteV2() {
             const { data: thisWeekRes } = await supabase
                 .from('appointments')
                 .select('spend_amount')
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
                 .in('status', ['completed']);
@@ -348,13 +345,13 @@ export default function DashboardAgenteV2() {
             const { data: lastWeekRes } = await supabase
                 .from('appointments')
                 .select('spend_amount')
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .gte('reservation_date', format(startLastWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endLastWeek, 'yyyy-MM-dd'))
                 .in('status', ['completed']);
             
             // Ticket medio desde settings (si no está configurado, usar 0)
-            const avgTicket = currentRestaurant?.settings?.avg_ticket || 0;
+            const avgTicket = currentBusiness?.settings?.avg_ticket || 0;
             console.log('💰 Ticket medio desde settings:', avgTicket);
             const weeklySpend = thisWeekRes?.reduce((sum, r) => sum + (r.spend_amount || 0), 0) || 0;
             const lastWeekSpend = lastWeekRes?.reduce((sum, r) => sum + (r.spend_amount || 0), 0) || 0;
@@ -385,7 +382,7 @@ export default function DashboardAgenteV2() {
             const { data: thisWeekChannels } = await supabase
                 .from('appointments')
                 .select('source')
-                .eq('business_id', restaurant.id)
+                .eq('business_id', business.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
                 .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
@@ -401,10 +398,10 @@ export default function DashboardAgenteV2() {
             // ========================================
             // CANALES ACTIVOS: LEE settings.channels (NO channels)
             // ========================================
-            console.log('🔍 Restaurant settings:', currentRestaurant?.settings);
-            console.log('🔍 Channels config:', currentRestaurant?.settings?.channels);
+            console.log('🔍 Business settings:', currentBusiness?.settings);
+            console.log('🔍 Channels config:', currentBusiness?.settings?.channels);
             
-            const channelsConfig = currentRestaurant?.settings?.channels || {};
+            const channelsConfig = currentBusiness?.settings?.channels || {};
             
             const channelConfigurations = [
                 {
@@ -496,7 +493,7 @@ export default function DashboardAgenteV2() {
                 const { data, error } = await supabase
                     .from('crm_suggestions')
                     .select('type')
-                    .eq('business_id', restaurant.id)
+                    .eq('business_id', business.id)
                     .eq('status', 'pending');
                 
                 if (!error && data) {
@@ -533,7 +530,7 @@ export default function DashboardAgenteV2() {
                 const { data: dayReservations } = await supabase
                     .from('appointments')
                     .select('id')
-                    .eq('business_id', restaurant.id)
+                    .eq('business_id', business.id)
                     .eq('reservation_date', dateStr)
                     .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
                 
@@ -591,10 +588,10 @@ export default function DashboardAgenteV2() {
                 // Tendencia
                 weeklyTrend,
                 
-                // Avatar del agente (desde freshRestaurant)
-                agentAvatar: currentRestaurant?.settings?.agent?.avatar_url || null,
-                agentName: currentRestaurant?.settings?.agent?.name || 'Sofia',
-                contactName: currentRestaurant?.settings?.contact_name || user?.email?.split('@')[0] || 'Jefe'
+                // Avatar del agente (desde freshBusiness)
+                agentAvatar: currentBusiness?.settings?.agent?.avatar_url || null,
+                agentName: currentBusiness?.settings?.agent?.name || 'Sofia',
+                contactName: currentBusiness?.settings?.contact_name || user?.email?.split('@')[0] || 'Jefe'
             });
             
             setLastUpdate(new Date());
@@ -608,28 +605,28 @@ export default function DashboardAgenteV2() {
     };
 
     useEffect(() => {
-        if (restaurant?.id) {
+        if (business?.id) {
             loadDashboardData();
         }
-    }, [restaurant?.id]);
+    }, [business?.id]);
     
     // Auto-refresh cuando se actualizan canales desde Configuración
     useEffect(() => {
         const handleChannelUpdate = async () => {
-            console.log('🔄 Canales actualizados, RECARGANDO restaurant desde Supabase...');
+            console.log('🔄 Canales actualizados, RECARGANDO business desde Supabase...');
             
-            // FORZAR RECARGA del restaurant desde Supabase
-            const { data: freshRestaurant } = await supabase
+            // FORZAR RECARGA del business desde Supabase
+            const { data: freshBusiness } = await supabase
                 .from('businesses')
                 .select('*')
-                .eq('id', restaurant.id)
+                .eq('id', business.id)
                 .single();
             
-            if (freshRestaurant) {
-                console.log('✅ Restaurant recargado con nuevos canales:', freshRestaurant.settings?.channels);
+            if (freshBusiness) {
+                console.log('✅ Business recargado con nuevos canales:', freshBusiness.settings?.channels);
                 // Forzar actualización del contexto
-                window.dispatchEvent(new CustomEvent('restaurant-updated', {
-                    detail: { restaurant: freshRestaurant }
+                window.dispatchEvent(new CustomEvent('business-updated', {
+                    detail: { business: freshBusiness }
                 }));
             }
             
@@ -642,7 +639,7 @@ export default function DashboardAgenteV2() {
         return () => {
             window.removeEventListener('channels-updated', handleChannelUpdate);
         };
-    }, [restaurant?.id]);
+    }, [business?.id]);
 
     // Helper para formatear números
     const formatNumber = (num) => {
@@ -676,7 +673,7 @@ export default function DashboardAgenteV2() {
         );
     }
 
-    // Datos del agente para el header (ahora vienen desde dashboardData que usa freshRestaurant)
+    // Datos del agente para el header (ahora vienen desde dashboardData que usa freshBusiness)
     const agentName = dashboardData.agentName || 'Sofia';
     const agentAvatar = dashboardData.agentAvatar || null;
     const contactName = dashboardData.contactName || 'Jefe';
@@ -705,7 +702,7 @@ export default function DashboardAgenteV2() {
                                 {format(new Date(), 'HH') < 12 ? 'Buenos días' : format(new Date(), 'HH') < 20 ? 'Buenas tardes' : 'Buenas noches'}, {contactName}
                             </h1>
                             <p className="text-xs text-gray-600 mb-2">
-                                Aquí tienes los datos más importantes del día para tu restaurante
+                                Aquí tienes los datos más importantes del día para tu negocio
                             </p>
                             
                             <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 text-xs text-gray-700">

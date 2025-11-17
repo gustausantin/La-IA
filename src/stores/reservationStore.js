@@ -78,10 +78,10 @@ export const useReservationStore = create()(
       // === CARGAR POLÍTICA DE RESERVAS - SOLO DATOS REALES ===
       loadReservationPolicy: async (businessId) => {
         try {
-          log.info('⚙️ Loading REAL reservation policy for restaurant:', businessId);
+          log.info('⚙️ Loading REAL reservation policy for business:', businessId);
           
           if (!businessId) {
-            throw new Error('Restaurant ID is required - NO DEFAULTS ALLOWED');
+            throw new Error('Business ID is required - NO DEFAULTS ALLOWED');
           }
           
           const { data, error } = await supabase
@@ -338,7 +338,7 @@ export const useReservationStore = create()(
           if (businessId) {
             await get().generateTimeSlots(date, businessId);
           } else {
-            log.error('❌ Restaurant ID required for generating REAL time slots');
+            log.error('❌ Business ID required for generating REAL time slots');
           }
           
         } catch (error) {
@@ -375,16 +375,16 @@ export const useReservationStore = create()(
             return;
           }
           
-          // 3. OBTENER HORARIO GENERAL DEL RESTAURANTE (SIMPLIFICADO)
-          const { data: restaurantData, error: restaurantError } = await supabase
+          // 3. OBTENER HORARIO GENERAL DEL NEGOCIO (SIMPLIFICADO)
+          const { data: businessData, error: businessError } = await supabase
             .from('businesses')
             .select('settings')
             .eq('id', businessId)
             .single();
             
-          if (restaurantError) throw restaurantError;
+          if (businessError) throw businessError;
           
-          let operatingHours = restaurantData?.settings?.operating_hours;
+          let operatingHours = businessData?.settings?.operating_hours;
           if (!operatingHours) {
             log.error('❌ No operating hours configured - using defaults');
             // Usar horarios por defecto si no están configurados
@@ -403,7 +403,7 @@ export const useReservationStore = create()(
               .from('businesses')
               .update({ 
                 settings: { 
-                  ...restaurantData?.settings, 
+                  ...businessData?.settings, 
                   operating_hours: defaultHours 
                 } 
               })
@@ -645,10 +645,10 @@ export const useReservationStore = create()(
       // === OBTENER ESTADÍSTICAS REALES DE DISPONIBILIDADES ===
       getAvailabilityStats: async (businessId) => {
         try {
-          log.info('📊 Loading REAL availability stats for restaurant:', businessId);
+          log.info('📊 Loading REAL availability stats for business:', businessId);
           
           if (!businessId) {
-            throw new Error('Restaurant ID is REQUIRED for REAL stats');
+            throw new Error('Business ID is REQUIRED for REAL stats');
           }
           
           // Generar fecha actual correctamente - forzar timezone local
@@ -786,7 +786,7 @@ export const useReservationStore = create()(
           availability: {},
           timeSlots: [],
           selectedDate: new Date().toISOString().split('T')[0],
-          businessId: null, // Reset restaurant ID también
+          businessId: null, // Reset business ID también
           filters: {
             status: 'all',
             timeRange: 'today',

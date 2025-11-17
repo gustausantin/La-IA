@@ -334,7 +334,7 @@ const AuthProvider = ({ children }) => {
 
     // Event listener para sincronización manual desde Configuración
     const handleBusinessUpdate = (event) => {
-      const updatedBusiness = event.detail?.business || event.detail?.restaurant; // Soporta ambos nombres
+      const updatedBusiness = event.detail?.business; // Solo business, sin alias legacy
       if (updatedBusiness) {
         console.log('🔄 AuthContext: Recibiendo actualización del negocio desde Configuración', {
           advance_booking_days: updatedBusiness.settings?.booking_settings?.advance_booking_days
@@ -378,7 +378,7 @@ const AuthProvider = ({ children }) => {
       if (data.user) {
         logger.info('📊 Cargando datos del usuario...');
         await loadUserData(data.user, 'manual_login');
-        logger.info('✅ Login completado - usuario y restaurant cargados');
+        logger.info('✅ Login completado - usuario y business cargados');
       }
       
       // ✅ Solo mostrar mensaje si NO es un auto-login después de registro
@@ -410,7 +410,7 @@ const AuthProvider = ({ children }) => {
         password: userData.password,
         options: { 
           data: { 
-            restaurant_name: userData.restaurantName, 
+            business_name: userData.businessName || userData.restaurantName, 
             owner_name: userData.ownerName 
           } 
         }
@@ -516,9 +516,6 @@ const AuthProvider = ({ children }) => {
     business, 
     businessId, 
     businessInfo: business,
-    // Aliases para compatibilidad temporal
-    restaurant: business,
-    restaurantInfo: business,
     notifications, 
     agentStatus, 
     unreadCount,

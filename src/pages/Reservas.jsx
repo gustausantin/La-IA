@@ -91,14 +91,15 @@ const sendNoShowMessage = async (reservation) => {
             .eq('id', reservation.business_id)
             .single();
 
-        if (!customer || !restaurant) {
-            throw new Error('No se pudieron obtener datos del cliente o restaurante');
+        if (!customer || !business) {
+            throw new Error('No se pudieron obtener datos del cliente o negocio');
         }
 
         // 3. Reemplazar variables en el mensaje
         let message = template.content_markdown;
         message = message.replace(/\{\{customer_name\}\}/g, customer.name || 'Cliente');
-        message = message.replace(/\{\{restaurant_name\}\}/g, restaurant.name || 'Restaurante');
+        message = message.replace(/\{\{business_name\}\}/g, business.name || 'Negocio');
+        message = message.replace(/\{\{restaurant_name\}\}/g, business.name || 'Negocio'); // Legacy
         message = message.replace(/\{\{reservation_date\}\}/g, 
             new Date(reservation.reservation_date).toLocaleDateString('es-ES'));
 
@@ -580,7 +581,7 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
 
 // Componente principal
 export default function Reservas() {
-    const { business: restaurant, businessId: businessId, user, isReady, addNotification } =
+    const { business, businessId: businessId, user, isReady, addNotification } =
         useAuthContext();
     const navigate = useNavigate();
     const location = useLocation();
@@ -2328,7 +2329,7 @@ export default function Reservas() {
                         reservations={reservations}
                         resources={resources} // ✅ Recursos/profesionales desde BD
                         blockages={blockages} // 🆕 Bloqueos de horas
-                        businessSettings={restaurant?.settings} // 🆕 Configuración del negocio (incluye operating_hours)
+                        businessSettings={business?.settings} // 🆕 Configuración del negocio (incluye operating_hours)
                         onReservationClick={(reserva) => {
                             setViewingReservation(reserva);
                             setShowDetailsModal(true);
@@ -2855,7 +2856,7 @@ export default function Reservas() {
                                 className="px-3 py-1.5 text-sm border border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                             >
                                 <option value="all">📍 Todas las zonas</option>
-                                {restaurant?.settings?.zones && Object.entries(restaurant.settings.zones)
+                                {business?.settings?.zones && Object.entries(business.settings.zones)
                                     .filter(([, zoneData]) => zoneData.enabled)
                                     .map(([zoneKey, zoneData]) => (
                                         <option key={zoneKey} value={zoneKey}>
@@ -3676,13 +3677,13 @@ const ReservationFormModal = ({
 
         // 🔍 VALIDACIÓN AVANZADA: LÍMITES CONFIGURADOS (COHERENCIA)
         try {
-            const { data: restaurantData } = await supabase
+            const { data: businessData } = await supabase
                 .from("businesses")
                 .select("settings")
                 .eq("id", businessId)
                 .single();
             
-            const reservationSettings = restaurantData?.settings?.reservation_settings || {};
+            const reservationSettings = businessData?.settings?.reservation_settings || {};
             
             // Validar límites de personas
             if (reservationSettings.min_party_size && formData.party_size < reservationSettings.min_party_size) {
@@ -3868,7 +3869,7 @@ const ReservationFormModal = ({
             if (error.status === 400 || error.code === '400') {
                 errorMessage = "❌ Error 400: Datos inválidos enviados a la base de datos.\n\n🔍 Posibles causas:\n• Campo requerido vacío\n• Formato de fecha/hora incorrecto\n• Referencia a mesa inexistente\n\n📋 Revisa que todos los campos obligatorios estén completos.";
             } else if (error.message && error.message.includes('created_by')) {
-                errorMessage = "Faltan datos de configuración del restaurante. Ve a Configuración para completar tu perfil.";
+                errorMessage = "Faltan datos de configuración del negocio. Ve a Configuración para completar tu perfil.";
             } else if (error.message && error.message.includes('column')) {
                 if (tables.length === 0) {
                     errorMessage = "⚠️ No puedes crear reservas porque no hay mesas configuradas.\n\n👉 Ve a la sección 'Mesas' y crea mesas primero, luego vuelve aquí para crear reservas.";

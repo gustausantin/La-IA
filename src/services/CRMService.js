@@ -480,7 +480,7 @@ export async function processReservationCompletion(reservationId, businessId) {
 }
 
 /**
- * OBTENER ESTADÍSTICAS CRM DEL RESTAURANTE
+ * OBTENER ESTADÍSTICAS CRM DEL NEGOCIO
  */
 export async function getCRMStats(businessId) {
     try {
@@ -662,8 +662,8 @@ const createScheduledMessageFromRule = async (customerId, businessId, rule, chan
  */
 const renderMessageTemplate = async (template, customer, businessId) => {
   try {
-    // Obtener datos del restaurante
-    const { data: restaurant } = await supabase
+    // Obtener datos del negocio
+    const { data: business } = await supabase
       .from('businesses')
       .select('name, email, phone')
       .eq('id', businessId)
@@ -679,10 +679,13 @@ const renderMessageTemplate = async (template, customer, businessId) => {
     content = content.replace(/\{\{visits_count\}\}/g, customer.total_visits || 0);
     content = content.replace(/\{\{total_spent\}\}/g, customer.total_spent || 0);
     
-    // Variables del restaurante
-    content = content.replace(/\{\{restaurant_name\}\}/g, restaurant?.name || 'Nuestro Restaurante');
-    content = content.replace(/\{\{restaurant_phone\}\}/g, restaurant?.phone || '');
-    content = content.replace(/\{\{restaurant_email\}\}/g, restaurant?.email || '');
+    // Variables del negocio (soporta tanto {{business_name}} como {{restaurant_name}} para compatibilidad)
+    content = content.replace(/\{\{business_name\}\}/g, business?.name || 'Nuestro Negocio');
+    content = content.replace(/\{\{restaurant_name\}\}/g, business?.name || 'Nuestro Negocio'); // Legacy
+    content = content.replace(/\{\{business_phone\}\}/g, business?.phone || '');
+    content = content.replace(/\{\{restaurant_phone\}\}/g, business?.phone || ''); // Legacy
+    content = content.replace(/\{\{business_email\}\}/g, business?.email || '');
+    content = content.replace(/\{\{restaurant_email\}\}/g, business?.email || ''); // Legacy
     
     // Variables calculadas
     if (customer.last_visit) {

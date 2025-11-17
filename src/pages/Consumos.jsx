@@ -13,7 +13,7 @@ import toast from 'react-hot-toast';
 import { getVerticalConfig, METRIC_COLORS } from '../config/verticals';
 
 const Consumos = () => {
-    const { restaurant, businessId, isReady } = useAuthContext();
+    const { business, businessId, isReady } = useAuthContext();
     const [loading, setLoading] = useState(true);
     const [appointments, setAppointments] = useState([]);
     const [services, setServices] = useState([]);
@@ -22,8 +22,8 @@ const Consumos = () => {
 
     // 🎨 Obtener configuración del vertical actual
     const verticalConfig = useMemo(() => {
-        return getVerticalConfig(restaurant?.vertical_type);
-    }, [restaurant?.vertical_type]);
+        return getVerticalConfig(business?.vertical_type);
+    }, [business?.vertical_type]);
 
     // Obtener icono del vertical
     const VerticalIcon = verticalConfig.icon;

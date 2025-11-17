@@ -149,7 +149,7 @@ export class AutoSlotRegenerationService {
       const finalAdvanceDays = advanceDays !== 30 || savedAdvanceDays === undefined 
                               ? advanceDays 
                               : (savedAdvanceDays || 30);
-      
+
       console.log('📋 Configuración del negocio obtenida');
       console.log('📊 Días de anticipación:', {
         pasadoComoParametro: advanceDays,
