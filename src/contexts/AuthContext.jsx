@@ -38,31 +38,108 @@ const AuthProvider = ({ children }) => {
     console.log('🔵 INICIANDO fetchBusinessInfo para usuario:', userId);
     setLoadingBusiness(true);
     
+    // TIMEOUT: Si tarda más de 10 segundos, cancelar
+    const timeoutId = setTimeout(() => {
+      console.error('⏱️ TIMEOUT: fetchBusinessInfo tardó más de 10 segundos');
+      setBusiness(null);
+      setBusinessId(null);
+      setLoadingBusiness(false);
+    }, 10000);
+    
     try {
       // PASO 1: Obtener business_id del mapping (el más reciente si hay varios)
       console.log('📡 Query 1: Obteniendo business_id del mapping...');
       console.log('🔍 Buscando mappings para userId:', userId);
       
-      const { data: mappingData, error: mappingError } = await supabase
-        .from('user_business_mapping')
-        .select('business_id')
-        .eq('auth_user_id', userId)
-        .eq('active', true)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
+      // Query simplificada - SIN order ni limit que pueden causar problemas
+      const queryStartTime = Date.now();
+      console.log('⏱️ Iniciando query a las:', new Date().toISOString());
+      
+      // SOLUCIÓN DE EMERGENCIA: Usar función SECURITY DEFINER que bypass RLS
+      // Esta función evita problemas de rendimiento con políticas RLS
+      console.log('🔍 Usando función optimizada get_user_business_id_fast...');
+      
+      let foundBusinessId = null;
+      let mappingError = null;
+      
+      try {
+        // Timeout de 5 segundos para la función RPC
+        const rpcPromise = supabase.rpc('get_user_business_id_fast', { user_id: userId });
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('TIMEOUT: Función RPC tardó más de 5 segundos')), 5000)
+        );
+        
+        const result = await Promise.race([rpcPromise, timeoutPromise]);
+        
+        if (result?.data) {
+          foundBusinessId = result.data;
+          console.log('✅ business_id obtenido vía función rápida:', foundBusinessId);
+        } else if (result?.error) {
+          mappingError = result.error;
+          console.error('❌ Error en función RPC:', mappingError);
+        }
+      } catch (timeoutErr) {
+        console.error('⏱️ TIMEOUT en función RPC:', timeoutErr);
+        // FALLBACK: Intentar query directa como último recurso
+        console.log('🔄 Intentando query directa como fallback...');
+        try {
+          const { data: mappingData, error: directError } = await supabase
+            .from('user_business_mapping')
+            .select('business_id')
+            .eq('auth_user_id', userId)
+            .eq('active', true)
+            .limit(1)
+            .maybeSingle();
+          
+          if (!directError && mappingData?.business_id) {
+            foundBusinessId = mappingData.business_id;
+            console.log('✅ business_id obtenido vía query directa (fallback):', foundBusinessId);
+          } else {
+            mappingError = directError || { code: 'TIMEOUT', message: 'Todas las queries fallaron' };
+          }
+        } catch (fallbackErr) {
+          mappingError = { 
+            code: 'TIMEOUT', 
+            message: 'Todas las queries fallaron. Verifica conexión y políticas RLS.',
+            details: timeoutErr.message
+          };
+        }
+      }
+      
+      // Si no encontramos business_id, salir
+      if (!foundBusinessId) {
+        if (mappingError) {
+          console.error('❌ Error obteniendo business_id:', mappingError);
+        } else {
+          console.log('⚠️ Usuario sin negocio asociado');
+        }
+        setBusiness(null);
+        setBusinessId(null);
+        setLoadingBusiness(false);
+        clearTimeout(timeoutId);
+        return;
+      }
+      
+      // Ya tenemos foundBusinessId, continuar con query de business
+      console.log('✅ business_id encontrado:', foundBusinessId);
 
-      console.log('📊 Resultado de mapping query:', { data: mappingData, error: mappingError });
+      // PASO 2: Obtener datos del negocio
+      console.log('📡 Query 2: Obteniendo datos del negocio...');
+      const { data: businessData, error: businessError } = await supabase
+        .from('businesses')
+        .select('*')
+        .eq('id', foundBusinessId)
+        .maybeSingle(); // Cambiar a maybeSingle y quitar .eq('active', true) para evitar problemas
 
-      if (mappingError) {
-        console.error('❌ Error en mapping query:', mappingError);
-        console.error('❌ Código de error:', mappingError.code);
-        console.error('❌ Mensaje:', mappingError.message);
-        console.error('❌ Detalles:', mappingError.details);
+      if (businessError) {
+        console.error('❌ Error en businesses query:', businessError);
+        console.error('❌ Código de error:', businessError.code);
+        console.error('❌ Mensaje:', businessError.message);
+        console.error('❌ Detalles:', businessError.details);
         
         // Si el error es PGRST116 (no rows), no es un error crítico
-        if (mappingError.code === 'PGRST116') {
-          console.log('ℹ️ No se encontró ningún mapping activo para este usuario');
+        if (businessError.code === 'PGRST116') {
+          console.log('ℹ️ No se encontró negocio activo para este business_id');
         }
         
         setBusiness(null);
@@ -71,27 +148,8 @@ const AuthProvider = ({ children }) => {
         return;
       }
 
-      if (!mappingData) {
-        console.log('⚠️ Usuario sin negocio asociado en mapping (mappingData es null)');
-        setBusiness(null);
-        setBusinessId(null);
-        setLoadingBusiness(false);
-        return;
-      }
-
-      console.log('✅ business_id encontrado:', mappingData.business_id);
-
-      // PASO 2: Obtener datos del negocio
-      console.log('📡 Query 2: Obteniendo datos del negocio...');
-      const { data: businessData, error: businessError } = await supabase
-        .from('businesses')
-        .select('*')
-        .eq('id', mappingData.business_id)
-        .eq('active', true)
-        .single();
-
-      if (businessError) {
-        console.error('❌ Error en businesses query:', businessError);
+      if (!businessData) {
+        console.log('⚠️ Negocio no encontrado (businessData es null)');
         setBusiness(null);
         setBusinessId(null);
         setLoadingBusiness(false);
@@ -103,12 +161,15 @@ const AuthProvider = ({ children }) => {
       setBusiness(businessData);
       setBusinessId(businessData.id);
       setLoadingBusiness(false);
+      clearTimeout(timeoutId);
 
     } catch (err) {
       console.error('💥 Error fatal en fetchBusinessInfo:', err);
+      console.error('💥 Stack trace:', err.stack);
       setBusiness(null);
       setBusinessId(null);
       setLoadingBusiness(false);
+      clearTimeout(timeoutId);
     }
   };
 

@@ -80,29 +80,97 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // Store integration
-    const { data, error: dbError } = await supabaseClient
-      .from('integrations')
-      .upsert({
-        business_id: businessId,
-        provider: 'google_calendar',
-        is_active: true,
+    // Store integration - CRÍTICO: Usar SERVICE_ROLE_KEY para bypass RLS
+    console.log('💾 Guardando integración en base de datos...', {
+      business_id: businessId,
+      provider: 'google_calendar',
+      has_access_token: !!tokens.access_token,
+      has_refresh_token: !!tokens.refresh_token
+    })
+
+    // Preparar datos de integración usando la estructura real de la tabla
+    const integrationData = {
+      business_id: businessId,
+      provider: 'google_calendar',
+      is_active: true,
+      status: 'active', // Usar status también para compatibilidad
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_expires_at: expiresAt,
+      expires_at: expiresAt, // También actualizar expires_at si existe
+      scopes: tokens.scope?.split(' ') || [
+        'https://www.googleapis.com/auth/calendar',
+        'https://www.googleapis.com/auth/calendar.events'
+      ],
+      credentials: {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token,
-        token_expires_at: expiresAt,
-        config: {
-          calendar_id: 'primary',
-          calendar_name: calendarData.summary || 'Principal',
-          sync_direction: 'bidirectional',
-          events_synced: 0,
-        },
-        connected_at: new Date().toISOString(),
-        last_sync_at: new Date().toISOString(),
-      }, {
+        token_type: tokens.token_type,
+        scope: tokens.scope,
+      },
+      config: {
+        calendar_id: 'primary',
+        calendar_name: calendarData.summary || 'Principal',
+        sync_direction: 'bidirectional',
+        events_synced: 0,
+      },
+      metadata: {
+        calendar_id: calendarData.id,
+        calendar_timezone: calendarData.timeZone,
+        autoSync: false,
+        intervalMinutes: 15,
+      },
+      connected_at: new Date().toISOString(),
+      last_sync_at: new Date().toISOString(),
+    }
+
+    const { data: upsertData, error: dbError } = await supabaseClient
+      .from('integrations')
+      .upsert(integrationData, {
         onConflict: 'business_id,provider'
       })
+      .select()
 
-    if (dbError) throw dbError
+    if (dbError) {
+      console.error('❌ Error guardando integración:', dbError)
+      console.error('❌ Detalles del error:', {
+        message: dbError.message,
+        details: dbError.details,
+        hint: dbError.hint,
+        code: dbError.code
+      })
+      throw new Error(`Database error: ${dbError.message}`)
+    }
+
+    if (!upsertData || upsertData.length === 0) {
+      console.error('⚠️ ADVERTENCIA: upsert no devolvió datos');
+      throw new Error('No se pudo verificar que los datos se guardaron correctamente');
+    }
+
+    console.log('✅ Integración guardada exitosamente:', {
+      id: upsertData[0]?.id,
+      business_id: upsertData[0]?.business_id,
+      provider: upsertData[0]?.provider,
+      is_active: upsertData[0]?.is_active,
+      status: upsertData[0]?.status,
+      has_access_token: !!upsertData[0]?.access_token,
+      has_refresh_token: !!upsertData[0]?.refresh_token
+    })
+    
+    // Verificar que realmente se guardó
+    const { data: verifyData, error: verifyError } = await supabaseClient
+      .from('integrations')
+      .select('id, business_id, provider, is_active, status')
+      .eq('business_id', businessId)
+      .eq('provider', 'google_calendar')
+      .single();
+    
+    if (verifyError) {
+      console.error('❌ ERROR CRÍTICO: No se pudo verificar el guardado:', verifyError);
+      throw new Error(`Verificación falló: ${verifyError.message}`);
+    }
+    
+    console.log('✅ Verificación exitosa - Integración confirmada en BD:', verifyData);
 
     // Redirect back to app
     // Construir URL de redirección - usar PUBLIC_SITE_URL o construir desde el request

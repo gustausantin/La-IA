@@ -77,12 +77,21 @@ export default function IntegracionesContent() {
             }
 
             if (data) {
-                setGoogleCalendarConnected(data.is_active === true);
+                // Verificar tanto is_active como status para compatibilidad
+                const isConnected = data.is_active === true || data.status === 'active';
+                setGoogleCalendarConnected(isConnected);
                 setGoogleCalendarConfig(data);
+                console.log('✅ Integración cargada:', {
+                    is_active: data.is_active,
+                    status: data.status,
+                    connected: isConnected,
+                    has_tokens: !!(data.access_token || data.credentials?.access_token)
+                });
             } else {
                 // No hay integración configurada aún
                 setGoogleCalendarConnected(false);
                 setGoogleCalendarConfig(null);
+                console.log('ℹ️ No hay integración de Google Calendar configurada');
             }
         } catch (error) {
             console.error('❌ Error cargando integraciones:', error);
