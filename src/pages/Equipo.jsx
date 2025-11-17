@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { format, parseISO, addDays } from 'date-fns';
 import { 
   Users, Plus, Edit3, Trash2, Clock, CheckCircle2, 
   X, ArrowRight, ArrowLeft, Loader2, Save, Calendar,
@@ -815,10 +816,8 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
           };
         });
         
-        // Calcular para cada recurso:
-        // 1. Minutos ya ocupados por día
-        // 2. Si hay conflictos horarios con el nuevo empleado
-        // 3. Puntuación de "fit" (mejor aprovechamiento)
+        // 🎯 ALGORITMO OPTIMIZADO: Priorizar recursos con empleados existentes que tienen horarios libres
+        // Estrategia: Llenar primero recursos existentes antes de usar recursos vacíos
         const resourceAnalysis = availableResources.map(resource => {
           const employeesInResource = (currentEmployees || []).filter(emp => 
             emp.assigned_resource_id === resource.id
@@ -827,6 +826,7 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
           let totalConflictMinutes = 0;
           let totalOccupiedMinutes = 0;
           let hasConflict = false;
+          let hasAnyEmployee = employeesInResource.length > 0;
           
           // Analizar cada día
           for (const [dayOfWeek, newEmpData] of Object.entries(newEmployeeMinutes)) {
@@ -849,6 +849,12 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
               }
             });
             
+            // Calcular minutos ocupados totales en este día
+            const dayOccupiedMinutes = occupiedRanges.reduce((sum, range) => 
+              sum + (range.end - range.start), 0
+            );
+            totalOccupiedMinutes += dayOccupiedMinutes;
+            
             // Verificar si el nuevo empleado solapa con empleados existentes
             newEmpData.shifts.forEach(newShift => {
               const [hStart, mStart] = newShift.start.split(':').map(Number);
@@ -866,22 +872,25 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
                   totalConflictMinutes += (overlapEnd - overlapStart);
                 }
               });
-              
-              totalOccupiedMinutes += occupiedRanges.reduce((sum, range) => 
-                sum + (range.end - range.start), 0
-              );
             });
           }
           
-          // Puntuación de "fit":
-          // - Si hay conflicto, puntuación muy baja (no viable)
-          // - Si no hay conflicto, puntuación = minutos ya ocupados (queremos llenar recursos)
-          const score = hasConflict ? -1000 : totalOccupiedMinutes;
+          // 🎯 PUNTUACIÓN OPTIMIZADA:
+          // 1. Si hay conflicto → -1000 (no viable)
+          // 2. Si NO hay conflicto Y tiene empleados → +10000 + minutos ocupados (PRIORIDAD ALTA: llenar recursos existentes)
+          // 3. Si NO hay conflicto Y NO tiene empleados → minutos ocupados (0) (PRIORIDAD BAJA: recursos vacíos)
+          // Esto asegura que siempre se prioricen recursos con empleados que tienen horarios libres
+          const score = hasConflict 
+            ? -1000 
+            : hasAnyEmployee 
+              ? 10000 + totalOccupiedMinutes  // ✅ PRIORIDAD: Recursos con empleados pero horarios libres
+              : 0;  // ⚠️ BAJA PRIORIDAD: Recursos vacíos (solo si no hay opciones mejores)
           
           return {
             resource,
             score,
             hasConflict,
+            hasAnyEmployee,
             employeeCount: employeesInResource.length,
             occupiedMinutes: totalOccupiedMinutes
           };
@@ -890,15 +899,35 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
         // Ordenar por puntuación (mayor = mejor aprovechamiento)
         resourceAnalysis.sort((a, b) => b.score - a.score);
         
+        console.log('🔍 Análisis de recursos:', resourceAnalysis.map(r => ({
+          name: r.resource.name,
+          score: r.score,
+          hasConflict: r.hasConflict,
+          hasEmployees: r.hasAnyEmployee,
+          employees: r.employeeCount
+        })));
+        
         // Seleccionar el mejor recurso sin conflictos
         const bestResource = resourceAnalysis.find(r => !r.hasConflict);
         
         if (bestResource) {
           finalResourceId = bestResource.resource.id;
-          console.log(`✅ Asignación inteligente: ${bestResource.resource.name}`);
-          console.log(`   - ${bestResource.employeeCount} empleados actuales`);
-          console.log(`   - ${bestResource.occupiedMinutes} minutos ocupados`);
-          console.log(`   - Aprovechamiento óptimo del recurso`);
+          
+          // Mensaje informativo según el tipo de asignación
+          if (bestResource.hasAnyEmployee) {
+            console.log(`✅ Asignación optimizada: ${bestResource.resource.name}`);
+            console.log(`   - Reutilizando recurso existente con ${bestResource.employeeCount} empleado(s)`);
+            console.log(`   - ${bestResource.occupiedMinutes} minutos ya ocupados`);
+            console.log(`   - Nuevo empleado completará horarios libres → Aprovechamiento máximo`);
+            toast.success(
+              `✅ Asignado a ${bestResource.resource.name} (optimizado: reutiliza recurso existente)`,
+              { duration: 4000 }
+            );
+          } else {
+            console.log(`✅ Asignación: ${bestResource.resource.name}`);
+            console.log(`   - Nuevo recurso (todos los recursos existentes tienen conflictos)`);
+            toast.success(`✅ Asignado a ${bestResource.resource.name}`, { duration: 3000 });
+          }
           
           window.__lastAutoAssignedResource = bestResource.resource.name;
         } else {
@@ -1683,6 +1712,139 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
             setSaving(false);
             return;
           }
+        }
+      }
+
+      // 🛡️ VALIDACIÓN CRÍTICA: Verificar reservas activas antes de eliminar horarios
+      // Si el usuario está eliminando horarios (todos is_working = false), verificar reservas
+      const hasAnyWorkingDay = schedules.some(s => s.is_working);
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const advanceDays = 90; // Días hacia el futuro para verificar
+      const maxDate = format(addDays(new Date(), advanceDays), 'yyyy-MM-dd');
+      
+      if (!hasAnyWorkingDay) {
+        // El usuario está eliminando TODOS los horarios
+        console.log('⚠️ Usuario está eliminando todos los horarios del empleado');
+        
+        // Buscar reservas activas para este empleado en el futuro
+        // ⚠️ NOTA: appointments no tiene employee_id, buscar de dos formas:
+        // 1. Por resource_id del empleado (si tiene recurso asignado)
+        // 2. Por availability_slots con employee_id (para encontrar reservas asociadas)
+        let activeReservations = [];
+        
+        // Método 1: Buscar por resource_id si el empleado tiene recurso asignado
+        if (employee.assigned_resource_id) {
+          const { data: reservationsByResource, error: resourceError } = await supabase
+            .from('appointments')
+            .select(`
+              id,
+              customer_name,
+              appointment_date,
+              appointment_time,
+              duration_minutes,
+              status,
+              resource_id
+            `)
+            .eq('business_id', employee.business_id)
+            .gte('appointment_date', today)
+            .lte('appointment_date', maxDate)
+            .in('status', ['pending', 'pending_approval', 'confirmed', 'seated'])
+            .eq('resource_id', employee.assigned_resource_id);
+          
+          if (resourceError) {
+            console.warn('⚠️ Error buscando reservas por resource_id:', resourceError);
+          } else {
+            activeReservations = reservationsByResource || [];
+          }
+        }
+        
+        // Método 2: Buscar por availability_slots con employee_id (más preciso)
+        const { data: slotsWithReservations, error: slotsError } = await supabase
+          .from('availability_slots')
+          .select(`
+            id,
+            slot_date,
+            start_time,
+            appointment_id,
+            employee_id
+          `)
+          .eq('business_id', employee.business_id)
+          .eq('employee_id', employee.id)
+          .gte('slot_date', today)
+          .lte('slot_date', maxDate)
+          .not('appointment_id', 'is', null);
+        
+        if (slotsError) {
+          console.warn('⚠️ Error buscando slots con reservas:', slotsError);
+        } else if (slotsWithReservations && slotsWithReservations.length > 0) {
+          // Obtener los appointment_ids únicos
+          const appointmentIds = [...new Set(slotsWithReservations.map(s => s.appointment_id).filter(Boolean))];
+          
+          if (appointmentIds.length > 0) {
+            const { data: reservationsBySlots, error: appointmentsError } = await supabase
+              .from('appointments')
+              .select(`
+                id,
+                customer_name,
+                appointment_date,
+                appointment_time,
+                duration_minutes,
+                status,
+                resource_id
+              `)
+              .in('id', appointmentIds)
+              .in('status', ['pending', 'pending_approval', 'confirmed', 'seated']);
+            
+            if (appointmentsError) {
+              console.warn('⚠️ Error obteniendo detalles de reservas:', appointmentsError);
+            } else {
+              // Combinar resultados, evitando duplicados
+              const existingIds = new Set(activeReservations.map(r => r.id));
+              const newReservations = (reservationsBySlots || []).filter(r => !existingIds.has(r.id));
+              activeReservations = [...activeReservations, ...newReservations];
+            }
+          }
+        }
+        
+        // Si hubo errores críticos, mostrar advertencia pero continuar
+        if (activeReservations.length === 0 && (reservationsError || slotsError)) {
+          console.warn('⚠️ No se pudieron verificar todas las reservas, pero continuando...');
+        }
+        
+        if (activeReservations && activeReservations.length > 0) {
+          // 🚨 HAY RESERVAS ACTIVAS - ADVERTIR AL USUARIO
+          const reservationsList = activeReservations.map(r => 
+            `  • ${r.customer_name} - ${format(parseISO(r.appointment_date), 'dd/MM/yyyy')} a las ${r.appointment_time}`
+          ).join('\n');
+          
+          const userConfirmed = window.confirm(
+            `⚠️ ADVERTENCIA: RESERVAS ACTIVAS DETECTADAS\n\n` +
+            `El empleado "${employee.name}" tiene ${activeReservations.length} reserva(s) activa(s) en el futuro:\n\n` +
+            `${reservationsList}\n\n` +
+            `🚨 Si eliminas todos los horarios:\n` +
+            `  ✅ Los slots LIBRES se eliminarán automáticamente\n` +
+            `  🛡️ Los slots con RESERVAS se MANTENDRÁN (protección automática)\n` +
+            `  ⚠️ Pero el empleado NO tendrá horarios configurados\n\n` +
+            `OPCIONES:\n` +
+            `  ✅ Cancelar: Mantener horarios y revisar reservas\n` +
+            `  ❌ Continuar: Eliminar horarios (las reservas se mantendrán)\n\n` +
+            `¿Quieres CONTINUAR eliminando los horarios?`
+          );
+          
+          if (!userConfirmed) {
+            toast.info('Operación cancelada. Los horarios se mantienen.');
+            setSaving(false);
+            return;
+          }
+          
+          // Usuario confirmó - mostrar advertencia adicional
+          toast.warning(
+            `⚠️ ${activeReservations.length} reserva(s) activa(s) se mantendrán protegidas. Los slots libres se eliminarán.`,
+            { duration: 6000 }
+          );
+        } else {
+          // No hay reservas - proceder normalmente
+          console.log('✅ No hay reservas activas - eliminando horarios sin restricciones');
         }
       }
 

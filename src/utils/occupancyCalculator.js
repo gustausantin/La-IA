@@ -39,11 +39,12 @@ export const calculateOccupancy = async (businessId, days = 7) => {
         const totalResourceCapacity = resources.reduce((sum, resource) => sum + (resource.capacity || 0), 0);
         
         // 3. Obtener reservas confirmadas del período
+        // ⚠️ NOTA: party_size no existe en appointments, usar 1 como valor por defecto
         const { data: appointments, error: appointmentsError } = await supabase
             .from("appointments")
             .select(`
-                id, party_size, appointment_date, appointment_time,
-                resource_id, status, created_at
+                id, appointment_date, appointment_time,
+                resource_id, status, created_at, duration_minutes
             `)
             .eq("business_id", businessId)
             .gte("appointment_date", format(startDate, 'yyyy-MM-dd'))
@@ -104,7 +105,8 @@ export const calculateOccupancy = async (businessId, days = 7) => {
                     return apptHour <= hour && hour < apptHour + 2;
                 });
 
-                const hourGuests = hourAppointments.reduce((sum, appt) => sum + (appt.party_size || 0), 0);
+                // ⚠️ party_size no existe, usar 1 persona por reserva como valor por defecto
+                const hourGuests = hourAppointments.length; // Cada reserva = 1 persona (simplificado)
                 const hourOccupancy = totalResourceCapacity > 0 ? Math.min(hourGuests / totalResourceCapacity, 1) : 0;
                 
                 dayOccupiedHours += hourOccupancy;
@@ -116,7 +118,7 @@ export const calculateOccupancy = async (businessId, days = 7) => {
                 date: format(currentDate, 'yyyy-MM-dd'),
                 occupancy: Math.round(dayOccupancyPercent),
                 appointments: dayAppointments.length,
-                guests: dayAppointments.reduce((sum, appt) => sum + (appt.party_size || 0), 0),
+                guests: dayAppointments.length, // ⚠️ Simplificado: 1 persona por reserva
                 operatingHours: operatingHoursCount
             });
 
@@ -131,8 +133,8 @@ export const calculateOccupancy = async (businessId, days = 7) => {
 
         // 6. Calcular estadísticas adicionales
         const totalAppointments = appointments.length;
-        const totalGuests = appointments.reduce((sum, appt) => sum + (appt.party_size || 0), 0);
-        const averagePartySize = totalAppointments > 0 ? Math.round((totalGuests / totalAppointments) * 10) / 10 : 0;
+        const totalGuests = appointments.length; // ⚠️ Simplificado: 1 persona por reserva (party_size no existe)
+        const averagePartySize = 1; // ⚠️ Valor fijo ya que party_size no existe en la tabla
         
         // Buscar día más ocupado
         const busiestDay = dailyOccupancy.reduce((max, day) => 
@@ -208,10 +210,10 @@ export const calculateTodayOccupancy = async (businessId, date = new Date()) => 
                 .neq("status", "maintenance"),
             supabase
                 .from('appointments')
-                .select("id, party_size, reservation_time, table_id, status")
+                .select("id, appointment_time, resource_id, status, duration_minutes")
                 .eq("business_id", businessId)
-                .eq("reservation_date", dateString)
-                .in("status", ["confirmada", "completed"])
+                .eq("appointment_date", dateString)
+                .in("status", ["confirmed", "completed"])
         ]);
 
         const operatingHours = businessRes.data?.settings?.operating_hours?.[dayKey];
@@ -227,7 +229,7 @@ export const calculateTodayOccupancy = async (businessId, date = new Date()) => 
         }
 
         const totalCapacity = tables.reduce((sum, table) => sum + (table.capacity || 0), 0);
-        const totalGuests = reservations.reduce((sum, res) => sum + (res.party_size || 0), 0);
+        const totalGuests = reservations.length; // ⚠️ Simplificado: 1 persona por reserva (party_size no existe)
         
         // Ocupación simple para hoy
         const occupancy = totalCapacity > 0 ? Math.round((totalGuests / totalCapacity) * 100) : 0;

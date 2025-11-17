@@ -2039,7 +2039,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             });
             
             // ✅ CONSULTA DIRECTA - Ir directamente a la tabla availability_slots
-            // 🆕 Incluir appointment_id para detectar slots ocupados
+            // 🆕 Incluir appointment_id y employee_id para detectar slots ocupados y asociar al empleado correcto
             const { data: slotsData, error: slotsError } = await supabase
                 .from('availability_slots')
                 .select(`
@@ -2050,6 +2050,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                     status,
                     is_available,
                     duration_minutes,
+                    employee_id,
                     resource_id,
                     business_id,
                     appointment_id
@@ -2105,13 +2106,32 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             console.log(`✅ ${slotsData.length} slots encontrados para ${date}`);
             
-            // Obtener información de recursos y empleados
+            // ✅ CRÍTICO: Obtener información de empleados y recursos
+            // Ahora los slots tienen employee_id directamente, así que lo usamos
+            const employeeIds = [...new Set(slotsData.map(s => s.employee_id).filter(Boolean))];
             const resourceIds = [...new Set(slotsData.map(s => s.resource_id).filter(Boolean))];
             let resourcesMap = {};
             let employeesMap = {};
             
+            // Obtener empleados directamente por sus IDs (desde los slots)
+            if (employeeIds.length > 0) {
+                const { data: employeesData } = await supabase
+                    .from('employees')
+                    .select('id, name, assigned_resource_id, position_order')
+                    .eq('business_id', businessId)
+                    .eq('is_active', true)
+                    .in('id', employeeIds);
+                
+                if (employeesData) {
+                    employeesMap = employeesData.reduce((acc, e) => {
+                        acc[e.id] = e;
+                        return acc;
+                    }, {});
+                }
+            }
+            
+            // Obtener recursos
             if (resourceIds.length > 0) {
-                // Obtener recursos
                 const { data: resourcesData } = await supabase
                     .from('resources')
                     .select('id, name, capacity')
@@ -2123,33 +2143,17 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                         return acc;
                     }, {});
                 }
-                
-                // Obtener empleados que tienen estos recursos asignados
-                const { data: employeesData } = await supabase
-                    .from('employees')
-                    .select('id, name, assigned_resource_id, position_order')
-                    .eq('business_id', businessId)
-                    .eq('is_active', true)
-                    .in('assigned_resource_id', resourceIds);
-                
-                if (employeesData) {
-                    employeesMap = employeesData.reduce((acc, e) => {
-                        if (e.assigned_resource_id) {
-                            acc[e.assigned_resource_id] = e;
-                        }
-                        return acc;
-                    }, {});
-                }
             }
             
-            // ✅ AGRUPAR POR EMPLEADO (no por recurso)
+            // ✅ AGRUPAR POR EMPLEADO usando employee_id del slot (no inferir desde resource_id)
             const groupedByEmployee = {};
             
             slotsData.forEach(slot => {
-                const resource = resourcesMap[slot.resource_id];
-                const employee = slot.resource_id ? employeesMap[slot.resource_id] : null;
+                // ✅ CRÍTICO: Usar employee_id directamente del slot
+                const employee = slot.employee_id ? employeesMap[slot.employee_id] : null;
+                const resource = slot.resource_id ? resourcesMap[slot.resource_id] : null;
                 
-                // Si hay empleado, agrupar por empleado. Si no, agrupar por "Sin asignar"
+                // Clave de agrupación: nombre del empleado (o "Sin asignar" si no hay)
                 const employeeKey = employee 
                     ? employee.name 
                     : resource 
@@ -2158,7 +2162,7 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
                 
                 if (!groupedByEmployee[employeeKey]) {
                     groupedByEmployee[employeeKey] = {
-                        employee_id: employee?.id || null,
+                        employee_id: employee?.id || slot.employee_id || null,
                         employee_name: employee?.name || null,
                         resource_name: resource?.name || null,
                         resource_id: slot.resource_id,
@@ -2179,8 +2183,8 @@ const AvailabilityManager = ({ autoTriggerRegeneration = false }) => {
             
             // Ordenar empleados por position_order
             const sortedEmployees = Object.entries(groupedByEmployee).sort((a, b) => {
-                const empA = employeesMap[groupedByEmployee[a[0]].resource_id];
-                const empB = employeesMap[groupedByEmployee[b[0]].resource_id];
+                const empA = employeesMap[groupedByEmployee[a[0]].employee_id];
+                const empB = employeesMap[groupedByEmployee[b[0]].employee_id];
                 const orderA = empA?.position_order ?? 999;
                 const orderB = empB?.position_order ?? 999;
                 return orderA - orderB;

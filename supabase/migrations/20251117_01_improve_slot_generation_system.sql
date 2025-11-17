@@ -318,8 +318,16 @@ BEGIN
             AND day_of_week = v_day_of_week
             AND is_working = true;
             
-            -- Si no trabaja este día, saltar
+            -- Si no trabaja este día, ELIMINAR slots libres de este empleado para este día
+            -- 🛡️ IMPORTANTE: Solo eliminar slots LIBRES, mantener los que tienen reservas
             IF v_schedule IS NULL OR NOT v_schedule.is_working THEN
+                -- Eliminar slots libres de este empleado para este día específico
+                DELETE FROM availability_slots
+                WHERE business_id = p_business_id
+                  AND employee_id = v_employee.id
+                  AND slot_date = v_current_date
+                  AND status = 'free'; -- ✅ SOLO LIBRES - Los reservados se mantienen
+                
                 v_current_date := v_current_date + 1;
                 CONTINUE;
             END IF;
@@ -447,9 +455,12 @@ BEGIN
                             -- =====================================================
                             -- PASO 9: Verificar que no exista ya este slot
                             -- =====================================================
+                            -- ✅ CRÍTICO: Verificar por EMPLEADO + RECURSO + FECHA + HORA
+                            -- Esto permite que el mismo recurso tenga múltiples slots si hay múltiples empleados
                             IF NOT EXISTS (
                                 SELECT 1 FROM availability_slots
                                 WHERE business_id = p_business_id
+                                AND employee_id = v_employee.id
                                 AND resource_id = v_resource_id
                                 AND slot_date = v_current_date
                                 AND start_time = v_slot_time
@@ -457,9 +468,12 @@ BEGIN
                                 -- =====================================================
                                 -- PASO 10: Crear slot
                                 -- =====================================================
+                                -- ✅ CRÍTICO: Guardar employee_id además de resource_id
+                                -- Los slots se generan por EMPLEADO, no por recurso
                                 BEGIN
                                     INSERT INTO availability_slots (
                                         business_id,
+                                        employee_id,  -- ✅ NUEVO: Asociar slot al EMPLEADO
                                         resource_id,
                                         slot_date,
                                         start_time,
@@ -469,6 +483,7 @@ BEGIN
                                         is_available
                                     ) VALUES (
                                         p_business_id,
+                                        v_employee.id,  -- ✅ NUEVO: ID del empleado que trabaja
                                         v_resource_id,
                                         v_current_date,
                                         v_slot_time,
@@ -529,9 +544,11 @@ BEGIN
                         -- =====================================================
                         -- PASO 9: Verificar que no exista ya este slot
                         -- =====================================================
+                        -- ✅ CRÍTICO: Verificar por EMPLEADO + RECURSO + FECHA + HORA
                         IF NOT EXISTS (
                             SELECT 1 FROM availability_slots
                             WHERE business_id = p_business_id
+                            AND employee_id = v_employee.id
                             AND resource_id = v_resource_id
                             AND slot_date = v_current_date
                             AND start_time = v_slot_time
@@ -539,9 +556,11 @@ BEGIN
                             -- =====================================================
                             -- PASO 10: Crear slot
                             -- =====================================================
+                            -- ✅ CRÍTICO: Guardar employee_id además de resource_id
                             BEGIN
                                 INSERT INTO availability_slots (
                                     business_id,
+                                    employee_id,  -- ✅ NUEVO: Asociar slot al EMPLEADO
                                     resource_id,
                                     slot_date,
                                     start_time,
@@ -551,6 +570,7 @@ BEGIN
                                     is_available
                                 ) VALUES (
                                     p_business_id,
+                                    v_employee.id,  -- ✅ NUEVO: ID del empleado que trabaja
                                     v_resource_id,
                                     v_current_date,
                                     v_slot_time,

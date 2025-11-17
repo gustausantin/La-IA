@@ -687,7 +687,21 @@ export default function CalendarioReservas({
                                             return (
                                                 <div 
                                                     key={reserva.id}
-                                                    className="bg-yellow-50 border-l-4 border-yellow-500 rounded-lg p-4 hover:shadow-md transition-shadow"
+                                                    onClick={() => {
+                                                        // Cerrar modal de pendientes
+                                                        setShowPendingModal(false);
+                                                        // Llamar al callback para editar la reserva
+                                                        if (onReservationClick) {
+                                                            onReservationClick(reserva);
+                                                        }
+                                                        // Opcional: Navegar al día de la reserva
+                                                        const reservaDate = reserva.reservation_date || reserva.appointment_date;
+                                                        if (reservaDate) {
+                                                            setFechaActual(parseISO(reservaDate));
+                                                            setVista('dia');
+                                                        }
+                                                    }}
+                                                    className="bg-yellow-50 border-l-4 border-yellow-500 rounded-lg p-4 hover:shadow-md transition-all cursor-pointer hover:bg-yellow-100 active:scale-[0.98]"
                                                 >
                                                     <div className="flex items-start justify-between">
                                                         <div className="flex-1">
@@ -716,9 +730,12 @@ export default function CalendarioReservas({
                                                                 )}
                                                             </div>
                                                         </div>
-                                                        <div className="text-right">
+                                                        <div className="text-right flex flex-col items-end gap-2">
                                                             <span className="px-2 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700">
                                                                 ⏳ Pendiente
+                                                            </span>
+                                                            <span className="text-xs text-gray-500 italic">
+                                                                👆 Clic para editar
                                                             </span>
                                                         </div>
                                                     </div>
