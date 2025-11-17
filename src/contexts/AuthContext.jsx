@@ -5,6 +5,7 @@ import toast from 'react-hot-toast';
 import logger from '../utils/logger';
 import { realtimeService } from '../services/realtimeService';
 import { supabase } from '../lib/supabase';
+import { getBusinessIdWithFallback } from '../utils/supabaseQueryWithRetry';
 
 const AuthContext = createContext(null);
 
@@ -38,13 +39,13 @@ const AuthProvider = ({ children }) => {
     console.log('🔵 INICIANDO fetchBusinessInfo para usuario:', userId);
     setLoadingBusiness(true);
     
-    // TIMEOUT: Si tarda más de 10 segundos, cancelar
+    // TIMEOUT: Si tarda más de 8 segundos, cancelar (reducido para respuesta más rápida)
     const timeoutId = setTimeout(() => {
-      console.error('⏱️ TIMEOUT: fetchBusinessInfo tardó más de 10 segundos');
+      console.error('⏱️ TIMEOUT: fetchBusinessInfo tardó más de 8 segundos');
       setBusiness(null);
       setBusinessId(null);
       setLoadingBusiness(false);
-    }, 10000);
+    }, 8000);
     
     try {
       // PASO 1: Obtener business_id del mapping (el más reciente si hay varios)
@@ -55,56 +56,11 @@ const AuthProvider = ({ children }) => {
       const queryStartTime = Date.now();
       console.log('⏱️ Iniciando query a las:', new Date().toISOString());
       
-      // SOLUCIÓN DE EMERGENCIA: Usar función SECURITY DEFINER que bypass RLS
-      // Esta función evita problemas de rendimiento con políticas RLS
-      console.log('🔍 Usando función optimizada get_user_business_id_fast...');
+      // SOLUCIÓN PROFESIONAL: Usar helper con retry y múltiples estrategias
+      console.log('🔍 Obteniendo business_id con sistema robusto de retry...');
       
-      let foundBusinessId = null;
-      let mappingError = null;
-      
-      try {
-        // Timeout de 5 segundos para la función RPC
-        const rpcPromise = supabase.rpc('get_user_business_id_fast', { user_id: userId });
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('TIMEOUT: Función RPC tardó más de 5 segundos')), 5000)
-        );
-        
-        const result = await Promise.race([rpcPromise, timeoutPromise]);
-        
-        if (result?.data) {
-          foundBusinessId = result.data;
-          console.log('✅ business_id obtenido vía función rápida:', foundBusinessId);
-        } else if (result?.error) {
-          mappingError = result.error;
-          console.error('❌ Error en función RPC:', mappingError);
-        }
-      } catch (timeoutErr) {
-        console.error('⏱️ TIMEOUT en función RPC:', timeoutErr);
-        // FALLBACK: Intentar query directa como último recurso
-        console.log('🔄 Intentando query directa como fallback...');
-        try {
-          const { data: mappingData, error: directError } = await supabase
-            .from('user_business_mapping')
-            .select('business_id')
-            .eq('auth_user_id', userId)
-            .eq('active', true)
-            .limit(1)
-            .maybeSingle();
-          
-          if (!directError && mappingData?.business_id) {
-            foundBusinessId = mappingData.business_id;
-            console.log('✅ business_id obtenido vía query directa (fallback):', foundBusinessId);
-          } else {
-            mappingError = directError || { code: 'TIMEOUT', message: 'Todas las queries fallaron' };
-          }
-        } catch (fallbackErr) {
-          mappingError = { 
-            code: 'TIMEOUT', 
-            message: 'Todas las queries fallaron. Verifica conexión y políticas RLS.',
-            details: timeoutErr.message
-          };
-        }
-      }
+      const foundBusinessId = await getBusinessIdWithFallback(supabase, userId);
+      const mappingError = foundBusinessId ? null : { code: 'ALL_STRATEGIES_FAILED', message: 'Todas las estrategias fallaron' };
       
       // Si no encontramos business_id, salir
       if (!foundBusinessId) {
@@ -338,7 +294,10 @@ const AuthProvider = ({ children }) => {
     initSession();
 
     // Auth state listener PROFESIONAL - gestión robusta de eventos
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    // SOLUCIÓN OFICIAL SUPABASE: NO hacer llamadas asíncronas dentro de onAuthStateChange
+    // Según documentación: https://supabase.com/docs/guides/troubleshooting/why-is-my-supabase-api-call-not-returning
+    // El bug causa deadlock si se hacen llamadas async dentro del handler
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       logger.info('🔔 Auth state change', { event, hasSession: !!session });
 
       // IGNORAR eventos que no requieren acción
@@ -357,12 +316,13 @@ const AuthProvider = ({ children }) => {
         
         logger.info('🔑 Usuario autenticado', { email: session.user.email });
         
-        // PROFESIONAL: Cargar datos inmediatamente, sin delays artificiales
-        try {
-          await loadUserData(session.user, 'auth_listener_SIGNED_IN');
-        } catch (error) {
-          logger.error('Error cargando datos en SIGNED_IN:', error);
-        }
+        // SOLUCIÓN OFICIAL: NO hacer await aquí, usar setTimeout para desacoplar
+        // Esto evita el deadlock conocido en supabase-js
+        setTimeout(() => {
+          loadUserData(session.user, 'auth_listener_SIGNED_IN').catch(error => {
+            logger.error('Error cargando datos en SIGNED_IN:', error);
+          });
+        }, 0);
         
       } else if (event === 'SIGNED_OUT') {
         lastSignInRef.current = null;
@@ -379,14 +339,14 @@ const AuthProvider = ({ children }) => {
       } else if (event === 'INITIAL_SESSION' && session?.user) {
         logger.info('🚀 Sesión inicial detectada');
         
-        // PROFESIONAL: Cargar datos solo si no están ya cargados
+        // SOLUCIÓN OFICIAL: NO hacer await aquí, usar setTimeout para desacoplar
         const userKey = `loadUserData_${session.user.id}`;
         if (!window[userKey]) {
-          try {
-            await loadUserData(session.user, 'auth_listener_INITIAL');
-          } catch (error) {
-            logger.error('Error cargando datos en INITIAL_SESSION:', error);
-          }
+          setTimeout(() => {
+            loadUserData(session.user, 'auth_listener_INITIAL').catch(error => {
+              logger.error('Error cargando datos en INITIAL_SESSION:', error);
+            });
+          }, 0);
         } else {
           logger.debug('Datos ya cargados, saltando INITIAL_SESSION');
         }

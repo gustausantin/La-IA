@@ -1,5 +1,6 @@
 // Google Calendar OAuth2 Handler
 // Handles the OAuth2 callback and exchanges code for tokens
+// Production-ready version
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -10,7 +11,7 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
@@ -21,194 +22,219 @@ serve(async (req) => {
     const state = url.searchParams.get('state') // business_id
     const error = url.searchParams.get('error')
 
+    // Handle OAuth errors
     if (error) {
-      return new Response(
-        JSON.stringify({ error: 'OAuth error', details: error }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.error('❌ OAuth error:', error)
+      return redirectToApp('error', `OAuth error: ${error}`)
     }
 
+    // Validate required parameters
     if (!code || !state) {
-      return new Response(
-        JSON.stringify({ error: 'Missing code or state parameter' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      console.error('❌ Missing required parameters:', { has_code: !!code, has_state: !!state })
+      return redirectToApp('error', 'Missing code or state parameter')
     }
 
     const businessId = state
 
-    // Exchange code for tokens
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({
-        code,
-        client_id: Deno.env.get('GOOGLE_CLIENT_ID') || '',
-        client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') || '',
-        redirect_uri: `${Deno.env.get('SUPABASE_URL')}/functions/v1/google-calendar-oauth`,
-        grant_type: 'authorization_code',
-      }),
-    })
-
-    if (!tokenResponse.ok) {
-      const errorData = await tokenResponse.json()
-      throw new Error(`Token exchange failed: ${JSON.stringify(errorData)}`)
-    }
-
-    const tokens = await tokenResponse.json()
-
-    // Calculate token expiration
-    const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000)).toISOString()
-
-    // Get primary calendar info
-    const calendarResponse = await fetch(
-      'https://www.googleapis.com/calendar/v3/calendars/primary',
-      {
-        headers: {
-          'Authorization': `Bearer ${tokens.access_token}`,
-        },
-      }
-    )
-
-    const calendarData = await calendarResponse.json()
-
-    // Initialize Supabase client
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    // Store integration - CRÍTICO: Usar SERVICE_ROLE_KEY para bypass RLS
-    console.log('💾 Guardando integración en base de datos...', {
-      business_id: businessId,
-      provider: 'google_calendar',
-      has_access_token: !!tokens.access_token,
-      has_refresh_token: !!tokens.refresh_token
-    })
-
-    // Preparar datos de integración usando la estructura real de la tabla
-    const integrationData = {
-      business_id: businessId,
-      provider: 'google_calendar',
-      is_active: true,
-      status: 'active', // Usar status también para compatibilidad
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      token_expires_at: expiresAt,
-      expires_at: expiresAt, // También actualizar expires_at si existe
-      scopes: tokens.scope?.split(' ') || [
-        'https://www.googleapis.com/auth/calendar',
-        'https://www.googleapis.com/auth/calendar.events'
-      ],
-      credentials: {
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        token_type: tokens.token_type,
-        scope: tokens.scope,
-      },
-      config: {
-        calendar_id: 'primary',
-        calendar_name: calendarData.summary || 'Principal',
-        sync_direction: 'bidirectional',
-        events_synced: 0,
-      },
-      metadata: {
-        calendar_id: calendarData.id,
-        calendar_timezone: calendarData.timeZone,
-        autoSync: false,
-        intervalMinutes: 15,
-      },
-      connected_at: new Date().toISOString(),
-      last_sync_at: new Date().toISOString(),
-    }
-
-    const { data: upsertData, error: dbError } = await supabaseClient
-      .from('integrations')
-      .upsert(integrationData, {
-        onConflict: 'business_id,provider'
-      })
-      .select()
-
-    if (dbError) {
-      console.error('❌ Error guardando integración:', dbError)
-      console.error('❌ Detalles del error:', {
-        message: dbError.message,
-        details: dbError.details,
-        hint: dbError.hint,
-        code: dbError.code
-      })
-      throw new Error(`Database error: ${dbError.message}`)
-    }
-
-    if (!upsertData || upsertData.length === 0) {
-      console.error('⚠️ ADVERTENCIA: upsert no devolvió datos');
-      throw new Error('No se pudo verificar que los datos se guardaron correctamente');
-    }
-
-    console.log('✅ Integración guardada exitosamente:', {
-      id: upsertData[0]?.id,
-      business_id: upsertData[0]?.business_id,
-      provider: upsertData[0]?.provider,
-      is_active: upsertData[0]?.is_active,
-      status: upsertData[0]?.status,
-      has_access_token: !!upsertData[0]?.access_token,
-      has_refresh_token: !!upsertData[0]?.refresh_token
-    })
+    // Exchange authorization code for tokens
+    const tokens = await exchangeCodeForTokens(code)
     
-    // Verificar que realmente se guardó
-    const { data: verifyData, error: verifyError } = await supabaseClient
-      .from('integrations')
-      .select('id, business_id, provider, is_active, status')
-      .eq('business_id', businessId)
-      .eq('provider', 'google_calendar')
-      .single();
+    // Get calendar information
+    const calendarData = await getCalendarInfo(tokens.access_token)
     
-    if (verifyError) {
-      console.error('❌ ERROR CRÍTICO: No se pudo verificar el guardado:', verifyError);
-      throw new Error(`Verificación falló: ${verifyError.message}`);
-    }
+    // Save integration to database
+    await saveIntegration(businessId, tokens, calendarData)
     
-    console.log('✅ Verificación exitosa - Integración confirmada en BD:', verifyData);
-
-    // Redirect back to app
-    // Construir URL de redirección - usar PUBLIC_SITE_URL o construir desde el request
-    const publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
-                          Deno.env.get('SITE_URL') || 
-                          'http://localhost:5173' // Fallback para desarrollo
-    
-    const redirectUrl = `${publicSiteUrl}/configuracion?integration=google_calendar&status=success`
-    
-    console.log('✅ Redirecting to:', redirectUrl)
-    
-    return new Response(null, {
-      status: 302,
-      headers: {
-        ...corsHeaders,
-        'Location': redirectUrl,
-      },
-    })
+    // Redirect to app with success
+    return redirectToApp('success')
 
   } catch (error) {
-    console.error('OAuth error:', error)
-    
-    // Construir URL de redirección con fallback
-    const publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
-                          Deno.env.get('SITE_URL') || 
-                          'http://localhost:5173' // Fallback para desarrollo
-    
-    const redirectUrl = `${publicSiteUrl}/configuracion?integration=google_calendar&status=error&message=${encodeURIComponent(error.message)}`
-    
-    console.error('❌ Redirecting to error page:', redirectUrl)
-    
-    return new Response(null, {
-      status: 302,
-      headers: {
-        ...corsHeaders,
-        'Location': redirectUrl,
-      },
-    })
+    console.error('❌ OAuth error:', error)
+    return redirectToApp('error', error.message || 'Unknown error')
   }
 })
 
+/**
+ * Exchange authorization code for access and refresh tokens
+ */
+async function exchangeCodeForTokens(code: string) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  if (!supabaseUrl) {
+    throw new Error('SUPABASE_URL environment variable is not set')
+  }
+
+  // Construct redirect_uri - must match exactly with Google Cloud Console
+  const redirectUri = `${supabaseUrl}/functions/v1/google-calendar-oauth`
+  
+  const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
+  const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
+  
+  if (!clientId || !clientSecret) {
+    throw new Error('Google OAuth credentials are not configured')
+  }
+
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    }),
+  })
+
+  if (!tokenResponse.ok) {
+    const errorData = await tokenResponse.json()
+    console.error('❌ Token exchange failed:', errorData)
+    throw new Error(`Token exchange failed: ${JSON.stringify(errorData)}`)
+  }
+
+  return await tokenResponse.json()
+}
+
+/**
+ * Get primary calendar information
+ */
+async function getCalendarInfo(accessToken: string) {
+  const calendarResponse = await fetch(
+    'https://www.googleapis.com/calendar/v3/calendars/primary',
+    {
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+      },
+    }
+  )
+
+  if (!calendarResponse.ok) {
+    const errorData = await calendarResponse.json()
+    throw new Error(`Failed to get calendar info: ${JSON.stringify(errorData)}`)
+  }
+
+  return await calendarResponse.json()
+}
+
+/**
+ * Save integration to database
+ */
+async function saveIntegration(
+  businessId: string,
+  tokens: any,
+  calendarData: any
+) {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL')
+  const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase credentials are not configured')
+  }
+
+  const supabaseClient = createClient(supabaseUrl, serviceRoleKey)
+
+  const expiresAt = new Date(Date.now() + (tokens.expires_in * 1000)).toISOString()
+
+  const integrationData = {
+    business_id: businessId,
+    provider: 'google_calendar',
+    is_active: true,
+    status: 'active',
+    access_token: tokens.access_token,
+    refresh_token: tokens.refresh_token,
+    token_expires_at: expiresAt,
+    expires_at: expiresAt,
+    scopes: tokens.scope?.split(' ') || [
+      'https://www.googleapis.com/auth/calendar',
+      'https://www.googleapis.com/auth/calendar.events'
+    ],
+    credentials: {
+      access_token: tokens.access_token,
+      refresh_token: tokens.refresh_token,
+      token_type: tokens.token_type,
+      scope: tokens.scope,
+    },
+    config: {
+      calendar_id: 'primary',
+      calendar_name: calendarData.summary || 'Principal',
+      sync_direction: 'bidirectional',
+      events_synced: 0,
+    },
+    metadata: {
+      calendar_id: calendarData.id,
+      calendar_timezone: calendarData.timeZone,
+      autoSync: false,
+      intervalMinutes: 15,
+    },
+    connected_at: new Date().toISOString(),
+    last_sync_at: new Date().toISOString(),
+  }
+
+  // Try INSERT first, then UPDATE if it fails (more robust than upsert)
+  const { data: insertData, error: insertError } = await supabaseClient
+    .from('integrations')
+    .insert(integrationData)
+    .select()
+    .single()
+
+  if (insertError) {
+    // If it fails due to unique constraint, do UPDATE
+    if (insertError.code === '23505' || 
+        insertError.message?.includes('unique') || 
+        insertError.message?.includes('duplicate')) {
+      
+      const { data: updateData, error: updateError } = await supabaseClient
+        .from('integrations')
+        .update(integrationData)
+        .eq('business_id', businessId)
+        .eq('provider', 'google_calendar')
+        .select()
+        .single()
+      
+      if (updateError) {
+        console.error('❌ Error updating integration:', updateError)
+        throw new Error(`Database error: ${updateError.message}`)
+      }
+      
+      console.log('✅ Integration updated successfully')
+      return updateData
+    } else {
+      console.error('❌ Error inserting integration:', insertError)
+      throw new Error(`Database error: ${insertError.message}`)
+    }
+  }
+
+  console.log('✅ Integration saved successfully')
+  return insertData
+}
+
+/**
+ * Redirect to app with status
+ * Redirige a la página de integraciones (tab=canales) para que el usuario vea el resultado
+ */
+function redirectToApp(status: 'success' | 'error', message?: string) {
+  const publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
+                        Deno.env.get('SITE_URL') || 
+                        'http://localhost:5173'
+  
+  const params = new URLSearchParams({
+    tab: 'canales', // ✅ Redirigir al tab de integraciones
+    integration: 'google_calendar',
+    status,
+  })
+  
+  if (message && status === 'error') {
+    params.append('message', message)
+  }
+  
+  const redirectUrl = `${publicSiteUrl}/configuracion?${params.toString()}`
+  
+  return new Response(null, {
+    status: 302,
+    headers: {
+      ...corsHeaders,
+      'Location': redirectUrl,
+    },
+  })
+}

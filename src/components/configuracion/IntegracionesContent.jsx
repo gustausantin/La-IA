@@ -52,14 +52,22 @@ export default function IntegracionesContent() {
     const loadIntegrationsConfig = async () => {
         try {
             setLoading(true);
+            console.log('🔍 Cargando configuración de integraciones para business_id:', businessId);
             
-            // Buscar configuración de Google Calendar
-            const { data, error } = await supabase
+            // Buscar configuración de Google Calendar con timeout
+            const queryPromise = supabase
                 .from('integrations')
                 .select('*')
                 .eq('business_id', businessId)
                 .eq('provider', 'google_calendar')
-                .maybeSingle(); // Usar maybeSingle() en lugar de single() para manejar mejor cuando no hay resultados
+                .maybeSingle();
+            
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('TIMEOUT')), 5000)
+            );
+            
+            const result = await Promise.race([queryPromise, timeoutPromise]);
+            const { data, error } = result;
 
             if (error) {
                 // Log del error para debugging
@@ -73,29 +81,51 @@ export default function IntegracionesContent() {
                     console.error('⚠️ Error 406: Problema con políticas RLS o headers. Verifica las políticas de la tabla integrations.');
                     toast.error('Error de permisos. Por favor, recarga la página.');
                 }
-                throw error;
+                
+                // No lanzar error, solo mostrar como desconectado
+                setGoogleCalendarConnected(false);
+                setGoogleCalendarConfig(null);
+                return;
             }
 
             if (data) {
-                // Verificar tanto is_active como status para compatibilidad
-                const isConnected = data.is_active === true || data.status === 'active';
+                // LÓGICA ROBUSTA: Verificar múltiples condiciones para determinar si está conectado
+                const hasTokens = !!(data.access_token || data.credentials?.access_token);
+                const isActive = data.is_active === true;
+                const statusActive = data.status === 'active';
+                const notExpired = !data.token_expires_at || new Date(data.token_expires_at) > new Date();
+                
+                // Está conectado si: tiene tokens Y (is_active=true O status='active') Y no está expirado
+                const isConnected = hasTokens && (isActive || statusActive) && notExpired;
+                
                 setGoogleCalendarConnected(isConnected);
                 setGoogleCalendarConfig(data);
+                
                 console.log('✅ Integración cargada:', {
+                    id: data.id,
+                    business_id: data.business_id,
+                    provider: data.provider,
                     is_active: data.is_active,
                     status: data.status,
+                    has_tokens: hasTokens,
+                    not_expired: notExpired,
                     connected: isConnected,
-                    has_tokens: !!(data.access_token || data.credentials?.access_token)
+                    token_expires_at: data.token_expires_at
                 });
             } else {
                 // No hay integración configurada aún
                 setGoogleCalendarConnected(false);
                 setGoogleCalendarConfig(null);
-                console.log('ℹ️ No hay integración de Google Calendar configurada');
+                console.log('ℹ️ No hay integración de Google Calendar configurada para este negocio');
             }
         } catch (error) {
             console.error('❌ Error cargando integraciones:', error);
-            // No mostrar toast aquí para evitar spam, solo log
+            if (error.message === 'TIMEOUT') {
+                console.error('⏱️ Timeout cargando integraciones - puede ser problema de RLS');
+                toast.error('Timeout cargando integraciones. Verifica políticas RLS.');
+            }
+            setGoogleCalendarConnected(false);
+            setGoogleCalendarConfig(null);
         } finally {
             setLoading(false);
         }
@@ -228,31 +258,15 @@ export default function IntegracionesContent() {
     };
 
     // Probar sincronización
+    // NOTA: La funcionalidad de sincronización estará disponible próximamente
     const handleTestSync = async () => {
-        try {
-            setLoading(true);
-            toast.loading('Probando sincronización...', { id: 'test-sync' });
-
-            // Llamar a Edge Function para probar sync
-            const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
-                body: {
-                    business_id: businessId,
-                    action: 'test'
-                }
-            });
-
-            if (error) throw error;
-
-            toast.dismiss('test-sync');
-            toast.success('✅ Sincronización exitosa! ' + (data?.events_synced || 0) + ' eventos sincronizados');
-
-        } catch (error) {
-            console.error('Error en prueba de sincronización:', error);
-            toast.dismiss('test-sync');
-            toast.error('Error en la sincronización: ' + error.message);
-        } finally {
-            setLoading(false);
-        }
+        toast.info('La sincronización automática estará disponible próximamente. Por ahora, las reservas se sincronizan automáticamente cuando se crean o modifican.', {
+            duration: 5000,
+            icon: 'ℹ️'
+        });
+        
+        // TODO: Implementar Edge Function sync-google-calendar cuando esté lista
+        // Por ahora, solo mostramos un mensaje informativo
     };
 
     return (

@@ -31,7 +31,7 @@
    Agrega EXACTAMENTE esta URI (la Edge Function de Supabase):
 
    ```
-   https://tu-project-ref.supabase.co/functions/v1/google-calendar-oauth
+   https://{tu-project-ref}.supabase.co/functions/v1/google-calendar-oauth
    ```
 
    **Para encontrar tu project-ref:**
@@ -67,72 +67,18 @@ GOOGLE_CLIENT_ID=tu-client-id-aqui.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=tu-client-secret-aqui
 SUPABASE_URL=https://tu-project-ref.supabase.co
 PUBLIC_SITE_URL=https://tu-dominio.com  # O http://localhost:5173 para desarrollo
+SUPABASE_SERVICE_ROLE_KEY=tu-service-role-key
 ```
 
-### 4. Verificar la URI de Redirección
+### 4. Desplegar Edge Function
 
-La aplicación usa la Edge Function de Supabase como URI de redirección:
+La Edge Function `google-calendar-oauth` debe estar desplegada en Supabase:
 
+```bash
+npx supabase functions deploy google-calendar-oauth
 ```
-https://{tu-project-ref}.supabase.co/functions/v1/google-calendar-oauth
-```
 
-**⚠️ IMPORTANTE:** 
-- Esta URI DEBE estar exactamente igual en Google Cloud Console
-- Siempre usa `https://` (nunca `http://`)
-- No incluyas trailing slash al final
-- Esta es la URL de tu Edge Function, no de tu aplicación frontend
-
-## 🔍 Solución de Problemas
-
-### Error: `redirect_uri_mismatch`
-
-Este error ocurre cuando la URI de redirección no coincide exactamente.
-
-**Solución:**
-1. Verifica que la URI en Google Cloud Console sea EXACTAMENTE igual a la que usa tu aplicación
-2. Asegúrate de incluir el protocolo (`http://` o `https://`)
-3. Verifica que no haya espacios o caracteres extra
-4. Si estás en desarrollo, asegúrate de que el puerto sea correcto (5173 para Vite)
-
-### Error: `access_denied`
-
-El usuario canceló la autorización o no dio permisos.
-
-**Solución:**
-- El usuario debe hacer clic en "Permitir" en la pantalla de consentimiento de Google
-
-### Error: `invalid_client`
-
-El Client ID o Client Secret son incorrectos.
-
-**Solución:**
-1. Verifica que las variables de entorno estén configuradas correctamente
-2. Asegúrate de que el Client ID y Secret sean del mismo proyecto de Google Cloud
-
-## 📝 Estructura de la Integración
-
-Una vez conectado, la integración se guarda en la tabla `integrations` con esta estructura:
-
-```json
-{
-  "id": "uuid",
-  "business_id": "uuid",
-  "provider": "google_calendar",
-  "is_active": true,
-  "access_token": "token...",
-  "refresh_token": "token...",
-  "token_expires_at": "2025-11-18T...",
-  "config": {
-    "calendar_id": "primary",
-    "calendar_name": "LA-IA Reservas",
-    "sync_direction": "bidirectional",
-    "events_synced": 0
-  },
-  "connected_at": "2025-11-17T...",
-  "last_sync_at": null
-}
-```
+O desde Supabase Dashboard: **Edge Functions** > **google-calendar-oauth** > **Deploy**
 
 ## ✅ Verificación
 
@@ -149,15 +95,76 @@ Después de configurar todo:
 1. Usuario hace clic en "Conectar con Google Calendar"
 2. Aplicación redirige a Google OAuth con:
    - `client_id`: Tu Client ID
-   - `redirect_uri`: `{origin}/oauth/google/callback`
+   - `redirect_uri`: `{supabase-url}/functions/v1/google-calendar-oauth`
    - `scope`: `calendar` y `calendar.events`
    - `state`: `businessId` (para identificar el negocio)
 3. Usuario autoriza en Google
-4. Google redirige a `/oauth/google/callback?code=...&state=...`
-5. La página de callback:
-   - Extrae el `code` y `state` (businessId)
-   - Llama a la Edge Function `google-oauth-callback`
-   - La Edge Function intercambia el código por tokens
+4. Google redirige a la Edge Function con `code` y `state`
+5. La Edge Function:
+   - Intercambia el código por tokens
+   - Obtiene información del calendario
    - Guarda los tokens en la tabla `integrations`
 6. Usuario es redirigido a Configuración con mensaje de éxito
 
+## 📝 Estructura de la Integración
+
+Una vez conectado, la integración se guarda en la tabla `integrations` con esta estructura:
+
+```json
+{
+  "id": "uuid",
+  "business_id": "uuid",
+  "provider": "google_calendar",
+  "is_active": true,
+  "status": "active",
+  "access_token": "token...",
+  "refresh_token": "token...",
+  "token_expires_at": "2025-11-18T...",
+  "config": {
+    "calendar_id": "primary",
+    "calendar_name": "LA-IA Reservas",
+    "sync_direction": "bidirectional",
+    "events_synced": 0
+  },
+  "connected_at": "2025-11-17T...",
+  "last_sync_at": null
+}
+```
+
+## 🔒 Seguridad
+
+- Los tokens se almacenan de forma segura en la base de datos
+- La Edge Function usa `SERVICE_ROLE_KEY` para bypass RLS al guardar
+- Las políticas RLS aseguran que solo el dueño del negocio pueda ver/modificar sus integraciones
+- Los tokens se refrescan automáticamente cuando expiran
+
+## 🚨 Solución de Problemas
+
+### Error: `redirect_uri_mismatch`
+
+**Causa:** El `redirect_uri` en Google Cloud Console no coincide exactamente con el que usa la Edge Function.
+
+**Solución:**
+1. Verifica que el `redirect_uri` en Google Cloud Console sea exactamente:
+   ```
+   https://{tu-project-ref}.supabase.co/functions/v1/google-calendar-oauth
+   ```
+2. Asegúrate de que no tenga trailing slash (`/` al final)
+3. Asegúrate de que use `https://` (no `http://`)
+
+### Error: `invalid_client`
+
+**Causa:** El Client ID o Client Secret son incorrectos.
+
+**Solución:**
+1. Verifica que las variables de entorno estén configuradas correctamente
+2. Asegúrate de que el Client ID y Secret sean del mismo proyecto de Google Cloud
+
+### La integración no aparece como "Activa"
+
+**Causa:** Puede haber un problema con las políticas RLS o con la carga de datos.
+
+**Solución:**
+1. Verifica que la migración `20251117_FINAL_integrations_rls_optimized.sql` esté aplicada
+2. Recarga la página
+3. Revisa los logs de la Edge Function para ver si hubo errores al guardar
