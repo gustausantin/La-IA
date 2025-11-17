@@ -25,7 +25,7 @@ class ConflictDetectionService {
                 .eq('business_id', businessId)
                 .gte('reservation_date', startDate)
                 .lte('reservation_date', endDate)
-                .in('status', ['confirmada', 'sentada', 'pendiente']);
+                .in('status', ['confirmada', 'pendiente', 'confirmed', 'pending']);
             
             if (error) throw error;
             
@@ -85,7 +85,7 @@ class ConflictDetectionService {
                 .eq('business_id', businessId)
                 .eq('table_id', tableId)
                 .gte('reservation_date', format(new Date(), 'yyyy-MM-dd'))
-                .in('status', ['confirmada', 'sentada', 'pendiente'])
+                .in('status', ['confirmada', 'pendiente', 'confirmed', 'pending'])
                 .order('reservation_date', { ascending: true });
             
             if (error) throw error;
@@ -150,7 +150,7 @@ class ConflictDetectionService {
                 `)
                 .eq('business_id', businessId)
                 .eq('reservation_date', eventDate)
-                .in('status', ['confirmada', 'sentada', 'pendiente']);
+                .in('status', ['confirmada', 'pendiente', 'confirmed', 'pending']);
             
             if (error) throw error;
             
@@ -179,9 +179,10 @@ class ConflictDetectionService {
     static async validateReservationAvailability(businessId, reservationDate, reservationTime, partySize, tableId = null) {
         try {
             // 1. Verificar que hay availability_slots para esa fecha/hora
+            // ✅ Incluir employee_id y resource_id para asociar correctamente la reserva con el empleado
             let availabilityQuery = supabase
                 .from('availability_slots')
-                .select('id, table_id, status, start_time, end_time')
+                .select('id, table_id, resource_id, employee_id, status, start_time, end_time')
                 .eq('business_id', businessId)
                 .eq('slot_date', reservationDate)
                 .eq('status', 'free')
@@ -189,7 +190,8 @@ class ConflictDetectionService {
                 .gte('end_time', reservationTime);
             
             if (tableId) {
-                availabilityQuery = availabilityQuery.eq('table_id', tableId);
+                // Buscar por table_id O resource_id (puede ser que tableId sea realmente un resource_id)
+                availabilityQuery = availabilityQuery.or(`table_id.eq.${tableId},resource_id.eq.${tableId}`);
             }
             
             const { data: availableSlots, error } = await availabilityQuery;

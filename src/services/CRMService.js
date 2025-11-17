@@ -96,7 +96,7 @@ export async function recomputeCustomerStats(customerId, businessId) {
             .select('*')
             .eq('customer_id', customerId)
             .eq('business_id', businessId)
-            .in('status', ['confirmed', 'completed', 'seated'])
+            .in('status', ['confirmed', 'completed'])
             .order('created_at', { ascending: false });
             
         if (reservationsError) {
@@ -174,7 +174,7 @@ export async function recomputeSegment(customerId, businessId) {
             .select('*')
             .eq('customer_id', customerId)
             .eq('business_id', businessId)
-            .in('status', ['confirmed', 'completed', 'seated'])
+            .in('status', ['confirmed', 'completed'])
             .order('created_at', { ascending: false });
             
         if (reservationsError) {

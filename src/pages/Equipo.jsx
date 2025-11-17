@@ -1731,10 +1731,12 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
         // 1. Por resource_id del empleado (si tiene recurso asignado)
         // 2. Por availability_slots con employee_id (para encontrar reservas asociadas)
         let activeReservations = [];
+        let resourceError = null; // ✅ Declarar fuera del if para que esté disponible
+        let slotsError = null; // ✅ Declarar fuera del if para que esté disponible
         
         // Método 1: Buscar por resource_id si el empleado tiene recurso asignado
         if (employee.assigned_resource_id) {
-          const { data: reservationsByResource, error: resourceError } = await supabase
+          const { data: reservationsByResource, error: errorResource } = await supabase
             .from('appointments')
             .select(`
               id,
@@ -1748,9 +1750,10 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
             .eq('business_id', employee.business_id)
             .gte('appointment_date', today)
             .lte('appointment_date', maxDate)
-            .in('status', ['pending', 'pending_approval', 'confirmed', 'seated'])
+            .in('status', ['pending', 'pending_approval', 'confirmed'])
             .eq('resource_id', employee.assigned_resource_id);
           
+          resourceError = errorResource; // ✅ Asignar el error a la variable del scope superior
           if (resourceError) {
             console.warn('⚠️ Error buscando reservas por resource_id:', resourceError);
           } else {
@@ -1759,7 +1762,7 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
         }
         
         // Método 2: Buscar por availability_slots con employee_id (más preciso)
-        const { data: slotsWithReservations, error: slotsError } = await supabase
+        const { data: slotsWithReservations, error: errorSlots } = await supabase
           .from('availability_slots')
           .select(`
             id,
@@ -1774,6 +1777,7 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
           .lte('slot_date', maxDate)
           .not('appointment_id', 'is', null);
         
+        slotsError = errorSlots; // ✅ Asignar el error a la variable del scope superior
         if (slotsError) {
           console.warn('⚠️ Error buscando slots con reservas:', slotsError);
         } else if (slotsWithReservations && slotsWithReservations.length > 0) {
@@ -1793,7 +1797,7 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
                 resource_id
               `)
               .in('id', appointmentIds)
-              .in('status', ['pending', 'pending_approval', 'confirmed', 'seated']);
+              .in('status', ['pending', 'pending_approval', 'confirmed']);
             
             if (appointmentsError) {
               console.warn('⚠️ Error obteniendo detalles de reservas:', appointmentsError);
@@ -1807,7 +1811,7 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
         }
         
         // Si hubo errores críticos, mostrar advertencia pero continuar
-        if (activeReservations.length === 0 && (reservationsError || slotsError)) {
+        if (activeReservations.length === 0 && (resourceError || slotsError)) {
           console.warn('⚠️ No se pudieron verificar todas las reservas, pero continuando...');
         }
         

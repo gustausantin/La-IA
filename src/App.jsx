@@ -20,7 +20,6 @@ const Confirm = lazy(() => import('./pages/Confirm'));
 const Reservas = lazy(() => import('./pages/Reservas'));
 const Clientes = lazy(() => import('./pages/Clientes'));
 // const PlantillasCRM = lazy(() => import('./pages/PlantillasCRM')); // ❌ ARCHIVO NO EXISTE
-// const Mesas = lazy(() => import('./pages/Mesas')); // ⚠️ DEPRECADO - Ahora en Configuración > Mi Negocio > Mis Recursos
 const Calendario = lazy(() => import('./pages/Calendario'));
 const Comunicacion = lazy(() => import('./pages/Comunicacion'));
 // const Analytics = lazy(() => import('./pages/Analytics')); // Deshabilitado temporalmente
@@ -30,7 +29,6 @@ const CRMProximosMensajes = lazy(() => import('./pages/CRMProximosMensajes'));
 
 // 🚀 CRM v2 - Nuevas páginas
 const Consumos = lazy(() => import('./pages/Consumos'));
-// const CRMv2 = lazy(() => import('./pages/CRMSimple')); // ❌ ARCHIVO NO EXISTE
 const AvailabilityTester = lazy(() => import('./components/AvailabilityTester'));
 const Disponibilidad = lazy(() => import('./pages/Disponibilidad')); // ⚠️ TEMPORAL - Para verificar lógica y métricas
 const Equipo = lazy(() => import('./pages/Equipo'));
@@ -171,16 +169,6 @@ function AppContent() {
                   </Suspense>
                 } 
               />
-              {/* ❌ RUTA DESHABILITADA - ARCHIVO NO EXISTE
-              <Route 
-                path="/crm-inteligente" 
-                element={
-                  <Suspense fallback={<PageLoading />}>
-                    <CRMv2 />
-                  </Suspense>
-                } 
-              />
-              */}
               <Route 
                 path="/consumos" 
                 element={
@@ -217,9 +205,10 @@ function AppContent() {
                 } 
               />
               
+              {/* ⚠️ RUTA TEMPORAL: /plantillas → /clientes (PlantillasCRM se creará próximamente) */}
               <Route 
                 path="/plantillas" 
-                element={<Navigate to="/crm-inteligente" state={{ autoOpenPlantillas: true }} replace />}
+                element={<Navigate to="/clientes" state={{ autoOpenPlantillas: true }} replace />}
               />
               {/* ⚠️ REDIRECT: /mesas → /configuracion (Gestión movida a Configuración) */}
               <Route 

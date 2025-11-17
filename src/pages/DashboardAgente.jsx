@@ -118,7 +118,7 @@ export default function DashboardAgenteV2() {
                 `)
                 .eq('business_id', restaurant.id)
                 .eq('reservation_date', todayStr)
-                .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
+                .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
             
             // Reservas AYER
             const { data: yesterdayReservations } = await supabase
@@ -126,7 +126,7 @@ export default function DashboardAgenteV2() {
                 .select('id, party_size')
                 .eq('business_id', restaurant.id)
                 .eq('reservation_date', yesterdayStr)
-                .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
+                .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
             
             const reservationsToday = todayReservations?.length || 0;
             const reservationsYesterday = yesterdayReservations?.length || 0;
@@ -168,7 +168,7 @@ export default function DashboardAgenteV2() {
                 `)
                 .eq('business_id', restaurant.id)
                 .eq('reservation_date', yesterdayStr)
-                .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
+                .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
             
             const newCustomersYesterday = yesterdayReservationsWithCustomer?.reduce((sum, r) => {
                 if (!r.customer_id || r.customer?.visits_count === 1) {
@@ -295,7 +295,7 @@ export default function DashboardAgenteV2() {
                 .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
-                .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
+                .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
             
             // Contar clientes ÚNICOS (evitar duplicados si mismo cliente tiene varias reservas)
             const uniqueCustomerIds = new Set();
@@ -343,7 +343,7 @@ export default function DashboardAgenteV2() {
                 .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
-                .in('status', ['completed', 'seated']);
+                .in('status', ['completed']);
             
             const { data: lastWeekRes } = await supabase
                 .from('appointments')
@@ -351,7 +351,7 @@ export default function DashboardAgenteV2() {
                 .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(startLastWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endLastWeek, 'yyyy-MM-dd'))
-                .in('status', ['completed', 'seated']);
+                .in('status', ['completed']);
             
             // Ticket medio desde settings (si no está configurado, usar 0)
             const avgTicket = currentRestaurant?.settings?.avg_ticket || 0;
@@ -388,7 +388,7 @@ export default function DashboardAgenteV2() {
                 .eq('business_id', restaurant.id)
                 .gte('reservation_date', format(startThisWeek, 'yyyy-MM-dd'))
                 .lte('reservation_date', format(endThisWeek, 'yyyy-MM-dd'))
-                .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
+                .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
             
             thisWeekChannels?.forEach(r => {
                 const source = r.source || 'manual';
@@ -489,11 +489,23 @@ export default function DashboardAgenteV2() {
                 }));
             
             // Alertas CRM pendientes
-            const { data: crmSuggestions } = await supabase
-                .from('crm_suggestions')
-                .select('type')
-                .eq('business_id', restaurant.id)
-                .eq('status', 'pending');
+            // ⚠️ NOTA: La tabla crm_suggestions no existe en el esquema actual
+            // Se maneja el error de forma silenciosa para no romper el dashboard
+            let crmSuggestions = [];
+            try {
+                const { data, error } = await supabase
+                    .from('crm_suggestions')
+                    .select('type')
+                    .eq('business_id', restaurant.id)
+                    .eq('status', 'pending');
+                
+                if (!error && data) {
+                    crmSuggestions = data;
+                }
+            } catch (error) {
+                // Tabla no existe, continuar sin alertas CRM
+                console.warn('⚠️ crm_suggestions no existe:', error.message);
+            }
             
             const crmAlertsCounts = {};
             crmSuggestions?.forEach(s => {
@@ -523,7 +535,7 @@ export default function DashboardAgenteV2() {
                     .select('id')
                     .eq('business_id', restaurant.id)
                     .eq('reservation_date', dateStr)
-                    .in('status', ['pending', 'pending_approval', 'confirmed', 'seated', 'completed']);
+                    .in('status', ['pending', 'pending_approval', 'confirmed', 'completed']);
                 
                 console.log(`📅 ${format(date, 'EEE d/M', { locale: es })}: ${dayReservations?.length || 0} reservas`);
                 

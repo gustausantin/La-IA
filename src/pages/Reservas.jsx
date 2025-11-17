@@ -159,12 +159,6 @@ const RESERVATION_STATES = {
         actions: ["cancel", "noshow", "edit"],
         icon: <CheckCircle2 className="w-4 h-4" />,
     },
-    sentada: {
-        label: "Sentada",
-        color: "bg-blue-100 text-blue-800 border-blue-200",
-        actions: ["complete", "noshow", "edit"],
-        icon: <Users className="w-4 h-4" />,
-    },
     completada: {
         label: "Completada",
         color: "bg-gray-100 text-gray-800 border-gray-200",
@@ -239,7 +233,6 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
     const statusMapping = {
         'pending': 'pendiente',
         'confirmed': 'confirmada', 
-        'seated': 'sentada',
         'completed': 'completada',
         'cancelled': 'cancelada',
         'no_show': 'no_show'
@@ -1040,7 +1033,6 @@ export default function Reservas() {
                 const statusMapping = {
                     'pendiente': 'pending',
                     'confirmada': 'confirmed', 
-                    'sentada': 'seated',
                     'completada': 'completed',
                     'cancelada': 'cancelled',
                     'no_show': 'no_show'
@@ -1542,7 +1534,6 @@ export default function Reservas() {
             const statusMapping = {
                 'pendiente': 'pending',
                 'confirmada': 'confirmed',
-                'sentada': 'seated',
                 'completada': 'completed',
                 'cancelada': 'cancelled'
             };
@@ -1580,11 +1571,11 @@ export default function Reservas() {
             // Vista HOY: Solo reservas de hoy (TODAS, incluidas canceladas)
             filtered = filtered.filter(r => r.reservation_date === today);
         } else if (activeView === 'proximas') {
-            // Vista PRÓXIMAS: Hoy + futuro (solo activas: pending, confirmed, seated)
+            // Vista PRÓXIMAS: Hoy + futuro (solo activas: pending, confirmed)
             filtered = filtered.filter(r => {
                 const resDate = new Date(r.reservation_date);
                 return resDate >= now && 
-                       ['pending', 'pending_approval', 'confirmed', 'seated'].includes(r.status);
+                       ['pending', 'pending_approval', 'confirmed'].includes(r.status);
             });
 
             // Aplicar sub-filtro de PRÓXIMAS
@@ -1974,8 +1965,8 @@ export default function Reservas() {
                     message = "Reserva confirmada";
                     break;
                 case "seat":
-                    newStatus = "seated";
-                    message = "Mesa ocupada";
+                    newStatus = "completed"; // ✅ Cambiado: "seated" no existe, usar "completed"
+                    message = "Reserva completada";
                     break;
                 case "complete":
                     newStatus = "completed";
@@ -3742,7 +3733,6 @@ const ReservationFormModal = ({
             const statusMapping = {
                 "confirmada": "confirmed",
                 "pendiente": "pending",
-                "sentada": "seated",
                 "completada": "completed",
                 "cancelada": "cancelled"
             };

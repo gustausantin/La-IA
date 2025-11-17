@@ -696,7 +696,7 @@ export const useReservationStore = create()(
             } else {
               // Filtrar solo status activos
               reservationsData = (data || []).filter(r => 
-                ['pending', 'confirmed', 'completed', 'seated', 'confirmada', 'sentada'].includes(r.status)
+                ['pending', 'confirmed', 'completed', 'confirmada'].includes(r.status)
               );
               log.info('✅ Active reservations loaded:', reservationsData.length);
             }

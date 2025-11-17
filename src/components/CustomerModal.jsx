@@ -11,31 +11,44 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-// SEGMENTACIÓN INTELIGENTE - WORLD CLASS
+// SEGMENTACIÓN INTELIGENTE - SISTEMA CRM POR VERTICAL (5 SEGMENTOS)
+// (Mismo sistema que Clientes.jsx para consistencia)
 const CUSTOMER_SEGMENTS = {
+    vip: { 
+        label: "VIP", 
+        icon: "👑", 
+        color: "purple",
+        bgColor: "bg-purple-50",
+        borderColor: "border-purple-200",
+        textColor: "text-purple-800",
+        description: "Cliente prioritario - Alto valor"
+    },
     nuevo: { 
         label: "Nuevo", 
         icon: "👋", 
         color: "blue",
         bgColor: "bg-blue-50",
         borderColor: "border-blue-200",
-        textColor: "text-blue-800"
+        textColor: "text-blue-800",
+        description: "Primera/segunda visita (< 90 días)"
     },
-    activo: { 
-        label: "Activo", 
+    regular: { 
+        label: "Regular", 
         icon: "⭐", 
         color: "green",
         bgColor: "bg-green-50",
         borderColor: "border-green-200", 
-        textColor: "text-green-800"
+        textColor: "text-green-800",
+        description: "Cliente fiel y activo"
     },
-    bib: { 
-        label: "BIB", 
-        icon: "👑", 
-        color: "purple",
-        bgColor: "bg-purple-50",
-        borderColor: "border-purple-200",
-        textColor: "text-purple-800"
+    en_riesgo: { 
+        label: "En Riesgo", 
+        icon: "⚠️", 
+        color: "orange",
+        bgColor: "bg-orange-50",
+        borderColor: "border-orange-200",
+        textColor: "text-orange-800",
+        description: "Cliente que puede perderse"
     },
     inactivo: { 
         label: "Inactivo", 
@@ -43,65 +56,55 @@ const CUSTOMER_SEGMENTS = {
         color: "gray",
         bgColor: "bg-gray-50",
         borderColor: "border-gray-200",
-        textColor: "text-gray-800"
-    },
-    riesgo: { 
-        label: "En Riesgo", 
-        icon: "⚠️", 
-        color: "orange",
-        bgColor: "bg-orange-50",
-        borderColor: "border-orange-200",
-        textColor: "text-orange-800"
+        textColor: "text-gray-800",
+        description: "Sin visitas recientes - Necesita recuperación"
     }
 };
 
-// FUNCIÓN PARA DETERMINAR SEGMENTO AUTOMÁTICO
-const determineCustomerSegment = (customer, crmConfig = {}) => {
+// FUNCIÓN PARA CALCULAR SEGMENTO SEGÚN PARÁMETROS DEL VERTICAL
+// (Misma lógica que Clientes.jsx para consistencia)
+const calculateSegmentByVertical = (customer, verticalParams) => {
     if (!customer) return 'nuevo';
+    if (!verticalParams) return 'nuevo'; // Fallback si no hay parámetros
     
-    // Usar configuración dinámica o valores por defecto
-    const config = {
-        days_new_customer: crmConfig.days_new_customer || 7,
-        days_active_customer: crmConfig.days_active_customer || 30,
-        days_inactive_customer: crmConfig.days_inactive_customer || 60,
-        visits_bib_customer: crmConfig.visits_bib_customer || 10,
-        days_risk_customer: crmConfig.days_risk_customer || 45
-    };
-
-    const visitsCount = customer.visits_count || customer.total_visits || 0;
-    const lastVisitDate = customer.last_visit_at || customer.last_visit;
+    const lifetimeVisits = customer.total_visits || customer.visits_count || 0;
+    const totalSpent = customer.total_spent || 0;
+    const daysSinceLastVisit = customer.last_visit_at 
+        ? Math.floor((new Date() - new Date(customer.last_visit_at)) / (1000 * 60 * 60 * 24))
+        : 999;
+    const daysSinceFirstVisit = customer.created_at
+        ? Math.floor((new Date() - new Date(customer.created_at)) / (1000 * 60 * 60 * 24))
+        : 0;
     
-    let daysSinceLastVisit = null;
-    if (lastVisitDate) {
-        try {
-            const lastVisit = typeof lastVisitDate === 'string' ? new Date(lastVisitDate) : lastVisitDate;
-            if (lastVisit && !isNaN(lastVisit.getTime())) {
-                daysSinceLastVisit = Math.floor((new Date() - lastVisit) / (1000 * 60 * 60 * 24));
-            }
-        } catch (error) {
-            console.warn('Error parsing last visit date:', error);
-            daysSinceLastVisit = null;
-        }
-    }
-
-    // Lógica de segmentación inteligente
-    if (visitsCount >= config.visits_bib_customer) {
-        return 'bib';
+    // Calcular thresholds
+    const riskThreshold = verticalParams.risk_min_days;
+    const inactiveThreshold = verticalParams.inactive_days;
+    
+    // PRIORIDAD 1: VIP (siempre gana, incluso si está inactivo)
+    const isVIP = totalSpent >= verticalParams.vip_min_spend_12m || 
+                  lifetimeVisits >= verticalParams.vip_min_visits_12m;
+    
+    if (isVIP) {
+        return 'vip';
     }
     
-    if (daysSinceLastVisit === null || visitsCount === 0) {
+    // PRIORIDAD 2: NUEVO (1-2 visitas en últimos 90 días)
+    if (lifetimeVisits <= 2 && daysSinceFirstVisit <= 90) {
         return 'nuevo';
     }
     
-    if (daysSinceLastVisit <= config.days_active_customer) {
-        return 'activo';
+    // PRIORIDAD 3: INACTIVO
+    if (daysSinceLastVisit > inactiveThreshold) {
+        return 'inactivo';
     }
     
-    if (daysSinceLastVisit <= config.days_risk_customer) {
-        return 'riesgo';
+    // PRIORIDAD 4: EN RIESGO
+    if (daysSinceLastVisit > riskThreshold) {
+        return 'en_riesgo';
     }
     
-    return 'inactivo';
+    // PRIORIDAD 5 (DEFAULT): REGULAR
+    return 'regular';
 };
 
 const CustomerModal = ({ 
@@ -111,6 +114,7 @@ const CustomerModal = ({
     onSave,
     onDelete, 
     businessId,
+    verticalType, // 🆕 Tipo de vertical del negocio (opcional)
     mode = 'view' // 'view', 'edit', 'create'
 }) => {
     const [formData, setFormData] = useState({
@@ -149,30 +153,72 @@ const CustomerModal = ({
     const [activeTab, setActiveTab] = useState('general');
     const [saving, setSaving] = useState(false);
     const [isEditing, setIsEditing] = useState(mode === 'edit' || mode === 'create');
-    const [crmConfig, setCrmConfig] = useState({});
+    const [verticalParams, setVerticalParams] = useState(null); // 🆕 Parámetros del vertical
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleting, setDeleting] = useState(false);
 
-    // Cargar configuración CRM para segmentación
+    // 🆕 Cargar parámetros del vertical desde Supabase (reemplaza crm_settings)
     useEffect(() => {
-        const loadCrmConfig = async () => {
-            if (!businessId) return;
+        const loadVerticalParams = async () => {
+            if (!verticalType) {
+                // Si no se pasa verticalType, intentar obtenerlo del negocio
+                if (!businessId) return;
+                
+                try {
+                    const { data: business, error } = await supabase
+                        .from('businesses')
+                        .select('vertical_type')
+                        .eq('id', businessId)
+                        .single();
+                    
+                    if (error || !business?.vertical_type) {
+                        console.log('📊 CRM: Sin vertical_type disponible');
+                        return;
+                    }
+                    
+                    // Recursivamente llamar con el vertical_type obtenido
+                    const { data, error: paramsError } = await supabase
+                        .from('crm_vertical_parameters')
+                        .select('*')
+                        .eq('vertical_id', business.vertical_type)
+                        .single();
+                    
+                    if (paramsError) {
+                        console.warn('⚠️ Error cargando parámetros del vertical:', paramsError);
+                        return;
+                    }
+                    
+                    if (data) {
+                        setVerticalParams(data);
+                    }
+                } catch (error) {
+                    console.warn('⚠️ Error obteniendo vertical_type:', error);
+                }
+                return;
+            }
             
             try {
                 const { data, error } = await supabase
-                    .from('crm_settings')
+                    .from('crm_vertical_parameters')
                     .select('*')
-                    .eq('business_id', businessId)
-                    .maybeSingle();
-                if (error) throw error;
-                if (data) setCrmConfig(data);
+                    .eq('vertical_id', verticalType)
+                    .single();
+                
+                if (error) {
+                    console.warn('⚠️ Error cargando parámetros del vertical:', error);
+                    return;
+                }
+                
+                if (data) {
+                    setVerticalParams(data);
+                }
             } catch (error) {
-                console.error('Error loading CRM config:', error);
+                console.warn('⚠️ Error cargando parámetros del vertical:', error);
             }
         };
         
-        loadCrmConfig();
-    }, [businessId]);
+        loadVerticalParams();
+    }, [businessId, verticalType]);
 
     // Inicializar datos del cliente
     useEffect(() => {
@@ -406,11 +452,12 @@ const CustomerModal = ({
     if (!isOpen) return null;
 
     // Determinar segmento actual - PROTEGIDO CONTRA ERRORES
+    // Usa el mismo sistema que Clientes.jsx (vertical params)
     let currentSegment = 'nuevo';
     let segmentInfo = CUSTOMER_SEGMENTS.nuevo;
     
     try {
-        currentSegment = customer ? determineCustomerSegment(customer, crmConfig) : 'nuevo';
+        currentSegment = customer ? calculateSegmentByVertical(customer, verticalParams) : 'nuevo';
         segmentInfo = CUSTOMER_SEGMENTS[currentSegment] || CUSTOMER_SEGMENTS.nuevo;
     } catch (segmentError) {
         console.error('Error determinando segmento (ignorado):', segmentError);
@@ -973,7 +1020,7 @@ const CustomerModal = ({
                                             .from('appointments')
                                             .select('id, reservation_date, reservation_time, status')
                                             .eq('customer_id', customer.id)
-                                            .in('status', ['pending', 'pending_approval', 'confirmed', 'seated']);
+                                            .in('status', ['pending', 'pending_approval', 'confirmed']);
 
                                         if (checkError) throw checkError;
 

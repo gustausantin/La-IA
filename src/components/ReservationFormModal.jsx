@@ -159,10 +159,39 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                 customerId = newCustomer.id;
             }
             
-            // 2. Seleccionar mesa automáticamente si no se especificó
+            // 2. Seleccionar mesa/recurso automáticamente si no se especificó
             let selectedTableId = formData.table_id;
+            let selectedEmployeeId = null;
+            
             if (!selectedTableId && availabilityStatus.availableSlots.length > 0) {
-                selectedTableId = availabilityStatus.availableSlots[0].table_id;
+                selectedTableId = availabilityStatus.availableSlots[0].resource_id || availabilityStatus.availableSlots[0].table_id;
+            }
+            
+            // 2.1. Obtener employee_id desde el slot seleccionado o desde el resource_id
+            if (availabilityStatus.availableSlots.length > 0) {
+                const selectedSlot = availabilityStatus.availableSlots.find(slot => 
+                    (slot.resource_id && slot.resource_id === selectedTableId) ||
+                    (slot.table_id && slot.table_id === selectedTableId)
+                ) || availabilityStatus.availableSlots[0];
+                
+                // ✅ Prioridad 1: employee_id directamente del slot
+                if (selectedSlot?.employee_id) {
+                    selectedEmployeeId = selectedSlot.employee_id;
+                } 
+                // ✅ Prioridad 2: Inferir desde resource_id (empleado que tiene ese recurso asignado)
+                else if (selectedTableId) {
+                    const { data: employeeData } = await supabase
+                        .from('employees')
+                        .select('id')
+                        .eq('business_id', businessId)
+                        .eq('assigned_resource_id', selectedTableId)
+                        .eq('is_active', true)
+                        .single();
+                    
+                    if (employeeData) {
+                        selectedEmployeeId = employeeData.id;
+                    }
+                }
             }
             
             // 3. Crear la reserva
@@ -181,6 +210,7 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                     party_size: formData.party_size,
                     resource_id: selectedTableId, // ✅ Para salones: resource_id (empleado/recurso)
                     table_id: selectedTableId, // ✅ Para restaurantes: table_id (mesa)
+                    employee_id: selectedEmployeeId, // ✅ NUEVO: Asociar directamente con el empleado
                     special_requests: formData.special_requests || null,
                     status: 'confirmed', // ✅ Estado en inglés (confirmed, pending, cancelled, etc.)
                     source: 'dashboard', // ✅ Fuente: creada desde dashboard
