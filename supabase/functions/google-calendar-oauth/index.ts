@@ -1,6 +1,6 @@
 // Google Calendar OAuth2 Handler
 // Handles the OAuth2 callback and exchanges code for tokens
-// Production-ready version
+// ✅ FUNCIÓN PÚBLICA - Configurada mediante supabase.functions.config.json con "auth": false
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -10,6 +10,9 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+// ✅ URI EXACTA registrada en Google Cloud Console
+const EXPECTED_REDIRECT_URI = 'https://zrcsujgurtglyqoqiynr.supabase.co/functions/v1/google-calendar-oauth?apikey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3N1amd1cnRnbHlxb3FpeW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTYwOTEsImV4cCI6MjA3NzA5MjA5MX0.ArgosNCVMqlC-4-r6Y_cnUh_CoA2SiX9wayS0N0kyjM'
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -17,25 +20,33 @@ serve(async (req) => {
   }
 
   try {
-    // ✅ Esta función DEBE ser pública porque Google redirige directamente aquí
-    // No requerimos autenticación cuando viene de Google (tiene parámetros code/state)
+    console.log('📥 Petición recibida en google-calendar-oauth')
+    console.log('📍 URL:', req.url)
+    console.log('🔑 Método:', req.method)
+    
     const url = new URL(req.url)
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state') // business_id
     const error = url.searchParams.get('error')
-    const apikey = url.searchParams.get('apikey') // ✅ Apikey del query string (para hacer la función pública)
+    const apikey = url.searchParams.get('apikey')
     
-    // ✅ Verificar que el apikey sea válido (opcional, pero recomendado para seguridad)
+    console.log('🔍 Parámetros recibidos:', {
+      has_code: !!code,
+      has_state: !!state,
+      has_error: !!error,
+      has_apikey: !!apikey,
+      state_value: state
+    })
+    
+    // Validar apikey (opcional pero recomendado)
     if (apikey) {
       const expectedAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
       if (expectedAnonKey && apikey !== expectedAnonKey) {
         console.warn('⚠️ Apikey inválido en query string')
-        // No bloqueamos, pero registramos la advertencia
+      } else if (expectedAnonKey) {
+        console.log('✅ Apikey válido')
       }
     }
-    
-    // ✅ Si no hay parámetros de OAuth, podría ser una petición directa (no permitida)
-    // Pero si viene de Google, debe tener code y state
 
     // Handle OAuth errors
     if (error) {
@@ -51,41 +62,34 @@ serve(async (req) => {
 
     const businessId = state
 
-    // ✅ Obtener el redirect_uri completo (incluyendo apikey si está presente)
-    const redirectUriWithParams = url.toString().split('?')[0] // URL base sin parámetros
-    const apikeyParam = apikey ? `?apikey=${encodeURIComponent(apikey)}` : ''
-    const fullRedirectUri = `${redirectUriWithParams}${apikeyParam}`
-
     // Exchange authorization code for tokens
-    const tokens = await exchangeCodeForTokens(code, fullRedirectUri)
+    console.log('🔄 Intercambiando código por tokens...')
+    const tokens = await exchangeCodeForTokens(code)
     
     // Get calendar information
+    console.log('📅 Obteniendo información del calendario...')
     const calendarData = await getCalendarInfo(tokens.access_token)
     
     // Save integration to database
+    console.log('💾 Guardando integración en base de datos...')
     await saveIntegration(businessId, tokens, calendarData)
     
     // Redirect to app with success
+    console.log('✅ OAuth completado exitosamente')
     return redirectToApp('success')
 
   } catch (error) {
-    console.error('❌ OAuth error:', error)
+    console.error('❌ Error en OAuth:', error)
     return redirectToApp('error', error.message || 'Unknown error')
   }
 })
 
 /**
  * Exchange authorization code for access and refresh tokens
+ * ✅ USA LA URI EXACTA registrada en Google Cloud Console
  */
-async function exchangeCodeForTokens(code: string, redirectUri: string) {
-  // ✅ CRÍTICO: El redirectUri DEBE coincidir EXACTAMENTE con el registrado en Google Cloud Console
-  // Usar el URI exacto que está registrado en Google Cloud Console
-  const expectedRedirectUri = 'https://zrcsujgurtglyqoqiynr.supabase.co/functions/v1/google-calendar-oauth?apikey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3N1amd1cnRnbHlxb3FpeW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTYwOTEsImV4cCI6MjA3NzA5MjA5MX0.ArgosNCVMqlC-4-r6Y_cnUh_CoA2SiX9wayS0N0kyjM';
-  
-  // Usar el URI esperado (el que está registrado en Google Cloud Console)
-  const redirectUriToUse = expectedRedirectUri;
-  
-  console.log('🔍 Usando redirect_uri para exchange:', redirectUriToUse);
+async function exchangeCodeForTokens(code: string) {
+  console.log('🔍 Usando redirect_uri:', EXPECTED_REDIRECT_URI)
   
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
@@ -103,37 +107,40 @@ async function exchangeCodeForTokens(code: string, redirectUri: string) {
       code,
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uri: redirectUriToUse, // ✅ Usar el URI exacto registrado en Google Cloud Console
+      redirect_uri: EXPECTED_REDIRECT_URI, // ✅ URI EXACTA de Google Cloud Console
       grant_type: 'authorization_code',
     }),
   })
 
   if (!tokenResponse.ok) {
-    const errorData = await tokenResponse.json()
+    const errorData = await tokenResponse.json().catch(() => ({}))
     console.error('❌ Token exchange failed:', errorData)
     throw new Error(`Token exchange failed: ${JSON.stringify(errorData)}`)
   }
 
-  return await tokenResponse.json()
+  const tokens = await tokenResponse.json()
+  console.log('✅ Tokens obtenidos exitosamente')
+  return tokens
 }
 
 /**
  * Get calendar information - tries to find "La - IA" calendar, falls back to primary
  */
 async function getCalendarInfo(accessToken: string) {
-  // ✅ List all calendars to find "La - IA" or use primary
   const calendarListResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
     headers: { 'Authorization': `Bearer ${accessToken}` },
   })
 
   if (!calendarListResponse.ok) {
+    const errorData = await calendarListResponse.json().catch(() => ({}))
+    console.error('❌ Error obteniendo lista de calendarios:', errorData)
     throw new Error('Failed to fetch calendar list')
   }
 
   const calendarListData = await calendarListResponse.json()
   const allCalendars = calendarListData.items || []
   
-  // ✅ Buscar calendario "La - IA" o similar
+  // Buscar calendario "La - IA" o similar
   let selectedCalendar = allCalendars.find((cal: any) => 
     cal.summary?.toLowerCase().includes('la-ia') || 
     cal.summary?.toLowerCase().includes('la ia') ||
@@ -141,7 +148,7 @@ async function getCalendarInfo(accessToken: string) {
     cal.summary?.toLowerCase().includes('la- ia')
   )
   
-  // Si no se encuentra "La - IA", usar el calendario primario
+  // Si no se encuentra, usar el calendario primario
   if (!selectedCalendar) {
     const primaryCalendar = allCalendars.find((cal: any) => cal.primary)
     selectedCalendar = primaryCalendar || { id: 'primary', summary: 'Principal' }
@@ -202,11 +209,11 @@ async function saveIntegration(
       scope: tokens.scope,
     },
     config: {
-      calendar_id: calendarData.id || 'primary', // Calendario por defecto hasta que el usuario seleccione
+      calendar_id: calendarData.id || 'primary',
       calendar_name: calendarData.summary || 'Principal',
-      sync_direction: 'unidirectional', // ✅ Unidireccional: LA-IA → Google Calendar
+      sync_direction: 'unidirectional',
       events_synced: 0,
-      calendar_selection_completed: false, // El usuario debe seleccionar qué calendarios usar
+      calendar_selection_completed: false,
     },
     metadata: {
       calendar_id: calendarData.id,
@@ -218,7 +225,7 @@ async function saveIntegration(
     last_sync_at: new Date().toISOString(),
   }
 
-  // Try INSERT first, then UPDATE if it fails (more robust than upsert)
+  // Try INSERT first, then UPDATE if it fails
   const { data: insertData, error: insertError } = await supabaseClient
     .from('integrations')
     .insert(integrationData)
@@ -258,21 +265,15 @@ async function saveIntegration(
 
 /**
  * Redirect to app with status
- * ✅ CRÍTICO: Redirige a la página de integraciones (tab=canales) para que el usuario vea el resultado
- * NO debe redirigir al Dashboard, DEBE volver a /configuracion?tab=canales
  */
 function redirectToApp(status: 'success' | 'error', message?: string) {
-  // ✅ CRÍTICO: Obtener URL pública correcta
-  // Prioridad: PUBLIC_SITE_URL > SITE_URL > Referer header > localhost
+  // Obtener URL pública
   let publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
                       Deno.env.get('SITE_URL')
   
-  // Si no hay URL configurada, intentar obtenerla del referer
   if (!publicSiteUrl) {
-    // En producción, usar el dominio de Supabase si está disponible
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
     if (supabaseUrl.includes('supabase.co')) {
-      // Extraer el proyecto ref y construir URL de producción
       const projectRef = supabaseUrl.split('//')[1]?.split('.')[0]
       if (projectRef) {
         publicSiteUrl = `https://${projectRef}.supabase.co`
@@ -280,16 +281,13 @@ function redirectToApp(status: 'success' | 'error', message?: string) {
     }
   }
   
-  // Fallback final
   if (!publicSiteUrl) {
     publicSiteUrl = 'http://localhost:5173'
     console.warn('⚠️ No se encontró PUBLIC_SITE_URL, usando localhost como fallback')
   }
   
-  // ✅ CRÍTICO: Construir URL de configuración con tab=canales
-  // NO redirigir al Dashboard, siempre volver a la página de integraciones
   const params = new URLSearchParams({
-    tab: 'canales', // ✅ Tab de integraciones
+    tab: 'canales',
     integration: 'google_calendar',
     status,
   })
@@ -298,12 +296,9 @@ function redirectToApp(status: 'success' | 'error', message?: string) {
     params.append('message', message)
   }
   
-  // ✅ URL completa: /configuracion?tab=canales&integration=google_calendar&status=success
   const redirectUrl = `${publicSiteUrl}/configuracion?${params.toString()}`
   
-  console.log('🔄 Redirigiendo después de OAuth:', redirectUrl)
-  console.log('✅ CRÍTICO: Debe volver a /configuracion?tab=canales, NO al Dashboard')
-  console.log('📍 URL pública usada:', publicSiteUrl)
+  console.log('🔄 Redirigiendo a:', redirectUrl)
   
   return new Response(null, {
     status: 302,

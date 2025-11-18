@@ -407,9 +407,11 @@ async function importEventsToCalendarExceptions(
   let skipped = 0
 
   console.log(`📥 Importando ${events.length} eventos para business_id: ${businessId}`)
+  console.log(`📋 Estructura del primer evento:`, JSON.stringify(events[0] || {}, null, 2))
 
   for (const event of events) {
     console.log(`📅 Procesando evento: ${event.id} - "${event.summary}" - selected: ${event.selected}`)
+    console.log(`📋 Evento completo:`, JSON.stringify(event, null, 2))
     
     if (!event.selected) {
       console.log(`  ⏭️  Evento no seleccionado, saltando...`)
@@ -444,22 +446,64 @@ async function importEventsToCalendarExceptions(
 
       console.log(`  💾 Insertando/actualizando excepción:`, JSON.stringify(exceptionData))
 
-      // Insert or update calendar exception
-      const { data, error } = await supabaseClient
+      // ✅ Verificar si ya existe una excepción para esta fecha
+      const { data: existing, error: checkError } = await supabaseClient
         .from('calendar_exceptions')
-        .upsert(exceptionData, {
-          onConflict: 'business_id,exception_date',
-        })
-        .select()
+        .select('id')
+        .eq('business_id', businessId)
+        .eq('exception_date', exceptionDate)
+        .maybeSingle()
+      
+      if (checkError) {
+        console.error(`❌ Error verificando existencia:`, checkError)
+        skipped++
+        continue
+      }
+
+      let result
+      
+      if (existing) {
+        // ✅ Actualizar si existe
+        console.log(`  🔄 Actualizando excepción existente (id: ${existing.id})`)
+        const { data, error } = await supabaseClient
+          .from('calendar_exceptions')
+          .update(exceptionData)
+          .eq('id', existing.id)
+          .select()
         
-      if (error) {
-        console.error(`❌ Error importing event ${event.id}:`, error)
-        console.error(`❌ Error details:`, JSON.stringify(error))
+        if (error) {
+          console.error(`❌ Error actualizando evento ${event.id}:`, error)
+          console.error(`❌ Error details:`, JSON.stringify(error, null, 2))
+          skipped++
+          continue
+        }
+        
+        result = data
+      } else {
+        // ✅ Insertar si no existe
+        console.log(`  ➕ Insertando nueva excepción`)
+        const { data, error } = await supabaseClient
+          .from('calendar_exceptions')
+          .insert(exceptionData)
+          .select()
+        
+        if (error) {
+          console.error(`❌ Error insertando evento ${event.id}:`, error)
+          console.error(`❌ Error details:`, JSON.stringify(error, null, 2))
+          skipped++
+          continue
+        }
+        
+        result = data
+      }
+      
+      if (!result || result.length === 0) {
+        console.warn(`⚠️ Operación no devolvió datos para evento ${event.id}`)
         skipped++
         continue
       }
       
-      console.log(`  ✅ Evento importado correctamente:`, data)
+      console.log(`  ✅ Evento importado correctamente:`, JSON.stringify(result, null, 2))
       imported++
 
     } catch (error) {

@@ -337,6 +337,19 @@ export default function IntegracionesContent() {
             setLoading(true);
             toast.loading('Sincronizando con Google Calendar...', { id: 'test-sync' });
 
+            // ✅ Verificar que el usuario esté autenticado antes de llamar a la función
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            
+            if (sessionError) {
+                throw new Error(`Error de autenticación: ${sessionError.message}`);
+            }
+            
+            if (!session) {
+                throw new Error('No hay sesión activa. Por favor, inicia sesión nuevamente.');
+            }
+
+            console.log('✅ Usuario autenticado, llamando a sync-google-calendar...');
+
             // Llamar a Edge Function para sincronizar
             const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
                 body: {
@@ -345,7 +358,14 @@ export default function IntegracionesContent() {
                 }
             });
 
-            if (error) throw error;
+            if (error) {
+                console.error('❌ Error en sync-google-calendar:', error);
+                // Si es error de autorización, sugerir recargar sesión
+                if (error.message?.includes('authorization') || error.message?.includes('401')) {
+                    throw new Error('Error de autenticación. Por favor, recarga la página e intenta nuevamente.');
+                }
+                throw error;
+            }
 
             toast.dismiss('test-sync');
             
@@ -590,21 +610,15 @@ export default function IntegracionesContent() {
                                 {(() => {
                                     // ✅ Mostrar botón de importar si:
                                     // 1. Google Calendar está conectado
-                                    // 2. initial_import_completed es false o undefined (no se ha importado aún)
-                                    // 3. calendar_selection_completed es true (ya se seleccionaron calendarios)
-                                    const initialImportCompleted = googleCalendarConfig?.config?.initial_import_completed;
+                                    // 2. calendar_selection_completed es true (ya se seleccionaron calendarios)
+                                    // ✅ Permitir importar siempre que haya calendarios seleccionados (incluso si ya se importó antes)
                                     const calendarSelectionCompleted = googleCalendarConfig?.config?.calendar_selection_completed;
                                     
-                                    const shouldShowImport = googleCalendarConnected && 
-                                        calendarSelectionCompleted && // ✅ Debe haber seleccionado calendarios primero
-                                        (initialImportCompleted === false || 
-                                         initialImportCompleted === undefined ||
-                                         initialImportCompleted === null);
+                                    const shouldShowImport = googleCalendarConnected && calendarSelectionCompleted;
                                     
                                     console.log('🔍 Evaluando botón Importar:', {
                                         connected: googleCalendarConnected,
                                         calendar_selection_completed: calendarSelectionCompleted,
-                                        initial_import_completed: initialImportCompleted,
                                         shouldShowImport,
                                         config: googleCalendarConfig?.config
                                     });

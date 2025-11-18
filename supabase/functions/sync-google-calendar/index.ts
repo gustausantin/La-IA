@@ -20,12 +20,67 @@ serve(async (req) => {
   }
 
   try {
-    const { business_id, action, reservation_id, direction } = await req.json()
+    // ✅ Extraer y validar header de autorización
+    const authHeader = req.headers.get('authorization')
+    const apikey = req.headers.get('apikey')
+    
+    // ✅ Verificar que hay algún método de autenticación
+    if (!authHeader && !apikey) {
+      console.error('❌ Missing authorization header or apikey')
+      return new Response(
+        JSON.stringify({ 
+          code: 401, 
+          message: 'Missing authorization header',
+          error: 'Se requiere autenticación para acceder a esta función'
+        }),
+        { 
+          status: 401, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
 
+    // ✅ Crear cliente de Supabase con service role key (para operaciones internas)
+    // El service role key bypassa RLS, lo cual es necesario para leer integrations
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
+
+    // ✅ Parsear el body de la petición
+    let requestBody
+    try {
+      requestBody = await req.json()
+    } catch (e) {
+      return new Response(
+        JSON.stringify({ 
+          code: 400, 
+          message: 'Invalid request body',
+          error: 'El cuerpo de la petición debe ser JSON válido'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+
+    const { business_id, action, reservation_id, direction } = requestBody
+
+    // ✅ Validar que business_id está presente
+    if (!business_id) {
+      return new Response(
+        JSON.stringify({ 
+          code: 400, 
+          message: 'Missing business_id',
+          error: 'Se requiere business_id en el cuerpo de la petición'
+        }),
+        { 
+          status: 400, 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
 
     // Get integration config
     const { data: integration, error: integrationError } = await supabaseClient
@@ -40,9 +95,27 @@ serve(async (req) => {
       throw new Error('Google Calendar not connected')
     }
 
+    // ✅ Obtener access_token (puede estar en access_token o en credentials.access_token)
+    let accessToken = integration.access_token || integration.credentials?.access_token
+    const refreshToken = integration.refresh_token || integration.credentials?.refresh_token
+
+    if (!accessToken) {
+      throw new Error('No access token found in integration')
+    }
+
+    if (!refreshToken) {
+      throw new Error('No refresh token found in integration')
+    }
+
     // Check token expiration and refresh if needed
-    const tokenExpiresAt = new Date(integration.token_expires_at)
-    if (tokenExpiresAt < new Date()) {
+    const tokenExpiresAt = integration.token_expires_at ? new Date(integration.token_expires_at) : null
+    
+    // ✅ Si el token expiró o está a punto de expirar (5 minutos de margen), refrescarlo
+    const shouldRefresh = !tokenExpiresAt || tokenExpiresAt < new Date(Date.now() + 5 * 60 * 1000)
+    
+    if (shouldRefresh) {
+      console.log('🔄 Token expirado o próximo a expirar, refrescando...')
+      
       // Refresh token
       const refreshResponse = await fetch('https://oauth2.googleapis.com/token', {
         method: 'POST',
@@ -50,31 +123,54 @@ serve(async (req) => {
         body: new URLSearchParams({
           client_id: Deno.env.get('GOOGLE_CLIENT_ID') || '',
           client_secret: Deno.env.get('GOOGLE_CLIENT_SECRET') || '',
-          refresh_token: integration.refresh_token,
+          refresh_token: refreshToken,
           grant_type: 'refresh_token',
         }),
       })
 
       if (!refreshResponse.ok) {
-        throw new Error('Failed to refresh token')
+        const errorData = await refreshResponse.json().catch(() => ({}))
+        console.error('❌ Error refrescando token:', errorData)
+        throw new Error(`Failed to refresh token: ${JSON.stringify(errorData)}`)
       }
 
       const newTokens = await refreshResponse.json()
       const newExpiresAt = new Date(Date.now() + (newTokens.expires_in * 1000)).toISOString()
 
-      // Update tokens
+      // Update tokens en la base de datos
+      const updateData: any = {
+        token_expires_at: newExpiresAt,
+      }
+
+      // Actualizar access_token en el lugar correcto
+      if (integration.access_token) {
+        updateData.access_token = newTokens.access_token
+      }
+      
+      if (integration.credentials) {
+        updateData.credentials = {
+          ...integration.credentials,
+          access_token: newTokens.access_token,
+        }
+      } else {
+        updateData.credentials = {
+          access_token: newTokens.access_token,
+          refresh_token: refreshToken,
+          token_type: newTokens.token_type || 'Bearer',
+        }
+      }
+
       await supabaseClient
         .from('integrations')
-        .update({
-          access_token: newTokens.access_token,
-          token_expires_at: newExpiresAt,
-        })
+        .update(updateData)
         .eq('id', integration.id)
 
+      // Actualizar el token en el objeto integration para usar en esta petición
+      accessToken = newTokens.access_token
       integration.access_token = newTokens.access_token
+      
+      console.log('✅ Token refrescado exitosamente')
     }
-
-    const accessToken = integration.access_token
     // ✅ Soporte para múltiples calendarios o uno solo
     const calendarIds = integration.config.calendar_ids || 
                        (integration.config.calendar_id ? [integration.config.calendar_id] : ['primary'])
@@ -100,8 +196,14 @@ serve(async (req) => {
           )
 
           if (!eventsResponse.ok) {
-            const errorData = await eventsResponse.json()
+            const errorData = await eventsResponse.json().catch(() => ({ error: 'Unknown error' }))
             console.warn(`⚠️ Error obteniendo eventos del calendario ${calId}:`, errorData)
+            
+            // Si es un error de autenticación, no continuar con otros calendarios
+            if (eventsResponse.status === 401 || eventsResponse.status === 403) {
+              throw new Error(`Error de autenticación con Google Calendar: ${JSON.stringify(errorData)}`)
+            }
+            
             continue
           }
 
