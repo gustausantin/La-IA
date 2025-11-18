@@ -7,11 +7,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
 }
 
 serve(async (req) => {
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response(null, { 
+      status: 204,
+      headers: corsHeaders 
+    })
   }
 
   try {
@@ -70,25 +75,70 @@ serve(async (req) => {
     }
 
     const accessToken = integration.access_token
-    const calendarId = integration.config.calendar_id || 'primary'
+    // ✅ Soporte para múltiples calendarios o uno solo
+    const calendarIds = integration.config.calendar_ids || 
+                       (integration.config.calendar_id ? [integration.config.calendar_id] : ['primary'])
+    const calendarId = calendarIds[0] || 'primary' // Para compatibilidad con acciones que usan un solo calendario
 
     // Handle different actions
     if (action === 'test') {
-      // Test sync - list recent events
-      const eventsResponse = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?maxResults=10`,
-        {
-          headers: { 'Authorization': `Bearer ${accessToken}` },
+      // Test sync - list recent events from all selected calendars and classify them
+      const timeMin = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const timeMax = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+      
+      // ✅ Procesar TODOS los calendarios seleccionados
+      const allEvents: any[] = []
+      const calendarResults: any[] = []
+      
+      for (const calId of calendarIds) {
+        try {
+          const eventsResponse = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${calId}/events?timeMin=${timeMin}&timeMax=${timeMax}&maxResults=100&singleEvents=true&orderBy=startTime`,
+            {
+              headers: { 'Authorization': `Bearer ${accessToken}` },
+            }
+          )
+
+          if (!eventsResponse.ok) {
+            const errorData = await eventsResponse.json()
+            console.warn(`⚠️ Error obteniendo eventos del calendario ${calId}:`, errorData)
+            continue
+          }
+
+          const eventsData = await eventsResponse.json()
+          const calendarEvents = eventsData.items || []
+          
+          // Obtener nombre del calendario
+          const calendarInfo = integration.config?.calendars_selected?.find((cal: any) => cal.id === calId)
+          const calendarName = calendarInfo?.name || calId
+          
+          calendarResults.push({
+            calendar_id: calId,
+            calendar_name: calendarName,
+            total_events: calendarEvents.length,
+            all_day_events: calendarEvents.filter((e: any) => !!e.start.date).length,
+            timed_events: calendarEvents.filter((e: any) => !!e.start.dateTime).length,
+          })
+          
+          allEvents.push(...calendarEvents)
+        } catch (error) {
+          console.error(`❌ Error procesando calendario ${calId}:`, error)
+          // Continuar con los demás calendarios aunque uno falle
         }
-      )
-
-      const eventsData = await eventsResponse.json()
-
+      }
+      
+      // Clasificar eventos totales
+      const allDayEvents = allEvents.filter(event => !!event.start.date)
+      const timedEvents = allEvents.filter(event => !!event.start.dateTime)
+      
       return new Response(
         JSON.stringify({
           success: true,
-          events_synced: eventsData.items?.length || 0,
-          calendar: calendarId,
+          events_synced: allEvents.length, // Total de eventos en todos los calendarios
+          all_day_events: allDayEvents.length,
+          timed_events: timedEvents.length,
+          calendars: calendarIds.length, // Cantidad de calendarios procesados
+          calendar_details: calendarResults, // Detalle por calendario
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -184,8 +234,56 @@ serve(async (req) => {
       const eventId = reservation.metadata?.google_calendar_event_id
 
       if (!eventId) {
-        // Create if doesn't exist
-        return await createEventInGoogleCalendar(supabaseClient, accessToken, calendarId, reservation, business_id, integration)
+        // Create if doesn't exist - reuse the create logic
+        const event = {
+          summary: `Reserva: ${reservation.customer_name}`,
+          description: `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}\nPersonas: ${reservation.party_size || 1}`,
+          start: {
+            dateTime: `${reservation.reservation_date}T${reservation.reservation_time}`,
+            timeZone: 'Europe/Madrid',
+          },
+          end: {
+            dateTime: `${reservation.reservation_date}T${calculateEndTime(reservation.reservation_time, 90)}`,
+            timeZone: 'Europe/Madrid',
+          },
+          colorId: getColorByStatus(reservation.status),
+          extendedProperties: {
+            private: {
+              la_ia_reservation_id: reservation.id,
+              la_ia_business_id: business_id,
+            },
+          },
+        }
+
+        const createResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(event),
+          }
+        )
+
+        const createdEvent = await createResponse.json()
+
+        // Update reservation with Google Calendar event ID
+        await supabaseClient
+          .from('appointments')
+          .update({
+            metadata: {
+              ...reservation.metadata,
+              google_calendar_event_id: createdEvent.id,
+            },
+          })
+          .eq('id', reservation.id)
+
+        return new Response(
+          JSON.stringify({ success: true, event_id: createdEvent.id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
       }
 
       const event = {

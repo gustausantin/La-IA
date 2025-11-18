@@ -97,24 +97,49 @@ async function exchangeCodeForTokens(code: string) {
 }
 
 /**
- * Get primary calendar information
+ * Get calendar information - tries to find "La - IA" calendar, falls back to primary
  */
 async function getCalendarInfo(accessToken: string) {
-  const calendarResponse = await fetch(
-    'https://www.googleapis.com/calendar/v3/calendars/primary',
-    {
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-      },
-    }
-  )
+  // ✅ List all calendars to find "La - IA" or use primary
+  const calendarListResponse = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+    headers: { 'Authorization': `Bearer ${accessToken}` },
+  })
 
-  if (!calendarResponse.ok) {
-    const errorData = await calendarResponse.json()
-    throw new Error(`Failed to get calendar info: ${JSON.stringify(errorData)}`)
+  if (!calendarListResponse.ok) {
+    throw new Error('Failed to fetch calendar list')
   }
 
-  return await calendarResponse.json()
+  const calendarListData = await calendarListResponse.json()
+  const allCalendars = calendarListData.items || []
+  
+  // ✅ Buscar calendario "La - IA" o similar
+  let selectedCalendar = allCalendars.find((cal: any) => 
+    cal.summary?.toLowerCase().includes('la-ia') || 
+    cal.summary?.toLowerCase().includes('la ia') ||
+    cal.summary?.toLowerCase() === 'la - ia' ||
+    cal.summary?.toLowerCase().includes('la- ia')
+  )
+  
+  // Si no se encuentra "La - IA", usar el calendario primario
+  if (!selectedCalendar) {
+    const primaryCalendar = allCalendars.find((cal: any) => cal.primary)
+    selectedCalendar = primaryCalendar || { id: 'primary', summary: 'Principal' }
+    
+    // Si no hay primario en la lista, obtenerlo directamente
+    if (!selectedCalendar || selectedCalendar.id === 'primary') {
+      const primaryResponse = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary', {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      })
+      
+      if (primaryResponse.ok) {
+        selectedCalendar = await primaryResponse.json()
+      }
+    }
+  }
+  
+  console.log(`✅ Calendario seleccionado: "${selectedCalendar?.summary || 'Principal'}" (ID: ${selectedCalendar?.id || 'primary'})`)
+  
+  return selectedCalendar || { id: 'primary', summary: 'Principal' }
 }
 
 /**
@@ -156,10 +181,11 @@ async function saveIntegration(
       scope: tokens.scope,
     },
     config: {
-      calendar_id: 'primary',
+      calendar_id: calendarData.id || 'primary', // Calendario por defecto hasta que el usuario seleccione
       calendar_name: calendarData.summary || 'Principal',
-      sync_direction: 'bidirectional',
+      sync_direction: 'unidirectional', // ✅ Unidireccional: LA-IA → Google Calendar
       events_synced: 0,
+      calendar_selection_completed: false, // El usuario debe seleccionar qué calendarios usar
     },
     metadata: {
       calendar_id: calendarData.id,
@@ -211,15 +237,18 @@ async function saveIntegration(
 
 /**
  * Redirect to app with status
- * Redirige a la página de integraciones (tab=canales) para que el usuario vea el resultado
+ * ✅ CRÍTICO: Redirige a la página de integraciones (tab=canales) para que el usuario vea el resultado
+ * NO debe redirigir al Dashboard, DEBE volver a /configuracion?tab=canales
  */
 function redirectToApp(status: 'success' | 'error', message?: string) {
   const publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
                         Deno.env.get('SITE_URL') || 
                         'http://localhost:5173'
   
+  // ✅ CRÍTICO: Construir URL de configuración con tab=canales
+  // NO redirigir al Dashboard, siempre volver a la página de integraciones
   const params = new URLSearchParams({
-    tab: 'canales', // ✅ Redirigir al tab de integraciones
+    tab: 'canales', // ✅ Tab de integraciones
     integration: 'google_calendar',
     status,
   })
@@ -228,7 +257,11 @@ function redirectToApp(status: 'success' | 'error', message?: string) {
     params.append('message', message)
   }
   
+  // ✅ URL completa: /configuracion?tab=canales&integration=google_calendar&status=success
   const redirectUrl = `${publicSiteUrl}/configuracion?${params.toString()}`
+  
+  console.log('🔄 Redirigiendo después de OAuth:', redirectUrl)
+  console.log('✅ CRÍTICO: Debe volver a /configuracion?tab=canales, NO al Dashboard')
   
   return new Response(null, {
     status: 302,

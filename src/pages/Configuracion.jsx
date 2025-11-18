@@ -141,11 +141,20 @@ const Configuracion = () => {
     
     // Leer tab de la URL o del state al cargar
     useEffect(() => {
-        // Prioridad 1: state de navegación (desde navigate con state)
+        // ✅ Prioridad 1: Si viene OAuth redirect con tab, establecerlo inmediatamente
+        const tabParam = searchParams.get('tab');
+        const integrationParam = searchParams.get('integration');
+        if (tabParam && validTabs.includes(tabParam) && integrationParam === 'google_calendar') {
+            console.log('🎯 Estableciendo tab desde OAuth redirect:', tabParam);
+            setActiveTab(tabParam);
+            return; // No ejecutar el resto si ya se estableció desde OAuth
+        }
+        
+        // Prioridad 2: state de navegación (desde navigate con state)
         if (location.state?.activeTab && validTabs.includes(location.state.activeTab)) {
             setActiveTab(location.state.activeTab);
         }
-        // Prioridad 2: parámetro de URL
+        // Prioridad 3: parámetro de URL
         else {
             const tabFromUrl = searchParams.get('tab');
             if (tabFromUrl && validTabs.includes(tabFromUrl)) {
@@ -182,46 +191,48 @@ const Configuracion = () => {
         const integration = searchParams.get('integration');
         const status = searchParams.get('status');
         const message = searchParams.get('message');
+        const tabFromOAuth = searchParams.get('tab'); // ✅ Obtener tab del parámetro OAuth
 
         if (integration === 'google_calendar') {
+            // ✅ CRÍTICO: Establecer tab INMEDIATAMENTE cuando viene OAuth redirect
+            const targetTab = tabFromOAuth || 'canales'; // 'canales' es el tab de integraciones
+            console.log('🎯 OAuth redirect detectado - Estableciendo tab:', targetTab);
+            
+            if (validTabs.includes(targetTab)) {
+                setActiveTab(targetTab);
+                console.log('✅ Tab establecido correctamente:', targetTab);
+            } else {
+                console.warn('⚠️ Tab inválido desde OAuth, usando canales por defecto');
+                setActiveTab('canales');
+            }
+            
             if (status === 'success') {
                 toast.success('✅ Google Calendar conectado exitosamente!', {
                     duration: 5000,
                     position: 'top-center'
                 });
-                // Cambiar a la pestaña de integraciones si existe
-                if (validTabs.includes('canales')) {
-                    setActiveTab('canales');
-                }
-                // Limpiar parámetros de la URL después de un pequeño delay
-                // para que el componente IntegracionesContent pueda detectarlos primero
-                setTimeout(() => {
-                    const newSearchParams = new URLSearchParams(searchParams);
-                    newSearchParams.delete('integration');
-                    newSearchParams.delete('status');
-                    newSearchParams.delete('message');
-                    const cleanUrl = newSearchParams.toString() 
-                        ? `/configuracion?${newSearchParams.toString()}` 
-                        : '/configuracion';
-                    navigate(cleanUrl, { replace: true });
-                }, 2000);
             } else if (status === 'error') {
-                toast.error(`❌ Error al conectar Google Calendar: ${message || 'Error desconocido'}`, {
-                    duration: 7000,
+                toast.error(`❌ Error conectando Google Calendar: ${message || 'Error desconocido'}`, {
+                    duration: 5000,
                     position: 'top-center'
                 });
-                // Limpiar parámetros de la URL
-                const newSearchParams = new URLSearchParams(searchParams);
-                newSearchParams.delete('integration');
-                newSearchParams.delete('status');
-                newSearchParams.delete('message');
-                const cleanUrl = newSearchParams.toString() 
-                    ? `/configuracion?${newSearchParams.toString()}` 
-                    : '/configuracion';
-                navigate(cleanUrl, { replace: true });
             }
+            
+            // ✅ PRESERVAR el tab en la URL al limpiar parámetros OAuth
+            // Limpiar parámetros después de un delay para que IntegracionesContent los detecte
+            setTimeout(() => {
+                const newSearchParams = new URLSearchParams();
+                // ✅ CRÍTICO: Preservar tab=canales en la URL
+                const tabToKeep = tabFromOAuth || 'canales';
+                if (validTabs.includes(tabToKeep)) {
+                    newSearchParams.set('tab', tabToKeep);
+                }
+                const cleanUrl = `/configuracion${newSearchParams.toString() ? `?${newSearchParams.toString()}` : ''}`;
+                console.log('🔄 Limpiando URL OAuth, preservando tab:', cleanUrl);
+                navigate(cleanUrl, { replace: true });
+            }, 2000);
         }
-    }, [searchParams, location.state, navigate]);
+    }, [searchParams, location.state, navigate, validTabs]);
     
     const [settings, setSettings] = useState({
         name: "",

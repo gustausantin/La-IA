@@ -15,6 +15,8 @@ import {
     Zap,
     Link as LinkIcon
 } from 'lucide-react';
+import GoogleCalendarImportModal from './GoogleCalendarImportModal';
+import GoogleCalendarSelector from './GoogleCalendarSelector';
 
 export default function IntegracionesContent() {
     const { businessId, business } = useAuthContext();
@@ -22,6 +24,8 @@ export default function IntegracionesContent() {
     const [loading, setLoading] = useState(false);
     const [googleCalendarConnected, setGoogleCalendarConnected] = useState(false);
     const [googleCalendarConfig, setGoogleCalendarConfig] = useState(null);
+    const [showImportModal, setShowImportModal] = useState(false);
+    const [showCalendarSelector, setShowCalendarSelector] = useState(false);
 
     // Cargar configuración de integraciones
     useEffect(() => {
@@ -41,8 +45,34 @@ export default function IntegracionesContent() {
         if (integration === 'google_calendar' && status === 'success') {
             console.log('🔄 Recargando configuración después de OAuth exitoso...');
             // Pequeño delay para asegurar que la Edge Function haya guardado los datos
-            const timeoutId = setTimeout(() => {
-                loadIntegrationsConfig();
+            const timeoutId = setTimeout(async () => {
+                await loadIntegrationsConfig();
+                
+                // Verificar si es primera conexión después de cargar la configuración
+                // Esperar un poco para que el estado se actualice
+                setTimeout(() => {
+                    // Leer directamente de la base de datos para obtener el estado actualizado
+                    supabase
+                        .from('integrations')
+                        .select('config')
+                        .eq('business_id', businessId)
+                        .eq('provider', 'google_calendar')
+                        .maybeSingle()
+                        .then(({ data: integrationData }) => {
+                            const hasImported = integrationData?.config?.initial_import_completed;
+                            const isActive = integrationData?.is_active;
+                            const calendarSelected = integrationData?.config?.calendar_selection_completed;
+                            
+                            // Si no hay calendario seleccionado, mostrar selector primero
+                            if (!calendarSelected && isActive) {
+                                console.log('📅 Primera conexión detectada - Mostrando selector de calendarios');
+                                setShowCalendarSelector(true);
+                            } else if (!hasImported && isActive) {
+                                console.log('📥 Calendario seleccionado - Ofreciendo importación inicial');
+                                setShowImportModal(true);
+                            }
+                        });
+                }, 800);
             }, 1500);
             
             return () => clearTimeout(timeoutId);
@@ -89,14 +119,19 @@ export default function IntegracionesContent() {
             }
 
             if (data) {
-                // LÓGICA ROBUSTA: Verificar múltiples condiciones para determinar si está conectado
+                // ✅ LÓGICA CLARA: Está conectado SOLO si:
+                // 1. Tiene tokens (access_token Y refresh_token)
+                // 2. is_active = true (CRÍTICO: si es false, NO está conectado)
+                // 3. status = 'active' (no 'disconnected' ni otro valor)
+                // 4. Token no expirado
                 const hasTokens = !!(data.access_token || data.credentials?.access_token);
-                const isActive = data.is_active === true;
-                const statusActive = data.status === 'active';
+                const isActive = data.is_active === true; // ✅ CRÍTICO: debe ser explícitamente true
+                const statusActive = data.status === 'active'; // No 'disconnected' ni null
                 const notExpired = !data.token_expires_at || new Date(data.token_expires_at) > new Date();
                 
-                // Está conectado si: tiene tokens Y (is_active=true O status='active') Y no está expirado
-                const isConnected = hasTokens && (isActive || statusActive) && notExpired;
+                // ✅ Está conectado SOLO si TODAS las condiciones se cumplen
+                // Si is_active = false, NO está conectado, sin importar los tokens
+                const isConnected = hasTokens && isActive && statusActive && notExpired;
                 
                 setGoogleCalendarConnected(isConnected);
                 setGoogleCalendarConfig(data);
@@ -110,7 +145,13 @@ export default function IntegracionesContent() {
                     has_tokens: hasTokens,
                     not_expired: notExpired,
                     connected: isConnected,
-                    token_expires_at: data.token_expires_at
+                    token_expires_at: data.token_expires_at,
+                    reason: !isConnected ? (
+                        !hasTokens ? 'Sin tokens' :
+                        !isActive ? 'is_active = false' :
+                        !statusActive ? `status = '${data.status}' (no 'active')` :
+                        'Token expirado'
+                    ) : 'Todas las condiciones OK'
                 });
             } else {
                 // No hay integración configurada aún
@@ -224,18 +265,20 @@ export default function IntegracionesContent() {
 
     // Desconectar Google Calendar
     const handleDisconnectGoogleCalendar = async () => {
-        if (!confirm('¿Estás seguro de desconectar Google Calendar? Se detendrá la sincronización.')) {
+        if (!confirm('¿Estás seguro de desconectar Google Calendar? Se detendrá la sincronización y deberás volver a conectar para usarlo.')) {
             return;
         }
 
         try {
             setLoading(true);
-            toast.loading('Desconectando...', { id: 'google-disconnect' });
+            toast.loading('Desconectando Google Calendar...', { id: 'google-disconnect' });
 
+            // ✅ DESCONECTAR: Marcar como inactivo y actualizar status
             const { error } = await supabase
                 .from('integrations')
                 .update({
                     is_active: false,
+                    status: 'disconnected',
                     disconnected_at: new Date().toISOString()
                 })
                 .eq('id', googleCalendarConfig.id);
@@ -243,13 +286,19 @@ export default function IntegracionesContent() {
             if (error) throw error;
 
             toast.dismiss('google-disconnect');
-            toast.success('✅ Google Calendar desconectado');
+            toast.success('✅ Google Calendar desconectado correctamente', { duration: 3000 });
             
+            // ✅ ACTUALIZAR ESTADO INMEDIATAMENTE (sin esperar recarga)
             setGoogleCalendarConnected(false);
+            setGoogleCalendarConfig(null);
+            
+            // Recargar configuración para asegurar estado actualizado
             await loadIntegrationsConfig();
 
+            console.log('✅ Desconexión completada - Estado actualizado a DESCONECTADO');
+
         } catch (error) {
-            console.error('Error desconectando:', error);
+            console.error('❌ Error desconectando:', error);
             toast.dismiss('google-disconnect');
             toast.error('Error al desconectar: ' + error.message);
         } finally {
@@ -258,15 +307,110 @@ export default function IntegracionesContent() {
     };
 
     // Probar sincronización
-    // NOTA: La funcionalidad de sincronización estará disponible próximamente
+    // Sincroniza manualmente las reservas con Google Calendar
     const handleTestSync = async () => {
-        toast('ℹ️ La sincronización automática estará disponible próximamente. Por ahora, las reservas se sincronizan automáticamente cuando se crean o modifican.', {
-            duration: 5000,
-            icon: 'ℹ️'
-        });
-        
-        // TODO: Implementar Edge Function sync-google-calendar cuando esté lista
-        // Por ahora, solo mostramos un mensaje informativo
+        try {
+            setLoading(true);
+            toast.loading('Sincronizando con Google Calendar...', { id: 'test-sync' });
+
+            // Llamar a Edge Function para sincronizar
+            const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
+                body: {
+                    business_id: businessId,
+                    action: 'test' // Acción de prueba: solo verifica conexión y lista eventos
+                }
+            });
+
+            if (error) throw error;
+
+            toast.dismiss('test-sync');
+            
+            if (data?.success) {
+                const totalEvents = data.events_synced || 0;
+                const allDayEvents = data.all_day_events || 0;
+                const timedEvents = data.timed_events || 0;
+                const calendarsCount = data.calendars || 1;
+                const calendarDetails = data.calendar_details || [];
+                
+                // Mensaje más claro explicando qué eventos se pueden importar
+                let message = `✅ Sincronización exitosa!\n\n`;
+                message += `📅 ${calendarsCount} calendario(s) procesado(s)\n`;
+                message += `• Total de eventos: ${totalEvents}\n`;
+                message += `• Eventos de TODO EL DÍA (importables): ${allDayEvents}\n`;
+                message += `• Eventos con HORA (no importables): ${timedEvents}`;
+                
+                if (calendarDetails.length > 1) {
+                    message += `\n\n📊 Por calendario:`;
+                    calendarDetails.forEach((cal) => {
+                        message += `\n  • ${cal.calendar_name}: ${cal.all_day_events} todo el día, ${cal.timed_events} con hora`;
+                    });
+                }
+                
+                toast.success(message, { duration: 10000 });
+                
+                // Recargar configuración para actualizar last_sync_at
+                await loadIntegrationsConfig();
+                
+                // ✅ Si hay eventos de TODO EL DÍA y no se ha hecho importación inicial, ofrecer importar
+                if (allDayEvents > 0 && !googleCalendarConfig?.config?.initial_import_completed) {
+                    setTimeout(() => {
+                        toast(
+                            (t) => (
+                                <div className="flex flex-col gap-2">
+                                    <p className="font-semibold">¿Quieres importar eventos de Google Calendar?</p>
+                                    <p className="text-sm text-gray-600">
+                                        Se encontraron {allDayEvents} evento{allDayEvents !== 1 ? 's' : ''} de todo el día que puedes importar.
+                                    </p>
+                                    <div className="flex gap-2">
+                                        <button
+                                            onClick={() => {
+                                                toast.dismiss(t.id);
+                                                setShowImportModal(true);
+                                            }}
+                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                                        >
+                                            Sí, importar
+                                        </button>
+                                        <button
+                                            onClick={() => toast.dismiss(t.id)}
+                                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
+                                        >
+                                            Ahora no
+                                        </button>
+                                    </div>
+                                </div>
+                            ),
+                            { duration: 10000, position: 'top-center' }
+                        );
+                    }, 1500);
+                } else if (allDayEvents === 0 && totalEvents > 0) {
+                    // Si hay eventos pero todos son con hora, explicar
+                    setTimeout(() => {
+                        toast.info(
+                            `ℹ️ Los ${totalEvents} eventos encontrados tienen hora específica (reservas, citas).\n\nSolo se pueden importar eventos de TODO EL DÍA (días cerrados, vacaciones, festivos).`,
+                            { duration: 8000, position: 'top-center' }
+                        );
+                    }, 1500);
+                }
+            } else {
+                throw new Error(data?.error || 'Error desconocido');
+            }
+
+        } catch (error) {
+            console.error('Error en prueba de sincronización:', error);
+            toast.dismiss('test-sync');
+            
+            // Si es error de CORS o función no encontrada, mostrar mensaje más claro
+            if (error.message?.includes('CORS') || error.message?.includes('Failed to send')) {
+                toast.error('⚠️ La función de sincronización no está desplegada. Por favor, despliega la Edge Function sync-google-calendar.', {
+                    duration: 7000
+                });
+            } else {
+                toast.error('Error en la sincronización: ' + (error.message || 'Error desconocido'));
+            }
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -295,12 +439,17 @@ export default function IntegracionesContent() {
 
                             {/* Info */}
                             <div className="flex-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex items-center gap-3">
                                     <h3 className="text-xl font-bold text-gray-900">Google Calendar</h3>
-                                    {googleCalendarConnected && (
-                                        <span className="px-2 py-1 bg-green-500 text-white text-xs font-bold rounded-full flex items-center gap-1">
-                                            <Check className="w-3 h-3" />
+                                    {googleCalendarConnected ? (
+                                        <span className="px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full flex items-center gap-1.5">
+                                            <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
                                             Conectado
+                                        </span>
+                                    ) : (
+                                        <span className="px-3 py-1 bg-red-500 text-white text-xs font-bold rounded-full flex items-center gap-1.5">
+                                            <X className="w-3 h-3" />
+                                            Desconectado
                                         </span>
                                     )}
                                 </div>
@@ -309,66 +458,61 @@ export default function IntegracionesContent() {
                                 </p>
                             </div>
                         </div>
-
-                        {/* Estado */}
-                        {googleCalendarConnected ? (
-                            <div className="flex items-center gap-2 text-green-600">
-                                <div className="w-3 h-3 bg-green-500 rounded-full animate-pulse"></div>
-                                <span className="text-sm font-semibold">Activo</span>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-2 text-gray-400">
-                                <div className="w-3 h-3 bg-gray-300 rounded-full"></div>
-                                <span className="text-sm font-semibold">Inactivo</span>
-                            </div>
-                        )}
                     </div>
                 </div>
 
                 {/* Contenido */}
                 <div className="p-6 space-y-4">
-                    {/* Características */}
+                    {/* Características - MEJOR EXPLICADAS CON CHECKS */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="flex items-start gap-2">
                             <Check className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">Sincronización Bidireccional</p>
-                                <p className="text-xs text-gray-600">Cambios en LA-IA → Google Calendar y viceversa</p>
+                                <p className="text-sm font-semibold text-gray-900">Sincronización Unidireccional</p>
+                                <p className="text-xs text-gray-600">LA-IA → Google Calendar (fuente única de verdad)</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-2">
                             <Check className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">Tiempo Real</p>
-                                <p className="text-xs text-gray-600">Actualizaciones instantáneas vía webhooks</p>
+                                <p className="text-sm font-semibold text-gray-900">Sincronización Automática</p>
+                                <p className="text-xs text-gray-600">Cada reserva creada/modificada se sincroniza automáticamente</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-2">
                             <Check className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">Calendario Dedicado</p>
-                                <p className="text-xs text-gray-600">Crea un calendario específico para LA-IA</p>
+                                <p className="text-sm font-semibold text-gray-900">Sin Conflictos</p>
+                                <p className="text-xs text-gray-600">Control total: LA-IA es la única fuente de verdad</p>
                             </div>
                         </div>
                         <div className="flex items-start gap-2">
                             <Check className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
                             <div>
-                                <p className="text-sm font-semibold text-gray-900">Notificaciones Sync</p>
-                                <p className="text-xs text-gray-600">Alertas de sincronización y errores</p>
+                                <p className="text-sm font-semibold text-gray-900">Vista Completa</p>
+                                <p className="text-xs text-gray-600">Ve todas tus reservas en Google Calendar</p>
                             </div>
                         </div>
                     </div>
 
-                    {/* Información de conexión */}
-                    {googleCalendarConnected && googleCalendarConfig && (
+                    {/* Información de conexión - SOLO SI ESTÁ CONECTADO */}
+                    {googleCalendarConnected && googleCalendarConfig ? (
                         <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                             <div className="space-y-2 text-sm">
                                 <div className="flex items-center justify-between">
-                                    <span className="text-gray-700 font-medium">Calendario:</span>
+                                    <span className="text-gray-700 font-medium">Calendario(s):</span>
                                     <span className="text-gray-900 font-semibold">
-                                        {googleCalendarConfig.config?.calendar_name || 'LA-IA Reservas'}
+                                        {googleCalendarConfig.config?.calendar_name || 'No seleccionado'}
                                     </span>
                                 </div>
+                                {googleCalendarConfig.config?.calendars_selected && (
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-gray-700 font-medium">Calendarios activos:</span>
+                                        <span className="text-gray-900 text-xs">
+                                            {googleCalendarConfig.config.calendars_selected.length} calendario(s)
+                                        </span>
+                                    </div>
+                                )}
                                 <div className="flex items-center justify-between">
                                     <span className="text-gray-700 font-medium">Última Sync:</span>
                                     <span className="text-gray-900">
@@ -385,7 +529,7 @@ export default function IntegracionesContent() {
                                 </div>
                             </div>
                         </div>
-                    )}
+                    ) : null}
 
                     {/* Acciones */}
                     <div className="flex flex-wrap gap-3">
@@ -401,13 +545,34 @@ export default function IntegracionesContent() {
                         ) : (
                             <>
                                 <button
-                                    onClick={handleTestSync}
+                                    onClick={() => {
+                                        console.log('🔘 Botón Seleccionar Calendarios clickeado');
+                                        setShowCalendarSelector(true);
+                                    }}
                                     disabled={loading}
+                                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all shadow-md font-semibold disabled:opacity-50"
+                                >
+                                    <Settings className="w-5 h-5" />
+                                    Seleccionar Calendarios
+                                </button>
+                                <button
+                                    onClick={handleTestSync}
+                                    disabled={loading || !googleCalendarConfig?.config?.calendar_selection_completed}
                                     className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all font-medium disabled:opacity-50"
                                 >
                                     {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                                     Probar Sincronización
                                 </button>
+                                {!googleCalendarConfig?.config?.initial_import_completed && (
+                                    <button
+                                        onClick={() => setShowImportModal(true)}
+                                        disabled={loading}
+                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium disabled:opacity-50"
+                                    >
+                                        <CalendarIcon className="w-4 h-4" />
+                                        Importar Eventos
+                                    </button>
+                                )}
                                 <button
                                     onClick={handleDisconnectGoogleCalendar}
                                     disabled={loading}
@@ -422,23 +587,22 @@ export default function IntegracionesContent() {
                 </div>
             </div>
 
-            {/* Info adicional */}
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 flex-shrink-0" />
-                    <div className="flex-1">
-                        <h4 className="text-sm font-semibold text-yellow-900 mb-1">
-                            ¿Cómo funciona la sincronización?
-                        </h4>
-                        <ul className="text-xs text-yellow-800 space-y-1">
-                            <li>• Cada reserva creada en LA-IA se crea automáticamente en Google Calendar</li>
-                            <li>• Si modificas o cancelas en LA-IA, se actualiza en Google Calendar</li>
-                            <li>• Si creas un evento en Google Calendar, se bloquea ese horario en LA-IA</li>
-                            <li>• La sincronización ocurre en tiempo real (menos de 5 segundos)</li>
-                        </ul>
+            {/* Mensaje si está desconectado */}
+            {!googleCalendarConnected && (
+                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                        <AlertCircle className="w-5 h-5 text-gray-400 mt-0.5 flex-shrink-0" />
+                        <div className="flex-1">
+                            <p className="text-sm font-semibold text-gray-900 mb-1">
+                                Google Calendar no está conectado
+                            </p>
+                            <p className="text-xs text-gray-600">
+                                Conecta tu cuenta de Google Calendar para sincronizar automáticamente tus reservas.
+                            </p>
+                        </div>
                     </div>
                 </div>
-            </div>
+            )}
 
             {/* Otras integraciones (próximamente) */}
             <div className="bg-gray-100 rounded-xl p-6 text-center">
@@ -448,6 +612,46 @@ export default function IntegracionesContent() {
                     Outlook Calendar, Apple Calendar, Zapier, Make y más...
                 </p>
             </div>
+
+            {/* Modal de Selector de Calendarios */}
+            {showCalendarSelector && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-gray-900">
+                                Seleccionar Calendarios de Google
+                            </h3>
+                            <button
+                                onClick={() => setShowCalendarSelector(false)}
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <X className="w-5 h-5" />
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <GoogleCalendarSelector
+                                businessId={businessId}
+                                currentCalendarId={googleCalendarConfig?.config?.calendar_id || googleCalendarConfig?.config?.calendar_ids}
+                                onCalendarSelected={() => {
+                                    setShowCalendarSelector(false);
+                                    loadIntegrationsConfig();
+                                }}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal de Importación de Google Calendar */}
+            <GoogleCalendarImportModal
+                businessId={businessId}
+                isOpen={showImportModal}
+                onClose={() => setShowImportModal(false)}
+                onComplete={() => {
+                    // Recargar configuración después de importar
+                    loadIntegrationsConfig();
+                }}
+            />
         </div>
     );
 }
