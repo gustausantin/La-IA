@@ -606,6 +606,7 @@ export default function Reservas() {
 
     const [tables, setTables] = useState([]);
     const [resources, setResources] = useState([]); // 🆕 Recursos/Profesionales para el calendario
+    const [calendarExceptions, setCalendarExceptions] = useState([]); // 🆕 Excepciones de calendario (días cerrados)
     const [savingPolicy, setSavingPolicy] = useState(false);
     const [policySettings, setPolicySettings] = useState({
         min_party_size: 1,
@@ -1117,6 +1118,26 @@ export default function Reservas() {
             console.error("❌ Error cargando mesas:", error);
             // No mostrar error al usuario si no hay mesas
             setTables([]);
+        }
+    }, [businessId]);
+
+    // 🆕 Cargar excepciones de calendario (días cerrados, festivos, etc.)
+    const loadCalendarExceptions = useCallback(async () => {
+        if (!businessId) return;
+
+        try {
+            const { data, error } = await supabase
+                .from('calendar_exceptions')
+                .select('*')
+                .eq('business_id', businessId)
+                .order('exception_date');
+
+            if (error) throw error;
+
+            setCalendarExceptions(data || []);
+            console.log('✅ Excepciones de calendario cargadas:', data?.length || 0);
+        } catch (error) {
+            console.error('❌ Error cargando excepciones de calendario:', error);
         }
     }, [businessId]);
 
@@ -1661,6 +1682,7 @@ export default function Reservas() {
                         loadTables(),
                         loadResources(), // 🆕 Cargar recursos/profesionales
                         loadBlockages(), // 🆕 Cargar bloqueos de horas
+                        loadCalendarExceptions(), // 🆕 Cargar excepciones de calendario
                         loadPolicySettings()
                     ]);
                 })
@@ -1695,11 +1717,19 @@ export default function Reservas() {
         window.addEventListener('schedule-updated', handleScheduleUpdate);
         window.addEventListener('force-business-reload', handleBusinessReload);
         
+        // 🆕 Recargar excepciones de calendario cuando se actualice el calendario
+        const handleCalendarUpdate = () => {
+            console.log('🔄 Recargando excepciones de calendario...');
+            loadCalendarExceptions();
+        };
+        window.addEventListener('calendar-exception-updated', handleCalendarUpdate);
+        
         return () => {
             window.removeEventListener('schedule-updated', handleScheduleUpdate);
             window.removeEventListener('force-business-reload', handleBusinessReload);
+            window.removeEventListener('calendar-exception-updated', handleCalendarUpdate);
         };
-    }, [businessId]);
+    }, [businessId, loadCalendarExceptions]);
     
     // 🤖 AUTO-COMPLETAR RESERVAS PERIÓDICAMENTE (cada 30 minutos)
     useEffect(() => {
@@ -2330,6 +2360,7 @@ export default function Reservas() {
                         resources={resources} // ✅ Recursos/profesionales desde BD
                         blockages={blockages} // 🆕 Bloqueos de horas
                         businessSettings={business?.settings} // 🆕 Configuración del negocio (incluye operating_hours)
+                        calendarExceptions={calendarExceptions} // 🆕 Excepciones de calendario (días cerrados)
                         onReservationClick={(reserva) => {
                             setViewingReservation(reserva);
                             setShowDetailsModal(true);

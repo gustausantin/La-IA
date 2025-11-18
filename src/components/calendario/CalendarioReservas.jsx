@@ -88,6 +88,7 @@ export default function CalendarioReservas({
     resources = [], // Profesionales/Recursos (ej: Patricia Taylor, Michael Brown)
     blockages = [], // 🆕 Bloqueos de horas
     businessSettings = null, // 🆕 Configuración del negocio (incluye operating_hours)
+    calendarExceptions = [], // 🆕 Excepciones de calendario (días cerrados, festivos, etc.)
     onReservationClick = () => {},
     onSlotClick = () => {},
     onRefresh = () => {},
@@ -604,6 +605,7 @@ export default function CalendarioReservas({
                     horaInicio={horaInicio}
                     horaFin={horaFin}
                     currentTime={currentTime}
+                    calendarExceptions={calendarExceptions}
                     onReservationClick={onReservationClick}
                     onSlotClick={onSlotClick}
                     onCellClick={handleCellClick}
@@ -1006,6 +1008,7 @@ function VistaDia({
     horaInicio, 
     horaFin,
     currentTime,
+    calendarExceptions = [], // 🆕 Excepciones de calendario (días cerrados, festivos, etc.)
     onReservationClick, 
     onSlotClick,
     onCellClick,
@@ -1280,19 +1283,31 @@ function VistaDia({
                         
                         {/* Recursos/Empleados - HORIZONTAL CENTRADO */}
                         {recursosDisplay.map((recurso, idx) => {
-                            // Calcular horario dinámico desde schedules
-                            const schedulesToday = recurso.employee_schedules?.filter(s => 
-                                s.day_of_week === diaSemanaActual && s.is_working
-                            ) || [];
-
-                            const tieneHorarioHoy = schedulesToday.length > 0 && schedulesToday[0].shifts && schedulesToday[0].shifts.length > 0;
+                            // 🚨 VERIFICAR SI EL DÍA ESTÁ CERRADO EN EL CALENDARIO
+                            const fechaStr = format(fecha, 'yyyy-MM-dd');
+                            const dayException = calendarExceptions?.find(
+                                ex => ex.exception_date === fechaStr
+                            );
+                            const isDayClosed = dayException && (dayException.is_open === false || dayException.is_open === null);
                             
+                            // Si el día está cerrado, mostrar "Sin horario" para TODOS los empleados
                             let horarioTexto = 'Sin horario';
-                            if (tieneHorarioHoy) {
-                                const shifts = schedulesToday[0].shifts;
-                                const primerTurno = shifts[0];
-                                const ultimoTurno = shifts[shifts.length - 1];
-                                horarioTexto = `${primerTurno.start.slice(0, 5)} - ${ultimoTurno.end.slice(0, 5)}`;
+                            let tieneHorarioHoy = false;
+                            
+                            if (!isDayClosed) {
+                                // Solo calcular horario si el día NO está cerrado
+                                const schedulesToday = recurso.employee_schedules?.filter(s => 
+                                    s.day_of_week === diaSemanaActual && s.is_working
+                                ) || [];
+
+                                tieneHorarioHoy = schedulesToday.length > 0 && schedulesToday[0].shifts && schedulesToday[0].shifts.length > 0;
+                                
+                                if (tieneHorarioHoy) {
+                                    const shifts = schedulesToday[0].shifts;
+                                    const primerTurno = shifts[0];
+                                    const ultimoTurno = shifts[shifts.length - 1];
+                                    horarioTexto = `${primerTurno.start.slice(0, 5)} - ${ultimoTurno.end.slice(0, 5)}`;
+                                }
                             }
 
                             return (

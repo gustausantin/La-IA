@@ -119,6 +119,46 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
         setValidationError('');
         
         try {
+            // ✅ VERIFICAR GOOGLE CALENDAR ANTES DE CREAR RESERVA
+            const startDateTime = new Date(`${formData.reservation_date}T${formData.reservation_time}`);
+            const durationMinutes = 60; // Duración por defecto, se puede obtener de settings
+            const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60000);
+            
+            try {
+                const { data: availabilityCheck, error: checkError } = await supabase.functions.invoke(
+                    'check-availability-unified',
+                    {
+                        body: {
+                            business_id: businessId,
+                            resource_id: formData.table_id || null,
+                            start_time: startDateTime.toISOString(),
+                            end_time: endDateTime.toISOString()
+                        }
+                    }
+                );
+                
+                if (checkError) {
+                    console.warn('⚠️ Error verificando Google Calendar:', checkError);
+                    // Continuar de todas formas si hay error en la verificación
+                } else if (availabilityCheck && !availabilityCheck.available) {
+                    // Hay conflictos en Google Calendar
+                    const conflicts = availabilityCheck.conflicts || [];
+                    const googleConflicts = conflicts.filter(c => c.type === 'google_calendar');
+                    
+                    if (googleConflicts.length > 0) {
+                        const conflictMessage = `⚠️ Este horario está bloqueado en Google Calendar:\n${googleConflicts.map(c => `• ${c.reason || 'Evento bloqueado'}`).join('\n')}\n\n¿Deseas continuar de todas formas?`;
+                        
+                        const shouldContinue = window.confirm(conflictMessage);
+                        if (!shouldContinue) {
+                            setSaving(false);
+                            return;
+                        }
+                    }
+                }
+            } catch (checkError) {
+                console.warn('⚠️ Error en verificación de Google Calendar:', checkError);
+                // Continuar de todas formas si hay error
+            }
             // 1. Crear o encontrar cliente
             let customerId;
             const { data: existingCustomer } = await supabase
@@ -222,7 +262,28 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
             
             if (reservationError) throw reservationError;
             
-            // 4. Marcar slot(s) como ocupado(s) si existe(n)
+            // ✅ 4. Sincronizar con Google Calendar (push)
+            try {
+                const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                    body: {
+                        business_id: businessId,
+                        action: 'push',
+                        reservation_id: reservation.id
+                    }
+                });
+                
+                if (syncError) {
+                    console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
+                    // No bloquear la creación si falla la sincronización
+                } else {
+                    console.log('✅ Reserva sincronizada con Google Calendar');
+                }
+            } catch (syncError) {
+                console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                // Continuar de todas formas
+            }
+            
+            // 5. Marcar slot(s) como ocupado(s) si existe(n)
             // ✅ Los slots se generan con resource_id (para todos los tipos de negocio)
             // Necesitamos actualizar todos los slots que corresponden a esta reserva
             if (availabilityStatus.availableSlots.length > 0) {

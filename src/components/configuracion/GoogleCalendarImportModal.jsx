@@ -136,6 +136,15 @@ export default function GoogleCalendarImportModal({
             setLoading(true);
             toast.loading('Importando eventos...', { id: 'import-events' });
 
+            // ✅ DEBUG: Verificar que los eventos tengan start y end
+            console.log('📤 Eventos a importar:', allSelected.map(e => ({
+                id: e.id,
+                summary: e.summary,
+                start: e.start,
+                end: e.end,
+                type: e.type
+            })));
+
             const { data, error } = await supabase.functions.invoke('import-google-calendar-initial', {
                 body: {
                     business_id: businessId,
@@ -168,13 +177,32 @@ export default function GoogleCalendarImportModal({
     };
 
     const formatEventDate = (event) => {
-        const dateStr = event.start?.date || event.start?.dateTime?.split('T')[0];
-        if (!dateStr) return 'Fecha desconocida';
+        const startDateStr = event.start?.date || event.start?.dateTime?.split('T')[0];
+        const endDateStr = event.end?.date || event.end?.dateTime?.split('T')[0];
+        
+        if (!startDateStr) return 'Fecha desconocida';
+        
         try {
-            const date = new Date(dateStr);
-            return format(date, 'dd MMM yyyy', { locale: es });
+            const startDate = new Date(startDateStr);
+            const formattedStart = format(startDate, 'dd MMM yyyy', { locale: es });
+            
+            // ✅ Si hay fecha de fin y es diferente, mostrar rango
+            if (endDateStr && endDateStr !== startDateStr) {
+                // Google Calendar usa endDate exclusivo, así que restamos 1 día para mostrar el último día real
+                const endDate = new Date(endDateStr);
+                endDate.setDate(endDate.getDate() - 1);
+                const formattedEnd = format(endDate, 'dd MMM yyyy', { locale: es });
+                
+                // Si es el mismo mes, mostrar formato corto
+                if (startDate.getMonth() === endDate.getMonth() && startDate.getFullYear() === endDate.getFullYear()) {
+                    return `${format(startDate, 'dd', { locale: es })} - ${format(endDate, 'dd MMM yyyy', { locale: es })}`;
+                }
+                return `${formattedStart} - ${formattedEnd}`;
+            }
+            
+            return formattedStart;
         } catch {
-            return dateStr;
+            return startDateStr;
         }
     };
 

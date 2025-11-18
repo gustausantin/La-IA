@@ -716,6 +716,9 @@ export default function Calendario() {
             setShowEventModal(false);
             console.log('✅ Evento(s) guardado(s):', data);
             
+            // 🆕 Notificar a otros componentes que se actualizó el calendario
+            window.dispatchEvent(new CustomEvent('calendar-exception-updated'));
+            
             toast.success(
                 dateStrings.length === 1 
                     ? `✅ Evento creado para ${format(startDate, 'dd/MM/yyyy')}`

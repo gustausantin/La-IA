@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import GoogleCalendarImportModal from './GoogleCalendarImportModal';
 import GoogleCalendarSelector from './GoogleCalendarSelector';
+import ResourceCalendarLinker from './ResourceCalendarLinker';
 
 export default function IntegracionesContent() {
     const { businessId, business } = useAuthContext();
@@ -541,38 +542,49 @@ export default function IntegracionesContent() {
 
                     {/* Información de conexión - SOLO SI ESTÁ CONECTADO */}
                     {googleCalendarConnected && googleCalendarConfig ? (
-                        <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <div className="space-y-2 text-sm">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-gray-700 font-medium">Calendario(s):</span>
-                                    <span className="text-gray-900 font-semibold">
-                                        {googleCalendarConfig.config?.calendar_name || 'No seleccionado'}
-                                    </span>
-                                </div>
-                                {googleCalendarConfig.config?.calendars_selected && (
+                        <>
+                            <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <div className="space-y-2 text-sm">
                                     <div className="flex items-center justify-between">
-                                        <span className="text-gray-700 font-medium">Calendarios activos:</span>
-                                        <span className="text-gray-900 text-xs">
-                                            {googleCalendarConfig.config.calendars_selected.length} calendario(s)
+                                        <span className="text-gray-700 font-medium">Calendario(s):</span>
+                                        <span className="text-gray-900 font-semibold">
+                                            {googleCalendarConfig.config?.calendar_name || 'No seleccionado'}
                                         </span>
                                     </div>
-                                )}
-                                <div className="flex items-center justify-between">
-                                    <span className="text-gray-700 font-medium">Última Sync:</span>
-                                    <span className="text-gray-900">
-                                        {googleCalendarConfig.last_sync_at 
-                                            ? new Date(googleCalendarConfig.last_sync_at).toLocaleString()
-                                            : 'Nunca'}
-                                    </span>
-                                </div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-gray-700 font-medium">Eventos Sincronizados:</span>
-                                    <span className="text-gray-900 font-bold">
-                                        {googleCalendarConfig.config?.events_synced || 0}
-                                    </span>
+                                    {googleCalendarConfig.config?.calendars_selected && (
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-gray-700 font-medium">Calendarios activos:</span>
+                                            <span className="text-gray-900 text-xs">
+                                                {googleCalendarConfig.config.calendars_selected.length} calendario(s)
+                                            </span>
+                                        </div>
+                                    )}
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-gray-700 font-medium">Última Sync:</span>
+                                        <span className="text-gray-900">
+                                            {googleCalendarConfig.last_sync_at 
+                                                ? new Date(googleCalendarConfig.last_sync_at).toLocaleString()
+                                                : 'Nunca'}
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-gray-700 font-medium">Eventos Sincronizados:</span>
+                                        <span className="text-gray-900 font-bold">
+                                            {googleCalendarConfig.config?.events_synced || 0}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+
+                            {/* Vincular Recursos con Calendarios */}
+                            {googleCalendarConfig.config?.calendar_selection_completed && (
+                                <ResourceCalendarLinker
+                                    businessId={businessId}
+                                    integrationConfig={googleCalendarConfig.config}
+                                    onUpdate={loadIntegrationsConfig}
+                                />
+                            )}
+                        </>
                     ) : null}
 
                     {/* Acciones */}
