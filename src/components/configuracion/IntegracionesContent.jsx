@@ -146,6 +146,9 @@ export default function IntegracionesContent() {
                     not_expired: notExpired,
                     connected: isConnected,
                     token_expires_at: data.token_expires_at,
+                    initial_import_completed: data.config?.initial_import_completed,
+                    calendar_selection_completed: data.config?.calendar_selection_completed,
+                    config: data.config,
                     reason: !isConnected ? (
                         !hasTokens ? 'Sin tokens' :
                         !isActive ? 'is_active = false' :
@@ -191,25 +194,33 @@ export default function IntegracionesContent() {
                 throw new Error('Supabase URL no configurado. Contacta al administrador.');
             }
 
-            // Construir URL de la Edge Function
-            // Formato: https://{project-ref}.supabase.co/functions/v1/{function-name}
-            const supabaseUrlObj = new URL(supabaseUrl);
-            const edgeFunctionUrl = `${supabaseUrlObj.origin}/functions/v1/google-calendar-oauth`;
-            const redirectUri = edgeFunctionUrl;
+            // ✅ CRÍTICO: Usar el redirect_uri EXACTO que está registrado en Google Cloud Console
+            // Este URI DEBE coincidir exactamente con el que está en Google Cloud Console
+            // IMPORTANTE: Sin espacios, sin trailing slashes, exactamente como está en Google Cloud Console
+            const expectedRedirectUri = 'https://zrcsujgurtglyqoqiynr.supabase.co/functions/v1/google-calendar-oauth?apikey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3N1amd1cnRnbHlxb3FpeW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTYwOTEsImV4cCI6MjA3NzA5MjA5MX0.ArgosNCVMqlC-4-r6Y_cnUh_CoA2SiX9wayS0N0kyjM';
             
-            // 🔍 DEBUG: Log para verificar la URI exacta
-            console.log('🔍 DEBUG OAuth:');
-            console.log('  - Supabase URL:', supabaseUrl);
-            console.log('  - Edge Function URL:', edgeFunctionUrl);
-            console.log('  - redirectUri completo:', redirectUri);
-            console.log('  - clientId:', clientId ? `${clientId.substring(0, 20)}...` : 'NO CONFIGURADO');
-            console.log('  - businessId:', businessId);
+            // ✅ Limpiar URI: eliminar espacios, trailing slashes, y caracteres invisibles
+            const cleanRedirectUri = expectedRedirectUri.trim().replace(/\s+/g, '').replace(/\/$/, '');
             
-            // Verificar que la URI no tenga trailing slash ni espacios
-            const cleanRedirectUri = redirectUri.trim().replace(/\/$/, '');
+            // ✅ Verificación crítica: mostrar el URI exacto que se enviará
+            console.log('🔍 VERIFICACIÓN DE REDIRECT_URI:');
+            console.log('  - URI esperado (de Google Cloud Console):');
+            console.log('    ', expectedRedirectUri);
+            console.log('  - URI limpio (que se enviará):');
+            console.log('    ', cleanRedirectUri);
+            console.log('  - Longitud esperada:', expectedRedirectUri.length);
+            console.log('  - Longitud obtenida:', cleanRedirectUri.length);
+            console.log('  - ¿Coinciden?', expectedRedirectUri === cleanRedirectUri ? '✅ SÍ' : '❌ NO');
             
-            if (cleanRedirectUri !== redirectUri) {
-                console.warn('⚠️ URI tenía trailing slash o espacios, corregido:', cleanRedirectUri);
+            if (expectedRedirectUri !== cleanRedirectUri) {
+                console.error('❌ ERROR: El URI no coincide!');
+                console.error('  Diferencia en caracteres:');
+                for (let i = 0; i < Math.max(expectedRedirectUri.length, cleanRedirectUri.length); i++) {
+                    if (expectedRedirectUri[i] !== cleanRedirectUri[i]) {
+                        console.error(`    Posición ${i}: esperado "${expectedRedirectUri[i]}" (charCode: ${expectedRedirectUri.charCodeAt(i)}), obtenido "${cleanRedirectUri[i]}" (charCode: ${cleanRedirectUri.charCodeAt(i)})`);
+                        break;
+                    }
+                }
             }
 
             const scopes = [
@@ -217,33 +228,46 @@ export default function IntegracionesContent() {
                 'https://www.googleapis.com/auth/calendar.events'
             ].join(' ');
 
+            // ✅ Codificar el redirect_uri para la URL de autorización
+            const encodedRedirectUri = encodeURIComponent(cleanRedirectUri);
+            
             const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?` +
                 `client_id=${clientId}` +
-                `&redirect_uri=${encodeURIComponent(cleanRedirectUri)}` +
+                `&redirect_uri=${encodedRedirectUri}` +
                 `&response_type=code` +
                 `&scope=${encodeURIComponent(scopes)}` +
                 `&access_type=offline` +
                 `&prompt=consent` +
                 `&state=${businessId}`; // Pasar businessId como state
 
-            // 🔍 DEBUG: Mostrar URL completa (sin el código por seguridad)
-            console.log('🔍 URL de autorización (sin parámetros sensibles):');
-            console.log('  - Base:', `https://accounts.google.com/o/oauth2/v2/auth`);
-            console.log('  - redirect_uri codificado:', encodeURIComponent(cleanRedirectUri));
-            console.log('  - URI completa (decodificada para verificación):', 
-                `https://accounts.google.com/o/oauth2/v2/auth?client_id=...&redirect_uri=${cleanRedirectUri}&...`);
+            // ✅ DEBUG: Mostrar información completa de la petición OAuth
+            console.log('');
+            console.log('🔍 INFORMACIÓN COMPLETA DE OAUTH:');
+            console.log('  - Client ID:', clientId);
+            console.log('  - Redirect URI (SIN codificar - debe estar en Google Cloud Console):');
+            console.log('    ', cleanRedirectUri);
+            console.log('  - Redirect URI (codificado para URL):');
+            console.log('    ', encodedRedirectUri);
+            console.log('  - Scopes:', scopes);
+            console.log('');
+            console.log('⚠️ VERIFICACIÓN CRÍTICA:');
+            console.log('  El URI que está en Google Cloud Console DEBE ser EXACTAMENTE:');
+            console.log('  ', cleanRedirectUri);
+            console.log('  (Sin codificar, sin espacios, sin trailing slash)');
+            console.log('');
+            console.log('  Si el error persiste, verifica en Google Cloud Console:');
+            console.log('  1. Ve a APIs & Services > Credentials');
+            console.log('  2. Edita tu OAuth 2.0 Client ID');
+            console.log('  3. En "Authorized redirect URIs", copia y pega EXACTAMENTE este URI:');
+            console.log('     ', cleanRedirectUri);
+            console.log('  4. Guarda los cambios');
+            console.log('  5. Espera 1-2 minutos para que se propaguen los cambios');
 
             // Guardar intento de conexión
             localStorage.setItem('google_calendar_connecting', 'true');
             localStorage.setItem('google_calendar_business_id', businessId);
-            localStorage.setItem('google_calendar_redirect_uri', cleanRedirectUri); // Guardar para debug
 
             toast.dismiss('google-connect');
-            
-            // Mostrar mensaje con la URI para verificación
-            console.log('✅ Redirigiendo a Google OAuth...');
-            console.log('⚠️ IMPORTANTE: Verifica que esta URI esté en Google Cloud Console:');
-            console.log(`   ${cleanRedirectUri}`);
             
             toast.success('Redirigiendo a Google...', {
                 duration: 2000,
@@ -563,16 +587,39 @@ export default function IntegracionesContent() {
                                     {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
                                     Probar Sincronización
                                 </button>
-                                {!googleCalendarConfig?.config?.initial_import_completed && (
-                                    <button
-                                        onClick={() => setShowImportModal(true)}
-                                        disabled={loading}
-                                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium disabled:opacity-50"
-                                    >
-                                        <CalendarIcon className="w-4 h-4" />
-                                        Importar Eventos
-                                    </button>
-                                )}
+                                {(() => {
+                                    // ✅ Mostrar botón de importar si:
+                                    // 1. Google Calendar está conectado
+                                    // 2. initial_import_completed es false o undefined (no se ha importado aún)
+                                    // 3. calendar_selection_completed es true (ya se seleccionaron calendarios)
+                                    const initialImportCompleted = googleCalendarConfig?.config?.initial_import_completed;
+                                    const calendarSelectionCompleted = googleCalendarConfig?.config?.calendar_selection_completed;
+                                    
+                                    const shouldShowImport = googleCalendarConnected && 
+                                        calendarSelectionCompleted && // ✅ Debe haber seleccionado calendarios primero
+                                        (initialImportCompleted === false || 
+                                         initialImportCompleted === undefined ||
+                                         initialImportCompleted === null);
+                                    
+                                    console.log('🔍 Evaluando botón Importar:', {
+                                        connected: googleCalendarConnected,
+                                        calendar_selection_completed: calendarSelectionCompleted,
+                                        initial_import_completed: initialImportCompleted,
+                                        shouldShowImport,
+                                        config: googleCalendarConfig?.config
+                                    });
+                                    
+                                    return shouldShowImport ? (
+                                        <button
+                                            onClick={() => setShowImportModal(true)}
+                                            disabled={loading}
+                                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all font-medium disabled:opacity-50"
+                                        >
+                                            <CalendarIcon className="w-4 h-4" />
+                                            Importar Eventos
+                                        </button>
+                                    ) : null;
+                                })()}
                                 <button
                                     onClick={handleDisconnectGoogleCalendar}
                                     disabled={loading}

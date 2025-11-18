@@ -141,13 +141,19 @@ const Configuracion = () => {
     
     // Leer tab de la URL o del state al cargar
     useEffect(() => {
-        // ✅ Prioridad 1: Si viene OAuth redirect con tab, establecerlo inmediatamente
+        // ✅ Prioridad 1: Si viene OAuth redirect con tab, establecerlo INMEDIATAMENTE
         const tabParam = searchParams.get('tab');
         const integrationParam = searchParams.get('integration');
-        if (tabParam && validTabs.includes(tabParam) && integrationParam === 'google_calendar') {
-            console.log('🎯 Estableciendo tab desde OAuth redirect:', tabParam);
-            setActiveTab(tabParam);
-            return; // No ejecutar el resto si ya se estableció desde OAuth
+        
+        // ✅ CRÍTICO: Si viene OAuth redirect, establecer tab INMEDIATAMENTE y NO hacer nada más
+        if (integrationParam === 'google_calendar') {
+            const targetTab = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'canales';
+            console.log('🎯 OAuth redirect detectado - Estableciendo tab INMEDIATAMENTE:', targetTab);
+            setActiveTab(targetTab);
+            
+            // NO ejecutar el resto de la lógica si viene OAuth redirect
+            // Esto previene cualquier redirección al dashboard
+            return;
         }
         
         // Prioridad 2: state de navegación (desde navigate con state)

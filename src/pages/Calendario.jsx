@@ -1996,7 +1996,7 @@ export default function Calendario() {
                     <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
                         <div className="flex items-center justify-between mb-2">
                             <h3 className="text-sm font-semibold text-gray-900">
-                                Evento: {selectedEvent.title}
+                                Evento: {selectedEvent.title || selectedEvent.reason || 'Sin título'}
                             </h3>
                             <button
                                 onClick={() => {
@@ -2013,31 +2013,64 @@ export default function Calendario() {
                         <div className="space-y-4 mb-6">
                             <div className="bg-blue-50 border-l-4 border-blue-400 p-2">
                                 <p className="text-sm text-blue-900 font-medium">
-                                    📅 {format(parseISO(selectedEvent.event_date), 'EEEE, dd MMMM yyyy', { locale: es })}
+                                    📅 {(() => {
+                                        // ✅ Validar y formatear fecha de forma segura
+                                        const dateStr = selectedEvent.exception_date || selectedEvent.event_date;
+                                        if (!dateStr) {
+                                            return 'Fecha no disponible';
+                                        }
+                                        try {
+                                            const date = parseISO(dateStr);
+                                            if (isNaN(date.getTime())) {
+                                                return 'Fecha inválida';
+                                            }
+                                            return format(date, 'EEEE, dd MMMM yyyy', { locale: es });
+                                        } catch (error) {
+                                            console.error('❌ Error formateando fecha:', error, dateStr);
+                                            return dateStr; // Devolver la fecha sin formatear si falla
+                                        }
+                                    })()}
                                 </p>
                             </div>
 
                             <div className="bg-gray-50 p-2 rounded-lg">
                                 <p className="text-sm text-gray-600 mb-2">Estado:</p>
-                                {selectedEvent.is_closed ? (
-                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
-                                        🔒 Negocio cerrado este día
-                                    </span>
-                                ) : (
-                                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                                        🎉 Evento especial - Negocio abierto
-                                    </span>
-                                )}
+                                {(() => {
+                                    // ✅ Determinar si está cerrado: is_closed o !is_open
+                                    const isClosed = selectedEvent.is_closed !== undefined 
+                                        ? selectedEvent.is_closed 
+                                        : (selectedEvent.is_open !== undefined ? !selectedEvent.is_open : false);
+                                    
+                                    return isClosed ? (
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                                            🔒 Negocio cerrado este día
+                                        </span>
+                                    ) : (
+                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                            🎉 Evento especial - Negocio abierto
+                                        </span>
+                                    );
+                                })()}
                             </div>
 
-                            {!selectedEvent.is_closed && (selectedEvent.start_time || selectedEvent.end_time) && (
-                                <div className="bg-gray-50 p-2 rounded-lg">
-                                    <p className="text-sm text-gray-600 mb-2">Horario especial:</p>
-                                    <p className="text-sm font-medium text-gray-900">
-                                        {selectedEvent.start_time || '09:00'} - {selectedEvent.end_time || '22:00'}
-                                    </p>
-                                </div>
-                            )}
+                            {(() => {
+                                // ✅ Determinar si está cerrado
+                                const isClosed = selectedEvent.is_closed !== undefined 
+                                    ? selectedEvent.is_closed 
+                                    : (selectedEvent.is_open !== undefined ? !selectedEvent.is_open : false);
+                                
+                                const startTime = selectedEvent.start_time || selectedEvent.open_time;
+                                const endTime = selectedEvent.end_time || selectedEvent.close_time;
+                                
+                                return !isClosed && (startTime || endTime) && (
+                                    <div className="bg-gray-50 p-2 rounded-lg">
+                                        <p className="text-sm text-gray-600 mb-2">Horario especial:</p>
+                                        <p className="text-sm font-medium text-gray-900">
+                                            {startTime || '09:00'} - {endTime || '22:00'}
+                                        </p>
+                                    </div>
+                                );
+                            })()}
 
                             {selectedEvent.description && (
                                 <div className="bg-gray-50 p-2 rounded-lg">
@@ -2052,16 +2085,31 @@ export default function Calendario() {
                             <button
                                 onClick={() => {
                                     // Cerrar modal de detalles y abrir modal de edición
+                                    // ✅ Obtener fecha de forma segura
+                                    const dateStr = selectedEvent.exception_date || selectedEvent.event_date;
+                                    let eventDate = selectedDay; // Usar el día seleccionado por defecto
+                                    
+                                    if (dateStr) {
+                                        try {
+                                            const parsedDate = parseISO(dateStr);
+                                            if (!isNaN(parsedDate.getTime())) {
+                                                eventDate = parsedDate;
+                                            }
+                                        } catch (error) {
+                                            console.error('❌ Error parseando fecha del evento:', error);
+                                        }
+                                    }
+                                    
                                     setEventForm({
-                                        title: selectedEvent.title,
+                                        title: selectedEvent.title || selectedEvent.reason || '',
                                         description: selectedEvent.description || '',
-                                        start_time: selectedEvent.start_time || '09:00',
-                                        end_time: selectedEvent.end_time || '22:00',
-                                        closed: selectedEvent.is_closed
+                                        start_time: selectedEvent.start_time || selectedEvent.open_time || '09:00',
+                                        end_time: selectedEvent.end_time || selectedEvent.close_time || '22:00',
+                                        closed: selectedEvent.is_closed !== undefined ? selectedEvent.is_closed : !selectedEvent.is_open
                                     });
                                     setShowEventDetailModal(false);
                                     setShowEventModal(true);
-                                    setSelectedDay(parseISO(selectedEvent.event_date));
+                                    setSelectedDay(eventDate);
                                 }}
                                 className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                             >

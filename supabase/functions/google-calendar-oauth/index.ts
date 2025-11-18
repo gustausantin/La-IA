@@ -17,10 +17,25 @@ serve(async (req) => {
   }
 
   try {
+    // ✅ Esta función DEBE ser pública porque Google redirige directamente aquí
+    // No requerimos autenticación cuando viene de Google (tiene parámetros code/state)
     const url = new URL(req.url)
     const code = url.searchParams.get('code')
     const state = url.searchParams.get('state') // business_id
     const error = url.searchParams.get('error')
+    const apikey = url.searchParams.get('apikey') // ✅ Apikey del query string (para hacer la función pública)
+    
+    // ✅ Verificar que el apikey sea válido (opcional, pero recomendado para seguridad)
+    if (apikey) {
+      const expectedAnonKey = Deno.env.get('SUPABASE_ANON_KEY')
+      if (expectedAnonKey && apikey !== expectedAnonKey) {
+        console.warn('⚠️ Apikey inválido en query string')
+        // No bloqueamos, pero registramos la advertencia
+      }
+    }
+    
+    // ✅ Si no hay parámetros de OAuth, podría ser una petición directa (no permitida)
+    // Pero si viene de Google, debe tener code y state
 
     // Handle OAuth errors
     if (error) {
@@ -36,8 +51,13 @@ serve(async (req) => {
 
     const businessId = state
 
+    // ✅ Obtener el redirect_uri completo (incluyendo apikey si está presente)
+    const redirectUriWithParams = url.toString().split('?')[0] // URL base sin parámetros
+    const apikeyParam = apikey ? `?apikey=${encodeURIComponent(apikey)}` : ''
+    const fullRedirectUri = `${redirectUriWithParams}${apikeyParam}`
+
     // Exchange authorization code for tokens
-    const tokens = await exchangeCodeForTokens(code)
+    const tokens = await exchangeCodeForTokens(code, fullRedirectUri)
     
     // Get calendar information
     const calendarData = await getCalendarInfo(tokens.access_token)
@@ -57,14 +77,15 @@ serve(async (req) => {
 /**
  * Exchange authorization code for access and refresh tokens
  */
-async function exchangeCodeForTokens(code: string) {
-  const supabaseUrl = Deno.env.get('SUPABASE_URL')
-  if (!supabaseUrl) {
-    throw new Error('SUPABASE_URL environment variable is not set')
-  }
-
-  // Construct redirect_uri - must match exactly with Google Cloud Console
-  const redirectUri = `${supabaseUrl}/functions/v1/google-calendar-oauth`
+async function exchangeCodeForTokens(code: string, redirectUri: string) {
+  // ✅ CRÍTICO: El redirectUri DEBE coincidir EXACTAMENTE con el registrado en Google Cloud Console
+  // Usar el URI exacto que está registrado en Google Cloud Console
+  const expectedRedirectUri = 'https://zrcsujgurtglyqoqiynr.supabase.co/functions/v1/google-calendar-oauth?apikey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpyY3N1amd1cnRnbHlxb3FpeW5yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE1MTYwOTEsImV4cCI6MjA3NzA5MjA5MX0.ArgosNCVMqlC-4-r6Y_cnUh_CoA2SiX9wayS0N0kyjM';
+  
+  // Usar el URI esperado (el que está registrado en Google Cloud Console)
+  const redirectUriToUse = expectedRedirectUri;
+  
+  console.log('🔍 Usando redirect_uri para exchange:', redirectUriToUse);
   
   const clientId = Deno.env.get('GOOGLE_CLIENT_ID')
   const clientSecret = Deno.env.get('GOOGLE_CLIENT_SECRET')
@@ -82,7 +103,7 @@ async function exchangeCodeForTokens(code: string) {
       code,
       client_id: clientId,
       client_secret: clientSecret,
-      redirect_uri: redirectUri,
+      redirect_uri: redirectUriToUse, // ✅ Usar el URI exacto registrado en Google Cloud Console
       grant_type: 'authorization_code',
     }),
   })
@@ -241,9 +262,29 @@ async function saveIntegration(
  * NO debe redirigir al Dashboard, DEBE volver a /configuracion?tab=canales
  */
 function redirectToApp(status: 'success' | 'error', message?: string) {
-  const publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
-                        Deno.env.get('SITE_URL') || 
-                        'http://localhost:5173'
+  // ✅ CRÍTICO: Obtener URL pública correcta
+  // Prioridad: PUBLIC_SITE_URL > SITE_URL > Referer header > localhost
+  let publicSiteUrl = Deno.env.get('PUBLIC_SITE_URL') || 
+                      Deno.env.get('SITE_URL')
+  
+  // Si no hay URL configurada, intentar obtenerla del referer
+  if (!publicSiteUrl) {
+    // En producción, usar el dominio de Supabase si está disponible
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+    if (supabaseUrl.includes('supabase.co')) {
+      // Extraer el proyecto ref y construir URL de producción
+      const projectRef = supabaseUrl.split('//')[1]?.split('.')[0]
+      if (projectRef) {
+        publicSiteUrl = `https://${projectRef}.supabase.co`
+      }
+    }
+  }
+  
+  // Fallback final
+  if (!publicSiteUrl) {
+    publicSiteUrl = 'http://localhost:5173'
+    console.warn('⚠️ No se encontró PUBLIC_SITE_URL, usando localhost como fallback')
+  }
   
   // ✅ CRÍTICO: Construir URL de configuración con tab=canales
   // NO redirigir al Dashboard, siempre volver a la página de integraciones
@@ -262,6 +303,7 @@ function redirectToApp(status: 'success' | 'error', message?: string) {
   
   console.log('🔄 Redirigiendo después de OAuth:', redirectUrl)
   console.log('✅ CRÍTICO: Debe volver a /configuracion?tab=canales, NO al Dashboard')
+  console.log('📍 URL pública usada:', publicSiteUrl)
   
   return new Response(null, {
     status: 302,

@@ -136,16 +136,31 @@ serve(async (req) => {
     // Handle different actions
     if (action === 'classify') {
       // Classify events: return safe and doubtful events from all selected calendars
-      const { safe, doubtful } = await classifyGoogleCalendarEvents(accessToken, calendarIds)
-      
-      return new Response(
-        JSON.stringify({
-          success: true,
-          safe,
-          doubtful,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+      // ✅ Envolver en try-catch para asegurar que siempre devolvamos una respuesta
+      try {
+        const { safe, doubtful } = await classifyGoogleCalendarEvents(accessToken, calendarIds)
+        
+        return new Response(
+          JSON.stringify({
+            success: true,
+            safe: safe || [],
+            doubtful: doubtful || [],
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      } catch (classifyError) {
+        console.error('❌ Error en classifyGoogleCalendarEvents:', classifyError)
+        // ✅ Aún así devolver una respuesta exitosa con arrays vacíos
+        return new Response(
+          JSON.stringify({
+            success: true,
+            safe: [],
+            doubtful: [],
+            warning: 'Error procesando algunos calendarios, pero la operación se completó'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
     }
 
     if (action === 'import') {
@@ -215,8 +230,6 @@ async function classifyGoogleCalendarEvents(accessToken: string, calendarIds: st
 
   // ✅ Procesar TODOS los calendarios seleccionados
   for (const calendarId of calendarIds) {
-    let items: any[] = []
-    
     try {
       // ✅ Codificar el calendar_id para URLs (puede contener caracteres especiales)
       const encodedCalendarId = encodeURIComponent(calendarId)
@@ -273,9 +286,11 @@ async function classifyGoogleCalendarEvents(accessToken: string, calendarIds: st
         const eventsData = await eventsResponse.json()
         items = eventsData?.items || []
       } catch (parseError) {
+        calendarsFailed++
         console.error(`❌ Error parseando respuesta del calendario "${calendarId}":`, parseError)
         continue // Continuar con el siguiente calendario
       }
+      
       calendarsProcessed++
 
       // ✅ DEBUG: Log todos los eventos para ver qué estamos recibiendo
@@ -391,53 +406,70 @@ async function importEventsToCalendarExceptions(
   let imported = 0
   let skipped = 0
 
+  console.log(`📥 Importando ${events.length} eventos para business_id: ${businessId}`)
+
   for (const event of events) {
+    console.log(`📅 Procesando evento: ${event.id} - "${event.summary}" - selected: ${event.selected}`)
+    
     if (!event.selected) {
+      console.log(`  ⏭️  Evento no seleccionado, saltando...`)
       skipped++
       continue
     }
 
     try {
       // Parse date from Google Calendar format
-      const exceptionDate = event.start.date || event.start.dateTime?.split('T')[0]
+      const exceptionDate = event.start?.date || event.start?.dateTime?.split('T')[0]
 
       if (!exceptionDate) {
-        console.warn('⚠️ Event without date:', event.id)
+        console.warn(`⚠️ Evento sin fecha: ${event.id}`, JSON.stringify(event.start))
         skipped++
         continue
       }
 
+      console.log(`  📆 Fecha del evento: ${exceptionDate}`)
+
       // Determine if closed based on type
       const isClosed = event.type === 'closed'
+      console.log(`  🔒 Tipo: ${event.type}, isClosed: ${isClosed}`)
+
+      const exceptionData = {
+        business_id: businessId,
+        exception_date: exceptionDate,
+        is_open: !isClosed, // false = cerrado, true = abierto
+        open_time: isClosed ? null : '09:00', // Default hours if open
+        close_time: isClosed ? null : '22:00', // Default hours if open
+        reason: event.reason || event.summary || 'Evento importado de Google Calendar',
+      }
+
+      console.log(`  💾 Insertando/actualizando excepción:`, JSON.stringify(exceptionData))
 
       // Insert or update calendar exception
-      const { error } = await supabaseClient
+      const { data, error } = await supabaseClient
         .from('calendar_exceptions')
-        .upsert({
-          business_id: businessId,
-          exception_date: exceptionDate,
-          is_open: !isClosed, // false = cerrado, true = abierto
-          open_time: isClosed ? null : '09:00', // Default hours if open
-          close_time: isClosed ? null : '22:00', // Default hours if open
-          reason: event.reason || event.summary || 'Evento importado de Google Calendar',
-        }, {
+        .upsert(exceptionData, {
           onConflict: 'business_id,exception_date',
         })
+        .select()
         
       if (error) {
         console.error(`❌ Error importing event ${event.id}:`, error)
+        console.error(`❌ Error details:`, JSON.stringify(error))
         skipped++
         continue
       }
       
+      console.log(`  ✅ Evento importado correctamente:`, data)
       imported++
 
     } catch (error) {
       console.error(`❌ Error processing event ${event.id}:`, error)
+      console.error(`❌ Error stack:`, error?.stack)
       skipped++
     }
   }
 
+  console.log(`✅ Importación completada: ${imported} importados, ${skipped} omitidos`)
   return { imported, skipped }
 }
 

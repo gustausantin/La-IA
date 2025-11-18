@@ -105,6 +105,10 @@ export default function GoogleCalendarSelector({ businessId, onCalendarSelected,
                             primary: cal.primary,
                         })),
                         calendar_selection_completed: true,
+                        // ✅ CRÍTICO: Preservar initial_import_completed si ya existe
+                        // Si no existe, dejarlo como undefined (no establecerlo en false)
+                        // para que el botón de importar siga apareciendo
+                        initial_import_completed: integration.config?.initial_import_completed,
                     },
                     updated_at: new Date().toISOString(),
                 })

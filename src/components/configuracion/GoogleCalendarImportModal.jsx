@@ -117,6 +117,11 @@ export default function GoogleCalendarImportModal({
         setSafeEvents(prev => prev.map(e => ({ ...e, selected: !allSelected })));
     };
 
+    const toggleAllDoubtful = () => {
+        const allSelected = doubtfulEvents.every(e => e.selected);
+        setDoubtfulEvents(prev => prev.map(e => ({ ...e, selected: !allSelected })));
+    };
+
     const handleImport = async () => {
         const selectedSafe = safeEvents.filter(e => e.selected);
         const selectedDoubtful = doubtfulEvents.filter(e => e.selected);
@@ -276,11 +281,19 @@ export default function GoogleCalendarImportModal({
                             {/* Eventos con Dudas */}
                             {doubtfulEvents.length > 0 && (
                                 <div className="space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <AlertCircle className="w-5 h-5 text-yellow-600" />
-                                        <h3 className="text-lg font-semibold text-gray-900">
-                                            Eventos con Dudas ({doubtfulEvents.length})
-                                        </h3>
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <AlertCircle className="w-5 h-5 text-yellow-600" />
+                                            <h3 className="text-lg font-semibold text-gray-900">
+                                                Eventos con Dudas ({doubtfulEvents.length})
+                                            </h3>
+                                        </div>
+                                        <button
+                                            onClick={toggleAllDoubtful}
+                                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                        >
+                                            {doubtfulEvents.every(e => e.selected) ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                                        </button>
                                     </div>
                                     <p className="text-sm text-gray-600">
                                         Selecciona qué eventos quieres importar. Estos pueden ser eventos especiales o días cerrados:
