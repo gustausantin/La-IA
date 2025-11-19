@@ -18,6 +18,8 @@ import {
 import GoogleCalendarImportModal from './GoogleCalendarImportModal';
 import GoogleCalendarSelector from './GoogleCalendarSelector';
 import ResourceCalendarLinker from './ResourceCalendarLinker';
+import EmployeeCalendarLinker from './EmployeeCalendarLinker';
+import UnassignedAppointmentsReview from './UnassignedAppointmentsReview';
 
 export default function IntegracionesContent() {
     const { businessId, business } = useAuthContext();
@@ -27,6 +29,7 @@ export default function IntegracionesContent() {
     const [googleCalendarConfig, setGoogleCalendarConfig] = useState(null);
     const [showImportModal, setShowImportModal] = useState(false);
     const [showCalendarSelector, setShowCalendarSelector] = useState(false);
+    const [unassignedAppointments, setUnassignedAppointments] = useState([]); // ✅ FASE 2: Eventos sin asignar
 
     // Cargar configuración de integraciones
     useEffect(() => {
@@ -298,12 +301,11 @@ export default function IntegracionesContent() {
             setLoading(true);
             toast.loading('Desconectando Google Calendar...', { id: 'google-disconnect' });
 
-            // ✅ DESCONECTAR: Marcar como inactivo y actualizar status
+            // ✅ DESCONECTAR: Marcar como inactivo (no actualizar status si tiene constraint)
             const { error } = await supabase
                 .from('integrations')
                 .update({
                     is_active: false,
-                    status: 'disconnected',
                     disconnected_at: new Date().toISOString()
                 })
                 .eq('id', googleCalendarConfig.id);
@@ -576,7 +578,16 @@ export default function IntegracionesContent() {
                                 </div>
                             </div>
 
-                            {/* Vincular Recursos con Calendarios */}
+                            {/* Vincular Empleados con Calendarios (OBLIGATORIO) */}
+                            {googleCalendarConfig.config?.calendar_selection_completed && (
+                                <EmployeeCalendarLinker
+                                    businessId={businessId}
+                                    integrationConfig={googleCalendarConfig.config}
+                                    onUpdate={loadIntegrationsConfig}
+                                />
+                            )}
+
+                            {/* Vincular Recursos con Calendarios (Opcional - para compatibilidad) */}
                             {googleCalendarConfig.config?.calendar_selection_completed && (
                                 <ResourceCalendarLinker
                                     businessId={businessId}
@@ -719,12 +730,30 @@ export default function IntegracionesContent() {
             <GoogleCalendarImportModal
                 businessId={businessId}
                 isOpen={showImportModal}
-                onClose={() => setShowImportModal(false)}
-                onComplete={() => {
+                onClose={() => {
+                    setShowImportModal(false);
+                    setUnassignedAppointments([]); // Limpiar al cerrar
+                }}
+                onComplete={(unassigned) => {
+                    // ✅ FASE 2: Guardar eventos sin asignar para mostrar en UI de revisión
+                    setUnassignedAppointments(unassigned || []);
                     // Recargar configuración después de importar
                     loadIntegrationsConfig();
                 }}
             />
+
+            {/* ✅ FASE 2: UI de Revisión - Mostrar eventos sin asignar */}
+            {unassignedAppointments.length > 0 && (
+                <UnassignedAppointmentsReview
+                    businessId={businessId}
+                    unassignedAppointments={unassignedAppointments}
+                    onComplete={() => {
+                        // Limpiar lista y recargar configuración
+                        setUnassignedAppointments([]);
+                        loadIntegrationsConfig();
+                    }}
+                />
+            )}
         </div>
     );
 }

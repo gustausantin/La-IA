@@ -189,7 +189,8 @@ serve(async (req) => {
         supabaseClient,
         business_id,
         timedEvents,
-        integration.config?.resource_calendar_mapping || {}
+        integration.config?.resource_calendar_mapping || {},
+        integration.config?.employee_calendar_mapping || {}
       )
 
       // Update last sync time
@@ -213,6 +214,9 @@ serve(async (req) => {
           skipped: calendarExceptionsResult.skipped + appointmentsResult.skipped,
           calendar_exceptions: calendarExceptionsResult.imported,
           appointments: appointmentsResult.imported,
+          // ✅ FASE 2: Incluir información sobre eventos sin asignar
+          unassigned_count: appointmentsResult.unassigned_count || 0,
+          unassigned_appointments: appointmentsResult.unassigned_appointments || [],
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -697,14 +701,138 @@ async function importEventsToCalendarExceptions(
 /**
  * Import timed events to appointments table (blocked appointments)
  */
+// Helper function to extract information from Google Calendar event
+function extractEventInfo(event: any) {
+  const summary = event.summary || ''
+  const description = event.description || ''
+  const combined = `${summary} ${description}`.toLowerCase()
+
+  // Extract customer name (common patterns)
+  let customerName: string | null = null
+  const namePatterns = [
+    /(?:cliente|customer|nombre|name)[\s:]+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)/i,
+    /(?:con|with|atendido por|atendido por)\s+([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)/i,
+    /^([A-ZÁÉÍÓÚÑ][a-záéíóúñ]+(?:\s+[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+)*)/, // First words if capitalized
+  ]
+  
+  for (const pattern of namePatterns) {
+    const match = combined.match(pattern)
+    if (match && match[1]) {
+      customerName = match[1].trim()
+      break
+    }
+  }
+
+  // Extract phone number
+  let customerPhone: string | null = null
+  const phonePatterns = [
+    /(?:tel|phone|teléfono|móvil|mobile)[\s:]+([+\d\s\-()]+)/i,
+    /(\+?\d{1,3}[\s\-]?\(?\d{1,4}\)?[\s\-]?\d{1,4}[\s\-]?\d{1,9})/,
+  ]
+  
+  for (const pattern of phonePatterns) {
+    const match = combined.match(pattern)
+    if (match && match[1]) {
+      customerPhone = match[1].trim().replace(/\s+/g, '')
+      break
+    }
+  }
+
+  // Extract email
+  let customerEmail: string | null = null
+  const emailPattern = /([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/
+  const emailMatch = combined.match(emailPattern)
+  if (emailMatch) {
+    customerEmail = emailMatch[1].trim()
+  }
+
+  // Extract notes (use description if available, otherwise summary)
+  const notes = description || summary || null
+
+  return {
+    customer_name: customerName,
+    customer_phone: customerPhone,
+    customer_email: customerEmail,
+    notes: notes,
+  }
+}
+
+/**
+ * FASE 1: Mapeo Inteligente Recurso → Trabajador por Horario
+ * 
+ * Busca el trabajador correcto para un recurso en un horario específico:
+ * 1. Busca en employee_schedules por resource_id + day_of_week + horario
+ * 2. Si no encuentra, usa assigned_resource_id como fallback
+ * 3. Si no encuentra, retorna null (requiere asignación manual)
+ */
+async function getEmployeeForResourceByTime(
+  supabaseClient: any,
+  resourceId: string,
+  appointmentDateTime: Date,
+  businessId: string
+): Promise<string | null> {
+  try {
+    const dayOfWeek = appointmentDateTime.getDay() // 0-6 (Domingo-Sábado)
+    const [hours, minutes] = appointmentDateTime.toISOString().split('T')[1].split(':').map(Number)
+    const timeValue = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00`
+
+    console.log(`    🔍 Buscando trabajador para recurso ${resourceId} en día ${dayOfWeek} a las ${timeValue}`)
+
+    // ✅ PASO 1: Buscar en employee_schedules (mapeo por horario específico)
+    const { data: schedules, error: schedulesError } = await supabaseClient
+      .from('employee_schedules')
+      .select('employee_id, start_time, end_time')
+      .eq('resource_id', resourceId)
+      .eq('day_of_week', dayOfWeek)
+      .eq('is_working', true)
+      .lte('start_time', timeValue)
+      .gte('end_time', timeValue)
+
+    if (schedulesError) {
+      console.error(`    ❌ Error buscando schedules:`, schedulesError)
+    } else if (schedules && schedules.length > 0) {
+      // Si hay múltiples coincidencias, tomar la primera (o la más específica)
+      const matchedSchedule = schedules[0]
+      console.log(`    ✅ Encontrado en employee_schedules: employee_id=${matchedSchedule.employee_id}`)
+      return matchedSchedule.employee_id
+    }
+
+    // ✅ PASO 2: Fallback - Buscar por assigned_resource_id
+    const { data: employees, error: employeesError } = await supabaseClient
+      .from('employees')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('assigned_resource_id', resourceId)
+      .eq('is_active', true)
+      .limit(1)
+
+    if (employeesError) {
+      console.error(`    ❌ Error buscando employees:`, employeesError)
+    } else if (employees && employees.length > 0) {
+      console.log(`    ✅ Encontrado por assigned_resource_id: employee_id=${employees[0].id}`)
+      return employees[0].id
+    }
+
+    // ✅ PASO 3: No se encontró trabajador
+    console.log(`    ⚠️ No se encontró trabajador para recurso ${resourceId}`)
+    return null
+
+  } catch (error) {
+    console.error(`    ❌ Error en getEmployeeForResourceByTime:`, error)
+    return null
+  }
+}
+
 async function importEventsToAppointments(
   supabaseClient: any,
   businessId: string,
   events: any[],
-  resourceCalendarMapping: Record<string, string> = {}
+  resourceCalendarMapping: Record<string, string> = {},
+  employeeCalendarMapping: Record<string, string> = {}
 ) {
   let imported = 0
   let skipped = 0
+  const unassignedAppointments: any[] = [] // ✅ FASE 2: Eventos sin asignar
 
   console.log(`📥 Importando ${events.length} eventos con hora como appointments bloqueados para business_id: ${businessId}`)
 
@@ -738,6 +866,41 @@ async function importEventsToAppointments(
         console.log(`  ℹ️ No hay recurso vinculado para calendar_id=${event.calendar_id}, resource_id será null`)
       }
 
+      // ✅ Determinar employee_id basándose en el mapeo inverso de calendarios
+      let employeeId: string | null = null
+      if (event.calendar_id) {
+        // Buscar en el mapeo inverso: calendar_id → employee_id
+        const mappedEmployeeId = Object.keys(employeeCalendarMapping).find(
+          empId => employeeCalendarMapping[empId] === event.calendar_id
+        )
+        if (mappedEmployeeId) {
+          employeeId = mappedEmployeeId
+          console.log(`  👤 Empleado vinculado encontrado: calendar_id=${event.calendar_id} → employee_id=${employeeId}`)
+        } else {
+          console.log(`  ℹ️ No hay empleado vinculado para calendar_id=${event.calendar_id}, employee_id será null`)
+        }
+      }
+
+      // ✅ FASE 1: Si tenemos resource_id pero NO employee_id, intentar mapeo inteligente por horario
+      if (resourceId && !employeeId) {
+        console.log(`  🔍 Intentando mapeo inteligente: resource_id=${resourceId} a las ${startTime.toISOString()}`)
+        employeeId = await getEmployeeForResourceByTime(
+          supabaseClient,
+          resourceId,
+          startTime,
+          businessId
+        )
+        if (employeeId) {
+          console.log(`  ✅ Mapeo inteligente exitoso: resource_id=${resourceId} → employee_id=${employeeId}`)
+        } else {
+          console.log(`  ⚠️ No se pudo mapear automáticamente: resource_id=${resourceId} requiere asignación manual`)
+        }
+      }
+
+      // ✅ Extraer información del evento (customer_name, phone, email, notes)
+      const eventInfo = extractEventInfo(event)
+      console.log(`  📋 Información extraída del evento:`, eventInfo)
+
       // ✅ Verificar si ya existe un appointment con este gcal_event_id
       const { data: existing, error: checkError } = await supabaseClient
         .from('appointments')
@@ -755,17 +918,28 @@ async function importEventsToAppointments(
       const appointmentData = {
         business_id: businessId,
         resource_id: resourceId,
-        employee_id: null, // No se asigna empleado para bloqueos de Google Calendar
-        customer_id: null, // No hay cliente en bloqueos de Google Calendar
+        employee_id: employeeId, // ✅ Asignar empleado desde mapeo de calendario
+        customer_id: null, // Se puede crear/encontrar después si hay customer_name/email/phone
+        customer_name: eventInfo.customer_name || null, // ✅ Extraer nombre del evento
+        customer_phone: eventInfo.customer_phone || null, // ✅ Extraer teléfono del evento
+        customer_email: eventInfo.customer_email || null, // ✅ Extraer email del evento
         service_id: null, // No hay servicio en bloqueos de Google Calendar
+        appointment_date: startTime.toISOString().split('T')[0], // ✅ Fecha de la cita (YYYY-MM-DD)
+        appointment_time: startTime.toISOString().split('T')[1].split('.')[0].substring(0, 8), // ✅ Hora de la cita (HH:MM:SS)
         start_time: startTime.toISOString(),
         end_time: endTime.toISOString(),
         duration_minutes: Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)),
-        status: 'blocked', // Estado bloqueado
+        status: event.status === 'cancelled' ? 'cancelled' : 'blocked', // Estado bloqueado o cancelado
         source: 'google_calendar',
         synced_to_gcal: false, // No se sincroniza de vuelta (es bloqueo)
         gcal_event_id: event.id, // ID del evento en Google Calendar
-        notes: event.summary || event.reason || 'Evento bloqueado de Google Calendar',
+        notes: eventInfo.notes || event.summary || 'Evento bloqueado de Google Calendar',
+        // ✅ FASE 1: Marcar si requiere revisión manual (tiene resource_id pero no employee_id)
+        metadata: {
+          requires_manual_assignment: !employeeId && !!resourceId, // Requiere asignación manual si hay recurso pero no trabajador
+          import_source: 'google_calendar',
+          calendar_id: event.calendar_id,
+        },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }
@@ -808,6 +982,19 @@ async function importEventsToAppointments(
       if (result && result.length > 0) {
         console.log(`  ✅ Appointment bloqueado importado correctamente: ${result[0].id}`)
         imported++
+        
+        // ✅ FASE 2: Si requiere asignación manual, agregar a la lista
+        if (!employeeId && resourceId) {
+          unassignedAppointments.push({
+            appointment_id: result[0].id,
+            gcal_event_id: event.id,
+            resource_id: resourceId,
+            appointment_date: appointmentData.appointment_date,
+            appointment_time: appointmentData.appointment_time,
+            customer_name: appointmentData.customer_name,
+            summary: event.summary || 'Sin título',
+          })
+        }
       } else {
         console.warn(`⚠️ Operación no devolvió datos para gcal_event_id ${event.id}`)
         skipped++
@@ -820,7 +1007,15 @@ async function importEventsToAppointments(
   }
 
   console.log(`✅ Importación de appointments completada: ${imported} importados, ${skipped} omitidos`)
-  return { imported, skipped }
+  if (unassignedAppointments.length > 0) {
+    console.log(`⚠️ ${unassignedAppointments.length} eventos requieren asignación manual de trabajador`)
+  }
+  return { 
+    imported, 
+    skipped,
+    unassigned_count: unassignedAppointments.length, // ✅ FASE 2: Cantidad de eventos sin asignar
+    unassigned_appointments: unassignedAppointments // ✅ FASE 2: Lista de eventos sin asignar
+  }
 }
 
 /**

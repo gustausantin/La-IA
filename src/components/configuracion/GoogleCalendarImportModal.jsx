@@ -158,11 +158,23 @@ export default function GoogleCalendarImportModal({
             toast.dismiss('import-events');
 
             if (data?.success) {
-                toast.success(
-                    `✅ Se importaron ${data.imported || 0} eventos correctamente`,
-                    { duration: 5000 }
-                );
-                onComplete?.();
+                const importedCount = data.imported || 0;
+                const unassignedCount = data.unassigned_count || 0;
+                
+                if (unassignedCount > 0) {
+                    toast.success(
+                        `✅ Se importaron ${importedCount} eventos. ${unassignedCount} requieren asignación manual.`,
+                        { duration: 7000 }
+                    );
+                } else {
+                    toast.success(
+                        `✅ Se importaron ${importedCount} eventos correctamente`,
+                        { duration: 5000 }
+                    );
+                }
+                
+                // ✅ FASE 2: Pasar eventos sin asignar al componente padre
+                onComplete?.(data.unassigned_appointments || []);
                 onClose();
             } else {
                 throw new Error(data?.error || 'Error desconocido');

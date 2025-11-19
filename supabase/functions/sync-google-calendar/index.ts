@@ -2,7 +2,7 @@
 // Syncs appointments between LA-IA and Google Calendar
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from 'npm:@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -246,40 +246,69 @@ serve(async (req) => {
       )
     }
 
-    if (action === 'create' && reservation_id) {
-      // Create event in Google Calendar
-      const { data: reservation } = await supabaseClient
-        .from('appointments')
-        .select('*')
-        .eq('id', reservation_id)
-        .single()
+    // Helper function to determine which calendar to use for an appointment
+    function getCalendarForAppointment(appointment: any): string | null {
+      const calendarIds = integration.config?.calendar_ids || 
+                         (integration.config?.calendar_id ? [integration.config.calendar_id] : [])
+      const defaultCalendar = calendarIds[0] || 'primary'
 
-      if (!reservation) {
-        throw new Error('Reservation not found')
+      // ✅ Prioridad 1: Si hay employee_id y está mapeado, usar ese calendario
+      if (appointment.employee_id) {
+        const employeeMapping = integration.config?.employee_calendar_mapping || {}
+        const mappedCalendar = employeeMapping[appointment.employee_id]
+        if (mappedCalendar) {
+          console.log(`🔗 Usando calendario del empleado ${appointment.employee_id}: ${mappedCalendar}`)
+          return mappedCalendar
+        }
+      }
+
+      // ✅ Prioridad 2: Si hay resource_id y está mapeado, usar ese calendario (compatibilidad)
+      if (appointment.resource_id && integration.config?.resource_calendar_mapping) {
+        const mappedCalendarId = integration.config.resource_calendar_mapping[appointment.resource_id]
+        if (mappedCalendarId) {
+          console.log(`🔗 Usando calendario vinculado para recurso ${appointment.resource_id}: ${mappedCalendarId}`)
+          return mappedCalendarId
+        }
+      }
+
+      // ❌ NO hay fallback - si no está mapeado, retornar null (no sincronizar)
+      console.warn(`⚠️ No hay calendario mapeado para employee_id=${appointment.employee_id} o resource_id=${appointment.resource_id} - no se sincroniza`)
+      return null
+    }
+
+    // Helper function to create Google Calendar event from appointment
+    async function createGoogleCalendarEvent(appointment: any, targetCalendarId: string) {
+      // ✅ Usar campos correctos: appointment_date y appointment_time (no reservation_date/reservation_time)
+      const appointmentDate = appointment.appointment_date || appointment.reservation_date
+      const appointmentTime = appointment.appointment_time || appointment.reservation_time
+      const durationMinutes = appointment.duration_minutes || 90
+
+      if (!appointmentDate || !appointmentTime) {
+        throw new Error('Missing appointment_date or appointment_time')
       }
 
       const event = {
-        summary: `Reserva: ${reservation.customer_name}`,
-        description: `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}\nPersonas: ${reservation.party_size || 1}`,
+        summary: `Reserva: ${appointment.customer_name || 'Cliente'}`,
+        description: `Reserva desde LA-IA\nTeléfono: ${appointment.customer_phone || 'N/A'}\nPersonas: ${appointment.party_size || 1}${appointment.special_requests ? `\nNotas: ${appointment.special_requests}` : ''}`,
         start: {
-          dateTime: `${reservation.reservation_date}T${reservation.reservation_time}`,
+          dateTime: `${appointmentDate}T${appointmentTime}`,
           timeZone: 'Europe/Madrid',
         },
         end: {
-          dateTime: `${reservation.reservation_date}T${calculateEndTime(reservation.reservation_time, 90)}`,
+          dateTime: `${appointmentDate}T${calculateEndTime(appointmentTime, durationMinutes)}`,
           timeZone: 'Europe/Madrid',
         },
-        colorId: getColorByStatus(reservation.status),
+        colorId: getColorByStatus(appointment.status),
         extendedProperties: {
           private: {
-            la_ia_reservation_id: reservation.id,
+            la_ia_appointment_id: appointment.id,
             la_ia_business_id: business_id,
           },
         },
       }
 
       const createResponse = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`,
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
         {
           method: 'POST',
           headers: {
@@ -290,18 +319,26 @@ serve(async (req) => {
         }
       )
 
+      if (!createResponse.ok) {
+        const errorData = await createResponse.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(`Failed to create Google Calendar event: ${JSON.stringify(errorData)}`)
+      }
+
       const createdEvent = await createResponse.json()
 
-      // Update reservation with Google Calendar event ID
+      // Update appointment with Google Calendar event ID
       await supabaseClient
         .from('appointments')
         .update({
+          gcal_event_id: createdEvent.id,
+          synced_to_gcal: true,
           metadata: {
-            ...reservation.metadata,
+            ...(appointment.metadata || {}),
             google_calendar_event_id: createdEvent.id,
+            google_calendar_id: targetCalendarId,
           },
         })
-        .eq('id', reservation_id)
+        .eq('id', appointment.id)
 
       // Update sync counter
       await supabaseClient
@@ -315,8 +352,50 @@ serve(async (req) => {
         })
         .eq('id', integration.id)
 
+      return createdEvent
+    }
+
+    // ✅ Soporte para action: 'push' (alias de 'create')
+    if ((action === 'create' || action === 'push') && reservation_id) {
+      // Create event in Google Calendar
+      const { data: reservation, error: reservationError } = await supabaseClient
+        .from('appointments')
+        .select('*')
+        .eq('id', reservation_id)
+        .single()
+
+      if (reservationError || !reservation) {
+        throw new Error(`Reservation not found: ${reservationError?.message || 'Unknown error'}`)
+      }
+
+      // Skip if already synced
+      if (reservation.gcal_event_id || reservation.synced_to_gcal) {
+        console.log(`⏭️ Reserva ${reservation_id} ya está sincronizada con Google Calendar`)
+        return new Response(
+          JSON.stringify({ success: true, event_id: reservation.gcal_event_id, already_synced: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const targetCalendarId = getCalendarForAppointment(reservation)
+      
+      if (!targetCalendarId) {
+        console.warn(`⚠️ No se puede sincronizar reserva ${reservation_id} - no hay calendario mapeado para el empleado ${reservation.employee_id}`)
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            skipped: true, 
+            reason: 'no_calendar_mapping',
+            message: `No hay calendario mapeado para el empleado. Por favor, vincula un calendario a este trabajador en la configuración.`
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      
+      const createdEvent = await createGoogleCalendarEvent(reservation, targetCalendarId)
+
       return new Response(
-        JSON.stringify({ success: true, event_id: createdEvent.id }),
+        JSON.stringify({ success: true, event_id: createdEvent.id, calendar_id: targetCalendarId }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -333,77 +412,64 @@ serve(async (req) => {
         throw new Error('Reservation not found')
       }
 
-      const eventId = reservation.metadata?.google_calendar_event_id
+      const eventId = reservation.gcal_event_id || reservation.metadata?.google_calendar_event_id
+      const calendarIdForUpdate = reservation.metadata?.google_calendar_id || getCalendarForAppointment(reservation)
 
       if (!eventId) {
         // Create if doesn't exist - reuse the create logic
-        const event = {
-          summary: `Reserva: ${reservation.customer_name}`,
-          description: `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}\nPersonas: ${reservation.party_size || 1}`,
-          start: {
-            dateTime: `${reservation.reservation_date}T${reservation.reservation_time}`,
-            timeZone: 'Europe/Madrid',
-          },
-          end: {
-            dateTime: `${reservation.reservation_date}T${calculateEndTime(reservation.reservation_time, 90)}`,
-            timeZone: 'Europe/Madrid',
-          },
-          colorId: getColorByStatus(reservation.status),
-          extendedProperties: {
-            private: {
-              la_ia_reservation_id: reservation.id,
-              la_ia_business_id: business_id,
-            },
-          },
+        if (!calendarIdForUpdate) {
+          console.warn(`⚠️ No se puede crear evento para reserva ${reservation.id} - no hay calendario mapeado`)
+          return new Response(
+            JSON.stringify({ 
+              success: false, 
+              skipped: true, 
+              reason: 'no_calendar_mapping'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
         }
-
-        const createResponse = await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events`,
-          {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${accessToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(event),
-          }
-        )
-
-        const createdEvent = await createResponse.json()
-
-        // Update reservation with Google Calendar event ID
-        await supabaseClient
-          .from('appointments')
-          .update({
-            metadata: {
-              ...reservation.metadata,
-              google_calendar_event_id: createdEvent.id,
-            },
-          })
-          .eq('id', reservation.id)
+        
+        const createdEvent = await createGoogleCalendarEvent(reservation, calendarIdForUpdate)
 
         return new Response(
-          JSON.stringify({ success: true, event_id: createdEvent.id }),
+          JSON.stringify({ success: true, event_id: createdEvent.id, calendar_id: calendarIdForUpdate }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
+      if (!calendarIdForUpdate) {
+        console.warn(`⚠️ No se puede actualizar evento para reserva ${reservation.id} - no hay calendario mapeado`)
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            skipped: true, 
+            reason: 'no_calendar_mapping'
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // ✅ Usar campos correctos: appointment_date y appointment_time
+      const appointmentDate = reservation.appointment_date || reservation.reservation_date
+      const appointmentTime = reservation.appointment_time || reservation.reservation_time
+      const durationMinutes = reservation.duration_minutes || 90
+
       const event = {
-        summary: `Reserva: ${reservation.customer_name}`,
-        description: `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}\nPersonas: ${reservation.party_size || 1}`,
+        summary: `Reserva: ${reservation.customer_name || 'Cliente'}`,
+        description: `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}\nPersonas: ${reservation.party_size || 1}${reservation.special_requests ? `\nNotas: ${reservation.special_requests}` : ''}`,
         start: {
-          dateTime: `${reservation.reservation_date}T${reservation.reservation_time}`,
+          dateTime: `${appointmentDate}T${appointmentTime}`,
           timeZone: 'Europe/Madrid',
         },
         end: {
-          dateTime: `${reservation.reservation_date}T${calculateEndTime(reservation.reservation_time, 90)}`,
+          dateTime: `${appointmentDate}T${calculateEndTime(appointmentTime, durationMinutes)}`,
           timeZone: 'Europe/Madrid',
         },
         colorId: getColorByStatus(reservation.status),
       }
 
-      await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`,
+      const updateResponse = await fetch(
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarIdForUpdate)}/events/${eventId}`,
         {
           method: 'PATCH',
           headers: {
@@ -413,6 +479,11 @@ serve(async (req) => {
           body: JSON.stringify(event),
         }
       )
+
+      if (!updateResponse.ok) {
+        const errorData = await updateResponse.json().catch(() => ({ error: 'Unknown error' }))
+        throw new Error(`Failed to update Google Calendar event: ${JSON.stringify(errorData)}`)
+      }
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -428,16 +499,35 @@ serve(async (req) => {
         .eq('id', reservation_id)
         .single()
 
-      const eventId = reservation?.metadata?.google_calendar_event_id
+      const eventId = reservation?.gcal_event_id || reservation?.metadata?.google_calendar_event_id
+      const calendarIdForDelete = reservation?.metadata?.google_calendar_id || getCalendarForAppointment(reservation)
 
-      if (eventId) {
-        await fetch(
-          `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${eventId}`,
+      if (eventId && calendarIdForDelete) {
+        const deleteResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarIdForDelete)}/events/${eventId}`,
           {
             method: 'DELETE',
             headers: { 'Authorization': `Bearer ${accessToken}` },
           }
         )
+
+        if (!deleteResponse.ok && deleteResponse.status !== 404) {
+          const errorData = await deleteResponse.json().catch(() => ({ error: 'Unknown error' }))
+          console.warn(`⚠️ Error eliminando evento de Google Calendar: ${JSON.stringify(errorData)}`)
+        }
+
+        // Update appointment to mark as not synced
+        await supabaseClient
+          .from('appointments')
+          .update({
+            gcal_event_id: null,
+            synced_to_gcal: false,
+            metadata: {
+              ...(reservation?.metadata || {}),
+              google_calendar_event_id: null,
+            },
+          })
+          .eq('id', reservation_id)
       }
 
       return new Response(
