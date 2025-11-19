@@ -356,7 +356,7 @@ export default function EmployeeCalendarLinker({
                     
                     if (allEvents.length === 0) {
                         toast.dismiss('auto-import');
-                        toast.info('No hay eventos para importar en los calendarios seleccionados', { duration: 4000 });
+                        toast.success('No hay eventos para importar en los calendarios seleccionados', { duration: 4000 });
                         if (onUpdate) onUpdate();
                         return;
                     }

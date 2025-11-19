@@ -230,38 +230,14 @@ BEGIN
             END IF;
             
             -- =====================================================
-            -- PASO 6: Obtener recurso asignado (manual o automático)
+            -- PASO 6: Verificar si hay shifts definidos
             -- =====================================================
-            IF v_schedule.resource_id IS NOT NULL THEN
-                -- Asignación MANUAL
-                v_resource_id := v_schedule.resource_id;
-            ELSE
-                -- Asignación AUTOMÁTICA
-                BEGIN
-                    v_resource_id := find_available_resource(
-                        p_business_id,
-                        v_employee.id,
-                        v_day_of_week,
-                        v_schedule.start_time,
-                        v_schedule.end_time
-                    );
-                EXCEPTION
-                    WHEN OTHERS THEN
-                        RAISE WARNING 'Error en find_available_resource para empleado % el día %: %', 
-                            v_employee.name, v_current_date, SQLERRM;
-                        v_resource_id := NULL;
-                END;
-                
-                -- Si no hay recurso disponible, saltar este empleado este día
-                IF v_resource_id IS NULL THEN
-                    RAISE WARNING 'No hay recurso disponible para empleado % el día %', 
-                        v_employee.name, v_current_date;
-                    v_current_date := v_current_date + 1;
-                    CONTINUE;
-                END IF;
-            END IF;
-            
-            v_days_count := v_days_count + 1;
+            -- Verificar si hay shifts definidos ANTES de asignar recurso
+            v_has_shifts := (
+                v_schedule.shifts IS NOT NULL 
+                AND v_schedule.shifts != '[]'::jsonb
+                AND jsonb_array_length(v_schedule.shifts) > 0
+            );
             
             -- =====================================================
             -- PASO 7: Generar slots para este día
@@ -270,109 +246,148 @@ BEGIN
             -- Si hay shifts definidos, generar slots solo para cada turno
             -- Si no hay shifts, usar comportamiento legacy (start_time/end_time)
             
-            -- Verificar si hay shifts definidos
-            v_has_shifts := (
-                v_schedule.shifts IS NOT NULL 
-                AND v_schedule.shifts != '[]'::jsonb
-                AND jsonb_array_length(v_schedule.shifts) > 0
-            );
-            
             IF v_has_shifts THEN
-                    -- ✅ ITERAR SOBRE CADA TURNO INDIVIDUAL
-                    -- Esto respeta los descansos entre turnos (ej: 09:00-14:00, 16:00-18:00)
-                    FOR v_shift IN SELECT * FROM jsonb_array_elements(v_schedule.shifts)
-                    LOOP
-                        -- Extraer inicio y fin del turno
-                        v_shift_start := (v_shift->>'start')::TIME;
-                        v_shift_end := (v_shift->>'end')::TIME;
+                v_days_count := v_days_count + 1;
+                
+                -- ✅ ITERAR SOBRE CADA TURNO INDIVIDUAL
+                -- Esto respeta los descansos entre turnos (ej: 09:00-14:00, 16:00-18:00)
+                -- 🚨 CRÍTICO: Buscar recurso para CADA TURNO individualmente
+                FOR v_shift IN SELECT * FROM jsonb_array_elements(v_schedule.shifts)
+                LOOP
+                    -- Extraer inicio y fin del turno
+                    v_shift_start := (v_shift->>'start')::TIME;
+                    v_shift_end := (v_shift->>'end')::TIME;
+                    
+                    -- Validar que el turno tenga valores válidos
+                    IF v_shift_start IS NULL OR v_shift_end IS NULL OR v_shift_start >= v_shift_end THEN
+                        RAISE WARNING 'Turno inválido para empleado % el día %: % a %', 
+                            v_employee.name, v_current_date, v_shift_start, v_shift_end;
+                        CONTINUE;
+                    END IF;
+                    
+                    -- =====================================================
+                    -- Obtener recurso asignado (manual o automático) PARA ESTE TURNO
+                    -- =====================================================
+                    IF v_schedule.resource_id IS NOT NULL THEN
+                        -- Asignación MANUAL (mismo recurso para todos los turnos)
+                        v_resource_id := v_schedule.resource_id;
+                    ELSE
+                        -- Asignación AUTOMÁTICA: Buscar recurso para ESTE TURNO específico
+                        BEGIN
+                            -- 🚨 CRÍTICO: Buscar recurso usando el horario del TURNO, no el horario completo
+                            v_resource_id := find_available_resource(
+                                p_business_id,
+                                v_employee.id,
+                                v_day_of_week,
+                                v_shift_start,  -- 🆕 Horario del TURNO, no del schedule completo
+                                v_shift_end,    -- 🆕 Horario del TURNO, no del schedule completo
+                                v_current_date  -- 🆕 Pasar fecha para verificar slots ya generados
+                            );
+                        EXCEPTION
+                            WHEN OTHERS THEN
+                                RAISE WARNING 'Error en find_available_resource para empleado % el día % turno %-%: %', 
+                                    v_employee.name, v_current_date, v_shift_start, v_shift_end, SQLERRM;
+                                v_resource_id := NULL;
+                        END;
                         
-                        -- Validar que el turno tenga valores válidos
-                        IF v_shift_start IS NULL OR v_shift_end IS NULL OR v_shift_start >= v_shift_end THEN
-                            RAISE WARNING 'Turno inválido para empleado % el día %: % a %', 
+                        -- Si no hay recurso disponible para este turno, saltar este turno
+                        IF v_resource_id IS NULL THEN
+                            RAISE WARNING 'No hay recurso disponible para empleado % el día % en turno %-%', 
                                 v_employee.name, v_current_date, v_shift_start, v_shift_end;
-                            CONTINUE;
+                            CONTINUE; -- Saltar este turno, continuar con el siguiente
+                        END IF;
+                    END IF;
+                    
+                    -- Generar slots solo para este turno
+                    v_slot_time := v_shift_start;
+                    
+                    WHILE v_slot_time < v_shift_end LOOP
+                        
+                        -- =====================================================
+                        -- PASO 8: Verificar ausencia PARCIAL en este slot
+                        -- =====================================================
+                        IF v_has_absence THEN
+                            SELECT * INTO v_absence
+                            FROM employee_absences
+                            WHERE employee_id = v_employee.id
+                            AND start_date <= v_current_date
+                            AND end_date >= v_current_date
+                            AND approved = true
+                            AND all_day = false
+                            AND start_time <= v_slot_time
+                            AND end_time > v_slot_time
+                            LIMIT 1;
+                            
+                            -- Si hay ausencia en este slot, saltarlo
+                            IF FOUND THEN
+                                v_slot_time := v_slot_time + v_slot_interval;
+                                CONTINUE;
+                            END IF;
                         END IF;
                         
-                        -- Generar slots solo para este turno
-                        v_slot_time := v_shift_start;
-                        
-                        WHILE v_slot_time < v_shift_end LOOP
-                            
+                        -- =====================================================
+                        -- PASO 9: Verificar que no exista ya este slot Y que no haya conflicto
+                        -- =====================================================
+                        -- ✅ CRÍTICO: Verificar por EMPLEADO + RECURSO + FECHA + HORA
+                        -- 🚨 ADICIONAL: Verificar que el recurso no esté siendo usado por otro empleado en este slot
+                        IF NOT EXISTS (
+                            SELECT 1 FROM availability_slots
+                            WHERE business_id = p_business_id
+                            AND employee_id = v_employee.id
+                            AND resource_id = v_resource_id
+                            AND slot_date = v_current_date
+                            AND start_time = v_slot_time
+                        )
+                        -- 🚨 PROTECCIÓN: Verificar que ningún otro empleado ya tiene este recurso en este slot
+                        AND NOT EXISTS (
+                            SELECT 1 FROM availability_slots avs
+                            WHERE avs.business_id = p_business_id
+                            AND avs.resource_id = v_resource_id
+                            AND avs.slot_date = v_current_date
+                            AND avs.start_time = v_slot_time
+                            AND avs.employee_id != v_employee.id -- Diferente empleado
+                            AND avs.status IN ('free', 'reserved', 'blocked') -- Slot activo
+                        ) THEN
                             -- =====================================================
-                            -- PASO 8: Verificar ausencia PARCIAL en este slot
+                            -- PASO 10: Crear slot
                             -- =====================================================
-                            IF v_has_absence THEN
-                                SELECT * INTO v_absence
-                                FROM employee_absences
-                                WHERE employee_id = v_employee.id
-                                AND start_date <= v_current_date
-                                AND end_date >= v_current_date
-                                AND approved = true
-                                AND all_day = false
-                                AND start_time <= v_slot_time
-                                AND end_time > v_slot_time
-                                LIMIT 1;
+                            -- ✅ CRÍTICO: Guardar employee_id además de resource_id
+                            -- Los slots se generan por EMPLEADO, no por recurso
+                            BEGIN
+                                INSERT INTO availability_slots (
+                                    business_id,
+                                    employee_id,  -- ✅ NUEVO: Asociar slot al EMPLEADO
+                                    resource_id,
+                                    slot_date,
+                                    start_time,
+                                    end_time,
+                                    status,
+                                    duration_minutes,
+                                    is_available
+                                ) VALUES (
+                                    p_business_id,
+                                    v_employee.id,  -- ✅ NUEVO: ID del empleado que trabaja
+                                    v_resource_id,
+                                    v_current_date,
+                                    v_slot_time,
+                                    v_slot_time + v_slot_interval,
+                                    'free',
+                                    EXTRACT(EPOCH FROM v_slot_interval)::INTEGER / 60,
+                                    true
+                                );
                                 
-                                -- Si hay ausencia en este slot, saltarlo
-                                IF FOUND THEN
-                                    v_slot_time := v_slot_time + v_slot_interval;
-                                    CONTINUE;
-                                END IF;
-                            END IF;
-                            
-                            -- =====================================================
-                            -- PASO 9: Verificar que no exista ya este slot
-                            -- =====================================================
-                            -- ✅ CRÍTICO: Verificar por EMPLEADO + RECURSO + FECHA + HORA
-                            -- Esto permite que el mismo recurso tenga múltiples slots si hay múltiples empleados
-                            IF NOT EXISTS (
-                                SELECT 1 FROM availability_slots
-                                WHERE business_id = p_business_id
-                                AND employee_id = v_employee.id
-                                AND resource_id = v_resource_id
-                                AND slot_date = v_current_date
-                                AND start_time = v_slot_time
-                            ) THEN
-                                -- =====================================================
-                                -- PASO 10: Crear slot
-                                -- =====================================================
-                                -- ✅ CRÍTICO: Guardar employee_id además de resource_id
-                                -- Los slots se generan por EMPLEADO, no por recurso
-                                BEGIN
-                                    INSERT INTO availability_slots (
-                                        business_id,
-                                        employee_id,  -- ✅ NUEVO: Asociar slot al EMPLEADO
-                                        resource_id,
-                                        slot_date,
-                                        start_time,
-                                        end_time,
-                                        status,
-                                        duration_minutes,
-                                        is_available
-                                    ) VALUES (
-                                        p_business_id,
-                                        v_employee.id,  -- ✅ NUEVO: ID del empleado que trabaja
-                                        v_resource_id,
-                                        v_current_date,
-                                        v_slot_time,
-                                        v_slot_time + v_slot_interval,
-                                        'free',
-                                        EXTRACT(EPOCH FROM v_slot_interval)::INTEGER / 60,
-                                        true
-                                    );
-                                    
-                                    v_slots_count := v_slots_count + 1;
-                                EXCEPTION
-                                    WHEN OTHERS THEN
-                                        RAISE WARNING 'Error insertando slot para empleado % el día % a las %: %', 
-                                            v_employee.name, v_current_date, v_slot_time, SQLERRM;
-                                END;
-                            END IF;
-                            
-                            -- Avanzar al siguiente slot
-                            v_slot_time := v_slot_time + v_slot_interval;
-                        END LOOP;
-                    END LOOP;
+                                v_slots_count := v_slots_count + 1;
+                            EXCEPTION
+                                WHEN OTHERS THEN
+                                    RAISE WARNING 'Error insertando slot para empleado % el día % a las %: %', 
+                                        v_employee.name, v_current_date, v_slot_time, SQLERRM;
+                            END;
+                        END IF;
+                        
+                        -- Avanzar al siguiente slot
+                        v_slot_time := v_slot_time + v_slot_interval;
+                    END LOOP; -- Fin del loop de slots del turno
+                END LOOP; -- Fin del loop de turnos (shifts)
                 ELSE
                     -- ✅ COMPORTAMIENTO LEGACY: Si no hay shifts, usar start_time/end_time
                     -- (Para compatibilidad con horarios antiguos que no usan shifts)
@@ -382,6 +397,42 @@ BEGIN
                         v_current_date := v_current_date + 1;
                         CONTINUE;
                     END IF;
+                    
+                    -- =====================================================
+                    -- Obtener recurso asignado (manual o automático) para horario legacy
+                    -- =====================================================
+                    IF v_schedule.resource_id IS NOT NULL THEN
+                        -- Asignación MANUAL
+                        v_resource_id := v_schedule.resource_id;
+                    ELSE
+                        -- Asignación AUTOMÁTICA
+                        BEGIN
+                            -- 🚨 IMPORTANTE: Pasar la fecha actual para verificar conflictos en slots ya generados
+                            v_resource_id := find_available_resource(
+                                p_business_id,
+                                v_employee.id,
+                                v_day_of_week,
+                                v_schedule.start_time,
+                                v_schedule.end_time,
+                                v_current_date -- 🆕 Pasar fecha para verificar slots ya generados
+                            );
+                        EXCEPTION
+                            WHEN OTHERS THEN
+                                RAISE WARNING 'Error en find_available_resource para empleado % el día %: %', 
+                                    v_employee.name, v_current_date, SQLERRM;
+                                v_resource_id := NULL;
+                        END;
+                        
+                        -- Si no hay recurso disponible, saltar este empleado este día
+                        IF v_resource_id IS NULL THEN
+                            RAISE WARNING 'No hay recurso disponible para empleado % el día %', 
+                                v_employee.name, v_current_date;
+                            v_current_date := v_current_date + 1;
+                            CONTINUE;
+                        END IF;
+                    END IF;
+                    
+                    v_days_count := v_days_count + 1;
                     
                     v_slot_time := v_schedule.start_time;
                     
@@ -410,9 +461,10 @@ BEGIN
                         END IF;
                         
                         -- =====================================================
-                        -- PASO 9: Verificar que no exista ya este slot
+                        -- PASO 9: Verificar que no exista ya este slot Y que no haya conflicto
                         -- =====================================================
                         -- ✅ CRÍTICO: Verificar por EMPLEADO + RECURSO + FECHA + HORA
+                        -- 🚨 ADICIONAL: Verificar que el recurso no esté siendo usado por otro empleado en este slot
                         IF NOT EXISTS (
                             SELECT 1 FROM availability_slots
                             WHERE business_id = p_business_id
@@ -420,6 +472,16 @@ BEGIN
                             AND resource_id = v_resource_id
                             AND slot_date = v_current_date
                             AND start_time = v_slot_time
+                        )
+                        -- 🚨 PROTECCIÓN: Verificar que ningún otro empleado ya tiene este recurso en este slot
+                        AND NOT EXISTS (
+                            SELECT 1 FROM availability_slots avs
+                            WHERE avs.business_id = p_business_id
+                            AND avs.resource_id = v_resource_id
+                            AND avs.slot_date = v_current_date
+                            AND avs.start_time = v_slot_time
+                            AND avs.employee_id != v_employee.id -- Diferente empleado
+                            AND avs.status IN ('free', 'reserved', 'blocked') -- Slot activo
                         ) THEN
                             -- =====================================================
                             -- PASO 10: Crear slot
