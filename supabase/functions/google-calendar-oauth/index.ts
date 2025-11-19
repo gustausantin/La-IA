@@ -286,8 +286,10 @@ function redirectToApp(status: 'success' | 'error', message?: string) {
     console.warn('⚠️ No se encontró PUBLIC_SITE_URL, usando localhost como fallback')
   }
   
+  // ✅ CRÍTICO: Redirigir a Configuración > Integraciones (tab 'canales')
+  // NO redirigir al dashboard - mantener al usuario en Configuración
   const params = new URLSearchParams({
-    tab: 'canales',
+    tab: 'canales', // Tab de integraciones
     integration: 'google_calendar',
     status,
   })
@@ -296,9 +298,11 @@ function redirectToApp(status: 'success' | 'error', message?: string) {
     params.append('message', message)
   }
   
+  // ✅ Asegurar que redirige a /configuracion (NO a dashboard)
   const redirectUrl = `${publicSiteUrl}/configuracion?${params.toString()}`
   
-  console.log('🔄 Redirigiendo a:', redirectUrl)
+  console.log('🔄 Redirigiendo a Configuración (NO al dashboard):', redirectUrl)
+  console.log('✅ URL completa preservada para mantener al usuario en Configuración')
   
   return new Response(null, {
     status: 302,

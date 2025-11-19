@@ -20,6 +20,8 @@ import GoogleCalendarSelector from './GoogleCalendarSelector';
 import ResourceCalendarLinker from './ResourceCalendarLinker';
 import EmployeeCalendarLinker from './EmployeeCalendarLinker';
 import UnassignedAppointmentsReview from './UnassignedAppointmentsReview';
+import CalendarMappingTypeSelector from './CalendarMappingTypeSelector';
+import GoogleCalendarConflictModal from './GoogleCalendarConflictModal';
 
 export default function IntegracionesContent() {
     const { businessId, business } = useAuthContext();
@@ -30,6 +32,9 @@ export default function IntegracionesContent() {
     const [showImportModal, setShowImportModal] = useState(false);
     const [showCalendarSelector, setShowCalendarSelector] = useState(false);
     const [unassignedAppointments, setUnassignedAppointments] = useState([]); // ✅ FASE 2: Eventos sin asignar
+    const [mappingType, setMappingType] = useState(null); // ✅ 'employee' | 'resource' | null
+    const [conflicts, setConflicts] = useState(null); // ✅ Conflictos detectados
+    const [conflictEvents, setConflictEvents] = useState([]); // ✅ Eventos con conflictos
 
     // Cargar configuración de integraciones
     useEffect(() => {
@@ -51,6 +56,17 @@ export default function IntegracionesContent() {
             // Pequeño delay para asegurar que la Edge Function haya guardado los datos
             const timeoutId = setTimeout(async () => {
                 await loadIntegrationsConfig();
+                
+                // ✅ Limpiar parámetros OAuth pero PRESERVAR tab=canales
+                const url = new URL(window.location.href);
+                url.searchParams.delete('integration');
+                url.searchParams.delete('status');
+                url.searchParams.delete('message');
+                // ✅ Asegurar que tab=canales esté presente
+                if (!url.searchParams.has('tab')) {
+                    url.searchParams.set('tab', 'canales');
+                }
+                window.history.replaceState({}, '', url.toString());
                 
                 // Verificar si es primera conexión después de cargar la configuración
                 // Esperar un poco para que el estado se actualice
@@ -578,17 +594,61 @@ export default function IntegracionesContent() {
                                 </div>
                             </div>
 
-                            {/* Vincular Empleados con Calendarios (OBLIGATORIO) */}
-                            {googleCalendarConfig.config?.calendar_selection_completed && (
-                                <EmployeeCalendarLinker
-                                    businessId={businessId}
-                                    integrationConfig={googleCalendarConfig.config}
-                                    onUpdate={loadIntegrationsConfig}
+                            {/* ✅ Selección previa: ¿Por trabajador o por recurso? */}
+                            {googleCalendarConfig.config?.calendar_selection_completed && !mappingType && (
+                                <CalendarMappingTypeSelector
+                                    onSelect={async (type) => {
+                                        setMappingType(type);
+                                        // Guardar tipo de mapeo en la configuración
+                                        try {
+                                            const { data: integration } = await supabase
+                                                .from('integrations')
+                                                .select('id, config')
+                                                .eq('business_id', businessId)
+                                                .eq('provider', 'google_calendar')
+                                                .eq('is_active', true)
+                                                .single();
+
+                                            if (integration) {
+                                                await supabase
+                                                    .from('integrations')
+                                                    .update({
+                                                        config: {
+                                                            ...integration.config,
+                                                            mapping_type: type
+                                                        }
+                                                    })
+                                                    .eq('id', integration.id);
+                                                
+                                                await loadIntegrationsConfig();
+                                            }
+                                        } catch (error) {
+                                            console.error('Error guardando tipo de mapeo:', error);
+                                        }
+                                    }}
                                 />
                             )}
 
-                            {/* Vincular Recursos con Calendarios (Opcional - para compatibilidad) */}
-                            {googleCalendarConfig.config?.calendar_selection_completed && (
+                            {/* Vincular Empleados con Calendarios (solo si se seleccionó "Por Trabajador") */}
+                            {googleCalendarConfig.config?.calendar_selection_completed && mappingType === 'employee' && (
+                                <EmployeeCalendarLinker
+                                    businessId={businessId}
+                                    integrationConfig={googleCalendarConfig.config}
+                                    onUpdate={(updateData) => {
+                                        if (updateData?.hasConflicts) {
+                                            // Mostrar modal de conflictos
+                                            setConflicts(updateData.conflicts);
+                                            setConflictEvents(updateData.events);
+                                        } else {
+                                            // Recargar configuración normalmente
+                                            loadIntegrationsConfig();
+                                        }
+                                    }}
+                                />
+                            )}
+
+                            {/* Vincular Recursos con Calendarios (solo si se seleccionó "Por Recurso") */}
+                            {googleCalendarConfig.config?.calendar_selection_completed && mappingType === 'resource' && (
                                 <ResourceCalendarLinker
                                     businessId={businessId}
                                     integrationConfig={googleCalendarConfig.config}
@@ -751,6 +811,25 @@ export default function IntegracionesContent() {
                         // Limpiar lista y recargar configuración
                         setUnassignedAppointments([]);
                         loadIntegrationsConfig();
+                    }}
+                />
+            )}
+
+            {/* ✅ Modal de Conflictos - Mostrar cuando hay conflictos entre Google Calendar y appointments existentes */}
+            {conflicts && conflicts.length > 0 && (
+                <GoogleCalendarConflictModal
+                    conflicts={conflicts}
+                    businessId={businessId}
+                    events={conflictEvents}
+                    onResolve={(result) => {
+                        console.log('Conflictos resueltos:', result);
+                        setConflicts(null);
+                        setConflictEvents([]);
+                        loadIntegrationsConfig();
+                    }}
+                    onCancel={() => {
+                        setConflicts(null);
+                        setConflictEvents([]);
                     }}
                 />
             )}

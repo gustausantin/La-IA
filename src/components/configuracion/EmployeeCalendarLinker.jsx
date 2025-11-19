@@ -83,7 +83,14 @@ export default function EmployeeCalendarLinker({
                 calendarIds.includes(cal.id)
             );
 
-            setCalendars(selectedCalendars);
+            // ✅ Ordenar calendarios por nombre (Empleado 1, Empleado 2, Empleado 3, etc.)
+            const sortedCalendars = selectedCalendars.sort((a, b) => {
+                const nameA = (a.summary || a.id || '').toLowerCase();
+                const nameB = (b.summary || b.id || '').toLowerCase();
+                return nameA.localeCompare(nameB, 'es', { numeric: true, sensitivity: 'base' });
+            });
+
+            setCalendars(sortedCalendars);
         } catch (error) {
             console.error('Error cargando calendarios:', error);
             toast.error('Error cargando calendarios de Google Calendar');
@@ -104,22 +111,77 @@ export default function EmployeeCalendarLinker({
         setMapping(inverseMapping);
     };
 
+    // ✅ Obtener trabajadores ya asignados (para mostrar en el dropdown y prevenir duplicados)
+    const getAssignedEmployees = React.useMemo(() => {
+        return Object.values(mapping).filter(Boolean);
+    }, [mapping]);
+
+    // ✅ Verificar si un trabajador está duplicado
+    const isEmployeeDuplicated = (employeeId) => {
+        if (!employeeId) return false;
+        const count = getAssignedEmployees.filter(empId => empId === employeeId).length;
+        return count > 1;
+    };
+
+    // ✅ Obtener calendarios que tienen el mismo trabajador que el calendario actual
+    const getCalendarsWithSameEmployee = (calendarId, employeeId) => {
+        if (!employeeId) return [];
+        return Object.keys(mapping).filter(calId => 
+            calId !== calendarId && mapping[calId] === employeeId
+        );
+    };
+
     const handleMappingChange = (calendarId, employeeId) => {
+        // ✅ Validar en tiempo real si el trabajador ya está asignado
+        if (employeeId) {
+            const alreadyAssigned = Object.keys(mapping).some(calId => 
+                calId !== calendarId && mapping[calId] === employeeId
+            );
+            
+            if (alreadyAssigned) {
+                const employee = employees.find(e => e.id === employeeId);
+                const conflictingCalendarIds = Object.keys(mapping).filter(calId => 
+                    calId !== calendarId && mapping[calId] === employeeId
+                );
+                const conflictingCalendarNames = conflictingCalendarIds.map(calId => {
+                    const calendar = calendars.find(c => c.id === calId);
+                    return calendar?.summary || calId;
+                });
+                
+                toast.error(
+                    `❌ ${employee?.name || 'Este trabajador'} ya está asignado a: ${conflictingCalendarNames.join(', ')}\n\n` +
+                    `Cada trabajador solo puede estar vinculado a UN calendario.`,
+                    { duration: 5000 }
+                );
+                // NO actualizar el mapping si hay duplicado
+                return;
+            }
+        }
+        
         setMapping(prev => ({
             ...prev,
             [calendarId]: employeeId || null
         }));
-        // Limpiar error de validación cuando el usuario hace cambios
+        // Limpiar error de validación cuando el usuario hace cambios válidos
         setValidationError('');
     };
 
     // ✅ Calcular si el mapeo es válido (sin efectos secundarios)
+    // Valida: 1) Todos los calendarios tienen trabajador, 2) No hay trabajadores duplicados
     const isValidMapping = React.useMemo(() => {
         const calendarIds = integrationConfig?.calendar_ids || 
                            (integrationConfig?.calendar_id ? [integrationConfig.calendar_id] : []);
         
+        // Validación 1: Todos los calendarios deben tener trabajador asignado
         const unassignedCalendars = calendarIds.filter(calId => !mapping[calId]);
-        return unassignedCalendars.length === 0;
+        if (unassignedCalendars.length > 0) {
+            return false;
+        }
+        
+        // Validación 2: NO puede haber trabajadores duplicados (un trabajador = un calendario)
+        const assignedEmployees = Object.values(mapping).filter(Boolean);
+        const uniqueEmployees = new Set(assignedEmployees);
+        return assignedEmployees.length === uniqueEmployees.size;
     }, [mapping, integrationConfig]);
 
     // ✅ Actualizar mensaje de error cuando cambie la validación
@@ -127,31 +189,87 @@ export default function EmployeeCalendarLinker({
         if (!isValidMapping) {
             const calendarIds = integrationConfig?.calendar_ids || 
                                (integrationConfig?.calendar_id ? [integrationConfig.calendar_id] : []);
+            
+            // Validación 1: Calendarios sin asignar
             const unassignedCalendars = calendarIds.filter(calId => !mapping[calId]);
-            const unassignedNames = unassignedCalendars.map(calId => {
-                const calendar = calendars.find(c => c.id === calId);
-                return calendar?.summary || calId;
+            if (unassignedCalendars.length > 0) {
+                const unassignedNames = unassignedCalendars.map(calId => {
+                    const calendar = calendars.find(c => c.id === calId);
+                    return calendar?.summary || calId;
+                });
+                setValidationError(`Todos los calendarios deben tener un trabajador asignado. Faltan: ${unassignedNames.join(', ')}`);
+                return;
+            }
+            
+            // Validación 2: Trabajadores duplicados
+            const assignedEmployees = Object.values(mapping).filter(Boolean);
+            const employeeCounts = {};
+            assignedEmployees.forEach(empId => {
+                employeeCounts[empId] = (employeeCounts[empId] || 0) + 1;
             });
-            const errorMessage = `Todos los calendarios deben tener un trabajador asignado. Faltan: ${unassignedNames.join(', ')}`;
-            setValidationError(errorMessage);
+            
+            const duplicatedEmployees = Object.keys(employeeCounts).filter(empId => employeeCounts[empId] > 1);
+            if (duplicatedEmployees.length > 0) {
+                const duplicatedNames = duplicatedEmployees.map(empId => {
+                    const employee = employees.find(e => e.id === empId);
+                    return employee?.name || empId;
+                });
+                
+                // Encontrar qué calendarios tienen el mismo trabajador
+                const duplicateDetails = duplicatedEmployees.map(empId => {
+                    const employee = employees.find(e => e.id === empId);
+                    const calendarIdsWithThisEmployee = calendarIds.filter(calId => mapping[calId] === empId);
+                    const calendarNames = calendarIdsWithThisEmployee.map(calId => {
+                        const calendar = calendars.find(c => c.id === calId);
+                        return calendar?.summary || calId;
+                    });
+                    return `${employee?.name || empId} (en: ${calendarNames.join(', ')})`;
+                });
+                
+                setValidationError(`❌ Un trabajador solo puede estar vinculado a UN calendario. Duplicados: ${duplicateDetails.join('; ')}`);
+            } else {
+                setValidationError('');
+            }
         } else {
             setValidationError('');
         }
-    }, [isValidMapping, mapping, calendars, integrationConfig]);
+    }, [isValidMapping, mapping, calendars, employees, integrationConfig]);
 
     // Función para validar antes de guardar (sin efectos secundarios en render)
     const validateMapping = () => {
         const calendarIds = integrationConfig?.calendar_ids || 
                            (integrationConfig?.calendar_id ? [integrationConfig.calendar_id] : []);
         
+        // Validación 1: Todos los calendarios deben tener trabajador asignado
         const unassignedCalendars = calendarIds.filter(calId => !mapping[calId]);
-        
         if (unassignedCalendars.length > 0) {
             const unassignedNames = unassignedCalendars.map(calId => {
                 const calendar = calendars.find(c => c.id === calId);
                 return calendar?.summary || calId;
             });
             setValidationError(`Todos los calendarios deben tener un trabajador asignado. Faltan: ${unassignedNames.join(', ')}`);
+            return false;
+        }
+        
+        // Validación 2: NO puede haber trabajadores duplicados
+        const assignedEmployees = Object.values(mapping).filter(Boolean);
+        const employeeCounts = {};
+        assignedEmployees.forEach(empId => {
+            employeeCounts[empId] = (employeeCounts[empId] || 0) + 1;
+        });
+        
+        const duplicatedEmployees = Object.keys(employeeCounts).filter(empId => employeeCounts[empId] > 1);
+        if (duplicatedEmployees.length > 0) {
+            const duplicatedNames = duplicatedEmployees.map(empId => {
+                const employee = employees.find(e => e.id === empId);
+                const calendarIdsWithThisEmployee = calendarIds.filter(calId => mapping[calId] === empId);
+                const calendarNames = calendarIdsWithThisEmployee.map(calId => {
+                    const calendar = calendars.find(c => c.id === calId);
+                    return calendar?.summary || calId;
+                });
+                return `${employee?.name || empId} (en: ${calendarNames.join(', ')})`;
+            });
+            setValidationError(`❌ Un trabajador solo puede estar vinculado a UN calendario. Duplicados: ${duplicatedNames.join('; ')}`);
             return false;
         }
         
@@ -206,7 +324,90 @@ export default function EmployeeCalendarLinker({
             if (updateError) throw updateError;
 
             toast.dismiss('save-mapping');
-            toast.success('✅ Vinculación guardada correctamente');
+            toast.success('✅ Vinculación guardada correctamente', { duration: 3000 });
+            
+            // ✅ Después de guardar, ofrecer importar eventos automáticamente
+            const shouldImport = window.confirm(
+                '¿Deseas importar ahora los eventos de Google Calendar?\n\n' +
+                'Esto importará todos los eventos con hora como citas bloqueadas en tu calendario.'
+            );
+            
+            if (shouldImport) {
+                // Llamar a la función de importación
+                try {
+                    toast.loading('Importando eventos de Google Calendar...', { id: 'auto-import' });
+                    
+                    // Primero, obtener los eventos clasificados
+                    const { data: classifyData, error: classifyError } = await supabase.functions.invoke('import-google-calendar-initial', {
+                        body: {
+                            business_id: businessId,
+                            action: 'classify'
+                        }
+                    });
+                    
+                    if (classifyError) throw classifyError;
+                    
+                    // Combinar todos los eventos (seguros + dudosos + con hora)
+                    const allEvents = [
+                        ...(classifyData?.safe || []),
+                        ...(classifyData?.doubtful || []),
+                        ...(classifyData?.timed_events || [])
+                    ];
+                    
+                    if (allEvents.length === 0) {
+                        toast.dismiss('auto-import');
+                        toast.info('No hay eventos para importar en los calendarios seleccionados', { duration: 4000 });
+                        if (onUpdate) onUpdate();
+                        return;
+                    }
+                    
+                    // Importar todos los eventos
+                    const { data: importData, error: importError } = await supabase.functions.invoke('import-google-calendar-initial', {
+                        body: {
+                            business_id: businessId,
+                            action: 'import',
+                            events: allEvents
+                        }
+                    });
+                    
+                    if (importError) throw importError;
+                    
+                    toast.dismiss('auto-import');
+                    
+                    // ✅ Verificar si hay conflictos
+                    if (importData?.has_conflicts && importData?.conflicts?.length > 0) {
+                        // Mostrar modal de conflictos (se manejará en el componente padre)
+                        if (onUpdate) {
+                            onUpdate({ hasConflicts: true, conflicts: importData.conflicts, events: allEvents });
+                        }
+                        return; // El modal se mostrará en el componente padre
+                    }
+                    
+                    const totalImported = importData?.imported || 0;
+                    const unassignedCount = importData?.unassigned_count || 0;
+                    
+                    if (unassignedCount > 0) {
+                        toast.success(
+                            `✅ Se importaron ${totalImported} eventos. ${unassignedCount} requieren asignación manual.`,
+                            { duration: 7000 }
+                        );
+                    } else {
+                        toast.success(
+                            `✅ Se importaron ${totalImported} eventos correctamente`,
+                            { duration: 5000 }
+                        );
+                    }
+                    
+                    // Recargar configuración para actualizar contador
+                    if (onUpdate) {
+                        onUpdate();
+                    }
+                } catch (error) {
+                    console.error('Error importando eventos:', error);
+                    toast.dismiss('auto-import');
+                    toast.error('Error al importar eventos: ' + (error.message || 'Error desconocido'));
+                }
+            }
             
             if (onUpdate) {
                 onUpdate();
@@ -265,36 +466,83 @@ export default function EmployeeCalendarLinker({
             )}
 
             <div className="space-y-3">
-                {calendars.map(calendar => (
-                    <div key={calendar.id} className="flex items-center gap-3 p-3 bg-white rounded-lg border border-gray-200">
-                        <div className="flex-1">
-                            <p className="font-medium text-gray-900">{calendar.summary || calendar.id}</p>
-                            <p className="text-xs text-gray-500">Calendario de Google</p>
-                        </div>
-                        <select
-                            value={mapping[calendar.id] || ''}
-                            onChange={(e) => handleMappingChange(calendar.id, e.target.value)}
-                            className={`px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                                mapping[calendar.id] 
-                                    ? 'border-green-300 bg-green-50' 
-                                    : 'border-red-300 bg-red-50'
+                {calendars.map(calendar => {
+                    const currentEmployeeId = mapping[calendar.id];
+                    const isDuplicated = currentEmployeeId && isEmployeeDuplicated(currentEmployeeId);
+                    const conflictingCalendars = currentEmployeeId ? getCalendarsWithSameEmployee(calendar.id, currentEmployeeId) : [];
+                    
+                    return (
+                        <div 
+                            key={calendar.id} 
+                            className={`flex items-center gap-3 p-3 bg-white rounded-lg border-2 transition-all ${
+                                isDuplicated 
+                                    ? 'border-red-400 bg-red-50' 
+                                    : mapping[calendar.id] 
+                                        ? 'border-green-300 bg-green-50' 
+                                        : 'border-red-300 bg-red-50'
                             }`}
-                            required
                         >
-                            <option value="">-- Selecciona trabajador * --</option>
-                            {employees.map(employee => (
-                                <option key={employee.id} value={employee.id}>
-                                    {employee.name}
-                                </option>
-                            ))}
-                        </select>
-                        {mapping[calendar.id] ? (
-                            <CheckCircle2 className="w-5 h-5 text-green-600" />
-                        ) : (
-                            <XCircle className="w-5 h-5 text-red-400" />
-                        )}
-                    </div>
-                ))}
+                            <div className="flex-1">
+                                <p className="font-medium text-gray-900">{calendar.summary || calendar.id}</p>
+                                <p className="text-xs text-gray-500">Calendario de Google</p>
+                                {isDuplicated && conflictingCalendars.length > 0 && (
+                                    <p className="text-xs text-red-600 mt-1 font-medium">
+                                        ⚠️ Este trabajador ya está asignado a otro calendario
+                                    </p>
+                                )}
+                            </div>
+                            <select
+                                value={currentEmployeeId || ''}
+                                onChange={(e) => handleMappingChange(calendar.id, e.target.value)}
+                                className={`px-3 py-2 border-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[180px] w-[180px] ${
+                                    isDuplicated
+                                        ? 'border-red-400 bg-red-100'
+                                        : currentEmployeeId 
+                                            ? 'border-green-400 bg-green-50' 
+                                            : 'border-red-300 bg-red-50'
+                                }`}
+                                style={{ width: '180px', minWidth: '180px', maxWidth: '180px' }}
+                                required
+                            >
+                                <option value="">-- Selecciona trabajador * --</option>
+                                {employees.map(employee => {
+                                    // ✅ Mostrar si el trabajador ya está asignado a otro calendario
+                                    const isAssignedElsewhere = Object.keys(mapping).some(calId => 
+                                        calId !== calendar.id && mapping[calId] === employee.id
+                                    );
+                                    const assignedCalendar = isAssignedElsewhere ? calendars.find(c => 
+                                        c.id === Object.keys(mapping).find(calId => 
+                                            calId !== calendar.id && mapping[calId] === employee.id
+                                        )
+                                    ) : null;
+                                    
+                                    return (
+                                        <option 
+                                            key={employee.id} 
+                                            value={employee.id}
+                                            disabled={isAssignedElsewhere && currentEmployeeId !== employee.id}
+                                        >
+                                            {employee.name}
+                                            {isAssignedElsewhere && currentEmployeeId !== employee.id 
+                                                ? ` (ya asignado a: ${assignedCalendar?.summary || 'otro calendario'})`
+                                                : ''
+                                            }
+                                        </option>
+                                    );
+                                })}
+                            </select>
+                            {currentEmployeeId ? (
+                                isDuplicated ? (
+                                    <XCircle className="w-5 h-5 text-red-600" />
+                                ) : (
+                                    <CheckCircle2 className="w-5 h-5 text-green-600" />
+                                )
+                            ) : (
+                                <XCircle className="w-5 h-5 text-red-400" />
+                            )}
+                        </div>
+                    );
+                })}
             </div>
 
             <div className="mt-4 flex justify-end">

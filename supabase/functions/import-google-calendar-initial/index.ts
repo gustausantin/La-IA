@@ -177,6 +177,28 @@ serve(async (req) => {
 
       console.log(`📊 Eventos a importar: ${allDayEvents.length} de todo el día, ${timedEvents.length} con hora`)
 
+      // ✅ DETECTAR CONFLICTOS antes de importar eventos con hora
+      const conflicts = await detectConflicts(
+        supabaseClient,
+        business_id,
+        timedEvents,
+        integration.config?.resource_calendar_mapping || {},
+        integration.config?.employee_calendar_mapping || {}
+      )
+
+      // Si hay conflictos, devolverlos para que el frontend los muestre
+      if (conflicts.length > 0) {
+        return new Response(
+          JSON.stringify({
+            success: false,
+            has_conflicts: true,
+            conflicts: conflicts,
+            message: `Se encontraron ${conflicts.length} conflicto(s) entre Google Calendar y appointments existentes`
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
       // Import all-day events to calendar_exceptions
       const calendarExceptionsResult = await importEventsToCalendarExceptions(
         supabaseClient,
@@ -194,15 +216,19 @@ serve(async (req) => {
       )
 
       // Update last sync time
-      await supabaseClient
+        // ✅ Calcular total de eventos sincronizados (excepciones + appointments bloqueados)
+        const totalSynced = calendarExceptionsResult.imported + appointmentsResult.imported
+        
+        await supabaseClient
         .from('integrations')
         .update({
           last_sync_at: new Date().toISOString(),
           config: {
             ...integration.config,
             initial_import_completed: true,
-            events_imported: calendarExceptionsResult.imported + appointmentsResult.imported,
+            events_imported: totalSynced,
             appointments_imported: appointmentsResult.imported,
+            events_synced: totalSynced, // ✅ Actualizar contador de eventos sincronizados
           },
         })
         .eq('id', integration.id)
@@ -983,6 +1009,17 @@ async function importEventsToAppointments(
         console.log(`  ✅ Appointment bloqueado importado correctamente: ${result[0].id}`)
         imported++
         
+        // ✅ BLOQUEAR SLOTS cuando se importa un appointment bloqueado
+        await blockAvailabilitySlots(
+          supabaseClient,
+          businessId,
+          appointmentData.appointment_date,
+          appointmentData.appointment_time,
+          appointmentData.duration_minutes,
+          employeeId,
+          resourceId
+        )
+        
         // ✅ FASE 2: Si requiere asignación manual, agregar a la lista
         if (!employeeId && resourceId) {
           unassignedAppointments.push({
@@ -1015,6 +1052,168 @@ async function importEventsToAppointments(
     skipped,
     unassigned_count: unassignedAppointments.length, // ✅ FASE 2: Cantidad de eventos sin asignar
     unassigned_appointments: unassignedAppointments // ✅ FASE 2: Lista de eventos sin asignar
+  }
+}
+
+/**
+ * ✅ DETECTAR CONFLICTOS entre eventos de Google Calendar y appointments existentes
+ */
+async function detectConflicts(
+  supabaseClient: any,
+  businessId: string,
+  events: any[],
+  resourceCalendarMapping: Record<string, string> = {},
+  employeeCalendarMapping: Record<string, string> = {}
+): Promise<any[]> {
+  const conflicts: any[] = []
+
+  console.log(`🔍 Detectando conflictos para ${events.length} eventos...`)
+
+  for (const event of events) {
+    if (!event.selected || !event.start?.dateTime) {
+      continue
+    }
+
+    try {
+      const startTime = new Date(event.start.dateTime)
+      const endTime = new Date(event.end?.dateTime || event.start.dateTime)
+      const appointmentDate = startTime.toISOString().split('T')[0]
+      const appointmentTime = startTime.toISOString().split('T')[1].split('.')[0].substring(0, 8)
+
+      // Determinar employee_id del evento
+      let employeeId: string | null = null
+      if (event.calendar_id) {
+        const mappedEmployeeId = Object.keys(employeeCalendarMapping).find(
+          empId => employeeCalendarMapping[empId] === event.calendar_id
+        )
+        if (mappedEmployeeId) {
+          employeeId = mappedEmployeeId
+        }
+      }
+
+      // Buscar appointments existentes que se solapen con este evento
+      const { data: existingAppointments, error } = await supabaseClient
+        .from('appointments')
+        .select('id, customer_name, appointment_date, appointment_time, status, employee_id, resource_id, start_time, end_time')
+        .eq('business_id', businessId)
+        .eq('appointment_date', appointmentDate)
+        .in('status', ['pending', 'confirmed', 'blocked'])
+        .neq('source', 'google_calendar') // Excluir appointments ya importados de Google Calendar
+
+      if (error) {
+        console.error(`❌ Error buscando conflictos para evento ${event.id}:`, error)
+        continue
+      }
+
+      // Verificar solapamiento de horarios
+      for (const existing of existingAppointments || []) {
+        // Si hay employee_id, verificar que coincida
+        if (employeeId && existing.employee_id && existing.employee_id !== employeeId) {
+          continue // No es conflicto si es otro empleado
+        }
+
+        // Verificar solapamiento de horarios
+        const existingStart = new Date(existing.start_time || `${existing.appointment_date}T${existing.appointment_time}`)
+        const existingEnd = existing.end_time 
+          ? new Date(existing.end_time)
+          : new Date(existingStart.getTime() + (existing.duration_minutes || 60) * 60000)
+
+        // Verificar si hay solapamiento
+        const overlaps = (startTime < existingEnd && endTime > existingStart)
+
+        if (overlaps) {
+          conflicts.push({
+            gcal_event_id: event.id,
+            gcal_summary: event.summary || 'Sin título',
+            gcal_start: startTime.toISOString(),
+            gcal_end: endTime.toISOString(),
+            gcal_employee_id: employeeId,
+            existing_appointment_id: existing.id,
+            existing_customer_name: existing.customer_name || 'Sin nombre',
+            existing_appointment_date: existing.appointment_date,
+            existing_appointment_time: existing.appointment_time,
+            existing_status: existing.status,
+            existing_employee_id: existing.employee_id,
+            conflict_type: 'TIME_OVERLAP'
+          })
+        }
+      }
+    } catch (error) {
+      console.error(`❌ Error procesando conflicto para evento ${event.id}:`, error)
+    }
+  }
+
+  console.log(`🔍 Conflictos detectados: ${conflicts.length}`)
+  return conflicts
+}
+
+/**
+ * ✅ BLOQUEAR/ELIMINAR SLOTS cuando se importa un appointment bloqueado
+ */
+async function blockAvailabilitySlots(
+  supabaseClient: any,
+  businessId: string,
+  appointmentDate: string,
+  appointmentTime: string,
+  durationMinutes: number,
+  employeeId: string | null,
+  resourceId: string | null
+): Promise<void> {
+  try {
+    // Calcular hora de fin
+    const [hours, minutes] = appointmentTime.split(':').map(Number)
+    const startMinutes = hours * 60 + minutes
+    const endMinutes = startMinutes + durationMinutes
+    const endHours = Math.floor(endMinutes / 60)
+    const endMins = endMinutes % 60
+    const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}:00`
+
+    console.log(`  🔒 Bloqueando slots: ${appointmentDate} ${appointmentTime} - ${endTime} (${durationMinutes} min)`)
+
+    // Buscar slots que se solapen con este appointment
+    let query = supabaseClient
+      .from('availability_slots')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('slot_date', appointmentDate)
+      .lte('start_time', endTime)
+      .gte('end_time', appointmentTime)
+
+    // Si hay employee_id, filtrar por employee_id
+    if (employeeId) {
+      query = query.eq('employee_id', employeeId)
+    } else if (resourceId) {
+      // Si hay resource_id pero no employee_id, buscar slots del recurso
+      query = query.eq('resource_id', resourceId)
+    }
+
+    const { data: slotsToBlock, error } = await query
+
+    if (error) {
+      console.error(`  ⚠️ Error buscando slots a bloquear:`, error)
+      return
+    }
+
+    if (slotsToBlock && slotsToBlock.length > 0) {
+      console.log(`  🔒 Eliminando ${slotsToBlock.length} slot(s) que se solapan con el appointment bloqueado`)
+      
+      // Eliminar slots que se solapan
+      const slotIds = slotsToBlock.map((s: any) => s.id)
+      const { error: deleteError } = await supabaseClient
+        .from('availability_slots')
+        .delete()
+        .in('id', slotIds)
+
+      if (deleteError) {
+        console.error(`  ❌ Error eliminando slots:`, deleteError)
+      } else {
+        console.log(`  ✅ ${slotIds.length} slot(s) eliminado(s) correctamente`)
+      }
+    } else {
+      console.log(`  ℹ️ No se encontraron slots a bloquear para ${appointmentDate} ${appointmentTime}`)
+    }
+  } catch (error) {
+    console.error(`  ❌ Error bloqueando slots:`, error)
   }
 }
 

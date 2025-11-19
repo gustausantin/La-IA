@@ -139,20 +139,18 @@ const Configuracion = () => {
     // 🆕 IDs válidos de las pestañas (ya agrupadas en 5 bloques)
     const validTabs = ['asistente', 'negocio', 'reservas', 'canales', 'cuenta'];
     
-    // Leer tab de la URL o del state al cargar
+    // ✅ CRÍTICO: Leer tab de la URL o del state al cargar - PRIORIDAD ABSOLUTA a OAuth redirect
     useEffect(() => {
-        // ✅ Prioridad 1: Si viene OAuth redirect con tab, establecerlo INMEDIATAMENTE
-        const tabParam = searchParams.get('tab');
         const integrationParam = searchParams.get('integration');
+        const tabParam = searchParams.get('tab');
         
-        // ✅ CRÍTICO: Si viene OAuth redirect, establecer tab INMEDIATAMENTE y NO hacer nada más
+        // ✅ PRIORIDAD MÁXIMA: Si viene OAuth redirect, establecer tab INMEDIATAMENTE y BLOQUEAR cualquier otra lógica
         if (integrationParam === 'google_calendar') {
             const targetTab = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'canales';
             console.log('🎯 OAuth redirect detectado - Estableciendo tab INMEDIATAMENTE:', targetTab);
             setActiveTab(targetTab);
             
-            // NO ejecutar el resto de la lógica si viene OAuth redirect
-            // Esto previene cualquier redirección al dashboard
+            // ✅ CRÍTICO: Prevenir cualquier redirección - NO ejecutar el resto de la lógica
             return;
         }
         
@@ -192,26 +190,16 @@ const Configuracion = () => {
                 position: 'top-center'
             });
         }
+    }, [searchParams, location.state, navigate, validTabs]);
 
-        // 🆕 Manejar callback de Google Calendar OAuth
+    // ✅ SEPARADO: Manejar callback de Google Calendar OAuth (toasts y limpieza de URL)
+    useEffect(() => {
         const integration = searchParams.get('integration');
         const status = searchParams.get('status');
         const message = searchParams.get('message');
-        const tabFromOAuth = searchParams.get('tab'); // ✅ Obtener tab del parámetro OAuth
+        const tabFromOAuth = searchParams.get('tab');
 
         if (integration === 'google_calendar') {
-            // ✅ CRÍTICO: Establecer tab INMEDIATAMENTE cuando viene OAuth redirect
-            const targetTab = tabFromOAuth || 'canales'; // 'canales' es el tab de integraciones
-            console.log('🎯 OAuth redirect detectado - Estableciendo tab:', targetTab);
-            
-            if (validTabs.includes(targetTab)) {
-                setActiveTab(targetTab);
-                console.log('✅ Tab establecido correctamente:', targetTab);
-            } else {
-                console.warn('⚠️ Tab inválido desde OAuth, usando canales por defecto');
-                setActiveTab('canales');
-            }
-            
             if (status === 'success') {
                 toast.success('✅ Google Calendar conectado exitosamente!', {
                     duration: 5000,
@@ -224,8 +212,7 @@ const Configuracion = () => {
                 });
             }
             
-            // ✅ PRESERVAR el tab en la URL al limpiar parámetros OAuth
-            // Limpiar parámetros después de un delay para que IntegracionesContent los detecte
+            // ✅ PRESERVAR el tab en la URL al limpiar parámetros OAuth (después de que IntegracionesContent los procese)
             setTimeout(() => {
                 const newSearchParams = new URLSearchParams();
                 // ✅ CRÍTICO: Preservar tab=canales en la URL
@@ -236,9 +223,9 @@ const Configuracion = () => {
                 const cleanUrl = `/configuracion${newSearchParams.toString() ? `?${newSearchParams.toString()}` : ''}`;
                 console.log('🔄 Limpiando URL OAuth, preservando tab:', cleanUrl);
                 navigate(cleanUrl, { replace: true });
-            }, 2000);
+            }, 3000); // ✅ Aumentado a 3 segundos para dar tiempo a que IntegracionesContent procese
         }
-    }, [searchParams, location.state, navigate, validTabs]);
+    }, [searchParams, navigate, validTabs]);
     
     const [settings, setSettings] = useState({
         name: "",

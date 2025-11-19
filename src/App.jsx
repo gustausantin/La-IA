@@ -74,6 +74,34 @@ const PageLoading = () => (
   </div>
 );
 
+// ✅ Componente para ruta por defecto - pero NO redirigir si viene de OAuth
+const DefaultRouteRedirect = ({ business }) => {
+  const location = useLocation();
+  
+  // ✅ CRÍTICO: Si viene de OAuth redirect, mantener en /configuracion
+  if (location.search.includes('integration=google_calendar')) {
+    console.log('🛡️ OAuth redirect detectado en ruta index - NO redirigir al dashboard, mantener en /configuracion');
+    return <Navigate to={`/configuracion${location.search}`} replace />;
+  }
+  
+  // Redirigir normalmente si NO viene de OAuth
+  return <Navigate to={business ? "/dashboard" : "/onboarding"} replace />;
+};
+
+// ✅ Componente para redirigir - pero NO si viene de OAuth
+const OAuthAwareRedirect = () => {
+  const location = useLocation();
+  
+  // ✅ CRÍTICO: Si viene de OAuth redirect, mantener en /configuracion
+  if (location.pathname === '/configuracion' || location.search.includes('integration=google_calendar')) {
+    console.log('🛡️ OAuth redirect detectado - NO redirigir al dashboard, mantener en /configuracion');
+    return <Navigate to={`/configuracion${location.search}`} replace />;
+  }
+  
+  // Redirigir al dashboard solo si NO viene de OAuth
+  return <Navigate to="/dashboard" replace />;
+};
+
 // Componente principal de contenido
 function AppContent() {
   const { isReady, isAuthenticated, user, business, loadingBusiness } = useAuthContext();
@@ -95,6 +123,12 @@ function AppContent() {
     // ⚠️ NO redirigir si aún estamos cargando el negocio
     if (loadingBusiness) {
       console.log('⏳ Esperando a que termine de cargar el negocio...');
+      return;
+    }
+    
+    // ✅ CRÍTICO: NO redirigir si estamos en /configuracion (puede venir de OAuth redirect)
+    if (location.pathname === '/configuracion') {
+      console.log('📍 En /configuracion - NO redirigir (puede venir de OAuth)');
       return;
     }
     
@@ -139,8 +173,9 @@ function AppContent() {
             <Route path="/oauth/google/callback" element={<GoogleOAuthCallback />} />
 
             <Route element={<Layout />}>
-              {/* Ruta por defecto: si no tiene negocio → onboarding, si tiene → dashboard */}
-              <Route index element={<Navigate to={business ? "/dashboard" : "/onboarding"} replace />} />
+              {/* ✅ Ruta por defecto: si no tiene negocio → onboarding, si tiene → dashboard */}
+              {/* ⚠️ PERO: NO redirigir si hay parámetros de OAuth en la URL */}
+              <Route index element={<DefaultRouteRedirect business={business} />} />
 
               {/* Dashboard principal - ÚNICO dashboard vivo */}
               <Route 
@@ -273,8 +308,8 @@ function AppContent() {
               
             </Route>
 
-            {/* Redirigir cualquier ruta no válida al dashboard */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {/* ✅ Redirigir cualquier ruta no válida al dashboard - PERO NO si viene de OAuth */}
+            <Route path="*" element={<OAuthAwareRedirect />} />
           </>
         )}
       </Routes>
