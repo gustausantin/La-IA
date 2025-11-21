@@ -498,10 +498,11 @@
     {
       "table_name": "appointments",
       "column_name": "internal_notes",
-      "data_type": "text",
-      "column_default": null,
+      "data_type": "jsonb",
+      "column_default": "'{}'::jsonb",
       "is_nullable": "YES",
-      "ordinal_position": 18
+      "ordinal_position": 18,
+      "note": "✅ ACTUALIZADO 2025-11-21: Convertido de TEXT a JSONB"
     },
     {
       "table_name": "appointments",
@@ -526,6 +527,42 @@
       "column_default": "now()",
       "is_nullable": "NO",
       "ordinal_position": 21
+    },
+    {
+      "table_name": "appointments",
+      "column_name": "employee_id",
+      "data_type": "uuid",
+      "column_default": null,
+      "is_nullable": "YES",
+      "ordinal_position": 22,
+      "note": "✅ AGREGADO 2025-11-17: FK a employees(id)"
+    },
+    {
+      "table_name": "appointments",
+      "column_name": "gcal_event_id",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES",
+      "ordinal_position": 23,
+      "note": "✅ AGREGADO 2025-11-21: ID del evento en Google Calendar"
+    },
+    {
+      "table_name": "appointments",
+      "column_name": "calendar_id",
+      "data_type": "text",
+      "column_default": null,
+      "is_nullable": "YES",
+      "ordinal_position": 24,
+      "note": "✅ AGREGADO 2025-11-21: ID del calendario de Google Calendar"
+    },
+    {
+      "table_name": "appointments",
+      "column_name": "synced_to_gcal",
+      "data_type": "boolean",
+      "column_default": "false",
+      "is_nullable": "YES",
+      "ordinal_position": 25,
+      "note": "✅ AGREGADO 2025-11-21: Indica si está sincronizado con Google Calendar"
     },
     {
       "table_name": "automation_rules",

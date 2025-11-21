@@ -247,11 +247,21 @@ const employees = await supabase.from('employees').select('id, name');
 ```
 docs/01-arquitectura/
   ├── ⚠️-LEER-PRIMERO-SCHEMA-SUPABASE.md  ← ESTE ARCHIVO
-  ├── SCHEMA-REAL-SUPABASE-2025-11-11.json  ← 1️⃣ TABLAS Y COLUMNAS
+  ├── SCHEMA-COMPLETO-2025-11-13.json     ← 1️⃣ TODAS LAS TABLAS (47 tablas) - ⚠️ ACTUALIZADO 2025-11-21
+  ├── SCHEMA-REAL-SUPABASE-2025-11-11.json  ← 1️⃣ TABLAS Y COLUMNAS (alternativo)
   ├── FOREIGN-KEYS-2025-11-11.json         ← 2️⃣ RELACIONES
   ├── ENUMS-2025-11-11.json                ← 3️⃣ TIPOS ENUM
   ├── INDICES-2025-11-11.json              ← 4️⃣ ÍNDICES
-  └── FUNCTIONS-RPC-2025-11-11.json        ← 5️⃣ FUNCIONES
+  ├── FUNCTIONS-RPC-2025-11-11.json        ← 5️⃣ FUNCIONES
+  └── CHANGELOG-SCHEMA-APPOINTMENTS.md     ← 📝 CAMBIOS EN appointments
+```
+
+### **📋 Documentación Específica de Tablas:**
+
+```
+docs/
+  ├── SCHEMA-APPOINTMENTS-COMPLETO-2025-11-21.md  ← 📋 Esquema completo de appointments
+  └── SCHEMA-CORRECTION-APPOINTMENTS-2025.md      ← 🔧 Correcciones y cambios
 ```
 
 ---
