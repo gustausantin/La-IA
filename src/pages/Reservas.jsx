@@ -28,6 +28,7 @@ import {
     Brain,
     Zap,
     BarChart3,
+    Lock,
     Target,
     Award,
     PhoneCall,
@@ -184,6 +185,12 @@ const RESERVATION_STATES = {
         actions: [],  // Estado final, sin acciones
         icon: <Trash2 className="w-4 h-4" />,
     },
+    blocked: {
+        label: "Bloqueado",
+        color: "bg-slate-100 text-slate-800 border-slate-300",
+        actions: ["view", "edit"],  // Permitir ver y editar eventos bloqueados
+        icon: <Lock className="w-4 h-4" />,
+    },
 };
 
 // Canales disponibles
@@ -236,7 +243,8 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
         'confirmed': 'confirmada', 
         'completed': 'completada',
         'cancelled': 'cancelada',
-        'no_show': 'no_show'
+        'no_show': 'no_show',
+        'blocked': 'blocked'  // ✅ Agregado para eventos de Google Calendar
     };
     
     const mappedStatus = statusMapping[reservation.status] || 'pendiente';
@@ -1170,15 +1178,65 @@ export default function Reservas() {
                 return;
             }
 
-            // Cargar nombres de recursos para mostrar en el calendario
-            const resourceIds = employeesData?.map(e => e.assigned_resource_id).filter(Boolean) || [];
-            let resourcesMap = {};
+            // 🚨 CRÍTICO: Obtener recursos REALES desde availability_slots para la fecha actual
+            // Esto garantiza que mostramos el recurso correcto asignado por el algoritmo automático
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const employeeIds = employeesData?.map(e => e.id) || [];
             
-            if (resourceIds.length > 0) {
+            // Obtener slots de hoy para cada empleado
+            let employeeResourceMap = {}; // { employee_id: { resource_id, resource_name } }
+            
+            if (employeeIds.length > 0) {
+                const { data: slotsToday } = await supabase
+                    .from('availability_slots')
+                    .select('employee_id, resource_id')
+                    .eq('business_id', businessId)
+                    .eq('slot_date', today)
+                    .in('employee_id', employeeIds)
+                    .eq('status', 'free')
+                    .limit(1000); // Limitar para rendimiento
+                
+                // Agrupar por employee_id y obtener el resource_id más común para cada empleado
+                const resourceCounts = {};
+                (slotsToday || []).forEach(slot => {
+                    if (!slot.employee_id || !slot.resource_id) return;
+                    const key = `${slot.employee_id}_${slot.resource_id}`;
+                    resourceCounts[key] = (resourceCounts[key] || 0) + 1;
+                });
+                
+                // Para cada empleado, encontrar el resource_id más común
+                employeeIds.forEach(empId => {
+                    let maxCount = 0;
+                    let mostCommonResourceId = null;
+                    
+                    Object.keys(resourceCounts).forEach(key => {
+                        const [empIdFromKey, resourceId] = key.split('_');
+                        if (empIdFromKey === empId && resourceCounts[key] > maxCount) {
+                            maxCount = resourceCounts[key];
+                            mostCommonResourceId = resourceId;
+                        }
+                    });
+                    
+                    if (mostCommonResourceId) {
+                        employeeResourceMap[empId] = { resource_id: mostCommonResourceId };
+                    }
+                });
+            }
+            
+            // Cargar nombres de recursos
+            const allResourceIds = [
+                ...new Set([
+                    ...(employeesData?.map(e => e.assigned_resource_id).filter(Boolean) || []),
+                    ...Object.values(employeeResourceMap).map(r => r.resource_id).filter(Boolean)
+                ])
+            ];
+            
+            let resourcesMap = {};
+            if (allResourceIds.length > 0) {
                 const { data: resourcesData } = await supabase
                     .from('resources')
                     .select('id, name')
-                    .in('id', resourceIds);
+                    .in('id', allResourceIds);
                 
                 resourcesMap = (resourcesData || []).reduce((acc, r) => {
                     acc[r.id] = r.name;
@@ -1187,17 +1245,25 @@ export default function Reservas() {
             }
 
             // Mapear empleados a formato del calendario
-            const mappedEmployees = (employeesData || []).map(emp => ({
-                id: emp.id,
-                name: emp.name,
-                type: 'employee',
-                color: emp.color,
-                is_owner: emp.is_owner,
-                assigned_resource_id: emp.assigned_resource_id,
-                resource_name: emp.assigned_resource_id ? resourcesMap[emp.assigned_resource_id] : null,
-                employee_schedules: emp.employee_schedules,
-                schedules: emp.employee_schedules || []
-            }));
+            // 🚨 CRÍTICO: Usar resource_id desde slots, NO desde assigned_resource_id
+            const mappedEmployees = (employeesData || []).map(emp => {
+                // Priorizar resource_id desde slots (asignación automática real)
+                const slotResource = employeeResourceMap[emp.id];
+                const resourceId = slotResource?.resource_id || emp.assigned_resource_id;
+                const resourceName = resourceId ? resourcesMap[resourceId] : null;
+                
+                return {
+                    id: emp.id,
+                    name: emp.name,
+                    type: 'employee',
+                    color: emp.color,
+                    is_owner: emp.is_owner,
+                    assigned_resource_id: resourceId, // Usar el resource_id real desde slots
+                    resource_name: resourceName, // Nombre del recurso real asignado
+                    employee_schedules: emp.employee_schedules,
+                    schedules: emp.employee_schedules || []
+                };
+            });
             
             setResources(mappedEmployees);
             console.log("✅ Empleados cargados para calendario:", mappedEmployees.length);
@@ -1593,11 +1659,12 @@ export default function Reservas() {
             // Vista HOY: Solo reservas de hoy (TODAS, incluidas canceladas)
             filtered = filtered.filter(r => r.reservation_date === today);
         } else if (activeView === 'proximas') {
-            // Vista PRÓXIMAS: Hoy + futuro (solo activas: pending, confirmed)
+            // Vista PRÓXIMAS: Hoy + futuro (solo activas: pending, confirmed, blocked)
+            // ⚠️ IMPORTANTE: Incluir 'blocked' para mostrar eventos de Google Calendar
             filtered = filtered.filter(r => {
                 const resDate = new Date(r.reservation_date);
                 return resDate >= now && 
-                       ['pending', 'pending_approval', 'confirmed'].includes(r.status);
+                       ['pending', 'pending_approval', 'confirmed', 'blocked'].includes(r.status);
             });
 
             // Aplicar sub-filtro de PRÓXIMAS

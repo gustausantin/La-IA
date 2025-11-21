@@ -1094,7 +1094,7 @@ async function detectConflicts(
       // Buscar appointments existentes que se solapen con este evento
       const { data: existingAppointments, error } = await supabaseClient
         .from('appointments')
-        .select('id, customer_name, appointment_date, appointment_time, status, employee_id, resource_id, start_time, end_time')
+        .select('id, customer_name, appointment_date, appointment_time, status, employee_id, resource_id, end_time, duration_minutes')
         .eq('business_id', businessId)
         .eq('appointment_date', appointmentDate)
         .in('status', ['pending', 'confirmed', 'blocked'])
@@ -1113,9 +1113,10 @@ async function detectConflicts(
         }
 
         // Verificar solapamiento de horarios
-        const existingStart = new Date(existing.start_time || `${existing.appointment_date}T${existing.appointment_time}`)
+        // ✅ CORREGIDO: appointments NO tiene start_time, usar appointment_time
+        const existingStart = new Date(`${existing.appointment_date}T${existing.appointment_time}`)
         const existingEnd = existing.end_time 
-          ? new Date(existing.end_time)
+          ? new Date(`${existing.appointment_date}T${existing.end_time}`)
           : new Date(existingStart.getTime() + (existing.duration_minutes || 60) * 60000)
 
         // Verificar si hay solapamiento

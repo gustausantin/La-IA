@@ -112,6 +112,32 @@ export class AutoSlotRegenerationService {
           
           console.error(`❌ Validación fallida: ${validation.errorCode} - ${errorMessage}`);
           
+          // 🧹 LIMPIEZA AUTOMÁTICA: Si no hay horarios, eliminar slots libres
+          if (validation.errorCode === 'NO_EMPLOYEE_SCHEDULES') {
+            console.log('🧹 Limpiando slots libres de empleados sin horarios...');
+            try {
+              // No pasar p_end_date cuando es null (usar default de la función)
+              const { data: cleanupResult, error: cleanupError } = await supabase.rpc(
+                'cleanup_slots_for_employees_without_schedules',
+                {
+                  p_business_id: businessId,
+                  p_start_date: format(new Date(), 'yyyy-MM-dd')
+                  // p_end_date se omite para usar el default (90 días adelante)
+                }
+              );
+              
+              if (cleanupError) {
+                console.warn('⚠️ Error limpiando slots libres:', cleanupError);
+              } else if (cleanupResult && cleanupResult.length > 0) {
+                const totalDeleted = cleanupResult.reduce((sum, r) => sum + (r.deleted_count || 0), 0);
+                const totalProtected = cleanupResult.reduce((sum, r) => sum + (r.protected_count || 0), 0);
+                console.log(`✅ Limpieza completada: ${totalDeleted} slots eliminados, ${totalProtected} protegidos`);
+              }
+            } catch (cleanupException) {
+              console.warn('⚠️ Excepción limpiando slots libres:', cleanupException);
+            }
+          }
+          
           if (!silent) {
             toast.error(errorMessage, {
               duration: 5000,

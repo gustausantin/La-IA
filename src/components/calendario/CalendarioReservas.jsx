@@ -272,11 +272,12 @@ export default function CalendarioReservas({
     const reservationsFiltradas = useMemo(() => {
         let filtered = [...reservations];
 
-        // Filtro por recurso/profesional
+        // Filtro por recurso/profesional (también por employee_id para eventos bloqueados)
         if (filtros.recurso !== 'todos') {
             filtered = filtered.filter(r => 
                 r.resource_id === filtros.recurso || 
-                r.table_id === filtros.recurso
+                r.table_id === filtros.recurso ||
+                r.employee_id === filtros.recurso // ✅ Agregado: filtrar también por employee_id
             );
         }
 
@@ -497,20 +498,43 @@ export default function CalendarioReservas({
             {resources.length > 0 && (
                 <div className="lg:hidden bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                     <label className="block text-xs font-medium text-gray-700 mb-2">
-                        📍 Ver recurso:
+                        📍 Ver trabajador:
                     </label>
                     <select
                         value={mobileSelectedResource}
                         onChange={(e) => setMobileSelectedResource(e.target.value)}
                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-medium"
                     >
-                        <option value="todos">📊 Todos los recursos</option>
+                        <option value="todos">📊 Todos los trabajadores</option>
                         {resources.map(r => (
                             <option key={r.id} value={r.id}>
                                 {r.name}
                             </option>
                         ))}
                     </select>
+                </div>
+            )}
+
+            {/* 🖥️ DESKTOP: Filtro de Trabajador para Semana y Mes */}
+            {resources.length > 0 && (vista === 'semana' || vista === 'mes') && (
+                <div className="hidden lg:block bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                    <div className="flex items-center gap-3">
+                        <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                            👤 Filtrar por trabajador:
+                        </label>
+                        <select
+                            value={filtros.recurso}
+                            onChange={(e) => setFiltros(prev => ({ ...prev, recurso: e.target.value }))}
+                            className="flex-1 max-w-xs px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm font-medium"
+                        >
+                            <option value="todos">📊 Todos los trabajadores</option>
+                            {resources.map(r => (
+                                <option key={r.id} value={r.id}>
+                                    {r.name}
+                                </option>
+                            ))}
+                        </select>
+                    </div>
                 </div>
             )}
 
@@ -633,6 +657,7 @@ export default function CalendarioReservas({
                 <VistaMes 
                     fecha={fechaActual}
                     reservations={reservationsFiltradas}
+                    resources={resources}
                     onReservationClick={onReservationClick}
                     onDayClick={(day) => {
                         setFechaActual(day);
@@ -1070,6 +1095,7 @@ function VistaDia({
     
     // 🎯 FILTRAR: Ocultar solo canceladas del calendario
     // Las reservas "no_show" se muestran pero con estilo diferente (tachadas/opacidad)
+    // ⚠️ IMPORTANTE: Usar reservations (que ya viene filtrado desde el componente padre)
     const reservasDelDia = reservations.filter(r => {
         const fechaReserva = r.reservation_date || r.appointment_date;
         const coincideFecha = fechaReserva === fechaStr;
@@ -1191,6 +1217,9 @@ function VistaDia({
     if (mobileSelectedResource !== 'todos') {
         recursosDisplay = recursosDisplay.filter(r => r.id === mobileSelectedResource);
     }
+    
+    // ⚠️ NOTA: El filtrado por recurso en desktop (semana/mes) se hace en el componente padre
+    // antes de pasar las reservas, así que no es necesario filtrar aquí
 
     // 📐 CÁLCULO DE ANCHO EQUITATIVO
     // Desktop: máximo 5 recursos visibles, ancho equitativo
@@ -1296,17 +1325,17 @@ function VistaDia({
                             
                             if (!isDayClosed) {
                                 // Solo calcular horario si el día NO está cerrado
-                                const schedulesToday = recurso.employee_schedules?.filter(s => 
-                                    s.day_of_week === diaSemanaActual && s.is_working
-                                ) || [];
+                            const schedulesToday = recurso.employee_schedules?.filter(s => 
+                                s.day_of_week === diaSemanaActual && s.is_working
+                            ) || [];
 
                                 tieneHorarioHoy = schedulesToday.length > 0 && schedulesToday[0].shifts && schedulesToday[0].shifts.length > 0;
-                                
-                                if (tieneHorarioHoy) {
-                                    const shifts = schedulesToday[0].shifts;
-                                    const primerTurno = shifts[0];
-                                    const ultimoTurno = shifts[shifts.length - 1];
-                                    horarioTexto = `${primerTurno.start.slice(0, 5)} - ${ultimoTurno.end.slice(0, 5)}`;
+                            
+                            if (tieneHorarioHoy) {
+                                const shifts = schedulesToday[0].shifts;
+                                const primerTurno = shifts[0];
+                                const ultimoTurno = shifts[shifts.length - 1];
+                                horarioTexto = `${primerTurno.start.slice(0, 5)} - ${ultimoTurno.end.slice(0, 5)}`;
                                 }
                             }
 
@@ -1491,7 +1520,19 @@ function VistaDia({
                                         }}
                                     >
                                         {reservasEnHora.map(reserva => {
-                                            const colors = STATUS_COLORS[reserva.status] || STATUS_COLORS.confirmed;
+                                            // 🎨 COLORES: Para eventos bloqueados, usar color del empleado
+                                            let colors = STATUS_COLORS[reserva.status] || STATUS_COLORS.confirmed;
+                                            
+                                            // 🎨 COLOR DEL EMPLEADO: Para eventos bloqueados, usar color del empleado
+                                            let employeeColor = null;
+                                            if (reserva.status === 'blocked' && reserva.employee_id) {
+                                                // Buscar el empleado para obtener su color
+                                                const empleado = resources.find(r => r.id === reserva.employee_id);
+                                                if (empleado && empleado.color) {
+                                                    employeeColor = empleado.color;
+                                                }
+                                            }
+                                            
                                             const isDragging = draggingReservation?.id === reserva.id;
                                             const statusIcon = getStatusIcon(reserva);
                                             
@@ -1516,7 +1557,7 @@ function VistaDia({
                                                         const timeStr = `${hora.toString().padStart(2, '0')}:00`;
                                                         onCellClick(recurso, fechaStr, timeStr, reserva, null);
                                                     }}
-                                                    className={`${colors.bg} ${colors.border} ${colors.bgHover} rounded-lg shadow-md transition-all ${
+                                                    className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} ${employeeColor ? '' : colors.bgHover} rounded-lg shadow-md transition-all ${
                                                         reserva.status === 'no_show' ? 'opacity-50 line-through' : ''
                                                     } ${
                                                         isDragging ? 'opacity-50 scale-95 rotate-2 cursor-grabbing' : 'hover:shadow-lg hover:scale-105 hover:-translate-y-0.5 cursor-grab'
@@ -1530,7 +1571,22 @@ function VistaDia({
                                                         padding: duracionMinutos <= 30 ? '2px 4px' : '4px 6px',
                                                         zIndex: 20,
                                                         pointerEvents: 'auto',
-                                                        boxSizing: 'border-box'
+                                                        boxSizing: 'border-box',
+                                                        // 🎨 Aplicar color del empleado si es evento bloqueado
+                                                        ...(employeeColor ? {
+                                                            backgroundColor: `${employeeColor}20`, // 20% de opacidad
+                                                            borderLeft: `5px solid ${employeeColor}`,
+                                                        } : {})
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        if (employeeColor) {
+                                                            e.currentTarget.style.backgroundColor = `${employeeColor}30`;
+                                                        }
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        if (employeeColor) {
+                                                            e.currentTarget.style.backgroundColor = `${employeeColor}20`;
+                                                        }
                                                     }}
                                                 >
                                                     {/* 🎨 DISEÑO ADAPTATIVO según duración */}
@@ -1925,7 +1981,7 @@ function VistaDia({
 }
 
 // 📆 VISTA SEMANA - Rediseñada estilo Google Calendar + Booksy MEJORADO
-function VistaSemana({ fecha, reservations, horaInicio, horaFin, onReservationClick, onSlotClick }) {
+function VistaSemana({ fecha, reservations, resources = [], horaInicio, horaFin, onReservationClick, onSlotClick }) {
     const inicioSemana = startOfWeek(fecha, { locale: es, weekStartsOn: 1 }); // Empezar en Lunes
     const finSemana = endOfWeek(fecha, { locale: es, weekStartsOn: 1 });
     const diasSemana = eachDayOfInterval({ start: inicioSemana, end: finSemana });
@@ -1939,8 +1995,9 @@ function VistaSemana({ fecha, reservations, horaInicio, horaFin, onReservationCl
                         {diasSemana.map(dia => {
                             const esHoy = isSameDay(dia, new Date());
                             const fechaStr = format(dia, 'yyyy-MM-dd');
+                            // ⚠️ IMPORTANTE: Usar reservations (que ya viene filtrado desde el componente padre)
                             const reservasDelDia = reservations.filter(r => 
-                                r.reservation_date === fechaStr && 
+                                (r.reservation_date === fechaStr || r.appointment_date === fechaStr) && 
                                 r.status !== 'cancelled' &&
                                 r.status !== 'no_show'
                             );
@@ -1983,8 +2040,9 @@ function VistaSemana({ fecha, reservations, horaInicio, horaFin, onReservationCl
                     <div className="grid grid-cols-7 divide-x-2 divide-gray-300 min-h-[600px] bg-gradient-to-b from-white to-gray-50">
                         {diasSemana.map(dia => {
                             const fechaStr = format(dia, 'yyyy-MM-dd');
+                            // ⚠️ IMPORTANTE: Usar reservations (que ya viene filtrado desde el componente padre)
                             const reservasDelDia = reservations.filter(r => 
-                                r.reservation_date === fechaStr && 
+                                (r.reservation_date === fechaStr || r.appointment_date === fechaStr) && 
                                 r.status !== 'cancelled' &&
                                 r.status !== 'no_show'
                             );
@@ -2015,7 +2073,18 @@ function VistaSemana({ fecha, reservations, horaInicio, horaFin, onReservationCl
                                                     return timeA.localeCompare(timeB);
                                                 })
                                                 .map(reserva => {
-                                                    const colors = STATUS_COLORS[reserva.status] || STATUS_COLORS.confirmed;
+                                                    // 🎨 COLORES: Para eventos bloqueados, usar color del empleado
+                                                    let colors = STATUS_COLORS[reserva.status] || STATUS_COLORS.confirmed;
+                                                    let employeeColor = null;
+                                                    
+                                                    if (reserva.status === 'blocked' && reserva.employee_id) {
+                                                        // Buscar el empleado para obtener su color
+                                                        const empleado = resources.find(r => r.id === reserva.employee_id);
+                                                        if (empleado && empleado.color) {
+                                                            employeeColor = empleado.color;
+                                                        }
+                                                    }
+                                                    
                                                     const horaInicio = (reserva.reservation_time || reserva.appointment_time || '00:00').substring(0, 5);
                                                     const duracion = reserva.duration_minutes || reserva.service_duration_minutes || 60;
                                                     const horaFin = calcularHoraFin(horaInicio + ':00', duracion);
@@ -2024,7 +2093,24 @@ function VistaSemana({ fecha, reservations, horaInicio, horaFin, onReservationCl
                                                         <div
                                                             key={reserva.id}
                                                             onClick={() => onReservationClick(reserva)}
-                                                            className={`${colors.bg} ${colors.border} rounded-lg p-2.5 cursor-pointer hover:shadow-lg transition-all transform hover:scale-105 hover:-translate-y-0.5`}
+                                                            className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} rounded-lg p-2.5 cursor-pointer hover:shadow-lg transition-all transform hover:scale-105 hover:-translate-y-0.5`}
+                                                            style={{
+                                                                // 🎨 Aplicar color del empleado si es evento bloqueado
+                                                                ...(employeeColor ? {
+                                                                    backgroundColor: `${employeeColor}20`, // 20% de opacidad
+                                                                    borderLeft: `4px solid ${employeeColor}`,
+                                                                } : {})
+                                                            }}
+                                                            onMouseEnter={(e) => {
+                                                                if (employeeColor) {
+                                                                    e.currentTarget.style.backgroundColor = `${employeeColor}30`;
+                                                                }
+                                                            }}
+                                                            onMouseLeave={(e) => {
+                                                                if (employeeColor) {
+                                                                    e.currentTarget.style.backgroundColor = `${employeeColor}20`;
+                                                                }
+                                                            }}
                                                         >
                                                             {/* Hora - MÁS GRANDE Y DESTACADA */}
                                                             <div className="flex items-center gap-1.5 mb-1.5">
@@ -2072,7 +2158,7 @@ function VistaSemana({ fecha, reservations, horaInicio, horaFin, onReservationCl
 }
 
 // 📊 VISTA MES - Grid mensual
-function VistaMes({ fecha, reservations, onReservationClick, onDayClick }) {
+function VistaMes({ fecha, reservations, resources = [], onReservationClick, onDayClick }) {
     const inicioMes = new Date(fecha.getFullYear(), fecha.getMonth(), 1);
     const finMes = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0);
     const inicioSemana = startOfWeek(inicioMes, { locale: es, weekStartsOn: 1 }); // Empezar en Lunes
@@ -2107,6 +2193,7 @@ function VistaMes({ fecha, reservations, onReservationClick, onDayClick }) {
                 {dias.map(dia => {
                     const fechaStr = format(dia, 'yyyy-MM-dd');
                     // 🎯 FILTRAR: SIEMPRE ocultar canceladas y no-shows (estilo Booksy)
+                    // ⚠️ IMPORTANTE: Usar reservations (que ya viene filtrado desde el componente padre)
                     const reservasDelDia = reservations.filter(r => 
                         (r.reservation_date === fechaStr || r.appointment_date === fechaStr) && 
                         r.status !== 'cancelled' &&
@@ -2157,7 +2244,18 @@ function VistaMes({ fecha, reservations, onReservationClick, onDayClick }) {
                             {/* Lista de reservas - MEJORADA */}
                             <div className="space-y-1">
                                 {reservasDelDia.slice(0, 4).map(reserva => {
-                                    const colors = STATUS_COLORS[reserva.status] || STATUS_COLORS.confirmed;
+                                    // 🎨 COLORES: Para eventos bloqueados, usar color del empleado
+                                    let colors = STATUS_COLORS[reserva.status] || STATUS_COLORS.confirmed;
+                                    let employeeColor = null;
+                                    
+                                    if (reserva.status === 'blocked' && reserva.employee_id) {
+                                        // Buscar el empleado para obtener su color
+                                        const empleado = resources.find(r => r.id === reserva.employee_id);
+                                        if (empleado && empleado.color) {
+                                            employeeColor = empleado.color;
+                                        }
+                                    }
+                                    
                                     const hora = (reserva.reservation_time || reserva.appointment_time || '00:00').substring(0, 5);
                                     
                                     return (
@@ -2167,7 +2265,24 @@ function VistaMes({ fecha, reservations, onReservationClick, onDayClick }) {
                                                 e.stopPropagation();
                                                 onReservationClick(reserva);
                                             }}
-                                            className={`${colors.bg} ${colors.border} rounded-md p-1.5 cursor-pointer hover:shadow-md transition-all transform hover:scale-105 text-left group/item`}
+                                            className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} rounded-md p-1.5 cursor-pointer hover:shadow-md transition-all transform hover:scale-105 text-left group/item`}
+                                            style={{
+                                                // 🎨 Aplicar color del empleado si es evento bloqueado
+                                                ...(employeeColor ? {
+                                                    backgroundColor: `${employeeColor}20`, // 20% de opacidad
+                                                    borderLeft: `4px solid ${employeeColor}`,
+                                                } : {})
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                if (employeeColor) {
+                                                    e.currentTarget.style.backgroundColor = `${employeeColor}30`;
+                                                }
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                if (employeeColor) {
+                                                    e.currentTarget.style.backgroundColor = `${employeeColor}20`;
+                                                }
+                                            }}
                                             title={`${hora} - ${reserva.customer_name} - ${reserva.service_name || 'Servicio'}`}
                                         >
                                             {/* Hora y nombre en una línea compacta */}

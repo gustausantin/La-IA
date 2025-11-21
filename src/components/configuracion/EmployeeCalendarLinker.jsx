@@ -348,10 +348,11 @@ export default function EmployeeCalendarLinker({
                     if (classifyError) throw classifyError;
                     
                     // Combinar todos los eventos (seguros + dudosos + con hora)
+                    // ⚠️ IMPORTANTE: El backend devuelve timedEvents (camelCase), NO timed_events
                     const allEvents = [
                         ...(classifyData?.safe || []),
                         ...(classifyData?.doubtful || []),
-                        ...(classifyData?.timed_events || [])
+                        ...(classifyData?.timedEvents || []) // ✅ Corregido: timedEvents en camelCase
                     ];
                     
                     if (allEvents.length === 0) {

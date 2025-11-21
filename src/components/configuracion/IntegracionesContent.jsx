@@ -389,72 +389,11 @@ export default function IntegracionesContent() {
             toast.dismiss('test-sync');
             
             if (data?.success) {
-                const totalEvents = data.events_synced || 0;
-                const allDayEvents = data.all_day_events || 0;
-                const timedEvents = data.timed_events || 0;
-                const calendarsCount = data.calendars || 1;
-                const calendarDetails = data.calendar_details || [];
-                
-                // Mensaje más claro explicando qué eventos se pueden importar
-                let message = `✅ Sincronización exitosa!\n\n`;
-                message += `📅 ${calendarsCount} calendario(s) procesado(s)\n`;
-                message += `• Total de eventos: ${totalEvents}\n`;
-                message += `• Eventos de TODO EL DÍA (importables): ${allDayEvents}\n`;
-                message += `• Eventos con HORA (no importables): ${timedEvents}`;
-                
-                if (calendarDetails.length > 1) {
-                    message += `\n\n📊 Por calendario:`;
-                    calendarDetails.forEach((cal) => {
-                        message += `\n  • ${cal.calendar_name}: ${cal.all_day_events} todo el día, ${cal.timed_events} con hora`;
-                    });
-                }
-                
-                toast.success(message, { duration: 10000 });
+                // Mensaje simple y claro
+                toast.success('✅ Sincronización completada', { duration: 3000 });
                 
                 // Recargar configuración para actualizar last_sync_at
                 await loadIntegrationsConfig();
-                
-                // ✅ Si hay eventos de TODO EL DÍA y no se ha hecho importación inicial, ofrecer importar
-                if (allDayEvents > 0 && !googleCalendarConfig?.config?.initial_import_completed) {
-                    setTimeout(() => {
-                        toast(
-                            (t) => (
-                                <div className="flex flex-col gap-2">
-                                    <p className="font-semibold">¿Quieres importar eventos de Google Calendar?</p>
-                                    <p className="text-sm text-gray-600">
-                                        Se encontraron {allDayEvents} evento{allDayEvents !== 1 ? 's' : ''} de todo el día que puedes importar.
-                                    </p>
-                                    <div className="flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                toast.dismiss(t.id);
-                                                setShowImportModal(true);
-                                            }}
-                                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
-                                        >
-                                            Sí, importar
-                                        </button>
-                                        <button
-                                            onClick={() => toast.dismiss(t.id)}
-                                            className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 text-sm font-medium"
-                                        >
-                                            Ahora no
-                                        </button>
-                                    </div>
-                                </div>
-                            ),
-                            { duration: 10000, position: 'top-center' }
-                        );
-                    }, 1500);
-                } else if (allDayEvents === 0 && totalEvents > 0) {
-                    // Si hay eventos pero todos son con hora, explicar
-                    setTimeout(() => {
-                        toast.info(
-                            `ℹ️ Los ${totalEvents} eventos encontrados tienen hora específica (reservas, citas).\n\nSolo se pueden importar eventos de TODO EL DÍA (días cerrados, vacaciones, festivos).`,
-                            { duration: 8000, position: 'top-center' }
-                        );
-                    }, 1500);
-                }
             } else {
                 throw new Error(data?.error || 'Error desconocido');
             }

@@ -23,6 +23,7 @@ export default function GoogleCalendarImportModal({
     const [classifying, setClassifying] = useState(true);
     const [safeEvents, setSafeEvents] = useState([]);
     const [doubtfulEvents, setDoubtfulEvents] = useState([]);
+    const [timedEvents, setTimedEvents] = useState([]); // Eventos con hora específica
 
     useEffect(() => {
         if (isOpen && businessId) {
@@ -48,16 +49,19 @@ export default function GoogleCalendarImportModal({
                 console.log('📥 Eventos clasificados:', {
                     safe: data.safe?.length || 0,
                     doubtful: data.doubtful?.length || 0,
+                    timedEvents: data.timedEvents?.length || 0,
                     safeEvents: data.safe,
-                    doubtfulEvents: data.doubtful
+                    doubtfulEvents: data.doubtful,
+                    timedEventsData: data.timedEvents
                 });
                 
                 setSafeEvents(data.safe || []);
                 setDoubtfulEvents(data.doubtful || []);
+                setTimedEvents(data.timedEvents || []); // ✅ Cargar eventos con hora
                 
                 // Si no hay eventos, mostrar información útil
-                if ((data.safe?.length || 0) === 0 && (data.doubtful?.length || 0) === 0) {
-                    console.warn('⚠️ No se encontraron eventos de todo el día. Verifica que estás usando el calendario correcto y que los eventos sean de "todo el día".');
+                if ((data.safe?.length || 0) === 0 && (data.doubtful?.length || 0) === 0 && (data.timedEvents?.length || 0) === 0) {
+                    console.warn('⚠️ No se encontraron eventos. Verifica que estás usando el calendario correcto.');
                 }
             } else {
                 throw new Error(data?.error || 'Error desconocido');
@@ -105,8 +109,12 @@ export default function GoogleCalendarImportModal({
             setSafeEvents(prev => prev.map(e => 
                 e.id === eventId ? { ...e, selected: !e.selected } : e
             ));
-        } else {
+        } else if (category === 'doubtful') {
             setDoubtfulEvents(prev => prev.map(e => 
+                e.id === eventId ? { ...e, selected: !e.selected } : e
+            ));
+        } else if (category === 'timed') {
+            setTimedEvents(prev => prev.map(e => 
                 e.id === eventId ? { ...e, selected: !e.selected } : e
             ));
         }
@@ -122,10 +130,16 @@ export default function GoogleCalendarImportModal({
         setDoubtfulEvents(prev => prev.map(e => ({ ...e, selected: !allSelected })));
     };
 
+    const toggleAllTimed = () => {
+        const allSelected = timedEvents.every(e => e.selected);
+        setTimedEvents(prev => prev.map(e => ({ ...e, selected: !allSelected })));
+    };
+
     const handleImport = async () => {
         const selectedSafe = safeEvents.filter(e => e.selected);
         const selectedDoubtful = doubtfulEvents.filter(e => e.selected);
-        const allSelected = [...selectedSafe, ...selectedDoubtful];
+        const selectedTimed = timedEvents.filter(e => e.selected);
+        const allSelected = [...selectedSafe, ...selectedDoubtful, ...selectedTimed]; // ✅ Incluir eventos con hora
 
         if (allSelected.length === 0) {
             toast.error('Selecciona al menos un evento para importar');
@@ -137,12 +151,17 @@ export default function GoogleCalendarImportModal({
             toast.loading('Importando eventos...', { id: 'import-events' });
 
             // ✅ DEBUG: Verificar que los eventos tengan start y end
-            console.log('📤 Eventos a importar:', allSelected.map(e => ({
+            console.log('📤 Eventos a importar:', allSelected.length);
+            console.log('📤 Primer evento completo:', JSON.stringify(allSelected[0] || {}, null, 2));
+            console.log('📤 Estructura de eventos:', allSelected.map(e => ({
                 id: e.id,
                 summary: e.summary,
                 start: e.start,
                 end: e.end,
-                type: e.type
+                type: e.type,
+                selected: e.selected,
+                hasStartDate: !!e.start?.date,
+                hasStartDateTime: !!e.start?.dateTime
             })));
 
             const { data, error } = await supabase.functions.invoke('import-google-calendar-initial', {
@@ -153,24 +172,32 @@ export default function GoogleCalendarImportModal({
                 }
             });
 
-            if (error) throw error;
+            console.log('📥 Respuesta del backend:', JSON.stringify(data, null, 2));
+
+            if (error) {
+                console.error('❌ Error en la respuesta:', error);
+                throw error;
+            }
 
             toast.dismiss('import-events');
 
+            // ✅ Manejar respuesta con conflictos
+            if (data?.has_conflicts) {
+                console.warn('⚠️ Se detectaron conflictos:', data.conflicts);
+                toast.error(
+                    `⚠️ ${data.conflicts?.length || 0} conflicto(s) detectado(s)`,
+                    { duration: 5000 }
+                );
+                // Continuar mostrando los resultados aunque haya conflictos
+            }
+
             if (data?.success) {
                 const importedCount = data.imported || 0;
-                const unassignedCount = data.unassigned_count || 0;
                 
-                if (unassignedCount > 0) {
-                    toast.success(
-                        `✅ Se importaron ${importedCount} eventos. ${unassignedCount} requieren asignación manual.`,
-                        { duration: 7000 }
-                    );
+                if (importedCount > 0) {
+                    toast.success(`✅ Se importaron ${importedCount} evento(s)`, { duration: 4000 });
                 } else {
-                    toast.success(
-                        `✅ Se importaron ${importedCount} eventos correctamente`,
-                        { duration: 5000 }
-                    );
+                    toast.error('No se importó ningún evento', { duration: 4000 });
                 }
                 
                 // ✅ FASE 2: Pasar eventos sin asignar al componente padre
@@ -218,9 +245,25 @@ export default function GoogleCalendarImportModal({
         }
     };
 
+    const formatEventDateTime = (event) => {
+        const startDateTime = event.start?.dateTime;
+        if (!startDateTime) return 'Hora desconocida';
+        
+        try {
+            const startDate = new Date(startDateTime);
+            const formattedDate = format(startDate, 'dd MMM yyyy', { locale: es });
+            const formattedTime = format(startDate, 'HH:mm', { locale: es });
+            return `${formattedDate} ${formattedTime}`;
+        } catch {
+            return startDateTime;
+        }
+    };
+
     if (!isOpen) return null;
 
-    const totalSelected = safeEvents.filter(e => e.selected).length + doubtfulEvents.filter(e => e.selected).length;
+    const totalSelected = safeEvents.filter(e => e.selected).length + 
+                         doubtfulEvents.filter(e => e.selected).length + 
+                         timedEvents.filter(e => e.selected).length;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -234,7 +277,7 @@ export default function GoogleCalendarImportModal({
                                 Importar eventos de Google Calendar
                             </h2>
                             <p className="text-sm text-gray-500 mt-1">
-                                Solo se importan eventos de todo el día (días cerrados, vacaciones, festivos)
+                                Importa eventos de todo el día (días cerrados, vacaciones, festivos) y eventos con hora (reservas, citas)
                             </p>
                         </div>
                     </div>
@@ -257,9 +300,9 @@ export default function GoogleCalendarImportModal({
                                     ⚠️ Importante
                                 </h4>
                                 <ul className="text-xs text-blue-800 space-y-1">
-                                    <li>• <strong>Solo se importan eventos de TODO EL DÍA</strong> (días cerrados, vacaciones, festivos)</li>
-                                    <li>• <strong>Los eventos con HORA específica NO se importan</strong> (reservas, citas)</li>
-                                    <li>• <strong>Las reservas deben crearse directamente en LA-IA</strong> para asegurar asignación correcta de empleados y servicios</li>
+                                    <li>• <strong>Eventos de TODO EL DÍA</strong> se importan como días cerrados o eventos especiales</li>
+                                    <li>• <strong>Eventos con HORA específica</strong> se importan como appointments bloqueados (reservas, citas)</li>
+                                    <li>• <strong>Los eventos con hora se importan automáticamente</strong> y bloquean la disponibilidad en ese horario</li>
                                 </ul>
                             </div>
                         </div>
@@ -364,24 +407,67 @@ export default function GoogleCalendarImportModal({
                                 </div>
                             )}
 
-                            {safeEvents.length === 0 && doubtfulEvents.length === 0 && (
+                            {/* Eventos con Hora (Reservas/Citas) */}
+                            {timedEvents.length > 0 && (
+                                <div className="space-y-3">
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <Clock className="w-5 h-5 text-blue-600" />
+                                            <h3 className="text-lg font-semibold text-gray-900">
+                                                Eventos con Hora ({timedEvents.length})
+                                            </h3>
+                                        </div>
+                                        <button
+                                            onClick={toggleAllTimed}
+                                            className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                                        >
+                                            {timedEvents.every(e => e.selected) ? 'Deseleccionar todos' : 'Seleccionar todos'}
+                                        </button>
+                                    </div>
+                                    <p className="text-sm text-gray-600">
+                                        Estos eventos se importarán como appointments bloqueados y bloquearán la disponibilidad en esos horarios:
+                                    </p>
+                                    <div className="space-y-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                                        {timedEvents.map(event => (
+                                            <label
+                                                key={event.id}
+                                                className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={event.selected}
+                                                    onChange={() => toggleEvent(event.id, 'timed')}
+                                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                                />
+                                                <Clock className="w-4 h-4 text-blue-500" />
+                                                <span className="flex-1 text-sm">
+                                                    <span className="font-medium">{formatEventDateTime(event)}</span>
+                                                    <span className="text-gray-600 ml-2">- {event.summary}</span>
+                                                </span>
+                                                <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
+                                                    Reserva
+                                                </span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {safeEvents.length === 0 && doubtfulEvents.length === 0 && timedEvents.length === 0 && (
                                 <div className="text-center py-12">
                                     <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                                     <p className="text-gray-600 font-medium mb-2">
-                                        No se encontraron eventos de todo el día para importar.
+                                        No se encontraron eventos para importar.
                                     </p>
                                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mt-4 max-w-md mx-auto">
                                         <p className="text-sm text-gray-700 mb-2">
                                             <strong>¿Por qué no hay eventos?</strong>
                                         </p>
                                         <ul className="text-xs text-gray-600 space-y-1 text-left">
-                                            <li>• Solo se importan eventos de <strong>TODO EL DÍA</strong> (días cerrados, vacaciones, festivos)</li>
-                                            <li>• Los eventos con <strong>HORA específica</strong> (reservas, citas) <strong>NO se importan</strong></li>
-                                            <li>• Si tienes eventos con hora, créalos directamente en LA-IA</li>
+                                            <li>• Se importan eventos de <strong>TODO EL DÍA</strong> (días cerrados, vacaciones, festivos)</li>
+                                            <li>• Se importan eventos con <strong>HORA específica</strong> (reservas, citas) como appointments bloqueados</li>
+                                            <li>• Verifica que el calendario esté correctamente conectado y tenga eventos</li>
                                         </ul>
-                                        <p className="text-xs text-gray-500 mt-3 italic">
-                                            Para importar: Crea eventos de "todo el día" en Google Calendar con palabras como "Cerrado", "Vacaciones", "Festivo"
-                                        </p>
                                     </div>
                                 </div>
                             )}

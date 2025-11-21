@@ -72,6 +72,7 @@ BEGIN
         AND avs.status IN ('free', 'reserved', 'blocked') -- Cualquier slot activo
         -- Verificar solapamiento: si el slot se solapa con el rango solicitado
         -- Un slot se solapa si: (start < end_time AND end > start_time)
+        -- Esta condición detecta TODOS los tipos de solapamiento (parcial, completo, contenido)
         AND avs.start_time < p_end_time
         AND avs.end_time > p_start_time
     )
