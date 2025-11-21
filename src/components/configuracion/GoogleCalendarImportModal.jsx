@@ -148,7 +148,15 @@ export default function GoogleCalendarImportModal({
 
         try {
             setLoading(true);
-            toast.loading('Importando eventos...', { id: 'import-events' });
+            
+            // ✅ Mostrar estado de carga claro
+            toast.loading(
+                `⏳ Importando ${allSelected.length} evento(s)... Por favor espera.`,
+                { 
+                    id: 'import-events',
+                    duration: Infinity // No desaparecer hasta que se complete
+                }
+            );
 
             // ✅ DEBUG: Verificar que los eventos tengan start y end
             console.log('📤 Eventos a importar:', allSelected.length);
@@ -184,20 +192,46 @@ export default function GoogleCalendarImportModal({
             // ✅ Manejar respuesta con conflictos
             if (data?.has_conflicts) {
                 console.warn('⚠️ Se detectaron conflictos:', data.conflicts);
-                toast.error(
-                    `⚠️ ${data.conflicts?.length || 0} conflicto(s) detectado(s)`,
-                    { duration: 5000 }
-                );
-                // Continuar mostrando los resultados aunque haya conflictos
+                // Mostrar conflicto pero continuar con el resumen
             }
 
             if (data?.success) {
                 const importedCount = data.imported || 0;
+                const calendarExceptions = data.calendar_exceptions || 0;
+                const appointments = data.appointments || 0;
+                const skippedCount = data.skipped || 0;
                 
+                // ✅ Resumen detallado de la importación
                 if (importedCount > 0) {
-                    toast.success(`✅ Se importaron ${importedCount} evento(s)`, { duration: 4000 });
+                    let summaryMessage = `✅ Importación completada: ${importedCount} evento(s) importado(s)`;
+                    
+                    // Agregar detalles si hay información disponible
+                    const details = [];
+                    if (calendarExceptions > 0) {
+                        details.push(`${calendarExceptions} día(s) cerrado(s)`);
+                    }
+                    if (appointments > 0) {
+                        details.push(`${appointments} cita(s) bloqueada(s)`);
+                    }
+                    if (skippedCount > 0) {
+                        details.push(`${skippedCount} omitido(s)`);
+                    }
+                    
+                    if (details.length > 0) {
+                        summaryMessage += ` (${details.join(', ')})`;
+                    }
+                    
+                    toast.success(summaryMessage, { duration: 6000 });
                 } else {
                     toast.error('No se importó ningún evento', { duration: 4000 });
+                }
+                
+                // ✅ Mostrar advertencia de conflictos si los hay
+                if (data?.has_conflicts && data?.conflicts?.length > 0) {
+                    toast.error(
+                        `⚠️ ${data.conflicts.length} conflicto(s) detectado(s) - algunos eventos no se importaron`,
+                        { duration: 7000 }
+                    );
                 }
                 
                 // ✅ FASE 2: Pasar eventos sin asignar al componente padre
@@ -209,7 +243,7 @@ export default function GoogleCalendarImportModal({
         } catch (error) {
             console.error('❌ Error importando eventos:', error);
             toast.dismiss('import-events');
-            toast.error('Error importando eventos: ' + (error.message || 'Error desconocido'));
+            toast.error('Error importando eventos: ' + (error.message || 'Error desconocido'), { duration: 6000 });
         } finally {
             setLoading(false);
         }
@@ -277,7 +311,7 @@ export default function GoogleCalendarImportModal({
                                 Importar eventos de Google Calendar
                             </h2>
                             <p className="text-sm text-gray-500 mt-1">
-                                Importa eventos de todo el día (días cerrados, vacaciones, festivos) y eventos con hora (reservas, citas)
+                                Importa eventos futuros (desde mañana) de todo el día y con hora específica
                             </p>
                         </div>
                     </div>
@@ -300,6 +334,7 @@ export default function GoogleCalendarImportModal({
                                     ⚠️ Importante
                                 </h4>
                                 <ul className="text-xs text-blue-800 space-y-1">
+                                    <li>• <strong>⚠️ Solo se importan eventos FUTUROS</strong> (desde mañana en adelante). Los eventos pasados o de hoy se omiten.</li>
                                     <li>• <strong>Eventos de TODO EL DÍA</strong> se importan como días cerrados o eventos especiales</li>
                                     <li>• <strong>Eventos con HORA específica</strong> se importan como appointments bloqueados (reservas, citas)</li>
                                     <li>• <strong>Los eventos con hora se importan automáticamente</strong> y bloquean la disponibilidad en ese horario</li>

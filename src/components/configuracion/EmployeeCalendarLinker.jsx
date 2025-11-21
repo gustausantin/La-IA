@@ -326,93 +326,41 @@ export default function EmployeeCalendarLinker({
             toast.dismiss('save-mapping');
             toast.success('✅ Vinculación guardada correctamente', { duration: 3000 });
             
-            // ✅ Después de guardar, ofrecer importar eventos automáticamente
-            const shouldImport = window.confirm(
-                '¿Deseas importar ahora los eventos de Google Calendar?\n\n' +
-                'Esto importará todos los eventos con hora como citas bloqueadas en tu calendario.'
-            );
-            
-            if (shouldImport) {
-                // Llamar a la función de importación
-                try {
-                    toast.loading('Importando eventos de Google Calendar...', { id: 'auto-import' });
-                    
-                    // Primero, obtener los eventos clasificados
-                    const { data: classifyData, error: classifyError } = await supabase.functions.invoke('import-google-calendar-initial', {
-                        body: {
-                            business_id: businessId,
-                            action: 'classify'
-                        }
-                    });
-                    
-                    if (classifyError) throw classifyError;
-                    
-                    // Combinar todos los eventos (seguros + dudosos + con hora)
-                    // ⚠️ IMPORTANTE: El backend devuelve timedEvents (camelCase), NO timed_events
-                    const allEvents = [
-                        ...(classifyData?.safe || []),
-                        ...(classifyData?.doubtful || []),
-                        ...(classifyData?.timedEvents || []) // ✅ Corregido: timedEvents en camelCase
-                    ];
-                    
-                    if (allEvents.length === 0) {
-                        toast.dismiss('auto-import');
-                        toast.success('No hay eventos para importar en los calendarios seleccionados', { duration: 4000 });
-                        if (onUpdate) onUpdate();
-                        return;
-                    }
-                    
-                    // Importar todos los eventos
-                    const { data: importData, error: importError } = await supabase.functions.invoke('import-google-calendar-initial', {
-                        body: {
-                            business_id: businessId,
-                            action: 'import',
-                            events: allEvents
-                        }
-                    });
-                    
-                    if (importError) throw importError;
-                    
-                    toast.dismiss('auto-import');
-                    
-                    // ✅ Verificar si hay conflictos
-                    if (importData?.has_conflicts && importData?.conflicts?.length > 0) {
-                        // Mostrar modal de conflictos (se manejará en el componente padre)
-                        if (onUpdate) {
-                            onUpdate({ hasConflicts: true, conflicts: importData.conflicts, events: allEvents });
-                        }
-                        return; // El modal se mostrará en el componente padre
-                    }
-                    
-                    const totalImported = importData?.imported || 0;
-                    const unassignedCount = importData?.unassigned_count || 0;
-                    
-                    if (unassignedCount > 0) {
-                        toast.success(
-                            `✅ Se importaron ${totalImported} eventos. ${unassignedCount} requieren asignación manual.`,
-                            { duration: 7000 }
-                        );
-                    } else {
-                        toast.success(
-                            `✅ Se importaron ${totalImported} eventos correctamente`,
-                            { duration: 5000 }
-                        );
-                    }
-                    
-                    // Recargar configuración para actualizar contador
-                    if (onUpdate) {
-                        onUpdate();
-                    }
-                } catch (error) {
-                    console.error('Error importando eventos:', error);
-                    toast.dismiss('auto-import');
-                    toast.error('Error al importar eventos: ' + (error.message || 'Error desconocido'));
+            // ✅ Recargar configuración INMEDIATAMENTE para que el botón "Importar Eventos" aparezca
+            // Esperar un momento para que la base de datos se actualice
+            setTimeout(() => {
+                if (onUpdate) {
+                    onUpdate();
                 }
+            }, 500);
+            
+            // ✅ Configurar watch channels para notificaciones push automáticas
+            try {
+                console.log('🔔 Configurando notificaciones push de Google Calendar...');
+                const { data: watchData, error: watchError } = await supabase.functions.invoke('setup-google-calendar-watch', {
+                    body: {
+                        business_id: businessId
+                    }
+                });
+                
+                if (watchError) {
+                    console.error('❌ Error configurando watch:', watchError);
+                    console.error('Error details:', watchError.message, watchError.context);
+                    toast.error('⚠️ Error configurando sincronización automática. Puedes configurarla manualmente después.', { duration: 5000 });
+                    // No bloquear el flujo si falla el watch
+                } else {
+                    console.log('✅ Notificaciones push configuradas:', watchData);
+                    toast.success('🔔 Sincronización automática activada', { duration: 3000 });
+                }
+            } catch (watchError) {
+                console.error('❌ Error en catch configurando watch:', watchError);
+                toast.error('⚠️ Error configurando sincronización automática', { duration: 5000 });
+                // Continuar de todas formas
             }
             
-            if (onUpdate) {
-                onUpdate();
-            }
+            // ✅ NO mostrar modal de confirmación - el usuario puede importar cuando quiera usando el botón "Importar Eventos"
+            // El botón "Importar Eventos" aparecerá automáticamente después de guardar
+            // La configuración ya se recargó arriba, así que el botón debería aparecer
         } catch (error) {
             console.error('Error guardando vinculación:', error);
             toast.dismiss('save-mapping');

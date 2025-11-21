@@ -108,25 +108,50 @@ serve(async (req) => {
     }
 
     // ✅ Obtener calendarios a monitorear
-    const calendarIds = integration.config?.calendar_ids || 
-                       (integration.config?.calendar_id ? [integration.config.calendar_id] : [])
+    let calendarIds: string[] = []
+    
+    if (Array.isArray(integration.config?.calendar_ids)) {
+      calendarIds = integration.config.calendar_ids
+    } else if (integration.config?.calendar_id) {
+      calendarIds = [integration.config.calendar_id]
+    }
+    
+    console.log(`📅 Calendarios a monitorear: ${calendarIds.length}`, calendarIds)
     
     if (calendarIds.length === 0) {
-      throw new Error('No hay calendarios configurados')
+      throw new Error('No hay calendarios configurados en integration.config.calendar_ids')
     }
 
     // ✅ URL del webhook (debe ser HTTPS y público)
     // Usar la URL pública de Supabase con el endpoint del webhook
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
+    
+    if (!supabaseUrl) {
+      throw new Error('SUPABASE_URL no está configurado en las variables de entorno')
+    }
+    
     const webhookUrl = `${supabaseUrl}/functions/v1/google-calendar-webhook`
+    console.log(`🔗 Webhook URL: ${webhookUrl}`)
     
     const watchChannels: any[] = []
 
     // ✅ Configurar watch para cada calendario
     for (const calendarId of calendarIds) {
       try {
-        // Generar channel_id único
-        const channelId = `la-ia-${business_id}-${calendarId}-${Date.now()}`
+        // Validar calendarId
+        if (!calendarId || typeof calendarId !== 'string') {
+          console.error(`❌ calendarId inválido: ${calendarId}`)
+          continue
+        }
+        
+        // Generar channel_id único que cumpla con el formato requerido por Google: [A-Za-z0-9\-_+/=]+
+        // Limpiar business_id y calendarId de caracteres especiales
+        const cleanBusinessId = business_id.replace(/[^A-Za-z0-9\-_]/g, '').substring(0, 16)
+        const cleanCalendarId = calendarId.replace(/[^A-Za-z0-9\-_]/g, '').substring(0, 20)
+        const timestamp = Date.now()
+        const channelId = `la-ia-${cleanBusinessId}-${cleanCalendarId}-${timestamp}`
+        
+        console.log(`🔄 Configurando watch para calendario: ${calendarId.substring(0, 50)}...`)
         
         // ✅ Configurar watch en Google Calendar
         const watchResponse = await fetch(
@@ -143,17 +168,41 @@ serve(async (req) => {
               address: webhookUrl,
               // ✅ Expira en 7 días (máximo permitido por Google)
               expiration: Date.now() + (7 * 24 * 60 * 60 * 1000),
+              // ✅ Token para identificar el business_id en el webhook
+              token: business_id,
             }),
           }
         )
 
         if (!watchResponse.ok) {
-          const errorData = await watchResponse.json().catch(() => ({}))
-          console.warn(`⚠️ Error configurando watch para ${calendarId}:`, errorData)
+          const errorText = await watchResponse.text()
+          let errorData
+          try {
+            errorData = JSON.parse(errorText)
+          } catch {
+            errorData = { raw: errorText }
+          }
+          
+          console.error(`❌ Error configurando watch para ${calendarId}:`, {
+            status: watchResponse.status,
+            statusText: watchResponse.statusText,
+            error: errorData
+          })
+          
+          // Si es un error 403 o 401, puede ser un problema de permisos
+          if (watchResponse.status === 403 || watchResponse.status === 401) {
+            throw new Error(`Error de permisos al configurar watch para ${calendarId}: ${JSON.stringify(errorData)}`)
+          }
+          
           continue
         }
 
         const watchData = await watchResponse.json()
+        
+        if (!watchData.resourceId) {
+          console.error(`❌ watchData no tiene resourceId:`, watchData)
+          continue
+        }
         
         watchChannels.push({
           calendar_id: calendarId,
@@ -162,9 +211,13 @@ serve(async (req) => {
           expiration: watchData.expiration,
         })
 
-        console.log(`✅ Watch configurado para calendario ${calendarId}`)
+        console.log(`✅ Watch configurado para calendario ${calendarId.substring(0, 30)}...`)
       } catch (error) {
         console.error(`❌ Error configurando watch para ${calendarId}:`, error)
+        // Si es un error crítico (permisos), lanzarlo para que se propague
+        if (error?.message?.includes('permisos')) {
+          throw error
+        }
         continue
       }
     }
@@ -197,10 +250,14 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ Error configurando watch:', error)
+    console.error('Error stack:', error?.stack)
+    console.error('Error details:', JSON.stringify(error, Object.getOwnPropertyNames(error)))
+    
     return new Response(
       JSON.stringify({ 
         error: error?.message || 'Error desconocido',
-        success: false
+        success: false,
+        details: error?.stack || 'No hay detalles adicionales'
       }),
       { 
         status: 500,

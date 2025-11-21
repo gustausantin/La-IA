@@ -599,7 +599,7 @@ export default function IntegracionesContent() {
                                             setConflicts(updateData.conflicts);
                                             setConflictEvents(updateData.events);
                                         } else {
-                                            // Recargar configuración normalmente
+                                            // Recargar configuración normalmente (también cuando no hay updateData)
                                             loadIntegrationsConfig();
                                         }
                                     }}
@@ -650,17 +650,21 @@ export default function IntegracionesContent() {
                                     Probar Sincronización
                                 </button>
                                 {(() => {
-                                    // ✅ Mostrar botón de importar si:
+                                    // ✅ Mostrar botón de importar SOLO si:
                                     // 1. Google Calendar está conectado
                                     // 2. calendar_selection_completed es true (ya se seleccionaron calendarios)
-                                    // ✅ Permitir importar siempre que haya calendarios seleccionados (incluso si ya se importó antes)
+                                    // 3. employee_calendar_mapping existe y tiene al menos una entrada (calendarios vinculados con trabajadores)
                                     const calendarSelectionCompleted = googleCalendarConfig?.config?.calendar_selection_completed;
+                                    const employeeMapping = googleCalendarConfig?.config?.employee_calendar_mapping || {};
+                                    const hasEmployeeMapping = Object.keys(employeeMapping).length > 0;
                                     
-                                    const shouldShowImport = googleCalendarConnected && calendarSelectionCompleted;
+                                    const shouldShowImport = googleCalendarConnected && calendarSelectionCompleted && hasEmployeeMapping;
                                     
                                     console.log('🔍 Evaluando botón Importar:', {
                                         connected: googleCalendarConnected,
                                         calendar_selection_completed: calendarSelectionCompleted,
+                                        has_employee_mapping: hasEmployeeMapping,
+                                        employee_mapping_keys: Object.keys(employeeMapping),
                                         shouldShowImport,
                                         config: googleCalendarConfig?.config
                                     });

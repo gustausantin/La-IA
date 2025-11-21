@@ -327,16 +327,27 @@ serve(async (req) => {
       const createdEvent = await createResponse.json()
 
       // Update appointment with Google Calendar event ID
+      // ✅ Usar columnas directas (gcal_event_id, calendar_id, synced_to_gcal) y también internal_notes para consistencia
+      // internal_notes ahora es JSONB, Supabase lo devuelve como objeto, no como string
+      const currentInternalNotes = appointment.internal_notes ? 
+        (typeof appointment.internal_notes === 'string' ? JSON.parse(appointment.internal_notes) : appointment.internal_notes) : 
+        {}
+      
+      const updatedInternalNotes = {
+        ...currentInternalNotes,
+        gcal_event_id: createdEvent.id,
+        calendar_id: targetCalendarId,
+        synced_at: new Date().toISOString(),
+      }
+      
+      // ✅ Actualizar tanto columnas directas como internal_notes (JSONB, no necesita stringify)
       await supabaseClient
         .from('appointments')
         .update({
-          gcal_event_id: createdEvent.id,
-          synced_to_gcal: true,
-          metadata: {
-            ...(appointment.metadata || {}),
-            google_calendar_event_id: createdEvent.id,
-            google_calendar_id: targetCalendarId,
-          },
+          gcal_event_id: createdEvent.id, // ✅ Columna directa
+          calendar_id: targetCalendarId, // ✅ Columna directa
+          synced_to_gcal: true, // ✅ Columna directa (BOOLEAN)
+          internal_notes: updatedInternalNotes, // ✅ JSONB - Supabase lo maneja automáticamente
         })
         .eq('id', appointment.id)
 
@@ -357,6 +368,8 @@ serve(async (req) => {
 
     // ✅ Soporte para action: 'push' (alias de 'create')
     if ((action === 'create' || action === 'push') && reservation_id) {
+      console.log(`🔄 Sincronizando reserva ${reservation_id} con Google Calendar (action: ${action})`)
+      
       // Create event in Google Calendar
       const { data: reservation, error: reservationError } = await supabaseClient
         .from('appointments')
@@ -365,34 +378,61 @@ serve(async (req) => {
         .single()
 
       if (reservationError || !reservation) {
+        console.error(`❌ Error obteniendo reserva ${reservation_id}:`, reservationError)
         throw new Error(`Reservation not found: ${reservationError?.message || 'Unknown error'}`)
       }
 
+      console.log(`📋 Reserva encontrada:`, {
+        id: reservation.id,
+        customer_name: reservation.customer_name,
+        status: reservation.status,
+        employee_id: reservation.employee_id,
+        resource_id: reservation.resource_id,
+        appointment_date: reservation.appointment_date,
+        appointment_time: reservation.appointment_time,
+      })
+
       // Skip if already synced
-      if (reservation.gcal_event_id || reservation.synced_to_gcal) {
-        console.log(`⏭️ Reserva ${reservation_id} ya está sincronizada con Google Calendar`)
+      // ✅ Verificar en columna directa synced_to_gcal, gcal_event_id o internal_notes
+      const internalNotes = reservation.internal_notes ? 
+        (typeof reservation.internal_notes === 'string' ? JSON.parse(reservation.internal_notes) : reservation.internal_notes) : 
+        {}
+      
+      const gcalEventId = reservation.gcal_event_id || internalNotes.gcal_event_id
+      const isSynced = reservation.synced_to_gcal || internalNotes.synced_to_gcal || !!gcalEventId
+      
+      if (isSynced && gcalEventId) {
+        console.log(`⏭️ Reserva ${reservation_id} ya está sincronizada con Google Calendar (gcal_event_id: ${gcalEventId})`)
         return new Response(
-          JSON.stringify({ success: true, event_id: reservation.gcal_event_id, already_synced: true }),
+          JSON.stringify({ success: true, event_id: gcalEventId, already_synced: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
+      console.log(`🔍 Buscando calendario para empleado ${reservation.employee_id} o recurso ${reservation.resource_id}`)
       const targetCalendarId = getCalendarForAppointment(reservation)
       
       if (!targetCalendarId) {
-        console.warn(`⚠️ No se puede sincronizar reserva ${reservation_id} - no hay calendario mapeado para el empleado ${reservation.employee_id}`)
+        console.warn(`⚠️ No se puede sincronizar reserva ${reservation_id} - no hay calendario mapeado`, {
+          employee_id: reservation.employee_id,
+          resource_id: reservation.resource_id,
+          employee_mapping: integration.config?.employee_calendar_mapping,
+          resource_mapping: integration.config?.resource_calendar_mapping,
+        })
         return new Response(
           JSON.stringify({ 
             success: false, 
             skipped: true, 
             reason: 'no_calendar_mapping',
-            message: `No hay calendario mapeado para el empleado. Por favor, vincula un calendario a este trabajador en la configuración.`
+            message: `No hay calendario mapeado para el empleado ${reservation.employee_id || reservation.resource_id || 'N/A'}. Por favor, vincula un calendario a este trabajador en la configuración.`
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
       
+      console.log(`✅ Calendario encontrado: ${targetCalendarId} - Creando evento en Google Calendar...`)
       const createdEvent = await createGoogleCalendarEvent(reservation, targetCalendarId)
+      console.log(`✅ Evento creado en Google Calendar: ${createdEvent.id}`)
 
       return new Response(
         JSON.stringify({ success: true, event_id: createdEvent.id, calendar_id: targetCalendarId }),
@@ -412,8 +452,13 @@ serve(async (req) => {
         throw new Error('Reservation not found')
       }
 
-      const eventId = reservation.gcal_event_id || reservation.metadata?.google_calendar_event_id
-      const calendarIdForUpdate = reservation.metadata?.google_calendar_id || getCalendarForAppointment(reservation)
+      // ✅ Obtener gcal_event_id desde columna directa o internal_notes
+      const internalNotes = reservation.internal_notes ? 
+        (typeof reservation.internal_notes === 'string' ? JSON.parse(reservation.internal_notes) : reservation.internal_notes) : 
+        {}
+      
+      const eventId = reservation.gcal_event_id || internalNotes.gcal_event_id || reservation.metadata?.google_calendar_event_id
+      const calendarIdForUpdate = reservation.calendar_id || internalNotes.calendar_id || reservation.metadata?.google_calendar_id || getCalendarForAppointment(reservation)
 
       if (!eventId) {
         // Create if doesn't exist - reuse the create logic
@@ -499,8 +544,13 @@ serve(async (req) => {
         .eq('id', reservation_id)
         .single()
 
-      const eventId = reservation?.gcal_event_id || reservation?.metadata?.google_calendar_event_id
-      const calendarIdForDelete = reservation?.metadata?.google_calendar_id || getCalendarForAppointment(reservation)
+      // ✅ Obtener gcal_event_id desde columna directa o internal_notes
+      const internalNotes = reservation?.internal_notes ? 
+        (typeof reservation.internal_notes === 'string' ? JSON.parse(reservation.internal_notes) : reservation.internal_notes) : 
+        {}
+      
+      const eventId = reservation?.gcal_event_id || internalNotes.gcal_event_id || reservation?.metadata?.google_calendar_event_id
+      const calendarIdForDelete = reservation?.calendar_id || internalNotes.calendar_id || reservation?.metadata?.google_calendar_id || getCalendarForAppointment(reservation)
 
       if (eventId && calendarIdForDelete) {
         const deleteResponse = await fetch(
@@ -520,12 +570,13 @@ serve(async (req) => {
         await supabaseClient
           .from('appointments')
           .update({
-            gcal_event_id: null,
-            synced_to_gcal: false,
-            metadata: {
-              ...(reservation?.metadata || {}),
-              google_calendar_event_id: null,
-            },
+            gcal_event_id: null, // ✅ Columna directa
+            calendar_id: null, // ✅ Columna directa
+            synced_to_gcal: false, // ✅ Columna directa (BOOLEAN)
+            internal_notes: {
+              ...(internalNotes || {}),
+              gcal_event_id: null,
+            }, // ✅ JSONB - Supabase lo maneja automáticamente
           })
           .eq('id', reservation_id)
       }

@@ -138,7 +138,23 @@ serve(async (req) => {
       // Classify events: return safe and doubtful events from all selected calendars
       // ✅ Envolver en try-catch para asegurar que siempre devolvamos una respuesta
       try {
-        const { safe, doubtful, timedEvents } = await classifyGoogleCalendarEvents(accessToken, calendarIds)
+        // ✅ Obtener configuración de días de anticipación máxima del negocio
+        const { data: businessData, error: businessError } = await supabaseClient
+          .from('businesses')
+          .select('settings')
+          .eq('id', business_id)
+          .single()
+        
+        const advanceBookingDays = businessData?.settings?.booking_settings?.advance_booking_days || 90
+        console.log(`📅 Días de anticipación máxima configurados: ${advanceBookingDays}`)
+        
+        const { safe, doubtful, timedEvents } = await classifyGoogleCalendarEvents(
+          accessToken, 
+          calendarIds, 
+          business_id,
+          supabaseClient,
+          advanceBookingDays
+        )
         
         return new Response(
           JSON.stringify({
@@ -268,10 +284,28 @@ serve(async (req) => {
  * Classify Google Calendar events into safe and doubtful from multiple calendars
  * Also separates events with time (to be imported as appointments)
  */
-async function classifyGoogleCalendarEvents(accessToken: string, calendarIds: string[]) {
-  // Get events from last 90 days and next 90 days
-  const timeMin = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
-  const timeMax = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+async function classifyGoogleCalendarEvents(
+  accessToken: string, 
+  calendarIds: string[],
+  businessId: string,
+  supabaseClient: any,
+  advanceBookingDays: number = 90
+) {
+  // ✅ Solo obtener eventos FUTUROS (desde mañana en adelante)
+  // Calcular mañana a las 00:00:00 en la zona horaria local
+  const now = new Date()
+  const tomorrow = new Date(now)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+  tomorrow.setHours(0, 0, 0, 0) // Mañana a las 00:00:00
+  
+  // ✅ Calcular timeMax usando la configuración del negocio (advance_booking_days)
+  const maxDate = new Date(tomorrow)
+  maxDate.setDate(maxDate.getDate() + advanceBookingDays) // Mañana + días de anticipación máxima
+  
+  const timeMin = tomorrow.toISOString()
+  const timeMax = maxDate.toISOString()
+  
+  console.log(`📅 Filtrando eventos: Solo desde mañana (${tomorrow.toISOString()}) hasta ${timeMax} (${advanceBookingDays} días de anticipación máxima)`)
 
   const safe: any[] = [] // Eventos de todo el día seguros
   const doubtful: any[] = [] // Eventos de todo el día dudosos
@@ -357,6 +391,34 @@ async function classifyGoogleCalendarEvents(accessToken: string, calendarIds: st
       for (const event of items || []) {
         const isAllDay = !!event.start.date
         const hasTime = !!event.start.dateTime
+
+        // ✅ Filtrar eventos pasados o de hoy (solo eventos futuros desde mañana)
+        let eventDate: Date | null = null
+        if (hasTime && event.start.dateTime) {
+          eventDate = new Date(event.start.dateTime)
+        } else if (isAllDay && event.start.date) {
+          // Para eventos de todo el día, usar la fecha como inicio del día
+          eventDate = new Date(event.start.date + 'T00:00:00')
+        }
+        
+        if (eventDate) {
+          // Comparar solo la fecha (sin hora) para eventos de todo el día
+          const eventDateOnly = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate())
+          const tomorrowDateOnly = new Date(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate())
+          const maxDateOnly = new Date(maxDate.getFullYear(), maxDate.getMonth(), maxDate.getDate())
+          
+          // ✅ Filtrar eventos pasados o de hoy
+          if (eventDateOnly < tomorrowDateOnly) {
+            console.log(`  ⏭️ Evento pasado o de hoy omitido: "${event.summary}" - Fecha: ${eventDate.toISOString()}`)
+            continue // Omitir eventos pasados o de hoy
+          }
+          
+          // ✅ Filtrar eventos más allá del límite de anticipación máxima
+          if (eventDateOnly > maxDateOnly) {
+            console.log(`  ⏭️ Evento más allá del límite (${advanceBookingDays} días) omitido: "${event.summary}" - Fecha: ${eventDate.toISOString()}`)
+            continue // Omitir eventos más allá del límite configurado
+          }
+        }
 
         // ✅ Separar eventos con hora (se importarán como appointments bloqueados)
         if (hasTime && !isAllDay) {
@@ -1077,12 +1139,34 @@ async function importEventsToAppointments(
       console.log(`  📋 Información extraída del evento:`, eventInfo)
 
       // ✅ Verificar si ya existe un appointment con este gcal_event_id
-      const { data: existing, error: checkError } = await supabaseClient
+      // Buscar tanto en columna directa como en internal_notes (JSONB)
+      const { data: existingByColumn, error: checkError1 } = await supabaseClient
         .from('appointments')
         .select('id')
         .eq('business_id', businessId)
         .eq('gcal_event_id', event.id)
         .maybeSingle()
+      
+      // Si no se encuentra en columna directa, buscar en internal_notes (JSONB)
+      let existing = existingByColumn
+      if (!existing && !checkError1) {
+        const { data: existingByNotes, error: checkError2 } = await supabaseClient
+          .from('appointments')
+          .select('id, internal_notes')
+          .eq('business_id', businessId)
+          .maybeSingle()
+        
+        if (!checkError2 && existingByNotes?.internal_notes) {
+          const notes = typeof existingByNotes.internal_notes === 'string' 
+            ? JSON.parse(existingByNotes.internal_notes) 
+            : existingByNotes.internal_notes
+          if (notes?.gcal_event_id === event.id) {
+            existing = existingByNotes
+          }
+        }
+      }
+      
+      const checkError = checkError1
 
       if (checkError) {
         console.error(`❌ Error verificando existencia para gcal_event_id ${event.id}:`, checkError)
@@ -1104,28 +1188,34 @@ async function importEventsToAppointments(
       }
 
       // ✅ Construir appointmentData con SOLO las columnas que existen
+      // ✅ SIEMPRE usar "Cliente de Google Calendar" como customer_name
+      // ✅ Guardar información extraída del evento en notes e internal_notes
       const appointmentData = {
         business_id: businessId,
         customer_id: genericCustomerId, // ✅ NOT NULL - usar cliente genérico
         service_id: genericServiceId, // ✅ NOT NULL - usar servicio genérico
         resource_id: resourceId, // ✅ NULLABLE
         employee_id: employeeId, // ✅ NULLABLE - asignar empleado desde mapeo de calendario
-        customer_name: eventInfo.customer_name || 'Cliente de Google Calendar', // ✅ NOT NULL
-        customer_email: eventInfo.customer_email || null, // ✅ NULLABLE
-        customer_phone: eventInfo.customer_phone || null, // ✅ NULLABLE
+        customer_name: 'Cliente de Google Calendar', // ✅ NOT NULL - SIEMPRE este nombre
+        customer_email: null, // ✅ NULLABLE - no guardar email aquí, está en internal_notes
+        customer_phone: null, // ✅ NULLABLE - no guardar teléfono aquí, está en internal_notes
         appointment_date: localAppointmentDate, // ✅ NOT NULL - Fecha LOCAL (no UTC)
         appointment_time: localAppointmentTime, // ✅ NOT NULL - Hora LOCAL (no UTC)
         duration_minutes: durationMinutes, // ✅ NOT NULL
         end_time: localEndTime, // ✅ NULLABLE - Hora LOCAL de fin
         status: event.status === 'cancelled' ? 'cancelled' : 'blocked', // ✅ NULLABLE (default 'confirmed')
         source: 'google_calendar', // ✅ NULLABLE
-        notes: eventInfo.notes || event.summary || 'Evento bloqueado de Google Calendar', // ✅ NULLABLE
-        internal_notes: JSON.stringify({
+        notes: eventInfo.notes || event.summary || 'Evento bloqueado de Google Calendar', // ✅ NULLABLE - descripción del evento
+        internal_notes: {
           requires_manual_assignment: !employeeId && !!resourceId,
           import_source: 'google_calendar',
           original_summary: event.summary,
           original_description: event.description || null,
-        }), // ✅ NULLABLE
+          // ✅ Guardar información extraída del evento aquí
+          extracted_customer_name: eventInfo.customer_name || null,
+          extracted_customer_email: eventInfo.customer_email || null,
+          extracted_customer_phone: eventInfo.customer_phone || null,
+        }, // ✅ JSONB - Supabase lo maneja automáticamente, no necesita JSON.stringify()
         gcal_event_id: event.id, // ✅ NULLABLE - ID del evento en Google Calendar
         calendar_id: event.calendar_id || null, // ✅ NULLABLE - ID del calendario
         created_at: new Date().toISOString(), // ✅ NOT NULL (default now())
@@ -1190,7 +1280,7 @@ async function importEventsToAppointments(
             resource_id: resourceId,
             appointment_date: localAppointmentDate,
             appointment_time: localAppointmentTime,
-            customer_name: eventInfo.customer_name || 'Cliente de Google Calendar',
+            customer_name: 'Cliente de Google Calendar', // ✅ SIEMPRE este nombre
             summary: event.summary || 'Sin título',
           })
         }

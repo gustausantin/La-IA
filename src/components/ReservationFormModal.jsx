@@ -264,7 +264,14 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
             
             // ✅ 4. Sincronizar con Google Calendar (push)
             try {
-                const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                console.log('🔄 Sincronizando reserva con Google Calendar...', {
+                    reservation_id: reservation.id,
+                    employee_id: reservation.employee_id,
+                    resource_id: reservation.resource_id,
+                    status: reservation.status
+                });
+                
+                const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
                     body: {
                         business_id: businessId,
                         action: 'push',
@@ -273,13 +280,20 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                 });
                 
                 if (syncError) {
-                    console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
-                    // No bloquear la creación si falla la sincronización
+                    console.error('❌ Error sincronizando con Google Calendar:', syncError);
+                    console.error('Error details:', syncError.message, syncError.context);
+                    toast.error('⚠️ Error sincronizando con Google Calendar. La reserva se creó pero no aparecerá en Google Calendar.', { duration: 6000 });
                 } else {
-                    console.log('✅ Reserva sincronizada con Google Calendar');
+                    console.log('✅ Reserva sincronizada con Google Calendar:', syncData);
+                    if (syncData?.skipped) {
+                        toast.warning(`⚠️ Reserva creada pero no sincronizada: ${syncData.message || 'No hay calendario mapeado para este trabajador'}`, { duration: 6000 });
+                    } else {
+                        toast.success('✅ Reserva sincronizada con Google Calendar', { duration: 3000 });
+                    }
                 }
             } catch (syncError) {
-                console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                console.error('❌ Error en catch de sincronización con Google Calendar:', syncError);
+                toast.error('⚠️ Error en sincronización con Google Calendar', { duration: 5000 });
                 // Continuar de todas formas
             }
             
