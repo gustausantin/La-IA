@@ -38,7 +38,8 @@ export const ReservationDetailsModal = ({ reservation, onClose, onEdit, isOpen }
     pending: { label: 'Pendiente', color: 'bg-yellow-100 text-yellow-800 border-yellow-300' },
     cancelled: { label: 'Cancelada', color: 'bg-red-100 text-red-800 border-red-300' },
     completed: { label: 'Completada', color: 'bg-blue-100 text-blue-800 border-blue-300' },
-    no_show: { label: 'No Show', color: 'bg-orange-100 text-orange-800 border-orange-300' }
+    no_show: { label: 'No Show', color: 'bg-orange-100 text-orange-800 border-orange-300' },
+    blocked: { label: 'Bloqueado', color: 'bg-gray-100 text-gray-800 border-gray-300' } // ✅ Agregado para eventos de Google Calendar
   };
 
   const status = statusConfig[reservation.status] || statusConfig.confirmed;
@@ -187,6 +188,60 @@ export const ReservationDetailsModal = ({ reservation, onClose, onEdit, isOpen }
                 </div>
               </div>
             </div>
+
+            {/* ✅ Información de Google Calendar */}
+            {reservation.gcal_event_id && (
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-blue-600" />
+                  Información de Google Calendar
+                </h3>
+                <div className="bg-blue-50 rounded-xl p-4 space-y-3">
+                  {(() => {
+                    // ✅ Extraer información de internal_notes si existe
+                    let gcalInfo = null;
+                    try {
+                      if (reservation.internal_notes) {
+                        const parsed = typeof reservation.internal_notes === 'string' 
+                          ? JSON.parse(reservation.internal_notes) 
+                          : reservation.internal_notes;
+                        if (parsed.original_summary || parsed.original_description) {
+                          gcalInfo = parsed;
+                        }
+                      }
+                    } catch (e) {
+                      console.error('Error parseando internal_notes:', e);
+                    }
+                    
+                    // ✅ Usar notes como fallback si tiene información de Google Calendar
+                    const hasGcalInfo = gcalInfo || (reservation.notes && reservation.source === 'google_calendar');
+                    
+                    return (
+                      <>
+                        {gcalInfo?.original_summary && (
+                          <div>
+                            <p className="text-sm text-gray-600 font-medium mb-1">Título Original</p>
+                            <p className="font-semibold text-gray-900">{gcalInfo.original_summary}</p>
+                          </div>
+                        )}
+                        {(gcalInfo?.original_description || (hasGcalInfo && reservation.notes)) && (
+                          <div>
+                            <p className="text-sm text-gray-600 font-medium mb-1">Descripción</p>
+                            <p className="text-gray-900 whitespace-pre-wrap">{gcalInfo?.original_description || reservation.notes}</p>
+                          </div>
+                        )}
+                        {!gcalInfo?.original_summary && !gcalInfo?.original_description && reservation.notes && (
+                          <div>
+                            <p className="text-sm text-gray-600 font-medium mb-1">Notas</p>
+                            <p className="text-gray-900 whitespace-pre-wrap">{reservation.notes}</p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
 
             {/* Peticiones Especiales */}
             {reservation.special_requests && (

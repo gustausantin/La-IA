@@ -1551,16 +1551,25 @@ function VistaDia({
                                         }}
                                     >
                                         {reservasEnHora.map(reserva => {
-                                            // 🎨 COLORES: Para eventos bloqueados, usar color del empleado
+                                            // 🎨 COLORES: Usar color del empleado SIEMPRE (no solo para bloqueados)
                                             let colors = STATUS_COLORS[reserva.status] || STATUS_COLORS.confirmed;
                                             
-                                            // 🎨 COLOR DEL EMPLEADO: Para eventos bloqueados, usar color del empleado
+                                            // 🎨 COLOR DEL EMPLEADO: Buscar el empleado asignado (employee_id o resource_id)
                                             let employeeColor = null;
-                                            if (reserva.status === 'blocked' && reserva.employee_id) {
+                                            const employeeId = reserva.employee_id || reserva.resource_id;
+                                            if (employeeId) {
                                                 // Buscar el empleado para obtener su color
-                                                const empleado = resources.find(r => r.id === reserva.employee_id);
+                                                const empleado = resources.find(r => r.id === employeeId);
                                                 if (empleado && empleado.color) {
                                                     employeeColor = empleado.color;
+                                                }
+                                            }
+                                            
+                                            // ✅ Si estamos arrastrando y hay un dragOverSlot, usar el color del recurso destino
+                                            if (draggingReservation?.id === reserva.id && dragOverSlot?.recursoId) {
+                                                const recursoDestino = resources.find(r => r.id === dragOverSlot.recursoId);
+                                                if (recursoDestino && recursoDestino.color) {
+                                                    employeeColor = recursoDestino.color;
                                                 }
                                             }
                                             
@@ -1635,12 +1644,37 @@ function VistaDia({
                                                                     </div>
                                                                 )}
                                                             </div>
-                                                            {/* Línea 2: Servicio compacto */}
-                                                            {reserva.service_name && (
+                                                            {/* Línea 2: Servicio compacto O información de Google Calendar */}
+                                                            {reserva.service_name ? (
                                                                 <p className="text-[10px] text-gray-700 truncate mb-0.5 font-medium leading-none">
                                                                     ✂️ {reserva.service_name}
                                                                 </p>
-                                                            )}
+                                                            ) : (() => {
+                                                                // ✅ Mostrar información de Google Calendar si no hay servicio
+                                                                let gcalInfo = null;
+                                                                try {
+                                                                    if (reserva.internal_notes) {
+                                                                        const parsed = typeof reserva.internal_notes === 'string' 
+                                                                            ? JSON.parse(reserva.internal_notes) 
+                                                                            : reserva.internal_notes;
+                                                                        if (parsed.original_summary || parsed.original_description) {
+                                                                            gcalInfo = parsed;
+                                                                        }
+                                                                    }
+                                                                } catch (e) {
+                                                                    // Ignorar errores de parseo
+                                                                }
+                                                                
+                                                                const displayText = gcalInfo?.original_summary || reserva.notes || reserva.customer_name;
+                                                                if (displayText && displayText !== reserva.customer_name) {
+                                                                    return (
+                                                                        <p className="text-[10px] text-gray-700 truncate mb-0.5 font-medium leading-none">
+                                                                            📅 {displayText}
+                                                                        </p>
+                                                                    );
+                                                                }
+                                                                return null;
+                                                            })()}
                                                             {/* Línea 3: Rango de Horas + Duración */}
                                                             <div className="flex items-center justify-between text-[10px]">
                                                                 <div className="flex items-center gap-0.5 text-gray-700 font-bold">
@@ -1870,6 +1904,25 @@ function VistaDia({
                                                 {reservaQueEmpiezaAqui && (
                                                     (() => {
                                                         const colors = STATUS_COLORS[reservaQueEmpiezaAqui.status] || STATUS_COLORS.confirmed;
+                                                        
+                                                        // 🎨 COLOR DEL EMPLEADO: Buscar el empleado asignado (employee_id o resource_id)
+                                                        let employeeColor = null;
+                                                        const employeeId = reservaQueEmpiezaAqui.employee_id || reservaQueEmpiezaAqui.resource_id;
+                                                        if (employeeId) {
+                                                            const empleado = resources.find(r => r.id === employeeId);
+                                                            if (empleado && empleado.color) {
+                                                                employeeColor = empleado.color;
+                                                            }
+                                                        }
+                                                        
+                                                        // ✅ Si estamos arrastrando y hay un dragOverSlot, usar el color del recurso destino
+                                                        if (draggingReservation?.id === reservaQueEmpiezaAqui.id && dragOverSlot?.recursoId) {
+                                                            const recursoDestino = resources.find(r => r.id === dragOverSlot.recursoId);
+                                                            if (recursoDestino && recursoDestino.color) {
+                                                                employeeColor = recursoDestino.color;
+                                                            }
+                                                        }
+                                                        
                                                         const isDragging = draggingReservation?.id === reservaQueEmpiezaAqui.id;
                                                         const statusIcon = getStatusIcon(reservaQueEmpiezaAqui);
                                                         const duracionMinutos = calcularDuracionReserva(reservaQueEmpiezaAqui);
@@ -1892,7 +1945,7 @@ function VistaDia({
                                                                     const timeStr = `${hora.toString().padStart(2, '0')}:${minuto}`;
                                                                     onCellClick(recurso, fechaStr, timeStr, reservaQueEmpiezaAqui, null);
                                                                 }}
-                                                                className={`${colors.bg} ${colors.border} ${colors.bgHover} rounded-lg shadow-md transition-all ${
+                                                                className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} ${employeeColor ? '' : colors.bgHover} rounded-lg shadow-md transition-all ${
                                                                     reservaQueEmpiezaAqui.status === 'no_show' ? 'opacity-50 line-through' : ''
                                                                 } ${
                                                                     isDragging ? 'opacity-50 scale-95 rotate-2 cursor-grabbing' : 'hover:shadow-lg hover:scale-105 hover:-translate-y-0.5 cursor-grab'
@@ -1906,7 +1959,22 @@ function VistaDia({
                                                                     padding: duracionMinutos <= 30 ? '2px 4px' : '4px 6px',
                                                                     zIndex: 20,
                                                                     pointerEvents: 'auto',
-                                                                    boxSizing: 'border-box'
+                                                                    boxSizing: 'border-box',
+                                                                    // 🎨 Aplicar color del empleado
+                                                                    ...(employeeColor ? {
+                                                                        backgroundColor: `${employeeColor}20`, // 20% de opacidad
+                                                                        borderLeft: `5px solid ${employeeColor}`,
+                                                                    } : {})
+                                                                }}
+                                                                onMouseEnter={(e) => {
+                                                                    if (employeeColor) {
+                                                                        e.currentTarget.style.backgroundColor = `${employeeColor}30`;
+                                                                    }
+                                                                }}
+                                                                onMouseLeave={(e) => {
+                                                                    if (employeeColor) {
+                                                                        e.currentTarget.style.backgroundColor = `${employeeColor}20`;
+                                                                    }
                                                                 }}
                                                             >
                                                                 {/* 🎨 DISEÑO ADAPTATIVO según duración */}
@@ -1924,12 +1992,37 @@ function VistaDia({
                                                                                 </div>
                                                                             )}
                                                                         </div>
-                                                                        {/* Línea 2: Servicio compacto */}
-                                                                        {reservaQueEmpiezaAqui.service_name && (
+                                                                        {/* Línea 2: Servicio compacto O información de Google Calendar */}
+                                                                        {reservaQueEmpiezaAqui.service_name ? (
                                                                             <p className="text-[10px] text-gray-700 truncate mb-0.5 font-medium leading-none">
                                                                                 ✂️ {reservaQueEmpiezaAqui.service_name}
                                                                             </p>
-                                                                        )}
+                                                                        ) : (() => {
+                                                                            // ✅ Mostrar información de Google Calendar si no hay servicio
+                                                                            let gcalInfo = null;
+                                                                            try {
+                                                                                if (reservaQueEmpiezaAqui.internal_notes) {
+                                                                                    const parsed = typeof reservaQueEmpiezaAqui.internal_notes === 'string' 
+                                                                                        ? JSON.parse(reservaQueEmpiezaAqui.internal_notes) 
+                                                                                        : reservaQueEmpiezaAqui.internal_notes;
+                                                                                    if (parsed.original_summary || parsed.original_description) {
+                                                                                        gcalInfo = parsed;
+                                                                                    }
+                                                                                }
+                                                                            } catch (e) {
+                                                                                // Ignorar errores de parseo
+                                                                            }
+                                                                            
+                                                                            const displayText = gcalInfo?.original_summary || reservaQueEmpiezaAqui.notes || reservaQueEmpiezaAqui.customer_name;
+                                                                            if (displayText && displayText !== reservaQueEmpiezaAqui.customer_name) {
+                                                                                return (
+                                                                                    <p className="text-[10px] text-gray-700 truncate mb-0.5 font-medium leading-none">
+                                                                                        📅 {displayText}
+                                                                                    </p>
+                                                                                );
+                                                                            }
+                                                                            return null;
+                                                                        })()}
                                                                         {/* Línea 3: Rango de Horas + Duración */}
                                                                         <div className="flex items-center justify-between text-[10px]">
                                                                             <div className="flex items-center gap-0.5 text-gray-700 font-bold">
@@ -1960,12 +2053,37 @@ function VistaDia({
                                                                             )}
                                                                         </div>
                                                                         
-                                                                        {/* Línea 2: Servicio */}
-                                                                        {reservaQueEmpiezaAqui.service_name && (
+                                                                        {/* Línea 2: Servicio O información de Google Calendar */}
+                                                                        {reservaQueEmpiezaAqui.service_name ? (
                                                                             <p className="text-xs text-gray-700 truncate mb-1 font-medium leading-snug">
                                                                                 ✂️ {reservaQueEmpiezaAqui.service_name}
                                                                             </p>
-                                                                        )}
+                                                                        ) : (() => {
+                                                                            // ✅ Mostrar información de Google Calendar si no hay servicio
+                                                                            let gcalInfo = null;
+                                                                            try {
+                                                                                if (reservaQueEmpiezaAqui.internal_notes) {
+                                                                                    const parsed = typeof reservaQueEmpiezaAqui.internal_notes === 'string' 
+                                                                                        ? JSON.parse(reservaQueEmpiezaAqui.internal_notes) 
+                                                                                        : reservaQueEmpiezaAqui.internal_notes;
+                                                                                    if (parsed.original_summary || parsed.original_description) {
+                                                                                        gcalInfo = parsed;
+                                                                                    }
+                                                                                }
+                                                                            } catch (e) {
+                                                                                // Ignorar errores de parseo
+                                                                            }
+                                                                            
+                                                                            const displayText = gcalInfo?.original_summary || reservaQueEmpiezaAqui.notes || reservaQueEmpiezaAqui.customer_name;
+                                                                            if (displayText && displayText !== reservaQueEmpiezaAqui.customer_name) {
+                                                                                return (
+                                                                                    <p className="text-xs text-gray-700 truncate mb-1 font-medium leading-snug">
+                                                                                        📅 {displayText}
+                                                                                    </p>
+                                                                                );
+                                                                            }
+                                                                            return null;
+                                                                        })()}
                                                                         
                                                                         {/* Línea 3: Rango de Horas + Duración */}
                                                                         <div className="flex items-center justify-between text-xs">

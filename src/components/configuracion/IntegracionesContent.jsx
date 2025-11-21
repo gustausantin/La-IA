@@ -57,6 +57,26 @@ export default function IntegracionesContent() {
             const timeoutId = setTimeout(async () => {
                 await loadIntegrationsConfig();
                 
+                // ✅ Configurar notificaciones push automáticas (webhooks)
+                try {
+                    console.log('🔔 Configurando notificaciones push de Google Calendar...');
+                    const { error: watchError } = await supabase.functions.invoke('setup-google-calendar-watch', {
+                        body: {
+                            business_id: businessId
+                        }
+                    });
+                    
+                    if (watchError) {
+                        console.warn('⚠️ Error configurando watch (se puede configurar manualmente después):', watchError);
+                        // No bloquear el flujo si falla el watch
+                    } else {
+                        console.log('✅ Notificaciones push configuradas - Los cambios en Google Calendar se sincronizarán automáticamente');
+                    }
+                } catch (watchError) {
+                    console.warn('⚠️ Error configurando watch:', watchError);
+                    // Continuar de todas formas
+                }
+                
                 // ✅ Limpiar parámetros OAuth pero PRESERVAR tab=canales
                 const url = new URL(window.location.href);
                 url.searchParams.delete('integration');

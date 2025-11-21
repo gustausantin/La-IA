@@ -1450,7 +1450,10 @@ export default function Reservas() {
             };
 
             if (newResourceId && newResourceId !== 'default') {
-                    updates.resource_id = newResourceId;
+                // ✅ En el calendario, newResourceId es directamente el employee_id
+                // Actualizar tanto resource_id como employee_id
+                updates.resource_id = newResourceId;
+                updates.employee_id = newResourceId; // ✅ El recurso en el calendario ES el empleado
             }
 
             const { error } = await supabase
@@ -1459,6 +1462,27 @@ export default function Reservas() {
                 .eq('id', reserva.id);
 
             if (error) throw error;
+
+            // ✅ Sincronizar con Google Calendar después de mover
+            try {
+                const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                    body: {
+                        business_id: businessId,
+                        action: 'update',
+                        reservation_id: reserva.id
+                    }
+                });
+                
+                if (syncError) {
+                    console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
+                    // No bloquear la operación si falla la sincronización
+                } else {
+                    console.log('✅ Reserva actualizada en Google Calendar');
+                }
+            } catch (syncError) {
+                console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                // Continuar de todas formas
+            }
 
             toast.success(`✅ Reserva movida a ${format(parseISO(newDate), "dd/MM")} ${newTime.substring(0, 5)}`);
             await loadReservations();
@@ -1995,6 +2019,27 @@ export default function Reservas() {
 
             if (updateError) throw updateError;
 
+            // ✅ Sincronizar con Google Calendar después de cancelar
+            try {
+                const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                    body: {
+                        business_id: businessId,
+                        action: 'update',
+                        reservation_id: reservation.id
+                    }
+                });
+                
+                if (syncError) {
+                    console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
+                    // No bloquear la operación si falla la sincronización
+                } else {
+                    console.log('✅ Reserva cancelada en Google Calendar');
+                }
+            } catch (syncError) {
+                console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                // Continuar de todas formas
+            }
+
             // 2️⃣ LIBERAR SLOTS asociados (igual que eliminar)
             const { error: slotError } = await supabase
                 .from('availability_slots')
@@ -2038,6 +2083,27 @@ export default function Reservas() {
                 .eq('id', reservation.id);
 
             if (updateError) throw updateError;
+
+            // ✅ Sincronizar con Google Calendar después de eliminar
+            try {
+                const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                    body: {
+                        business_id: businessId,
+                        action: 'delete',
+                        reservation_id: reservation.id
+                    }
+                });
+                
+                if (syncError) {
+                    console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
+                    // No bloquear la operación si falla la sincronización
+                } else {
+                    console.log('✅ Reserva eliminada de Google Calendar');
+                }
+            } catch (syncError) {
+                console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                // Continuar de todas formas
+            }
 
             // 2️⃣ LIBERAR SLOTS asociados
             const { error: slotError } = await supabase
@@ -2159,6 +2225,25 @@ export default function Reservas() {
 
                         if (error) throw error;
 
+                        // ✅ Sincronizar con Google Calendar después de rechazar
+                        try {
+                            const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                                body: {
+                                    business_id: businessId,
+                                    action: 'update',
+                                    reservation_id: reservation.id
+                                }
+                            });
+                            
+                            if (syncError) {
+                                console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
+                            } else {
+                                console.log('✅ Reserva rechazada en Google Calendar');
+                            }
+                        } catch (syncError) {
+                            console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                        }
+
                         toast.success("Reserva rechazada - Cliente notificado");
                         loadReservations();
                         return;
@@ -2186,6 +2271,27 @@ export default function Reservas() {
                     .single();
 
                 if (error) throw error;
+
+                // ✅ Sincronizar con Google Calendar después de cambiar estado
+                try {
+                    const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                        body: {
+                            business_id: businessId,
+                            action: 'update',
+                            reservation_id: reservation.id
+                        }
+                    });
+                    
+                    if (syncError) {
+                        console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
+                        // No bloquear la operación si falla la sincronización
+                    } else {
+                        console.log('✅ Estado de reserva actualizado en Google Calendar');
+                    }
+                } catch (syncError) {
+                    console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                    // Continuar de todas formas
+                }
                 
                 // 📧 ENVIAR MENSAJE CRM AUTOMÁTICO PARA NO-SHOWS
                 if (action === "noshow") {
