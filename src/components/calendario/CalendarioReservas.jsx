@@ -1097,21 +1097,44 @@ function VistaDia({
     // Las reservas "no_show" se muestran pero con estilo diferente (tachadas/opacidad)
     // ⚠️ IMPORTANTE: Usar reservations (que ya viene filtrado desde el componente padre)
     const reservasDelDia = reservations.filter(r => {
-        const fechaReserva = r.reservation_date || r.appointment_date;
+        // ✅ Normalizar fecha: puede venir como reservation_date o appointment_date
+        let fechaReserva = r.reservation_date || r.appointment_date;
+        
+        // ✅ Si la fecha viene como objeto Date, convertir a string
+        if (fechaReserva instanceof Date) {
+            fechaReserva = format(fechaReserva, 'yyyy-MM-dd');
+        }
+        
+        // ✅ Si viene como string pero con formato diferente, normalizar
+        if (typeof fechaReserva === 'string') {
+            // Si tiene hora incluida (ej: "2025-11-19T09:00:00"), extraer solo la fecha
+            if (fechaReserva.includes('T')) {
+                fechaReserva = fechaReserva.split('T')[0];
+            }
+            // Si tiene espacios, tomar solo la parte de fecha
+            if (fechaReserva.includes(' ')) {
+                fechaReserva = fechaReserva.split(' ')[0];
+            }
+        }
+        
         const coincideFecha = fechaReserva === fechaStr;
         const noEstaCancelada = r.status !== 'cancelled'; // Solo ocultar canceladas
         
-        if (!coincideFecha && noEstaCancelada) {
-            // Log solo para reservas que deberían mostrarse pero no coinciden fecha
-            console.log('⚠️ Reserva no mostrada (fecha diferente):', {
+        // ✅ Incluir eventos 'blocked' de Google Calendar
+        const esValida = coincideFecha && noEstaCancelada;
+        
+        if (!coincideFecha && noEstaCancelada && r.status === 'blocked') {
+            // Log específico para eventos bloqueados que no coinciden fecha
+            console.log('⚠️ Evento bloqueado no mostrado (fecha diferente):', {
                 customer: r.customer_name,
                 fechaReserva,
                 fechaMostrada: fechaStr,
-                status: r.status
+                status: r.status,
+                gcal_event_id: r.gcal_event_id
             });
         }
         
-        return coincideFecha && noEstaCancelada;
+        return esValida;
     });
     
     // 🔍 DIAGNÓSTICO: Log de reservas filtradas
@@ -1410,10 +1433,13 @@ function VistaDia({
                                     const tiempoActual = hora * 60 + minuto - 15;
                                     
                                     return reservasDelDia.some(r => {
-                                        // ✅ FILTRAR POR RECURSO
-                                        if (r.resource_id !== recurso.id) return false;
+                                        // ✅ FILTRAR POR RECURSO O EMPLEADO (para eventos bloqueados de Google Calendar)
+                                        const coincideRecurso = r.resource_id === recurso.id || 
+                                                               r.employee_id === recurso.id ||
+                                                               (r.status === 'blocked' && r.employee_id === recurso.id);
+                                        if (!coincideRecurso) return false;
                                         
-                                        const [horaRes, minRes] = (r.reservation_time || '00:00').split(':').map(Number);
+                                        const [horaRes, minRes] = (r.reservation_time || r.appointment_time || '00:00').split(':').map(Number);
                                         const tiempoInicio = horaRes * 60 + minRes;
                                         const duracion = calcularDuracionReserva(r);
                                         const tiempoFin = tiempoInicio + duracion;
@@ -1428,7 +1454,12 @@ function VistaDia({
                                 // Ejemplo: Fila 17:00 → busca BD 16:45
                                 // Resultado: Reserva de 16:45 aparece en su slot correcto
                                 const reservasEnHora = reservasDelDia.filter(r => {
-                                    if (r.resource_id !== recurso.id) return false;
+                                    // ✅ Filtrar por resource_id O employee_id (para eventos bloqueados de Google Calendar)
+                                    const coincideRecurso = r.resource_id === recurso.id || 
+                                                           r.employee_id === recurso.id ||
+                                                           (r.status === 'blocked' && r.employee_id === recurso.id);
+                                    if (!coincideRecurso) return false;
+                                    
                                     const timeStr = r.reservation_time || r.appointment_time || '00:00';
                                     const [horaReserva, minReserva] = timeStr.split(':').map(Number);
                                     return horaReserva === (hora - 1) && minReserva === 45;
@@ -1718,7 +1749,11 @@ function VistaDia({
                                         
                                         const reservaEnEsteCelda = reservasDelDia.find(r => {
                                             // ✅ FILTRAR POR RECURSO/EMPLEADO
-                                            if (r.resource_id !== recurso.id) return false;
+                                            // ✅ Filtrar por resource_id O employee_id (para eventos bloqueados de Google Calendar)
+                                            const coincideRecurso = r.resource_id === recurso.id || 
+                                                                   r.employee_id === recurso.id ||
+                                                                   (r.status === 'blocked' && r.employee_id === recurso.id);
+                                            if (!coincideRecurso) return false;
                                             
                                             const [horaRes, minRes] = (r.reservation_time || '00:00').split(':').map(Number);
                                             const tiempoInicio = horaRes * 60 + minRes;
@@ -1779,7 +1814,11 @@ function VistaDia({
                                         }
                                         
                                         const reservaQueEmpiezaAqui = reservasDelDia.find(r => {
-                                            if (r.resource_id !== recurso.id) return false;
+                                            // ✅ Filtrar por resource_id O employee_id (para eventos bloqueados de Google Calendar)
+                                            const coincideRecurso = r.resource_id === recurso.id || 
+                                                                   r.employee_id === recurso.id ||
+                                                                   (r.status === 'blocked' && r.employee_id === recurso.id);
+                                            if (!coincideRecurso) return false;
                                             const timeStr = r.reservation_time || r.appointment_time || '00:00';
                                             const [horaRes, minRes] = timeStr.split(':').map(Number);
                                             return horaRes === horaABuscar && minRes === minutoABuscar;

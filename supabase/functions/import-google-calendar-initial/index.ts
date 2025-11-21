@@ -849,6 +849,68 @@ async function getEmployeeForResourceByTime(
   }
 }
 
+/**
+ * ✅ PARSEAR ISO STRING directamente sin conversión UTC
+ * Evita el problema de zona horaria (1 hora de diferencia)
+ */
+function parseISODateTime(isoString: string | null | undefined) {
+  // ✅ Validar que el string existe y no está vacío
+  if (!isoString || typeof isoString !== 'string') {
+    throw new Error(`parseISODateTime: isoString es inválido: ${isoString}`)
+  }
+
+  // ✅ Extraer solo la parte de fecha/hora sin la zona horaria usando regex
+  // Formato esperado: YYYY-MM-DDTHH:MM:SS[+/-HH:MM] o YYYY-MM-DDTHH:MM:SSZ
+  const dateTimeMatch = isoString.match(/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})/)
+  let dateTimePart: string
+  
+  if (dateTimeMatch && dateTimeMatch[1]) {
+    dateTimePart = dateTimeMatch[1]
+  } else {
+    // Fallback: si el regex no funciona, intentar métodos alternativos
+    if (isoString.endsWith('Z')) {
+      dateTimePart = isoString.slice(0, -1)
+    } else {
+      // Buscar el primer + o - que viene después de la hora (formato: +HH:MM o -HH:MM)
+      const timezonePos = isoString.search(/[+-]\d{2}:\d{2}/)
+      if (timezonePos > 0) {
+        dateTimePart = isoString.substring(0, timezonePos)
+      } else {
+        dateTimePart = isoString
+      }
+    }
+  }
+  
+  // Validar que contiene 'T' para separar fecha y hora
+  if (!dateTimePart || !dateTimePart.includes('T')) {
+    throw new Error(`parseISODateTime: formato inválido, no contiene 'T'. Original: ${isoString}, Procesado: ${dateTimePart}`)
+  }
+
+  const [datePart, timePart] = dateTimePart.split('T')
+  
+  if (!datePart || !timePart) {
+    throw new Error(`parseISODateTime: no se pudo separar fecha y hora. Original: ${isoString}, dateTimePart: ${dateTimePart}`)
+  }
+
+  const [year, month, day] = datePart.split('-').map(Number)
+  
+  if (isNaN(year) || isNaN(month) || isNaN(day)) {
+    throw new Error(`parseISODateTime: fecha inválida: ${datePart} (de ${isoString})`)
+  }
+
+  const timeParts = timePart.split(':')
+  const hours = Number(timeParts[0])
+  const minutes = Number(timeParts[1])
+  // Los segundos pueden venir con decimales (ej: "09:00:00.000"), solo tomar la parte entera
+  const seconds = timeParts[2] ? Number(timeParts[2].split('.')[0]) : 0
+
+  if (isNaN(hours) || isNaN(minutes)) {
+    throw new Error(`parseISODateTime: hora inválida: ${timePart} (de ${isoString})`)
+  }
+
+  return { year, month, day, hours, minutes, seconds }
+}
+
 async function importEventsToAppointments(
   supabaseClient: any,
   businessId: string,
@@ -861,6 +923,64 @@ async function importEventsToAppointments(
   const unassignedAppointments: any[] = [] // ✅ FASE 2: Eventos sin asignar
 
   console.log(`📥 Importando ${events.length} eventos con hora como appointments bloqueados para business_id: ${businessId}`)
+
+  // ✅ Obtener cliente genérico y servicio genérico UNA VEZ (fuera del loop)
+  let genericCustomerId: string | null = null
+  let genericServiceId: string | null = null
+
+  try {
+    // Buscar o crear cliente genérico
+    const { data: existingCustomer } = await supabaseClient
+      .from('customers')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('name', 'Cliente de Google Calendar')
+      .maybeSingle()
+
+    if (existingCustomer) {
+      genericCustomerId = existingCustomer.id
+      console.log(`✅ Cliente genérico encontrado: ${genericCustomerId}`)
+    } else {
+      const { data: newCustomer, error: customerError } = await supabaseClient
+        .from('customers')
+        .insert({
+          business_id: businessId,
+          name: 'Cliente de Google Calendar',
+          email: null,
+          phone: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single()
+
+      if (customerError) {
+        console.error(`❌ Error creando cliente genérico:`, customerError)
+      } else {
+        genericCustomerId = newCustomer.id
+        console.log(`✅ Cliente genérico creado: ${genericCustomerId}`)
+      }
+    }
+
+    // Buscar primer servicio activo
+    const { data: firstService } = await supabaseClient
+      .from('business_services')
+      .select('id')
+      .eq('business_id', businessId)
+      .eq('is_active', true)
+      .order('position_order', { ascending: true })
+      .limit(1)
+      .maybeSingle()
+
+    if (firstService) {
+      genericServiceId = firstService.id
+      console.log(`✅ Servicio genérico encontrado: ${genericServiceId}`)
+    } else {
+      console.warn(`⚠️ No hay servicios activos para business_id ${businessId}`)
+    }
+  } catch (error) {
+    console.error(`❌ Error obteniendo cliente/servicio genérico:`, error)
+  }
 
   for (const event of events) {
     if (!event.selected) {
@@ -875,13 +995,42 @@ async function importEventsToAppointments(
       const endDateTime = event.end?.dateTime
 
       if (!startDateTime || !endDateTime) {
-        console.warn(`⚠️ Evento sin fecha/hora de inicio o fin: ${event.id}`)
+        console.warn(`⚠️ Evento sin fecha/hora de inicio o fin: ${event.id}`, { start: event.start, end: event.end })
         skipped++
         continue
       }
 
+      // ✅ Validar que son strings válidos
+      if (typeof startDateTime !== 'string' || typeof endDateTime !== 'string') {
+        console.warn(`⚠️ Evento con fecha/hora inválida (no es string): ${event.id}`, { 
+          startDateTime: typeof startDateTime, 
+          endDateTime: typeof endDateTime 
+        })
+        skipped++
+        continue
+      }
+
+      // ✅ PARSEAR DIRECTAMENTE sin usar new Date() (evita conversión UTC)
+      let startParsed, endParsed
+      try {
+        startParsed = parseISODateTime(startDateTime)
+        endParsed = parseISODateTime(endDateTime)
+      } catch (parseError) {
+        console.error(`❌ Error parseando fechas para evento ${event.id}:`, parseError)
+        console.error(`  startDateTime: ${startDateTime}, endDateTime: ${endDateTime}`)
+        skipped++
+        continue
+      }
+
+      // Formatear fecha y hora LOCAL (no UTC)
+      const localAppointmentDate = `${startParsed.year}-${String(startParsed.month).padStart(2, '0')}-${String(startParsed.day).padStart(2, '0')}`
+      const localAppointmentTime = `${String(startParsed.hours).padStart(2, '0')}:${String(startParsed.minutes).padStart(2, '0')}:${String(startParsed.seconds).padStart(2, '0')}`
+      const localEndTime = `${String(endParsed.hours).padStart(2, '0')}:${String(endParsed.minutes).padStart(2, '0')}:${String(endParsed.seconds).padStart(2, '0')}`
+
+      // Calcular duración usando Date objects (solo para cálculo)
       const startTime = new Date(startDateTime)
       const endTime = new Date(endDateTime)
+      const durationMinutes = Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60))
 
       // ✅ Determinar resource_id basándose en el mapeo de calendarios
       let resourceId: string | null = null
@@ -909,11 +1058,11 @@ async function importEventsToAppointments(
 
       // ✅ FASE 1: Si tenemos resource_id pero NO employee_id, intentar mapeo inteligente por horario
       if (resourceId && !employeeId) {
-        console.log(`  🔍 Intentando mapeo inteligente: resource_id=${resourceId} a las ${startTime.toISOString()}`)
+        console.log(`  🔍 Intentando mapeo inteligente: resource_id=${resourceId} a las ${localAppointmentTime}`)
         employeeId = await getEmployeeForResourceByTime(
           supabaseClient,
           resourceId,
-          startTime,
+          startTime, // Usar Date object solo para el mapeo
           businessId
         )
         if (employeeId) {
@@ -941,33 +1090,46 @@ async function importEventsToAppointments(
         continue
       }
 
+      // ✅ Validar que tenemos customer_id y service_id (NOT NULL)
+      if (!genericCustomerId) {
+        console.error(`❌ No se pudo obtener cliente genérico para business_id ${businessId}`)
+        skipped++
+        continue
+      }
+
+      if (!genericServiceId) {
+        console.error(`❌ No se pudo obtener servicio genérico para business_id ${businessId}`)
+        skipped++
+        continue
+      }
+
+      // ✅ Construir appointmentData con SOLO las columnas que existen
       const appointmentData = {
         business_id: businessId,
-        resource_id: resourceId,
-        employee_id: employeeId, // ✅ Asignar empleado desde mapeo de calendario
-        customer_id: null, // Se puede crear/encontrar después si hay customer_name/email/phone
-        customer_name: eventInfo.customer_name || null, // ✅ Extraer nombre del evento
-        customer_phone: eventInfo.customer_phone || null, // ✅ Extraer teléfono del evento
-        customer_email: eventInfo.customer_email || null, // ✅ Extraer email del evento
-        service_id: null, // No hay servicio en bloqueos de Google Calendar
-        appointment_date: startTime.toISOString().split('T')[0], // ✅ Fecha de la cita (YYYY-MM-DD)
-        appointment_time: startTime.toISOString().split('T')[1].split('.')[0].substring(0, 8), // ✅ Hora de la cita (HH:MM:SS)
-        start_time: startTime.toISOString(),
-        end_time: endTime.toISOString(),
-        duration_minutes: Math.round((endTime.getTime() - startTime.getTime()) / (1000 * 60)),
-        status: event.status === 'cancelled' ? 'cancelled' : 'blocked', // Estado bloqueado o cancelado
-        source: 'google_calendar',
-        synced_to_gcal: false, // No se sincroniza de vuelta (es bloqueo)
-        gcal_event_id: event.id, // ID del evento en Google Calendar
-        notes: eventInfo.notes || event.summary || 'Evento bloqueado de Google Calendar',
-        // ✅ FASE 1: Marcar si requiere revisión manual (tiene resource_id pero no employee_id)
-        metadata: {
-          requires_manual_assignment: !employeeId && !!resourceId, // Requiere asignación manual si hay recurso pero no trabajador
+        customer_id: genericCustomerId, // ✅ NOT NULL - usar cliente genérico
+        service_id: genericServiceId, // ✅ NOT NULL - usar servicio genérico
+        resource_id: resourceId, // ✅ NULLABLE
+        employee_id: employeeId, // ✅ NULLABLE - asignar empleado desde mapeo de calendario
+        customer_name: eventInfo.customer_name || 'Cliente de Google Calendar', // ✅ NOT NULL
+        customer_email: eventInfo.customer_email || null, // ✅ NULLABLE
+        customer_phone: eventInfo.customer_phone || null, // ✅ NULLABLE
+        appointment_date: localAppointmentDate, // ✅ NOT NULL - Fecha LOCAL (no UTC)
+        appointment_time: localAppointmentTime, // ✅ NOT NULL - Hora LOCAL (no UTC)
+        duration_minutes: durationMinutes, // ✅ NOT NULL
+        end_time: localEndTime, // ✅ NULLABLE - Hora LOCAL de fin
+        status: event.status === 'cancelled' ? 'cancelled' : 'blocked', // ✅ NULLABLE (default 'confirmed')
+        source: 'google_calendar', // ✅ NULLABLE
+        notes: eventInfo.notes || event.summary || 'Evento bloqueado de Google Calendar', // ✅ NULLABLE
+        internal_notes: JSON.stringify({
+          requires_manual_assignment: !employeeId && !!resourceId,
           import_source: 'google_calendar',
-          calendar_id: event.calendar_id,
-        },
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+          original_summary: event.summary,
+          original_description: event.description || null,
+        }), // ✅ NULLABLE
+        gcal_event_id: event.id, // ✅ NULLABLE - ID del evento en Google Calendar
+        calendar_id: event.calendar_id || null, // ✅ NULLABLE - ID del calendario
+        created_at: new Date().toISOString(), // ✅ NOT NULL (default now())
+        updated_at: new Date().toISOString(), // ✅ NOT NULL (default now())
       }
 
       let result
@@ -1013,9 +1175,9 @@ async function importEventsToAppointments(
         await blockAvailabilitySlots(
           supabaseClient,
           businessId,
-          appointmentData.appointment_date,
-          appointmentData.appointment_time,
-          appointmentData.duration_minutes,
+          localAppointmentDate,
+          localAppointmentTime,
+          durationMinutes,
           employeeId,
           resourceId
         )
@@ -1026,9 +1188,9 @@ async function importEventsToAppointments(
             appointment_id: result[0].id,
             gcal_event_id: event.id,
             resource_id: resourceId,
-            appointment_date: appointmentData.appointment_date,
-            appointment_time: appointmentData.appointment_time,
-            customer_name: appointmentData.customer_name,
+            appointment_date: localAppointmentDate,
+            appointment_time: localAppointmentTime,
+            customer_name: eventInfo.customer_name || 'Cliente de Google Calendar',
             summary: event.summary || 'Sin título',
           })
         }
@@ -1227,4 +1389,3 @@ function formatDate(date: Date): string {
   const day = String(date.getUTCDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
-

@@ -988,12 +988,16 @@ export default function Reservas() {
             // ✅ CARGAR NOMBRES DE EMPLEADOS POR SEPARADO (enriquecer datos)
             let employeesMap = {};
             if (data && data.length > 0) {
+                // ✅ Incluir tanto resource_id como employee_id (para eventos bloqueados de Google Calendar)
                 const resourceIds = [...new Set(data.map(r => r.resource_id).filter(Boolean))];
-                if (resourceIds.length > 0) {
+                const employeeIds = [...new Set(data.map(r => r.employee_id).filter(Boolean))];
+                const allEmployeeIds = [...new Set([...resourceIds, ...employeeIds])];
+                
+                if (allEmployeeIds.length > 0) {
                     const { data: employees, error: employeesError } = await supabase
                         .from('employees')
-                        .select('id, name')
-                        .in('id', resourceIds);
+                        .select('id, name, color')
+                        .in('id', allEmployeeIds);
                     
                     if (!employeesError && employees) {
                         employees.forEach(e => {
@@ -1004,18 +1008,34 @@ export default function Reservas() {
             }
 
             // ✅ MAPEAR DATOS: appointment_date -> reservation_date (compatibilidad frontend)
-            let reservations = (data || []).map(r => ({
-                ...r,
-                // Mapear campos de appointments a formato legacy del frontend
-                reservation_date: r.appointment_date, // ✅ Mapeo crítico para calendario
-                reservation_time: r.appointment_time, // ✅ Mapeo crítico para calendario
-                service_name: servicesMap[r.service_id]?.name || null, // ✅ Nombre del servicio
-                service_duration_minutes: r.duration_minutes, // ✅ Duración ya está en appointments
-                resource_name: employeesMap[r.resource_id]?.name || null, // ✅ Nombre del profesional/empleado
-                // Por si acaso, asegurar que risk_level existe
-                noshow_risk_score: 0,
-                risk_level: 'low'
-            }));
+            let reservations = (data || []).map(r => {
+                // ✅ Normalizar appointment_date: puede venir como Date object o string
+                let normalizedDate = r.appointment_date;
+                if (normalizedDate instanceof Date) {
+                    normalizedDate = normalizedDate.toISOString().split('T')[0];
+                } else if (typeof normalizedDate === 'string' && normalizedDate.includes('T')) {
+                    normalizedDate = normalizedDate.split('T')[0];
+                }
+                
+                // ✅ Obtener nombre del empleado desde resource_id O employee_id
+                const employeeId = r.employee_id || r.resource_id;
+                const employee = employeeId ? employeesMap[employeeId] : null;
+                
+                return {
+                    ...r,
+                    // Mapear campos de appointments a formato legacy del frontend
+                    reservation_date: normalizedDate, // ✅ Mapeo crítico para calendario (normalizado)
+                    appointment_date: normalizedDate, // ✅ También normalizar appointment_date
+                    reservation_time: r.appointment_time, // ✅ Mapeo crítico para calendario
+                    service_name: servicesMap[r.service_id]?.name || null, // ✅ Nombre del servicio
+                    service_duration_minutes: r.duration_minutes, // ✅ Duración ya está en appointments
+                    resource_name: employee?.name || null, // ✅ Nombre del profesional/empleado (desde resource_id o employee_id)
+                    employee_color: employee?.color || null, // ✅ Color del empleado para eventos bloqueados
+                    // Por si acaso, asegurar que risk_level existe
+                    noshow_risk_score: 0,
+                    risk_level: 'low'
+                };
+            });
             
             console.log("🔄 RESERVAS MAPEADAS:", {
                 total: reservations.length,
