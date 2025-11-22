@@ -127,3 +127,4 @@ COMMENT ON INDEX idx_availability_slots_resource_slot IS
 SELECT 'Migración 20251119_02_add_unique_constraint_resource_slots completada' AS status;
 
 
+

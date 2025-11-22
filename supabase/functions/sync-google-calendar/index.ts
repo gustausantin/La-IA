@@ -247,7 +247,7 @@ serve(async (req) => {
     }
 
     // Helper function to determine which calendar to use for an appointment
-    function getCalendarForAppointment(appointment: any): string | null {
+    async function getCalendarForAppointment(appointment: any): Promise<string | null> {
       const calendarIds = integration.config?.calendar_ids || 
                          (integration.config?.calendar_id ? [integration.config.calendar_id] : [])
       const defaultCalendar = calendarIds[0] || 'primary'
@@ -262,7 +262,40 @@ serve(async (req) => {
         }
       }
 
-      // ✅ Prioridad 2: Si hay resource_id y está mapeado, usar ese calendario (compatibilidad)
+      // ✅ Prioridad 2: Si NO hay employee_id pero SÍ hay resource_id, intentar encontrar el empleado desde el recurso
+      if (!appointment.employee_id && appointment.resource_id) {
+        console.log(`🔍 Buscando empleado para resource_id ${appointment.resource_id}...`)
+        try {
+          const { data: employeeData, error: employeeError } = await supabaseClient
+            .from('employees')
+            .select('id')
+            .eq('business_id', business_id)
+            .eq('assigned_resource_id', appointment.resource_id)
+            .eq('is_active', true)
+            .maybeSingle()
+          
+          if (!employeeError && employeeData && employeeData.id) {
+            const inferredEmployeeId = employeeData.id
+            console.log(`✅ Empleado encontrado para resource_id ${appointment.resource_id}: ${inferredEmployeeId}`)
+            
+            // Intentar usar el mapeo del empleado encontrado
+            const employeeMapping = integration.config?.employee_calendar_mapping || {}
+            const mappedCalendar = employeeMapping[inferredEmployeeId]
+            if (mappedCalendar) {
+              console.log(`🔗 Usando calendario del empleado inferido ${inferredEmployeeId}: ${mappedCalendar}`)
+              return mappedCalendar
+            } else {
+              console.warn(`⚠️ Empleado ${inferredEmployeeId} encontrado pero no tiene calendario mapeado`)
+            }
+          } else {
+            console.warn(`⚠️ No se encontró empleado activo con assigned_resource_id = ${appointment.resource_id}`)
+          }
+        } catch (error) {
+          console.error(`❌ Error buscando empleado para resource_id ${appointment.resource_id}:`, error)
+        }
+      }
+
+      // ✅ Prioridad 3: Si hay resource_id y está mapeado directamente, usar ese calendario (compatibilidad)
       if (appointment.resource_id && integration.config?.resource_calendar_mapping) {
         const mappedCalendarId = integration.config.resource_calendar_mapping[appointment.resource_id]
         if (mappedCalendarId) {
@@ -307,6 +340,14 @@ serve(async (req) => {
         },
       }
 
+      console.log(`📤 Creando evento en Google Calendar:`, {
+        calendar_id: targetCalendarId,
+        summary: event.summary,
+        start: event.start.dateTime,
+        end: event.end.dateTime,
+        timeZone: event.start.timeZone,
+      })
+
       const createResponse = await fetch(
         `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(targetCalendarId)}/events`,
         {
@@ -321,10 +362,22 @@ serve(async (req) => {
 
       if (!createResponse.ok) {
         const errorData = await createResponse.json().catch(() => ({ error: 'Unknown error' }))
-        throw new Error(`Failed to create Google Calendar event: ${JSON.stringify(errorData)}`)
+        console.error(`❌ Error creando evento en Google Calendar:`, {
+          status: createResponse.status,
+          statusText: createResponse.statusText,
+          error: errorData,
+          calendar_id: targetCalendarId,
+          event_summary: event.summary,
+        })
+        throw new Error(`Failed to create Google Calendar event (${createResponse.status}): ${JSON.stringify(errorData)}`)
       }
 
       const createdEvent = await createResponse.json()
+      console.log(`✅ Evento creado exitosamente:`, {
+        event_id: createdEvent.id,
+        htmlLink: createdEvent.htmlLink,
+        calendar_id: targetCalendarId,
+      })
 
       // Update appointment with Google Calendar event ID
       // ✅ Usar columnas directas (gcal_event_id, calendar_id, synced_to_gcal) y también internal_notes para consistencia
@@ -410,7 +463,7 @@ serve(async (req) => {
       }
 
       console.log(`🔍 Buscando calendario para empleado ${reservation.employee_id} o recurso ${reservation.resource_id}`)
-      const targetCalendarId = getCalendarForAppointment(reservation)
+      const targetCalendarId = await getCalendarForAppointment(reservation)
       
       if (!targetCalendarId) {
         console.warn(`⚠️ No se puede sincronizar reserva ${reservation_id} - no hay calendario mapeado`, {
@@ -458,11 +511,26 @@ serve(async (req) => {
         {}
       
       const eventId = reservation.gcal_event_id || internalNotes.gcal_event_id || reservation.metadata?.google_calendar_event_id
-      const calendarIdForUpdate = reservation.calendar_id || internalNotes.calendar_id || reservation.metadata?.google_calendar_id || getCalendarForAppointment(reservation)
+      
+      // ✅ CRÍTICO: Calcular el NUEVO calendario basado en el employee_id ACTUALIZADO
+      // NO usar el calendar_id guardado, porque puede ser el calendario antiguo
+      const newCalendarId = await getCalendarForAppointment(reservation)
+      
+      // ✅ Obtener el calendario ANTIGUO (si existe) para comparar
+      const oldCalendarId = reservation.calendar_id || internalNotes.calendar_id || reservation.metadata?.google_calendar_id
+
+      console.log('🔄 Actualizando evento en Google Calendar:', {
+        reservation_id: reservation.id,
+        event_id: eventId,
+        old_calendar_id: oldCalendarId,
+        new_calendar_id: newCalendarId,
+        employee_id: reservation.employee_id,
+        resource_id: reservation.resource_id
+      })
 
       if (!eventId) {
         // Create if doesn't exist - reuse the create logic
-        if (!calendarIdForUpdate) {
+        if (!newCalendarId) {
           console.warn(`⚠️ No se puede crear evento para reserva ${reservation.id} - no hay calendario mapeado`)
           return new Response(
             JSON.stringify({ 
@@ -474,15 +542,15 @@ serve(async (req) => {
           )
         }
         
-        const createdEvent = await createGoogleCalendarEvent(reservation, calendarIdForUpdate)
+        const createdEvent = await createGoogleCalendarEvent(reservation, newCalendarId)
 
         return new Response(
-          JSON.stringify({ success: true, event_id: createdEvent.id, calendar_id: calendarIdForUpdate }),
+          JSON.stringify({ success: true, event_id: createdEvent.id, calendar_id: newCalendarId }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
 
-      if (!calendarIdForUpdate) {
+      if (!newCalendarId) {
         console.warn(`⚠️ No se puede actualizar evento para reserva ${reservation.id} - no hay calendario mapeado`)
         return new Response(
           JSON.stringify({ 
@@ -494,7 +562,117 @@ serve(async (req) => {
         )
       }
 
-      // ✅ Usar campos correctos: appointment_date y appointment_time
+      // ✅ Si el calendario cambió, mover el evento al nuevo calendario
+      if (oldCalendarId && oldCalendarId !== newCalendarId) {
+        console.log(`🔄 El calendario cambió de ${oldCalendarId} a ${newCalendarId}. Moviendo evento...`)
+        
+        // 1. Obtener el evento completo del calendario antiguo
+        const getEventResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(oldCalendarId)}/events/${eventId}`,
+          {
+            method: 'GET',
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          }
+        )
+
+        if (!getEventResponse.ok && getEventResponse.status !== 404) {
+          const errorData = await getEventResponse.json().catch(() => ({ error: 'Unknown error' }))
+          console.warn(`⚠️ Error obteniendo evento del calendario antiguo: ${JSON.stringify(errorData)}`)
+        }
+
+        // 2. Crear el evento en el nuevo calendario con los datos actualizados
+        const appointmentDate = reservation.appointment_date || reservation.reservation_date
+        const appointmentTime = reservation.appointment_time || reservation.reservation_time
+        const durationMinutes = reservation.duration_minutes || 90
+
+        const newEvent = {
+          summary: `Reserva: ${reservation.customer_name || 'Cliente'}`,
+          description: `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}\nPersonas: ${reservation.party_size || 1}${reservation.special_requests ? `\nNotas: ${reservation.special_requests}` : ''}`,
+          start: {
+            dateTime: `${appointmentDate}T${appointmentTime}`,
+            timeZone: 'Europe/Madrid',
+          },
+          end: {
+            dateTime: `${appointmentDate}T${calculateEndTime(appointmentTime, durationMinutes)}`,
+            timeZone: 'Europe/Madrid',
+          },
+          colorId: getColorByStatus(reservation.status),
+          extendedProperties: {
+            private: {
+              la_ia_appointment_id: reservation.id,
+              la_ia_business_id: business_id,
+            },
+          },
+        }
+
+        const createInNewCalendarResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(newCalendarId)}/events`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(newEvent),
+          }
+        )
+
+        if (!createInNewCalendarResponse.ok) {
+          const errorData = await createInNewCalendarResponse.json().catch(() => ({ error: 'Unknown error' }))
+          throw new Error(`Failed to create event in new calendar: ${JSON.stringify(errorData)}`)
+        }
+
+        const newEventData = await createInNewCalendarResponse.json()
+        console.log(`✅ Evento creado en nuevo calendario ${newCalendarId}: ${newEventData.id}`)
+
+        // 3. Eliminar el evento del calendario antiguo
+        const deleteFromOldCalendarResponse = await fetch(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(oldCalendarId)}/events/${eventId}`,
+          {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${accessToken}` },
+          }
+        )
+
+        if (!deleteFromOldCalendarResponse.ok && deleteFromOldCalendarResponse.status !== 404) {
+          const errorData = await deleteFromOldCalendarResponse.json().catch(() => ({ error: 'Unknown error' }))
+          console.warn(`⚠️ Error eliminando evento del calendario antiguo: ${JSON.stringify(errorData)}`)
+          // Continuar de todas formas, el evento ya está en el nuevo calendario
+        } else {
+          console.log(`✅ Evento eliminado del calendario antiguo ${oldCalendarId}`)
+        }
+
+        // 4. Actualizar la reserva con el nuevo event_id y calendar_id
+        const updatedInternalNotes = {
+          ...internalNotes,
+          gcal_event_id: newEventData.id,
+          calendar_id: newCalendarId,
+          synced_at: new Date().toISOString(),
+        }
+
+        await supabaseClient
+          .from('appointments')
+          .update({
+            gcal_event_id: newEventData.id, // ✅ Nuevo event_id
+            calendar_id: newCalendarId, // ✅ Nuevo calendar_id
+            synced_to_gcal: true,
+            internal_notes: updatedInternalNotes,
+          })
+          .eq('id', reservation.id)
+
+        return new Response(
+          JSON.stringify({ 
+            success: true, 
+            event_id: newEventData.id, 
+            calendar_id: newCalendarId,
+            moved: true,
+            old_calendar_id: oldCalendarId
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // ✅ Si el calendario NO cambió, solo actualizar el evento existente
       const appointmentDate = reservation.appointment_date || reservation.reservation_date
       const appointmentTime = reservation.appointment_time || reservation.reservation_time
       const durationMinutes = reservation.duration_minutes || 90
@@ -514,7 +692,7 @@ serve(async (req) => {
       }
 
       const updateResponse = await fetch(
-        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarIdForUpdate)}/events/${eventId}`,
+        `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(newCalendarId)}/events/${eventId}`,
         {
           method: 'PATCH',
           headers: {
@@ -530,8 +708,25 @@ serve(async (req) => {
         throw new Error(`Failed to update Google Calendar event: ${JSON.stringify(errorData)}`)
       }
 
+      // ✅ Actualizar calendar_id en la reserva si cambió (aunque el evento esté en el mismo calendario)
+      if (oldCalendarId !== newCalendarId) {
+        const updatedInternalNotes = {
+          ...internalNotes,
+          calendar_id: newCalendarId,
+          synced_at: new Date().toISOString(),
+        }
+
+        await supabaseClient
+          .from('appointments')
+          .update({
+            calendar_id: newCalendarId,
+            internal_notes: updatedInternalNotes,
+          })
+          .eq('id', reservation.id)
+      }
+
       return new Response(
-        JSON.stringify({ success: true }),
+        JSON.stringify({ success: true, calendar_id: newCalendarId }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -550,7 +745,7 @@ serve(async (req) => {
         {}
       
       const eventId = reservation?.gcal_event_id || internalNotes.gcal_event_id || reservation?.metadata?.google_calendar_event_id
-      const calendarIdForDelete = reservation?.calendar_id || internalNotes.calendar_id || reservation?.metadata?.google_calendar_id || getCalendarForAppointment(reservation)
+      const calendarIdForDelete = reservation?.calendar_id || internalNotes.calendar_id || reservation?.metadata?.google_calendar_id || await getCalendarForAppointment(reservation)
 
       if (eventId && calendarIdForDelete) {
         const deleteResponse = await fetch(

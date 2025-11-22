@@ -160,19 +160,31 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                 // Continuar de todas formas si hay error
             }
             // 1. Crear o encontrar cliente
+            console.log('🔍 Paso 1: Buscando/creando cliente...', {
+                customer_name: formData.customer_name,
+                customer_phone: formData.customer_phone,
+                business_id: businessId
+            });
+            
             let customerId;
-            const { data: existingCustomer } = await supabase
+            const { data: existingCustomer, error: searchCustomerError } = await supabase
                 .from('customers')
                 .select('id')
                 .eq('business_id', businessId)
                 .eq('phone', formData.customer_phone)
-                .single();
+                .maybeSingle();
             
-            if (existingCustomer) {
+            if (searchCustomerError && searchCustomerError.code !== 'PGRST116') {
+                console.error('❌ Error buscando cliente:', searchCustomerError);
+                throw new Error(`Error buscando cliente: ${searchCustomerError.message}`);
+            }
+            
+            if (existingCustomer && existingCustomer.id) {
                 customerId = existingCustomer.id;
+                console.log('✅ Cliente existente encontrado:', customerId);
                 
                 // Actualizar datos del cliente si han cambiado
-                await supabase
+                const { error: updateCustomerError } = await supabase
                     .from('customers')
                     .update({
                         name: formData.customer_name,
@@ -180,8 +192,13 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                         updated_at: new Date().toISOString()
                     })
                     .eq('id', customerId);
+                
+                if (updateCustomerError) {
+                    console.warn('⚠️ Error actualizando cliente (continuando):', updateCustomerError);
+                }
             } else {
                 // Crear nuevo cliente
+                console.log('📝 Creando nuevo cliente...');
                 const { data: newCustomer, error: customerError } = await supabase
                     .from('customers')
                     .insert({
@@ -195,72 +212,290 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                     .select('id')
                     .single();
                 
-                if (customerError) throw customerError;
+                if (customerError) {
+                    console.error('❌ Error creando cliente:', customerError);
+                    throw new Error(`Error creando cliente: ${customerError.message} (${customerError.details || ''})`);
+                }
+                
+                if (!newCustomer || !newCustomer.id) {
+                    throw new Error('No se pudo crear el cliente: respuesta vacía');
+                }
+                
                 customerId = newCustomer.id;
+                console.log('✅ Cliente creado:', customerId);
             }
             
             // 2. Seleccionar mesa/recurso automáticamente si no se especificó
+            console.log('🔍 Paso 2: Obteniendo recurso y trabajador...', {
+                table_id_from_form: formData.table_id,
+                available_slots_count: availabilityStatus.availableSlots.length
+            });
+            
             let selectedTableId = formData.table_id;
             let selectedEmployeeId = null;
             
             if (!selectedTableId && availabilityStatus.availableSlots.length > 0) {
                 selectedTableId = availabilityStatus.availableSlots[0].resource_id || availabilityStatus.availableSlots[0].table_id;
+                console.log('✅ Recurso seleccionado automáticamente:', selectedTableId);
             }
             
-            // 2.1. Obtener employee_id desde el slot seleccionado o desde el resource_id
+            // ✅ 2.1. OBTENER employee_id: Un recurso SIEMPRE está asociado a un trabajador
+            // La relación es: Employee.assigned_resource_id -> Resource.id
+            // Por lo tanto, si hay resource_id, SIEMPRE debe haber employee_id
+            
+            if (selectedTableId) {
+                // ✅ Prioridad 1: Buscar employee_id directamente en el slot (más rápido)
             if (availabilityStatus.availableSlots.length > 0) {
                 const selectedSlot = availabilityStatus.availableSlots.find(slot => 
                     (slot.resource_id && slot.resource_id === selectedTableId) ||
                     (slot.table_id && slot.table_id === selectedTableId)
                 ) || availabilityStatus.availableSlots[0];
                 
-                // ✅ Prioridad 1: employee_id directamente del slot
                 if (selectedSlot?.employee_id) {
                     selectedEmployeeId = selectedSlot.employee_id;
-                } 
-                // ✅ Prioridad 2: Inferir desde resource_id (empleado que tiene ese recurso asignado)
-                else if (selectedTableId) {
-                    const { data: employeeData } = await supabase
+                        console.log('✅ employee_id obtenido directamente del slot:', selectedEmployeeId);
+                    }
+                }
+                
+                // ✅ Prioridad 2: Si no está en el slot, buscar el empleado que tiene este recurso asignado
+                // REGLA DE NEGOCIO: Un recurso SIEMPRE tiene un trabajador asignado (assigned_resource_id)
+                if (!selectedEmployeeId) {
+                    console.log('🔍 Buscando empleado con assigned_resource_id =', selectedTableId);
+                    const { data: employeeData, error: employeeError } = await supabase
                         .from('employees')
-                        .select('id')
+                        .select('id, name, assigned_resource_id')
                         .eq('business_id', businessId)
                         .eq('assigned_resource_id', selectedTableId)
                         .eq('is_active', true)
-                        .single();
+                        .maybeSingle();
+                    
+                    if (employeeError) {
+                        console.error('❌ Error buscando empleado por assigned_resource_id:', employeeError);
+                        setSaving(false);
+                        setValidationError(`❌ Error al buscar el trabajador asociado al recurso.`);
+                        toast.error('❌ Error al buscar el trabajador. Por favor, intenta de nuevo.', { duration: 8000 });
+                        return;
+                    }
                     
                     if (employeeData) {
                         selectedEmployeeId = employeeData.id;
+                        console.log(`✅ Empleado encontrado: ${employeeData.name} (ID: ${employeeData.id}) para recurso ${selectedTableId}`);
+                    } else {
+                        // ❌ ERROR CRÍTICO: Un recurso SIN trabajador asignado es un error del sistema
+                        console.error('❌ CRÍTICO: El recurso', selectedTableId, 'NO tiene un trabajador asignado (assigned_resource_id)');
+                        
+                        // Obtener información del recurso para el mensaje de error
+                        const { data: resourceData } = await supabase
+                            .from('resources')
+                            .select('id, name')
+                            .eq('id', selectedTableId)
+                            .eq('business_id', businessId)
+                            .single();
+                        
+                        const resourceName = resourceData?.name || selectedTableId;
+                        
+                        setSaving(false);
+                        setValidationError(`❌ Error: El recurso "${resourceName}" no tiene un trabajador asignado. Por favor, asigna un trabajador a este recurso antes de crear reservas.`);
+                        toast.error(`❌ El recurso "${resourceName}" no tiene trabajador asignado. Asigna un trabajador en la configuración.`, { duration: 10000 });
+                        return; // ❌ DETENER la creación - esto es un error del sistema
                     }
                 }
+            } else {
+                // Si no hay resource_id, tampoco puede haber employee_id (van juntos)
+                console.warn('⚠️ No se seleccionó ningún recurso. No se puede crear la reserva sin recurso y trabajador.');
+                setSaving(false);
+                setValidationError('❌ Error: Debes seleccionar un recurso para crear la reserva.');
+                toast.error('❌ Debes seleccionar un recurso para crear la reserva.', { duration: 8000 });
+                return;
             }
             
+            // ✅ VALIDACIÓN FINAL: Verificar que tenemos AMBOS (resource_id Y employee_id)
+            if (!selectedTableId || !selectedEmployeeId) {
+                console.error('❌ CRÍTICO: Faltan campos obligatorios:', {
+                    resource_id: selectedTableId,
+                    employee_id: selectedEmployeeId
+                });
+                setSaving(false);
+                setValidationError('❌ Error: Faltan datos obligatorios (recurso o trabajador).');
+                toast.error('❌ No se puede crear la reserva: faltan datos obligatorios.', { duration: 8000 });
+                return;
+            }
+            
+            console.log('✅ Recurso y trabajador validados:', {
+                resource_id: selectedTableId,
+                employee_id: selectedEmployeeId
+            });
+            
+            // ✅ VALIDACIÓN ADICIONAL: Si no hay resource_id ni employee_id, también es un problema
+            if (!selectedTableId && !selectedEmployeeId) {
+                console.error('❌ CRÍTICO: Se intenta crear una reserva sin resource_id ni employee_id');
+                setSaving(false);
+                setValidationError('❌ Error: Debes seleccionar un recurso o trabajador para crear la reserva.');
+                toast.error('❌ No se puede crear la reserva: debes seleccionar un recurso o trabajador.', { duration: 8000 });
+                return; // ❌ DETENER la creación de la reserva
+            }
+            
+            // ✅ VALIDACIÓN FINAL: Verificar que tenemos TODOS los campos necesarios
+            if (!selectedTableId) {
+                setSaving(false);
+                setValidationError('❌ Error: Debes seleccionar un recurso para crear la reserva.');
+                toast.error('❌ No se puede crear la reserva: falta el recurso.', { duration: 8000 });
+                return;
+            }
+            
+            if (!selectedEmployeeId) {
+                setSaving(false);
+                setValidationError('❌ Error: No se pudo identificar el empleado. Verifica que el recurso esté asignado a un trabajador activo.');
+                toast.error('❌ No se puede crear la reserva: falta el empleado.', { duration: 8000 });
+                return;
+            }
+            
+            if (!customerId) {
+                setSaving(false);
+                setValidationError('❌ Error: No se pudo crear o encontrar el cliente.');
+                toast.error('❌ No se puede crear la reserva: error con el cliente.', { duration: 8000 });
+                return;
+            }
+            
+            // ✅ 2.2. Obtener service_id (OBLIGATORIO) - Buscar el primer servicio activo del negocio
+            let selectedServiceId = null;
+            console.log('🔍 Buscando service_id para el negocio...');
+            const { data: servicesData, error: servicesError } = await supabase
+                .from('business_services')
+                .select('id, name, is_active')
+                .eq('business_id', businessId)
+                .eq('is_active', true)
+                .order('position_order', { ascending: true })
+                .limit(1);
+            
+            if (servicesError) {
+                console.error('❌ Error buscando servicios:', servicesError);
+                setSaving(false);
+                setValidationError('❌ Error: No se pudo obtener el servicio. Verifica que haya servicios activos configurados.');
+                toast.error('❌ No se puede crear la reserva: error obteniendo servicios.', { duration: 8000 });
+                return;
+            }
+            
+            if (!servicesData || servicesData.length === 0) {
+                console.error('❌ No hay servicios activos para el negocio');
+                setSaving(false);
+                setValidationError('❌ Error: No hay servicios activos configurados. Por favor, crea al menos un servicio antes de crear reservas.');
+                toast.error('❌ No se puede crear la reserva: no hay servicios configurados.', { duration: 8000 });
+                return;
+            }
+            
+            selectedServiceId = servicesData[0].id;
+            console.log(`✅ service_id obtenido: ${selectedServiceId} (${servicesData[0].name})`);
+            
+            // ✅ VALIDACIÓN FINAL COMPLETA: Verificar que tenemos TODOS los campos obligatorios
+            if (!selectedServiceId) {
+                setSaving(false);
+                setValidationError('❌ Error: No se pudo obtener el servicio.');
+                toast.error('❌ No se puede crear la reserva: falta el servicio.', { duration: 8000 });
+                return;
+            }
+            
+            console.log('✅ Validaciones completadas. Datos completos de la reserva:', {
+                business_id: businessId,
+                customer_id: customerId,
+                service_id: selectedServiceId,
+                resource_id: selectedTableId,
+                employee_id: selectedEmployeeId,
+                appointment_date: formData.reservation_date,
+                appointment_time: formData.reservation_time,
+                duration_minutes: 60, // Por defecto, se puede obtener del servicio
+            });
+            
             // 3. Crear la reserva
+            console.log('🔍 Paso 3: Creando reserva en appointments...', {
+                business_id: businessId,
+                customer_id: customerId,
+                service_id: selectedServiceId,
+                resource_id: selectedTableId,
+                employee_id: selectedEmployeeId,
+                appointment_date: formData.reservation_date,
+                appointment_time: formData.reservation_time
+            });
+            
             // ✅ CORRECCIÓN: Usar appointment_date y appointment_time (campos reales de la BD)
             // NO reservation_date/reservation_time (solo para mapeo en frontend)
+            // ✅ TODOS los campos OBLIGATORIOS deben estar completos
+            const appointmentData = {
+                business_id: businessId, // ✅ OBLIGATORIO
+                customer_id: customerId, // ✅ OBLIGATORIO
+                service_id: selectedServiceId, // ✅ OBLIGATORIO
+                customer_name: formData.customer_name, // ✅ OBLIGATORIO
+                customer_email: formData.customer_email || null,
+                customer_phone: formData.customer_phone,
+                appointment_date: formData.reservation_date, // ✅ OBLIGATORIO - Campo real de BD
+                appointment_time: formData.reservation_time, // ✅ OBLIGATORIO - Campo real de BD
+                duration_minutes: 60, // ✅ OBLIGATORIO - Por defecto 60 min (se puede obtener del servicio)
+                party_size: formData.party_size,
+                resource_id: selectedTableId, // ✅ OBLIGATORIO cuando hay recurso: Para salones: resource_id (empleado/recurso)
+                table_id: selectedTableId, // ✅ Legacy: table_id (mesa) - ya no se usa para nuevos negocios
+                employee_id: selectedEmployeeId, // ✅ OBLIGATORIO cuando hay resource_id: Debe estar SIEMPRE
+                special_requests: formData.special_requests || null,
+                status: 'confirmed', // ✅ Estado en inglés (confirmed, pending, cancelled, etc.)
+                source: 'dashboard', // ✅ Fuente: creada desde dashboard
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            
+            console.log('📤 Datos a insertar en appointments:', appointmentData);
+            
             const { data: reservation, error: reservationError } = await supabase
                 .from('appointments')
-                .insert({
-                    business_id: businessId,
-                    customer_id: customerId,
-                    customer_name: formData.customer_name,
-                    customer_email: formData.customer_email || null,
-                    customer_phone: formData.customer_phone,
-                    appointment_date: formData.reservation_date, // ✅ Campo real de BD
-                    appointment_time: formData.reservation_time, // ✅ Campo real de BD
-                    party_size: formData.party_size,
-                    resource_id: selectedTableId, // ✅ Para salones: resource_id (empleado/recurso)
-                    table_id: selectedTableId, // ✅ Legacy: table_id (mesa) - ya no se usa para nuevos negocios
-                    employee_id: selectedEmployeeId, // ✅ NUEVO: Asociar directamente con el empleado
-                    special_requests: formData.special_requests || null,
-                    status: 'confirmed', // ✅ Estado en inglés (confirmed, pending, cancelled, etc.)
-                    source: 'dashboard', // ✅ Fuente: creada desde dashboard
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                })
+                .insert(appointmentData)
                 .select()
                 .single();
             
-            if (reservationError) throw reservationError;
+            if (reservationError) {
+                console.error('❌ ERROR al crear reserva en appointments:', reservationError);
+                console.error('Detalles del error:', {
+                    code: reservationError.code,
+                    message: reservationError.message,
+                    details: reservationError.details,
+                    hint: reservationError.hint
+                });
+                console.error('Datos que se intentaron insertar:', appointmentData);
+                throw new Error(`Error creando reserva: ${reservationError.message}${reservationError.details ? ' (' + reservationError.details + ')' : ''}`);
+            }
+            
+            if (!reservation || !reservation.id) {
+                console.error('❌ CRÍTICO: La reserva no se creó (respuesta vacía)');
+                throw new Error('La reserva no se creó: respuesta vacía del servidor');
+            }
+            
+            console.log('✅ Reserva creada exitosamente en appointments:', reservation.id);
+            
+            // ✅ Verificar que la reserva se creó con TODOS los campos obligatorios
+            const missingFields = [];
+            if (!reservation.business_id) missingFields.push('business_id');
+            if (!reservation.customer_id) missingFields.push('customer_id');
+            if (!reservation.service_id) missingFields.push('service_id');
+            if (!reservation.appointment_date) missingFields.push('appointment_date');
+            if (!reservation.appointment_time) missingFields.push('appointment_time');
+            if (!reservation.duration_minutes) missingFields.push('duration_minutes');
+            if (!reservation.employee_id && reservation.resource_id) missingFields.push('employee_id');
+            if (!reservation.resource_id && !reservation.employee_id) missingFields.push('resource_id o employee_id');
+            
+            if (missingFields.length > 0) {
+                console.error('❌ CRÍTICO: La reserva se creó pero faltan campos obligatorios:', missingFields);
+                console.error('Reserva creada:', reservation);
+                toast.error(`⚠️ La reserva se creó pero faltan campos: ${missingFields.join(', ')}. Esto puede causar problemas.`, { duration: 10000 });
+            } else {
+                console.log('✅ Reserva creada exitosamente con TODOS los campos obligatorios:', {
+                    id: reservation.id,
+                    business_id: reservation.business_id,
+                    customer_id: reservation.customer_id,
+                    service_id: reservation.service_id,
+                    employee_id: reservation.employee_id,
+                    resource_id: reservation.resource_id,
+                    appointment_date: reservation.appointment_date,
+                    appointment_time: reservation.appointment_time,
+                    duration_minutes: reservation.duration_minutes,
+                });
+            }
             
             // ✅ 4. Sincronizar con Google Calendar (push)
             try {
@@ -268,10 +503,17 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                     reservation_id: reservation.id,
                     employee_id: reservation.employee_id,
                     resource_id: reservation.resource_id,
+                    selectedEmployeeId: selectedEmployeeId,
+                    selectedTableId: selectedTableId,
                     status: reservation.status
                 });
                 
-                const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                // ✅ Verificar que tenemos employee_id o resource_id antes de sincronizar
+                if (!reservation.employee_id && !reservation.resource_id) {
+                    console.warn('⚠️ No se puede sincronizar: la reserva no tiene employee_id ni resource_id');
+                    toast.warning('⚠️ La reserva se creó pero no se puede sincronizar: no hay empleado o recurso asignado', { duration: 6000 });
+                } else {
+                    const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
                     body: {
                         business_id: businessId,
                         action: 'push',
@@ -280,20 +522,41 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                 });
                 
                 if (syncError) {
-                    console.error('❌ Error sincronizando con Google Calendar:', syncError);
-                    console.error('Error details:', syncError.message, syncError.context);
-                    toast.error('⚠️ Error sincronizando con Google Calendar. La reserva se creó pero no aparecerá en Google Calendar.', { duration: 6000 });
-                } else {
-                    console.log('✅ Reserva sincronizada con Google Calendar:', syncData);
-                    if (syncData?.skipped) {
-                        toast.warning(`⚠️ Reserva creada pero no sincronizada: ${syncData.message || 'No hay calendario mapeado para este trabajador'}`, { duration: 6000 });
+                        console.error('❌ Error sincronizando con Google Calendar:', syncError);
+                        console.error('Error completo:', JSON.stringify(syncError, null, 2));
+                        
+                        // Intentar parsear el error para mostrar un mensaje más útil
+                        let errorMessage = 'Error desconocido';
+                        try {
+                            if (syncError.message) {
+                                errorMessage = syncError.message;
+                            } else if (typeof syncError === 'string') {
+                                errorMessage = syncError;
+                            }
+                        } catch (e) {
+                            console.error('Error parseando mensaje de error:', e);
+                        }
+                        
+                        toast.error(`⚠️ Error sincronizando con Google Calendar: ${errorMessage}. La reserva se creó correctamente.`, { duration: 8000 });
                     } else {
-                        toast.success('✅ Reserva sincronizada con Google Calendar', { duration: 3000 });
+                        console.log('✅ Respuesta de sync-google-calendar:', syncData);
+                        
+                        if (syncData?.skipped) {
+                            console.warn('⚠️ Sincronización omitida:', syncData);
+                            toast.warning(`⚠️ Reserva creada pero no sincronizada: ${syncData.message || 'No hay calendario mapeado para este trabajador'}`, { duration: 7000 });
+                        } else if (syncData?.success && syncData?.event_id) {
+                            console.log('✅ Evento creado en Google Calendar:', syncData.event_id);
+                            toast.success(`✅ Reserva sincronizada con Google Calendar (Evento: ${syncData.event_id.substring(0, 20)}...)`, { duration: 5000 });
+                } else {
+                            console.warn('⚠️ Respuesta inesperada de sync-google-calendar:', syncData);
+                            toast.success('✅ Reserva sincronizada con Google Calendar', { duration: 3000 });
+                        }
                     }
                 }
             } catch (syncError) {
                 console.error('❌ Error en catch de sincronización con Google Calendar:', syncError);
-                toast.error('⚠️ Error en sincronización con Google Calendar', { duration: 5000 });
+                console.error('Error stack:', syncError?.stack);
+                toast.error('⚠️ Error en sincronización con Google Calendar. La reserva se creó correctamente.', { duration: 6000 });
                 // Continuar de todas formas
             }
             
@@ -357,8 +620,26 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
             onSave();
             
         } catch (error) {
-            console.error('Error creando reserva:', error);
-            setValidationError('Error al crear la reserva: ' + error.message);
+            console.error('❌ ERROR CRÍTICO al crear reserva:', error);
+            console.error('Error completo:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint,
+                stack: error.stack
+            });
+            
+            // Mostrar error detallado al usuario
+            let errorMessage = 'Error al crear la reserva';
+            if (error.message) {
+                errorMessage += ': ' + error.message;
+            }
+            if (error.details) {
+                errorMessage += ' (' + error.details + ')';
+            }
+            
+            setValidationError(errorMessage);
+            toast.error(errorMessage, { duration: 10000 });
         } finally {
             setSaving(false);
         }
@@ -601,4 +882,5 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
 };
 
 export default ReservationFormModal;
+
 

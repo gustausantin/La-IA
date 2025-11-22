@@ -1450,10 +1450,44 @@ export default function Reservas() {
             };
 
             if (newResourceId && newResourceId !== 'default') {
-                // ✅ En el calendario, newResourceId es directamente el employee_id
-                // Actualizar tanto resource_id como employee_id
+                // ✅ REGLA DE NEGOCIO: Un recurso SIEMPRE está asociado a un trabajador
+                // Si tenemos resource_id, debemos buscar el employee_id correspondiente
                 updates.resource_id = newResourceId;
-                updates.employee_id = newResourceId; // ✅ El recurso en el calendario ES el empleado
+                
+                // Buscar el empleado que tiene este recurso asignado (assigned_resource_id)
+                const { data: employeeData, error: employeeLookupError } = await supabase
+                    .from('employees')
+                    .select('id, name, assigned_resource_id')
+                    .eq('business_id', businessId)
+                    .eq('assigned_resource_id', newResourceId)
+                    .eq('is_active', true)
+                    .maybeSingle();
+                
+                if (employeeLookupError) {
+                    console.error('❌ Error buscando empleado para resource_id:', employeeLookupError);
+                    toast.error('⚠️ Error al actualizar el trabajador. La reserva se movió pero puede haber problemas de sincronización.', { duration: 8000 });
+                } else if (employeeData) {
+                    updates.employee_id = employeeData.id;
+                    console.log(`✅ Empleado encontrado para recurso ${newResourceId}: ${employeeData.name} (ID: ${employeeData.id})`);
+                } else {
+                    // Si no se encuentra, intentar verificar si newResourceId es directamente un employee_id
+                    const { data: directEmployee } = await supabase
+                        .from('employees')
+                        .select('id, name')
+                        .eq('business_id', businessId)
+                        .eq('id', newResourceId)
+                        .eq('is_active', true)
+                        .maybeSingle();
+                    
+                    if (directEmployee) {
+                        updates.employee_id = directEmployee.id;
+                        console.log(`✅ newResourceId es directamente un employee_id: ${directEmployee.name}`);
+                    } else {
+                        console.error('❌ CRÍTICO: No se encontró empleado para resource_id:', newResourceId);
+                        toast.error('⚠️ El recurso no tiene trabajador asignado. La reserva se movió pero puede haber problemas.', { duration: 8000 });
+                        // No actualizar employee_id si no se encuentra - esto es un error del sistema
+                    }
+                }
             }
 
             const { error } = await supabase
