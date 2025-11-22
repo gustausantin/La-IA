@@ -42,58 +42,25 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // ✅ Google Calendar puede enviar notificaciones con o sin body
-    // A veces envía un body vacío o sin body para verificación
-    let notification = null
-    let hasBody = false
-    
-    try {
-      const bodyText = await req.text()
-      hasBody = bodyText && bodyText.length > 0
-      
-      if (hasBody) {
-        notification = JSON.parse(bodyText)
-        console.log('📨 Notificación recibida:', JSON.stringify(notification, null, 2))
-      } else {
-        console.log('📨 Petición sin body (puede ser verificación de Google)')
-        // Google Calendar a veces envía peticiones sin body para verificar el endpoint
-        return new Response(
-          JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
-          { 
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        )
-      }
-    } catch (error) {
-      console.warn('⚠️ Error parseando body:', error)
-      // Si hay error pero es una petición de Google, responder OK
-      if (isFromGoogle) {
-        return new Response(
-          JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
-          { 
-            status: 200,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-          }
-        )
-      }
-      throw error
-    }
-    
-    if (!notification && hasBody) {
-      console.warn('⚠️ Notificación vacía o null pero había body')
-      return new Response(
-        JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
-        { 
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      )
-    }
-    
-    // Si no hay notificación y no hay body, es una verificación
-    if (!notification) {
-      console.log('✅ Petición de verificación de Google Calendar')
+    // ✅ Google Calendar envía notificaciones en los HEADERS, no en el body
+    // Headers: x-goog-channel-id, x-goog-resource-id, x-goog-resource-state, x-goog-resource-uri
+    const channelId = req.headers.get('x-goog-channel-id')
+    const resourceId = req.headers.get('x-goog-resource-id')
+    const resourceState = req.headers.get('x-goog-resource-state')
+    const resourceUri = req.headers.get('x-goog-resource-uri')
+    const channelToken = req.headers.get('x-goog-channel-token') // business_id
+
+    console.log('📨 Headers de Google Calendar:', {
+      channelId,
+      resourceId,
+      resourceState,
+      resourceUri,
+      channelToken
+    })
+
+    // ✅ Si no hay headers de Google Calendar, puede ser una verificación
+    if (!channelId || !resourceUri) {
+      console.log('✅ Petición de verificación de Google Calendar (sin headers de notificación)')
       return new Response(
         JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
         { 
@@ -103,54 +70,66 @@ serve(async (req) => {
       )
     }
 
-    // ✅ Google Calendar envía notificaciones con esta estructura:
-    // {
-    //   "channel_id": "unique-channel-id",
-    //   "resource_id": "calendar-resource-id",
-    //   "resource_state": "sync" | "exists" | "not_exists",
-    //   "resource_uri": "https://www.googleapis.com/calendar/v3/calendars/...",
-    //   "changed": "2025-11-21T12:00:00Z"
-    // }
-
-    const { channel_id, resource_id, resource_state, resource_uri } = notification
-
-    if (!channel_id || !resource_uri) {
-      console.warn('⚠️ Notificación incompleta, ignorando')
+    // ✅ Si resource_state es "sync", es la notificación inicial (no procesar eventos)
+    if (resourceState === 'sync') {
+      console.log('✅ Notificación inicial de sincronización (sync) - no procesar eventos')
       return new Response(
-        JSON.stringify({ message: 'Notificación incompleta' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ message: 'Sincronización inicial recibida', received: true }),
+        { 
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       )
     }
 
-    // ✅ Buscar la integración que tiene este channel_id
-    // Buscar en watch_channels dentro de config
-    const { data: integrations, error: integrationError } = await supabaseClient
-      .from('integrations')
-      .select('*')
-      .eq('provider', 'google_calendar')
-      .eq('is_active', true)
-
-    if (integrationError || !integrations || integrations.length === 0) {
-      console.warn(`⚠️ No se encontraron integraciones activas`)
-      return new Response(
-        JSON.stringify({ message: 'Integración no encontrada' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // ✅ Buscar la integración que tiene este channel_id en sus watch_channels
+    // ✅ Buscar la integración usando channelToken (business_id) o channelId
+    // Primero intentar por channelToken (más rápido)
     let integration = null
-    for (const integ of integrations) {
-      const watchChannels = integ.config?.watch_channels || []
-      const hasChannel = watchChannels.some((wc: any) => wc.channel_id === channel_id)
-      if (hasChannel) {
-        integration = integ
-        break
+    
+    if (channelToken) {
+      const { data: integByToken } = await supabaseClient
+        .from('integrations')
+        .select('*')
+        .eq('provider', 'google_calendar')
+        .eq('is_active', true)
+        .eq('business_id', channelToken)
+        .maybeSingle()
+      
+      if (integByToken) {
+        integration = integByToken
+        console.log(`✅ Integración encontrada por channelToken (business_id): ${channelToken}`)
+      }
+    }
+    
+    // Si no se encontró por token, buscar por channelId en watch_channels
+    if (!integration) {
+      const { data: integrations, error: integrationError } = await supabaseClient
+        .from('integrations')
+        .select('*')
+        .eq('provider', 'google_calendar')
+        .eq('is_active', true)
+
+      if (integrationError || !integrations || integrations.length === 0) {
+        console.warn(`⚠️ No se encontraron integraciones activas`)
+        return new Response(
+          JSON.stringify({ message: 'Integración no encontrada' }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      // ✅ Buscar la integración que tiene este channelId en sus watch_channels
+      for (const integ of integrations) {
+        const watchChannels = integ.config?.watch_channels || []
+        const hasChannel = watchChannels.some((wc: any) => wc.channel_id === channelId)
+        if (hasChannel) {
+          integration = integ
+          break
+        }
       }
     }
 
     if (!integration) {
-      console.warn(`⚠️ No se encontró integración para channel_id: ${channel_id}`)
+      console.warn(`⚠️ No se encontró integración para channelId: ${channelId}`)
       return new Response(
         JSON.stringify({ message: 'Integración no encontrada' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -195,11 +174,11 @@ serve(async (req) => {
         .eq('id', integration.id)
     }
 
-    // ✅ Extraer calendar_id del resource_uri
+    // ✅ Extraer calendar_id del resourceUri
     // Formato: https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events
-    const calendarIdMatch = resource_uri.match(/calendars\/([^\/]+)/)
+    const calendarIdMatch = resourceUri.match(/calendars\/([^\/]+)/)
     if (!calendarIdMatch) {
-      console.warn('⚠️ No se pudo extraer calendar_id del resource_uri')
+      console.warn('⚠️ No se pudo extraer calendar_id del resourceUri')
       return new Response(
         JSON.stringify({ message: 'Calendar ID no encontrado' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
