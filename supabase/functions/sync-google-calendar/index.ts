@@ -354,9 +354,41 @@ serve(async (req) => {
         throw new Error('Missing appointment_date or appointment_time')
       }
 
+      // ✅ Obtener nombre del servicio si existe service_id
+      let serviceName = ''
+      if (appointment.service_id) {
+        try {
+          const { data: service } = await supabaseClient
+            .from('business_services')
+            .select('name')
+            .eq('id', appointment.service_id)
+            .single()
+          
+          if (service?.name) {
+            serviceName = service.name
+            console.log(`✅ Servicio encontrado: ${serviceName}`)
+          }
+        } catch (error) {
+          console.warn(`⚠️ No se pudo obtener el servicio ${appointment.service_id}:`, error)
+        }
+      }
+
+      // ✅ Construir descripción con servicio incluido
+      let description = `Reserva desde LA-IA\nTeléfono: ${appointment.customer_phone || 'N/A'}`
+      
+      if (serviceName) {
+        description += `\nServicio: ${serviceName}`
+      }
+      
+      description += `\nPersonas: ${appointment.party_size || 1}`
+      
+      if (appointment.special_requests) {
+        description += `\nNotas: ${appointment.special_requests}`
+      }
+
       const event = {
         summary: `Reserva: ${appointment.customer_name || 'Cliente'}`,
-        description: `Reserva desde LA-IA\nTeléfono: ${appointment.customer_phone || 'N/A'}\nPersonas: ${appointment.party_size || 1}${appointment.special_requests ? `\nNotas: ${appointment.special_requests}` : ''}`,
+        description: description,
         start: {
           dateTime: `${appointmentDate}T${appointmentTime}`,
           timeZone: 'Europe/Madrid',
@@ -719,9 +751,40 @@ serve(async (req) => {
         const appointmentTime = reservation.appointment_time || reservation.reservation_time
         const durationMinutes = reservation.duration_minutes || 90
 
+        // ✅ Obtener nombre del servicio si existe service_id
+        let serviceName = ''
+        if (reservation.service_id) {
+          try {
+            const { data: service } = await supabaseClient
+              .from('business_services')
+              .select('name')
+              .eq('id', reservation.service_id)
+              .single()
+            
+            if (service?.name) {
+              serviceName = service.name
+            }
+          } catch (error) {
+            console.warn(`⚠️ No se pudo obtener el servicio ${reservation.service_id}:`, error)
+          }
+        }
+
+        // ✅ Construir descripción con servicio incluido
+        let description = `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}`
+        
+        if (serviceName) {
+          description += `\nServicio: ${serviceName}`
+        }
+        
+        description += `\nPersonas: ${reservation.party_size || 1}`
+        
+        if (reservation.special_requests) {
+          description += `\nNotas: ${reservation.special_requests}`
+        }
+
         const newEvent = {
           summary: `Reserva: ${reservation.customer_name || 'Cliente'}`,
-          description: `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}\nPersonas: ${reservation.party_size || 1}${reservation.special_requests ? `\nNotas: ${reservation.special_requests}` : ''}`,
+          description: description,
           start: {
             dateTime: `${appointmentDate}T${appointmentTime}`,
             timeZone: 'Europe/Madrid',
@@ -811,9 +874,40 @@ serve(async (req) => {
       const appointmentTime = reservation.appointment_time || reservation.reservation_time
       const durationMinutes = reservation.duration_minutes || 90
 
+      // ✅ Obtener nombre del servicio si existe service_id
+      let serviceNameForUpdate = ''
+      if (reservation.service_id) {
+        try {
+          const { data: service } = await supabaseClient
+            .from('business_services')
+            .select('name')
+            .eq('id', reservation.service_id)
+            .single()
+          
+          if (service?.name) {
+            serviceNameForUpdate = service.name
+          }
+        } catch (error) {
+          console.warn(`⚠️ No se pudo obtener el servicio ${reservation.service_id}:`, error)
+        }
+      }
+
+      // ✅ Construir descripción con servicio incluido
+      let descriptionForUpdate = `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}`
+      
+      if (serviceNameForUpdate) {
+        descriptionForUpdate += `\nServicio: ${serviceNameForUpdate}`
+      }
+      
+      descriptionForUpdate += `\nPersonas: ${reservation.party_size || 1}`
+      
+      if (reservation.special_requests) {
+        descriptionForUpdate += `\nNotas: ${reservation.special_requests}`
+      }
+
       const event = {
         summary: `Reserva: ${reservation.customer_name || 'Cliente'}`,
-        description: `Reserva desde LA-IA\nTeléfono: ${reservation.customer_phone || 'N/A'}\nPersonas: ${reservation.party_size || 1}${reservation.special_requests ? `\nNotas: ${reservation.special_requests}` : ''}`,
+        description: descriptionForUpdate,
         start: {
           dateTime: `${appointmentDate}T${appointmentTime}`,
           timeZone: 'Europe/Madrid',

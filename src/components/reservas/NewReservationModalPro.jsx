@@ -556,19 +556,25 @@ export default function NewReservationModalPro({
                         body: {
                             business_id: businessId,
                             action: 'create',
-                            appointment_id: newReservation.id
+                            reservation_id: newReservation.id  // ✅ La función espera 'reservation_id', no 'appointment_id'
                         }
                     });
                     
                     if (syncError) {
                         console.error('❌ Error sincronizando con Google Calendar:', syncError);
-                        toast.warning('⚠️ Reserva creada pero no se pudo sincronizar con Google Calendar', { duration: 6000 });
+                        toast('⚠️ Reserva creada pero no se pudo sincronizar con Google Calendar', { 
+                            icon: '⚠️',
+                            duration: 6000 
+                        });
                     } else {
                         console.log('✅ Respuesta de sync-google-calendar:', syncData);
                         
                         if (syncData?.skipped) {
                             console.warn('⚠️ Sincronización omitida:', syncData);
-                            toast.warning(`⚠️ Reserva creada pero no sincronizada: ${syncData.message || 'No hay calendario mapeado para este trabajador'}`, { duration: 7000 });
+                            toast(`⚠️ Reserva creada pero no sincronizada: ${syncData.message || 'No hay calendario mapeado para este trabajador'}`, { 
+                                icon: '⚠️',
+                                duration: 7000 
+                            });
                         } else if (syncData?.success && syncData?.event_id) {
                             console.log('✅ Evento creado en Google Calendar:', syncData.event_id);
                             toast.success(`✅ Reserva sincronizada con Google Calendar`, { duration: 5000 });
@@ -579,7 +585,10 @@ export default function NewReservationModalPro({
                     }
                 } catch (syncError) {
                     console.error('❌ Error en catch de sincronización con Google Calendar:', syncError);
-                    toast.warning('⚠️ Error en sincronización con Google Calendar. La reserva se creó correctamente.', { duration: 6000 });
+                    toast('⚠️ Error en sincronización con Google Calendar. La reserva se creó correctamente.', { 
+                        icon: '⚠️',
+                        duration: 6000 
+                    });
                     // Continuar de todas formas
                 }
             }
