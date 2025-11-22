@@ -41,3 +41,4 @@ Ve a: https://supabase.com/dashboard/project/zrcsujgurtglyqoqiynr/functions/goog
 2. **El webhook no está accesible**: Verifica que la URL sea pública
 3. **Los watch channels expiraron**: Aunque parecen estar activos, verifica la fecha actual
 
+

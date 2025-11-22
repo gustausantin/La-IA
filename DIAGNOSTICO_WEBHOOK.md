@@ -68,3 +68,4 @@ ORDER BY created_at DESC;
 4. ✅ **Ejecutar consulta SQL de appointments**
 5. ✅ **Compartir resultados para diagnóstico**
 
+

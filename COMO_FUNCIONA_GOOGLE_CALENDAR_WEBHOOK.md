@@ -140,3 +140,4 @@ WHERE id = '50b41bbf-274c-4c74-a225-a232406b9699';
 - Obtiene los eventos modificados
 - Crea/actualiza appointments en nuestra BD
 
+

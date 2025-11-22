@@ -42,3 +42,4 @@ FROM appointments
 WHERE business_id = '3bbe9ac3-3e61-471e-822e-e159f6ad8ae2'
   AND source = 'google_calendar';
 
+

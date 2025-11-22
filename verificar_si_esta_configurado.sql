@@ -36,3 +36,4 @@ WHERE provider = 'google_calendar'
   AND is_active = true
   AND id = '50b41bbf-274c-4c74-a225-a232406b9699';
 
+

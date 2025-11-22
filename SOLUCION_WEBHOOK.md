@@ -78,3 +78,4 @@ Esta URL debe ser **pública y accesible** desde internet (Google Calendar debe 
 5. Verifica los logs del webhook
 6. Ejecuta la consulta SQL de appointments para ver si se creó
 
+
