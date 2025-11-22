@@ -59,32 +59,20 @@ BEGIN
             v_fixed_count := v_fixed_count + 1;
             RAISE NOTICE '✅ Corregido appointment %: asignado employee_id %', v_result.id, v_employee_id;
         ELSE
-            -- No se encontró empleado
-            -- Para appointments cancelados/completados, poner resource_id a NULL
-            -- Para activos, es un problema que necesita atención
-            IF v_appointment_status IN ('cancelled', 'completed', 'no_show') THEN
-                UPDATE appointments
-                SET resource_id = NULL,
-                    updated_at = NOW()
-                WHERE id = v_result.id;
-                
-                v_fixed_count := v_fixed_count + 1;
-                RAISE NOTICE '✅ Appointment % (status: %): resource_id puesto a NULL (no tiene empleado)', 
-                    v_result.id, v_appointment_status;
-            ELSE
-                v_failed_count := v_failed_count + 1;
-                RAISE WARNING '⚠️ No se pudo corregir appointment % (status: %): recurso % no tiene empleado asignado', 
-                    v_result.id, v_appointment_status, v_result.resource_id;
-            END IF;
+            -- No se encontró empleado - REGLA ABSOLUTA: NO se puede tener resource_id sin employee_id
+            -- Para TODOS los appointments (sin excepciones), poner resource_id a NULL si no hay empleado
+            UPDATE appointments
+            SET resource_id = NULL,
+                updated_at = NOW()
+            WHERE id = v_result.id;
+            
+            v_fixed_count := v_fixed_count + 1;
+            RAISE NOTICE '✅ Appointment % (status: %): resource_id puesto a NULL (no tiene empleado asignado)', 
+                v_result.id, v_appointment_status;
         END IF;
     END LOOP;
     
-    RAISE NOTICE '📊 Resumen: % corregidos, % con problemas', v_fixed_count, v_failed_count;
-    
-    -- Si hay appointments que no se pudieron corregir, informar
-    IF v_failed_count > 0 THEN
-        RAISE WARNING '⚠️ Hay % appointments que no se pudieron corregir. Revisa manualmente.', v_failed_count;
-    END IF;
+    RAISE NOTICE '📊 Resumen: % appointments corregidos', v_fixed_count;
 END $$;
 
 -- PASO 2: Agregar restricción CHECK para garantizar la regla de negocio
@@ -118,23 +106,21 @@ BEGIN
     END IF;
     
     IF v_violating_total_count > 0 THEN
-        RAISE WARNING 'Hay % appointments cancelados/completados que violan la regla. La constraint solo se aplicará a appointments activos.';
+        RAISE WARNING 'Hay % appointments cancelados/completados que violan la regla. La constraint solo se aplicará a appointments activos.', v_violating_total_count;
     END IF;
     
     RAISE NOTICE '✅ Verificación completada: No hay appointments activos que violen la regla.';
 END $$;
 
--- Constraint que solo se aplica a appointments activos
--- Para cancelados/completados, permitimos resource_id sin employee_id (datos históricos)
+-- Constraint CRÍTICA: SIEMPRE requiere employee_id cuando hay resource_id
+-- REGLA DE NEGOCIO: NO se puede crear una reserva sin trabajador asignado
+-- Sin excepciones - esto es una regla absoluta
 ALTER TABLE appointments
 ADD CONSTRAINT check_employee_id_with_resource
 CHECK (
-  -- Si resource_id es NULL, employee_id puede ser NULL
-  -- Si resource_id NO es NULL Y el appointment está activo, employee_id NO puede ser NULL
-  -- Si el appointment está cancelado/completado, permitimos resource_id sin employee_id (datos históricos)
-  (resource_id IS NULL) 
-  OR (employee_id IS NOT NULL) 
-  OR (status IN ('cancelled', 'completed', 'no_show'))
+  -- Si resource_id es NULL, employee_id puede ser NULL (reservas sin recurso específico)
+  -- Si resource_id NO es NULL, employee_id DEBE estar presente (SIN EXCEPCIONES)
+  (resource_id IS NULL) OR (employee_id IS NOT NULL)
 );
 
 COMMENT ON CONSTRAINT check_employee_id_with_resource ON appointments IS 

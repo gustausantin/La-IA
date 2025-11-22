@@ -441,7 +441,29 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                 updated_at: new Date().toISOString()
             };
             
+            // ✅ VALIDACIÓN CRÍTICA FINAL: Verificar employee_id ANTES de insertar
+            // Esta es la última línea de defensa - NO se puede crear sin trabajador
+            if (!appointmentData.employee_id && appointmentData.resource_id) {
+                console.error('❌ CRÍTICO: Intento de crear reserva sin employee_id pero con resource_id');
+                console.error('Datos que se intentaron insertar:', appointmentData);
+                setSaving(false);
+                setValidationError('❌ ERROR CRÍTICO: No se puede crear una reserva sin trabajador asignado. El sistema ha bloqueado esta operación.');
+                toast.error('❌ ERROR: No se puede crear la reserva sin trabajador. Verifica que el recurso tenga un trabajador asignado.', { duration: 10000 });
+                return; // ❌ BLOQUEAR COMPLETAMENTE
+            }
+            
+            // ✅ VALIDACIÓN ADICIONAL: Verificar que employee_id no sea null/undefined
+            if (appointmentData.resource_id && (!appointmentData.employee_id || appointmentData.employee_id === null || appointmentData.employee_id === undefined)) {
+                console.error('❌ CRÍTICO: employee_id es null/undefined pero hay resource_id');
+                console.error('Datos que se intentaron insertar:', appointmentData);
+                setSaving(false);
+                setValidationError('❌ ERROR CRÍTICO: El trabajador no está identificado. No se puede crear la reserva.');
+                toast.error('❌ ERROR: No se puede crear la reserva sin trabajador identificado.', { duration: 10000 });
+                return; // ❌ BLOQUEAR COMPLETAMENTE
+            }
+            
             console.log('📤 Datos a insertar en appointments:', appointmentData);
+            console.log('✅ Validación final: employee_id =', appointmentData.employee_id, 'resource_id =', appointmentData.resource_id);
             
             const { data: reservation, error: reservationError } = await supabase
                 .from('appointments')
@@ -466,7 +488,27 @@ const ReservationFormModal = ({ isOpen, onClose, onSave, tables, businessId }) =
                 throw new Error('La reserva no se creó: respuesta vacía del servidor');
             }
             
+            // ✅ VERIFICACIÓN POST-CREACIÓN: Asegurar que la reserva tiene employee_id
+            if (reservation.resource_id && !reservation.employee_id) {
+                console.error('❌ CRÍTICO: La reserva se creó pero NO tiene employee_id');
+                console.error('Reserva creada:', reservation);
+                setSaving(false);
+                setValidationError('❌ ERROR CRÍTICO: La reserva se creó sin trabajador. Esto no debería ser posible.');
+                toast.error('❌ ERROR CRÍTICO: La reserva se creó sin trabajador. Por favor, contacta al soporte.', { duration: 10000 });
+                
+                // Intentar eliminar la reserva incorrecta
+                try {
+                    await supabase.from('appointments').delete().eq('id', reservation.id);
+                    console.log('✅ Reserva incorrecta eliminada');
+                } catch (deleteError) {
+                    console.error('❌ Error eliminando reserva incorrecta:', deleteError);
+                }
+                
+                return; // ❌ DETENER el proceso
+            }
+            
             console.log('✅ Reserva creada exitosamente en appointments:', reservation.id);
+            console.log('✅ Verificación post-creación: employee_id =', reservation.employee_id, 'resource_id =', reservation.resource_id);
             
             // ✅ Verificar que la reserva se creó con TODOS los campos obligatorios
             const missingFields = [];

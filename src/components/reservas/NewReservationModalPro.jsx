@@ -41,7 +41,8 @@ export default function NewReservationModalPro({
         birthday: '',
         
         // DATOS DE LA RESERVA (ESQUEMA REAL appointments)
-        resource_id: prefilledData.employee_id || '', // ✅ appointments usa resource_id (NO employee_id)
+        employee_id: prefilledData.employee_id || '', // ✅ ID del trabajador (OBLIGATORIO)
+        resource_id: '', // ✅ Se obtendrá del trabajador seleccionado (assigned_resource_id)
         service_id: '',
         appointment_date: prefilledData.date || format(new Date(), 'yyyy-MM-dd'), // ✅ appointment_date
         appointment_time: prefilledData.time || '10:00', // ✅ appointment_time
@@ -71,6 +72,7 @@ export default function NewReservationModalPro({
                 customer_phone: editingReservation.customer_phone || '',
                 customer_email: editingReservation.customer_email || '',
                 birthday: editingReservation.birthday || '',
+                employee_id: editingReservation.employee_id || '',
                 resource_id: editingReservation.resource_id || '',
                 service_id: editingReservation.service_id || '',
                 appointment_date: editingReservation.appointment_date || editingReservation.reservation_date || format(new Date(), 'yyyy-MM-dd'),
@@ -94,10 +96,15 @@ export default function NewReservationModalPro({
             // Modo creación con datos pre-rellenados del calendario
             setFormData(prev => ({
                 ...prev,
-                resource_id: prefilledData.employee_id || prev.resource_id,
+                employee_id: prefilledData.employee_id || prev.employee_id,
                 appointment_date: prefilledData.date || prev.appointment_date,
                 appointment_time: prefilledData.time || prev.appointment_time
             }));
+            
+            // Si hay employee_id, obtener su resource_id
+            if (prefilledData.employee_id) {
+                loadEmployeeResource(prefilledData.employee_id);
+            }
         }
     }, [isEditMode, editingReservation, prefilledData]);
 
@@ -141,6 +148,52 @@ export default function NewReservationModalPro({
         } catch (error) {
             console.error('❌ Error cargando servicios:', error);
             toast.error('Error al cargar servicios: ' + error.message);
+        }
+    };
+
+    // ✅ Función para obtener el resource_id de un empleado
+    const loadEmployeeResource = async (employeeId) => {
+        if (!employeeId) {
+            setFormData(prev => ({ ...prev, resource_id: '' }));
+            return;
+        }
+        
+        try {
+            const { data: employee, error } = await supabase
+                .from('employees')
+                .select('id, name, assigned_resource_id')
+                .eq('id', employeeId)
+                .eq('business_id', businessId)
+                .eq('is_active', true)
+                .single();
+            
+            if (error) {
+                console.error('❌ Error obteniendo recurso del empleado:', error);
+                toast.error('Error al obtener el recurso del trabajador');
+                return;
+            }
+            
+            if (!employee || !employee.assigned_resource_id) {
+                console.error('❌ El trabajador no tiene recurso asignado');
+                toast.error(`❌ El trabajador "${employee?.name || employeeId}" no tiene un recurso asignado. Asigna un recurso en Configuración > Equipo.`, { duration: 8000 });
+                setFormData(prev => ({ ...prev, employee_id: '', resource_id: '' }));
+                return;
+            }
+            
+            console.log('✅ Recurso obtenido del trabajador:', {
+                employee_id: employee.id,
+                employee_name: employee.name,
+                resource_id: employee.assigned_resource_id
+            });
+            
+            setFormData(prev => ({
+                ...prev,
+                employee_id: employee.id,
+                resource_id: employee.assigned_resource_id
+            }));
+        } catch (error) {
+            console.error('❌ Error en loadEmployeeResource:', error);
+            toast.error('Error al obtener el recurso del trabajador');
         }
     };
 
@@ -203,20 +256,26 @@ export default function NewReservationModalPro({
         }));
     };
 
-    // 🔍 VALIDAR DISPONIBILIDAD (evitar conflictos)
-    const validateAvailability = async () => {
-        try {
-            const appointmentDate = formData.appointment_date;
-            const appointmentTime = formData.appointment_time;
-            const resourceId = formData.resource_id;
-            const duration = formData.duration_minutes;
-            
-            // 1. Verificar que el empleado trabaja en ese día/hora
-            const { data: employee, error: employeeError } = await supabase
-                .from('employees')
-                .select('*, employee_schedules(*)')
-                .eq('id', resourceId)
-                .single();
+            // 🔍 VALIDAR DISPONIBILIDAD (evitar conflictos)
+            const validateAvailability = async () => {
+                try {
+                    const appointmentDate = formData.appointment_date;
+                    const appointmentTime = formData.appointment_time;
+                    const employeeId = formData.employee_id;
+                    const resourceId = formData.resource_id;
+                    const duration = formData.duration_minutes;
+                    
+                    if (!employeeId) {
+                        toast.error('❌ Debes seleccionar un trabajador');
+                        return false;
+                    }
+                    
+                    // 1. Verificar que el empleado trabaja en ese día/hora
+                    const { data: employee, error: employeeError } = await supabase
+                        .from('employees')
+                        .select('*, employee_schedules(*)')
+                        .eq('id', employeeId)
+                        .single();
             
             if (employeeError || !employee) {
                 toast.error('❌ Error al verificar horario del empleado');
@@ -303,8 +362,12 @@ export default function NewReservationModalPro({
             toast.error('❌ El teléfono del cliente es obligatorio');
             return;
         }
+        if (!formData.employee_id) {
+            toast.error('❌ Debes seleccionar un trabajador');
+            return;
+        }
         if (!formData.resource_id) {
-            toast.error('❌ Debes seleccionar un empleado');
+            toast.error('❌ El trabajador seleccionado no tiene un recurso asignado. Asigna un recurso en Configuración > Equipo.');
             return;
         }
         if (!formData.service_id) {
@@ -312,11 +375,22 @@ export default function NewReservationModalPro({
             return;
         }
         
-        // 🔍 VALIDAR DISPONIBILIDAD
-        const isAvailable = await validateAvailability();
-        if (!isAvailable) {
-            return; // Detener si hay conflictos
-        }
+            // ✅ VALIDACIÓN CRÍTICA: Verificar que tenemos employee_id y resource_id
+            if (!formData.employee_id || !formData.resource_id) {
+                console.error('❌ CRÍTICO: Faltan employee_id o resource_id:', {
+                    employee_id: formData.employee_id,
+                    resource_id: formData.resource_id
+                });
+                toast.error('❌ ERROR: No se puede crear la reserva sin trabajador y recurso asignados.', { duration: 10000 });
+                setLoading(false);
+                return;
+            }
+            
+            // 🔍 VALIDAR DISPONIBILIDAD
+            const isAvailable = await validateAvailability();
+            if (!isAvailable) {
+                return; // Detener si hay conflictos
+            }
 
         setLoading(true);
 
@@ -402,7 +476,8 @@ export default function NewReservationModalPro({
                     .update({
                         customer_id: customerId,
                         service_id: formData.service_id,
-                        resource_id: formData.resource_id,
+                        employee_id: formData.employee_id, // ✅ OBLIGATORIO
+                        resource_id: formData.resource_id, // ✅ OBLIGATORIO
                         appointment_date: formData.appointment_date,
                         appointment_time: formData.appointment_time,
                         duration_minutes: formData.duration_minutes,
@@ -430,7 +505,8 @@ export default function NewReservationModalPro({
                         business_id: businessId,
                         customer_id: customerId,
                         service_id: formData.service_id,
-                        resource_id: formData.resource_id, // ✅ resource_id (NO employee_id)
+                        employee_id: formData.employee_id, // ✅ OBLIGATORIO: ID del trabajador
+                        resource_id: formData.resource_id, // ✅ OBLIGATORIO: Recurso del trabajador
                         appointment_date: formData.appointment_date, // ✅ appointment_date
                         appointment_time: formData.appointment_time, // ✅ appointment_time
                         duration_minutes: formData.duration_minutes, // ✅ duration_minutes
@@ -451,8 +527,61 @@ export default function NewReservationModalPro({
                 }
 
                 console.log('✅ Reserva creada:', newReservation);
+                
+                // ✅ VERIFICACIÓN POST-CREACIÓN: Asegurar que tiene employee_id y resource_id
+                if (newReservation.resource_id && !newReservation.employee_id) {
+                    console.error('❌ CRÍTICO: La reserva se creó pero NO tiene employee_id');
+                    console.error('Reserva creada:', newReservation);
+                    toast.error('❌ ERROR CRÍTICO: La reserva se creó sin trabajador. Esto no debería ser posible.', { duration: 10000 });
+                    
+                    // Intentar eliminar la reserva incorrecta
+                    try {
+                        await supabase.from('appointments').delete().eq('id', newReservation.id);
+                        console.log('✅ Reserva incorrecta eliminada');
+                    } catch (deleteError) {
+                        console.error('❌ Error eliminando reserva incorrecta:', deleteError);
+                    }
+                    
+                    setLoading(false);
+                    return;
+                }
+                
                 toast.success(`✅ Reserva creada para ${fullName}`);
                 result = newReservation; // Devolver la reserva creada
+                
+                // ✅ SINCRONIZAR CON GOOGLE CALENDAR
+                try {
+                    console.log('🔄 Sincronizando reserva con Google Calendar...', newReservation.id);
+                    const { data: syncData, error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                        body: {
+                            business_id: businessId,
+                            action: 'create',
+                            appointment_id: newReservation.id
+                        }
+                    });
+                    
+                    if (syncError) {
+                        console.error('❌ Error sincronizando con Google Calendar:', syncError);
+                        toast.warning('⚠️ Reserva creada pero no se pudo sincronizar con Google Calendar', { duration: 6000 });
+                    } else {
+                        console.log('✅ Respuesta de sync-google-calendar:', syncData);
+                        
+                        if (syncData?.skipped) {
+                            console.warn('⚠️ Sincronización omitida:', syncData);
+                            toast.warning(`⚠️ Reserva creada pero no sincronizada: ${syncData.message || 'No hay calendario mapeado para este trabajador'}`, { duration: 7000 });
+                        } else if (syncData?.success && syncData?.event_id) {
+                            console.log('✅ Evento creado en Google Calendar:', syncData.event_id);
+                            toast.success(`✅ Reserva sincronizada con Google Calendar`, { duration: 5000 });
+                        } else {
+                            console.warn('⚠️ Respuesta inesperada de sync-google-calendar:', syncData);
+                            toast.success('✅ Reserva sincronizada con Google Calendar', { duration: 3000 });
+                        }
+                    }
+                } catch (syncError) {
+                    console.error('❌ Error en catch de sincronización con Google Calendar:', syncError);
+                    toast.warning('⚠️ Error en sincronización con Google Calendar. La reserva se creó correctamente.', { duration: 6000 });
+                    // Continuar de todas formas
+                }
             }
             
             // Cerrar modal y limpiar
@@ -482,7 +611,8 @@ export default function NewReservationModalPro({
             customer_phone: '',
             customer_email: '',
             birthday: '',
-            resource_id: '',
+            employee_id: '', // ✅ Limpiar employee_id
+            resource_id: '', // ✅ Limpiar resource_id
             service_id: '',
             appointment_date: format(new Date(), 'yyyy-MM-dd'),
             appointment_time: '10:00',
@@ -795,8 +925,12 @@ export default function NewReservationModalPro({
                                             Empleado *
                                         </label>
                                         <select
-                                            value={formData.resource_id}
-                                            onChange={(e) => setFormData(prev => ({ ...prev, resource_id: e.target.value }))}
+                                            value={formData.employee_id}
+                                            onChange={async (e) => {
+                                                const selectedEmployeeId = e.target.value;
+                                                // ✅ Obtener el resource_id del trabajador seleccionado
+                                                await loadEmployeeResource(selectedEmployeeId);
+                                            }}
                                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                                             required
                                         >
