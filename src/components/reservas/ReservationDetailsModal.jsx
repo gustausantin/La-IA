@@ -297,7 +297,7 @@ export const ReservationDetailsModal = ({ reservation, onClose, onEdit, isOpen }
           >
             Cerrar
           </button>
-          {onEdit && (
+          {onEdit && reservation.source !== 'google_calendar' && (
             <button
               onClick={() => {
                 onEdit(reservation);
@@ -307,6 +307,22 @@ export const ReservationDetailsModal = ({ reservation, onClose, onEdit, isOpen }
             >
               Editar Reserva
             </button>
+          )}
+
+          {/* ✅ Mostrar mensaje informativo para eventos de Google Calendar */}
+          {reservation.source === 'google_calendar' && (
+            <div className="w-full bg-amber-50 border-2 border-amber-200 rounded-xl p-4 flex items-start gap-3">
+              <Tag className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-amber-900 mb-1">
+                  Evento de Google Calendar
+                </p>
+                <p className="text-xs text-amber-700">
+                  Este evento fue creado en Google Calendar. Por seguridad, debes gestionarlo desde allí.
+                  Si lo modificas desde Google Calendar, se actualizará automáticamente aquí.
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>

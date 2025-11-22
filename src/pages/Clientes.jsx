@@ -179,6 +179,7 @@ export default function Clientes() {
 
             // ✅ Query con ESQUEMA REAL de Supabase (extraído 2025-11-08)
             // 📋 Ver: docs/01-arquitectura/SCHEMA-REAL-SUPABASE-2025.sql
+            // ✅ EXCLUIR cliente genérico de Google Calendar (no es un cliente real)
             const { data: customers, error } = await supabase
                 .from("customers")
                 .select(`
@@ -192,6 +193,7 @@ export default function Clientes() {
                     created_at, updated_at
                 `)
                 .eq("business_id", businessId)
+                .neq("name", "Cliente de Google Calendar") // ✅ NO mostrar cliente genérico del sistema
                 .order("created_at", { ascending: false });
 
             if (error) throw error;

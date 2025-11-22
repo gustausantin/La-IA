@@ -458,8 +458,9 @@ async function syncEventToAppointment(
     .eq('gcal_event_id', event.id)
     .single()
 
-  // ✅ Obtener cliente genérico (NO crear uno nuevo por evento)
-  // Solo usar "Cliente de Google Calendar" - si no existe, se crea UNA VEZ en la importación inicial
+  // ✅ Obtener cliente genérico (NUNCA crear clientes nuevos para eventos de Google Calendar)
+  // Solo usar "Cliente de Google Calendar" - debe existir desde la importación inicial
+  // Si no existe, es un error de configuración, NO crear uno nuevo
   let { data: customer } = await supabaseClient
     .from('customers')
     .select('id')
@@ -468,28 +469,27 @@ async function syncEventToAppointment(
     .maybeSingle()
 
   if (!customer) {
-    // ✅ Si no existe el cliente genérico, crearlo UNA VEZ (solo la primera vez)
-    console.log('⚠️ Cliente genérico no existe, creándolo UNA VEZ...')
-    const { data: newCustomer, error: customerError } = await supabaseClient
+    // ✅ REGLA: NO crear clientes para eventos de Google Calendar
+    // El cliente genérico debe existir desde la importación inicial
+    // Si no existe, es un error y debemos usar el primer cliente disponible o lanzar error
+    console.error('❌ ERROR: Cliente genérico "Cliente de Google Calendar" no existe')
+    console.error('⚠️ Esto no debería pasar. El cliente genérico debe crearse en la importación inicial.')
+    
+    // ✅ Intentar obtener el primer cliente del negocio como fallback (solo para evitar error)
+    const { data: fallbackCustomer } = await supabaseClient
       .from('customers')
-      .insert({
-        business_id: businessId,
-        name: 'Cliente de Google Calendar',
-        email: null,
-        phone: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
       .select('id')
-      .single()
+      .eq('business_id', businessId)
+      .limit(1)
+      .maybeSingle()
     
-    if (customerError) {
-      console.error('❌ Error creando cliente genérico:', customerError)
-      throw new Error(`No se pudo obtener o crear cliente genérico: ${customerError.message}`)
+    if (fallbackCustomer) {
+      console.warn('⚠️ Usando cliente fallback (esto no debería pasar):', fallbackCustomer.id)
+      customer = fallbackCustomer
+    } else {
+      // Si no hay ningún cliente, lanzar error (no crear uno nuevo)
+      throw new Error('No se puede importar evento de Google Calendar: no existe el cliente genérico y no hay clientes en el negocio. Ejecuta la importación inicial primero.')
     }
-    
-    customer = newCustomer
-    console.log('✅ Cliente genérico creado UNA VEZ:', customer.id)
   }
 
   // ✅ Obtener primer servicio activo

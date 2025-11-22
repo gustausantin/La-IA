@@ -134,10 +134,12 @@ export class CRMAutomationProcessor {
     async getEligibleCustomers(rule) {
         try {
             // Base query para clientes
+            // ✅ EXCLUIR cliente genérico de Google Calendar (no es un cliente real)
             let query = supabase
                 .from('customers')
                 .select('*')
-                .eq('business_id', this.businessId);
+                .eq('business_id', this.businessId)
+                .neq('name', 'Cliente de Google Calendar'); // ✅ NO incluir cliente genérico del sistema
             
             // Aplicar filtros según el tipo de regla
             switch (rule.rule_type) {

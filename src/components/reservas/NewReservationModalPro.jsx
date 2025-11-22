@@ -208,10 +208,12 @@ export default function NewReservationModalPro({
             setSearching(true);
             try {
                 // ESQUEMA REAL: name, first_name, last_name, phone, total_visits
+                // ✅ EXCLUIR cliente genérico de Google Calendar (no es un cliente real)
                 const { data, error } = await supabase
                     .from('customers')
                     .select('id, name, first_name, last_name, phone, email, total_visits, last_visit_at')
                     .eq('business_id', businessId)
+                    .neq('name', 'Cliente de Google Calendar') // ✅ NO mostrar cliente genérico del sistema
                     .or(`name.ilike.%${searchTerm}%,phone.ilike.%${searchTerm}%`)
                     .order('total_visits', { ascending: false })
                     .limit(10);

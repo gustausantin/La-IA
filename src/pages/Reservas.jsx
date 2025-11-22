@@ -457,7 +457,7 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
                                 Ver detalles
                             </button>
 
-                            {state.actions.includes("edit") && (
+                            {state.actions.includes("edit") && reservation.source !== 'google_calendar' && (
                                 <button
                                     onClick={() => {
                                         onAction("edit", reservation);
@@ -2255,6 +2255,18 @@ export default function Reservas() {
                     setShowDeleteModal(true);
                     return;
                 case "edit":
+                    // ✅ REGLA DE ORO: No permitir editar eventos que vienen de Google Calendar
+                    // Solo se pueden editar desde Google Calendar mismo
+                    if (reservation.source === 'google_calendar') {
+                        toast.error(
+                            '⚠️ Este evento fue creado en Google Calendar\n\n' +
+                            'Por seguridad, debes gestionarlo desde Google Calendar.\n' +
+                            'Si lo modificas desde allí, se actualizará automáticamente aquí.',
+                            { duration: 6000 }
+                        );
+                        return; // Bloquear la edición
+                    }
+
                     // 🔥 Cargar datos completos del cliente antes de editar
                     if (reservation.customer_id) {
                         const { data: customerData, error: customerError } = await supabase
@@ -3382,6 +3394,17 @@ export default function Reservas() {
                         setViewingReservation(null);
                     }}
                     onEdit={(reserva) => {
+                        // ✅ REGLA DE ORO: No permitir editar eventos que vienen de Google Calendar
+                        if (reserva.source === 'google_calendar') {
+                            toast.error(
+                                '⚠️ Este evento fue creado en Google Calendar\n\n' +
+                                'Por seguridad, debes gestionarlo desde Google Calendar.\n' +
+                                'Si lo modificas desde allí, se actualizará automáticamente aquí.',
+                                { duration: 6000 }
+                            );
+                            return; // Bloquear la edición
+                        }
+
                         // ✅ Abrir NewReservationModalPro en modo edición
                         setEditingReservation(reserva);
                         setShowDetailsModal(false); // Cerrar modal de detalles
@@ -3819,6 +3842,7 @@ const ReservationFormModal = ({
                 .from("customers")
                 .select("*")
                 .eq("business_id", businessId)
+                .neq("name", "Cliente de Google Calendar") // ✅ NO mostrar cliente genérico del sistema
                 .or(`phone.ilike.%${phone}%,name.ilike.%${phone}%`)
                 .order('last_visit_at', { ascending: false })
                 .limit(5);
@@ -4099,7 +4123,10 @@ const ReservationFormModal = ({
                 // 🔧 BUSCAR CLIENTE PARA GUARDAR (si no hay customer_id)
                 if (!actualCustomerId && (formData.customer_phone || formData.customer_email)) {
                     console.log('🔍 Buscando cliente para guardar...');
-                    let query = supabase.from('customers').select('id').eq('business_id', businessId);
+                    let query = supabase.from('customers')
+                        .select('id')
+                        .eq('business_id', businessId)
+                        .neq('name', 'Cliente de Google Calendar'); // ✅ NO mostrar cliente genérico del sistema
                     
                     if (formData.customer_phone) {
                         query = query.eq('phone', formData.customer_phone);
@@ -4257,7 +4284,10 @@ const ReservationFormModal = ({
                         console.log('Buscando con email:', reservationData.customer_email);
                         
                         if (reservationData.customer_phone || reservationData.customer_email) {
-                            let query = supabase.from('customers').select('*').eq('business_id', businessId);
+                            let query = supabase.from('customers')
+                                .select('*')
+                                .eq('business_id', businessId)
+                                .neq('name', 'Cliente de Google Calendar'); // ✅ NO mostrar cliente genérico del sistema
                             
                             if (reservationData.customer_phone) {
                                 query = query.eq('phone', reservationData.customer_phone);
