@@ -266,6 +266,7 @@ serve(async (req) => {
       if (!appointment.employee_id && appointment.resource_id) {
         console.log(`🔍 Buscando empleado para resource_id ${appointment.resource_id}...`)
         try {
+          // ✅ Opción 2.1: Buscar empleado con assigned_resource_id = resource_id
           const { data: employeeData, error: employeeError } = await supabaseClient
             .from('employees')
             .select('id')
@@ -278,6 +279,9 @@ serve(async (req) => {
             const inferredEmployeeId = employeeData.id
             console.log(`✅ Empleado encontrado para resource_id ${appointment.resource_id}: ${inferredEmployeeId}`)
             
+            // ✅ Actualizar el appointment.employee_id para que esté disponible en el resto de la función
+            appointment.employee_id = inferredEmployeeId
+            
             // Intentar usar el mapeo del empleado encontrado
             const employeeMapping = integration.config?.employee_calendar_mapping || {}
             const mappedCalendar = employeeMapping[inferredEmployeeId]
@@ -289,6 +293,36 @@ serve(async (req) => {
             }
           } else {
             console.warn(`⚠️ No se encontró empleado activo con assigned_resource_id = ${appointment.resource_id}`)
+            
+            // ✅ Opción 2.2: Verificar si resource_id es directamente un employee_id
+            console.log(`🔍 Verificando si resource_id ${appointment.resource_id} es directamente un employee_id...`)
+            const { data: directEmployeeData, error: directEmployeeError } = await supabaseClient
+              .from('employees')
+              .select('id')
+              .eq('business_id', business_id)
+              .eq('id', appointment.resource_id)
+              .eq('is_active', true)
+              .maybeSingle()
+            
+            if (!directEmployeeError && directEmployeeData && directEmployeeData.id) {
+              const directEmployeeId = directEmployeeData.id
+              console.log(`✅ resource_id ${appointment.resource_id} es directamente un employee_id: ${directEmployeeId}`)
+              
+              // ✅ Actualizar el appointment.employee_id
+              appointment.employee_id = directEmployeeId
+              
+              // Intentar usar el mapeo del empleado
+              const employeeMapping = integration.config?.employee_calendar_mapping || {}
+              const mappedCalendar = employeeMapping[directEmployeeId]
+              if (mappedCalendar) {
+                console.log(`🔗 Usando calendario del empleado directo ${directEmployeeId}: ${mappedCalendar}`)
+                return mappedCalendar
+              } else {
+                console.warn(`⚠️ Empleado directo ${directEmployeeId} encontrado pero no tiene calendario mapeado`)
+              }
+            } else {
+              console.warn(`⚠️ resource_id ${appointment.resource_id} tampoco es un employee_id válido`)
+            }
           }
         } catch (error) {
           console.error(`❌ Error buscando empleado para resource_id ${appointment.resource_id}:`, error)
@@ -331,7 +365,7 @@ serve(async (req) => {
           dateTime: `${appointmentDate}T${calculateEndTime(appointmentTime, durationMinutes)}`,
           timeZone: 'Europe/Madrid',
         },
-        colorId: getColorByStatus(appointment.status),
+        // ✅ No especificar colorId para que use el color por defecto del calendario
         extendedProperties: {
           private: {
             la_ia_appointment_id: appointment.id,
@@ -466,6 +500,61 @@ serve(async (req) => {
       const targetCalendarId = await getCalendarForAppointment(reservation)
       
       if (!targetCalendarId) {
+        // ✅ Intentar una última vez buscar el empleado y actualizar la reserva
+        if (!reservation.employee_id && reservation.resource_id) {
+          console.log(`🔄 Último intento: Buscando empleado para resource_id ${reservation.resource_id}...`)
+          const { data: lastAttemptEmployee } = await supabaseClient
+            .from('employees')
+            .select('id')
+            .eq('business_id', business_id)
+            .or(`assigned_resource_id.eq.${reservation.resource_id},id.eq.${reservation.resource_id}`)
+            .eq('is_active', true)
+            .maybeSingle()
+          
+          if (lastAttemptEmployee?.id) {
+            console.log(`✅ Empleado encontrado en último intento: ${lastAttemptEmployee.id}`)
+            // Actualizar la reserva con el employee_id encontrado
+            await supabaseClient
+              .from('appointments')
+              .update({ employee_id: lastAttemptEmployee.id })
+              .eq('id', reservation_id)
+            
+            // Intentar obtener el calendario nuevamente
+            reservation.employee_id = lastAttemptEmployee.id
+            const retryCalendarId = await getCalendarForAppointment(reservation)
+            if (retryCalendarId) {
+              console.log(`✅ Calendario encontrado después de actualizar employee_id: ${retryCalendarId}`)
+              // Continuar con la creación del evento
+              const createdEvent = await createGoogleCalendarEvent(reservation, retryCalendarId)
+              console.log(`✅ Evento creado en Google Calendar: ${createdEvent.id}`)
+              
+              // Actualizar la reserva
+              const updatedInternalNotes = {
+                ...internalNotes,
+                gcal_event_id: createdEvent.id,
+                calendar_id: retryCalendarId,
+                synced_at: new Date().toISOString(),
+              }
+              
+              await supabaseClient
+                .from('appointments')
+                .update({
+                  gcal_event_id: createdEvent.id,
+                  calendar_id: retryCalendarId,
+                  synced_to_gcal: true,
+                  employee_id: lastAttemptEmployee.id,
+                  internal_notes: updatedInternalNotes,
+                })
+                .eq('id', reservation_id)
+              
+              return new Response(
+                JSON.stringify({ success: true, event_id: createdEvent.id, calendar_id: retryCalendarId, employee_id_updated: true }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              )
+            }
+          }
+        }
+        
         console.warn(`⚠️ No se puede sincronizar reserva ${reservation_id} - no hay calendario mapeado`, {
           employee_id: reservation.employee_id,
           resource_id: reservation.resource_id,
@@ -477,7 +566,7 @@ serve(async (req) => {
             success: false, 
             skipped: true, 
             reason: 'no_calendar_mapping',
-            message: `No hay calendario mapeado para el empleado ${reservation.employee_id || reservation.resource_id || 'N/A'}. Por favor, vincula un calendario a este trabajador en la configuración.`
+            message: `No hay calendario mapeado para el recurso ${reservation.resource_id || 'N/A'}. Por favor, asegúrate de que el recurso tenga un trabajador asignado y que ese trabajador tenga un calendario vinculado en la configuración de Google Calendar.`
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
@@ -486,6 +575,51 @@ serve(async (req) => {
       console.log(`✅ Calendario encontrado: ${targetCalendarId} - Creando evento en Google Calendar...`)
       const createdEvent = await createGoogleCalendarEvent(reservation, targetCalendarId)
       console.log(`✅ Evento creado en Google Calendar: ${createdEvent.id}`)
+
+      // ✅ Actualizar la reserva con los datos de Google Calendar
+      // Si employee_id fue inferido desde resource_id, también actualizarlo
+      const updateData: any = {
+        gcal_event_id: createdEvent.id, // ✅ Guardar event_id en columna directa
+        calendar_id: targetCalendarId, // ✅ Guardar calendar_id en columna directa
+        synced_to_gcal: true, // ✅ Marcar como sincronizado
+      }
+
+      // ✅ Si employee_id fue inferido (estaba null pero ahora lo tenemos), actualizarlo
+      if (!reservation.employee_id && reservation.resource_id) {
+        // Buscar el employee_id desde resource_id para actualizarlo
+        const { data: employeeData } = await supabaseClient
+          .from('employees')
+          .select('id')
+          .eq('business_id', business_id)
+          .eq('assigned_resource_id', reservation.resource_id)
+          .eq('is_active', true)
+          .maybeSingle()
+        
+        if (employeeData?.id) {
+          updateData.employee_id = employeeData.id
+          console.log(`✅ Actualizando employee_id en la reserva: ${employeeData.id}`)
+        }
+      }
+
+      const updatedInternalNotes = {
+        ...internalNotes,
+        gcal_event_id: createdEvent.id,
+        calendar_id: targetCalendarId,
+        synced_at: new Date().toISOString(),
+      }
+      updateData.internal_notes = updatedInternalNotes // ✅ Guardar también en internal_notes (JSONB)
+
+      const { error: updateError } = await supabaseClient
+        .from('appointments')
+        .update(updateData)
+        .eq('id', reservation_id)
+
+      if (updateError) {
+        console.error(`⚠️ Error actualizando reserva con datos de Google Calendar:`, updateError)
+        // Continuar de todas formas, el evento ya está creado en Google Calendar
+      } else {
+        console.log(`✅ Reserva actualizada con datos de Google Calendar: gcal_event_id=${createdEvent.id}, calendar_id=${targetCalendarId}`)
+      }
 
       return new Response(
         JSON.stringify({ success: true, event_id: createdEvent.id, calendar_id: targetCalendarId }),
@@ -596,7 +730,7 @@ serve(async (req) => {
             dateTime: `${appointmentDate}T${calculateEndTime(appointmentTime, durationMinutes)}`,
             timeZone: 'Europe/Madrid',
           },
-          colorId: getColorByStatus(reservation.status),
+          // ✅ No especificar colorId para que use el color por defecto del calendario
           extendedProperties: {
             private: {
               la_ia_appointment_id: reservation.id,
@@ -688,7 +822,7 @@ serve(async (req) => {
           dateTime: `${appointmentDate}T${calculateEndTime(appointmentTime, durationMinutes)}`,
           timeZone: 'Europe/Madrid',
         },
-        colorId: getColorByStatus(reservation.status),
+        // ✅ No especificar colorId para que use el color por defecto del calendario
       }
 
       const updateResponse = await fetch(
