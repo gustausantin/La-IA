@@ -357,20 +357,27 @@ serve(async (req) => {
       // ✅ Obtener nombre del servicio si existe service_id
       let serviceName = ''
       if (appointment.service_id) {
+        console.log(`🔍 Buscando servicio con ID: ${appointment.service_id}`)
         try {
-          const { data: service } = await supabaseClient
+          const { data: service, error: serviceError } = await supabaseClient
             .from('business_services')
             .select('name')
             .eq('id', appointment.service_id)
             .single()
           
-          if (service?.name) {
+          if (serviceError) {
+            console.error(`❌ Error obteniendo servicio:`, serviceError)
+          } else if (service?.name) {
             serviceName = service.name
             console.log(`✅ Servicio encontrado: ${serviceName}`)
+          } else {
+            console.warn(`⚠️ Servicio con ID ${appointment.service_id} no tiene nombre`)
           }
         } catch (error) {
-          console.warn(`⚠️ No se pudo obtener el servicio ${appointment.service_id}:`, error)
+          console.error(`❌ Error en catch obteniendo servicio ${appointment.service_id}:`, error)
         }
+      } else {
+        console.warn(`⚠️ La reserva no tiene service_id asignado`)
       }
 
       // ✅ Construir descripción con servicio incluido
@@ -507,6 +514,7 @@ serve(async (req) => {
         status: reservation.status,
         employee_id: reservation.employee_id,
         resource_id: reservation.resource_id,
+        service_id: reservation.service_id, // ✅ Agregar service_id al log
         appointment_date: reservation.appointment_date,
         appointment_time: reservation.appointment_time,
       })

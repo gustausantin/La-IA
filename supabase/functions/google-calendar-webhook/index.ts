@@ -22,6 +22,9 @@ serve(async (req) => {
 
   try {
     console.log('📥 Webhook de Google Calendar recibido')
+    console.log('📋 Headers:', JSON.stringify(Object.fromEntries(req.headers.entries()), null, 2))
+    console.log('📋 Method:', req.method)
+    console.log('📋 URL:', req.url)
 
     // ✅ Crear cliente de Supabase
     const supabaseClient = createClient(
@@ -30,17 +33,27 @@ serve(async (req) => {
     )
 
     // ✅ Google Calendar envía notificaciones en formato JSON
-    const notification = await req.json().catch(() => null)
-    
-    if (!notification) {
+    let notification
+    try {
+      notification = await req.json()
+      console.log('📨 Notificación recibida:', JSON.stringify(notification, null, 2))
+    } catch (error) {
+      console.warn('⚠️ No se pudo parsear el body como JSON:', error)
       // Si no hay body, puede ser una verificación inicial de Google
       return new Response(
-        JSON.stringify({ message: 'Webhook endpoint activo' }),
+        JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    console.log('📨 Notificación recibida:', JSON.stringify(notification, null, 2))
+    
+    if (!notification) {
+      console.warn('⚠️ Notificación vacía o null')
+      // Si no hay body, puede ser una verificación inicial de Google
+      return new Response(
+        JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // ✅ Google Calendar envía notificaciones con esta estructura:
     // {
@@ -325,29 +338,38 @@ async function syncEventToAppointment(
     .eq('gcal_event_id', event.id)
     .single()
 
-  // ✅ Obtener o crear cliente genérico
-  const customerName = event.summary || 'Cliente de Google Calendar'
-  
+  // ✅ Obtener cliente genérico (NO crear uno nuevo por evento)
+  // Solo usar "Cliente de Google Calendar" - si no existe, se crea UNA VEZ en la importación inicial
   let { data: customer } = await supabaseClient
     .from('customers')
     .select('id')
     .eq('business_id', businessId)
-    .eq('name', customerName)
-    .single()
+    .eq('name', 'Cliente de Google Calendar')
+    .maybeSingle()
 
   if (!customer) {
-    const { data: newCustomer } = await supabaseClient
+    // ✅ Si no existe el cliente genérico, crearlo UNA VEZ (solo la primera vez)
+    console.log('⚠️ Cliente genérico no existe, creándolo UNA VEZ...')
+    const { data: newCustomer, error: customerError } = await supabaseClient
       .from('customers')
       .insert({
         business_id: businessId,
-        name: customerName,
+        name: 'Cliente de Google Calendar',
+        email: null,
+        phone: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
       .select('id')
       .single()
     
+    if (customerError) {
+      console.error('❌ Error creando cliente genérico:', customerError)
+      throw new Error(`No se pudo obtener o crear cliente genérico: ${customerError.message}`)
+    }
+    
     customer = newCustomer
+    console.log('✅ Cliente genérico creado UNA VEZ:', customer.id)
   }
 
   // ✅ Obtener primer servicio activo
@@ -370,7 +392,7 @@ async function syncEventToAppointment(
     service_id: service.id,
     employee_id: employeeId,
     resource_id: employeeId, // Usar employee_id como resource_id también
-    customer_name: customerName,
+    customer_name: 'Cliente de Google Calendar', // ✅ SIEMPRE este nombre, no el del evento
     appointment_date: appointmentDate,
     appointment_time: appointmentTime,
     duration_minutes: durationMinutes,
@@ -380,13 +402,17 @@ async function syncEventToAppointment(
     notes: event.description || event.summary || 'Evento de Google Calendar',
     gcal_event_id: event.id,
     calendar_id: calendarId,
-    internal_notes: JSON.stringify({
+    internal_notes: {
       gcal_event_id: event.id,
       calendar_id: calendarId,
       source: 'google_calendar_webhook',
       original_summary: event.summary,
       original_description: event.description || null,
-    }),
+      // ✅ Guardar información extraída del evento aquí (NO crear cliente)
+      extracted_customer_name: event.summary || null,
+      extracted_customer_email: null, // Se puede extraer del description si es necesario
+      extracted_customer_phone: null, // Se puede extraer del description si es necesario
+    }, // ✅ JSONB - Supabase lo maneja automáticamente
     updated_at: new Date().toISOString()
   }
 

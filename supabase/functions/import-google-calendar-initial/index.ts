@@ -1003,6 +1003,9 @@ async function importEventsToAppointments(
       genericCustomerId = existingCustomer.id
       console.log(`✅ Cliente genérico encontrado: ${genericCustomerId}`)
     } else {
+      // ✅ Crear cliente genérico UNA VEZ (solo si no existe)
+      // Este es el ÚNICO cliente que se crea para eventos de Google Calendar
+      console.log(`⚠️ Cliente genérico no existe, creándolo UNA VEZ...`)
       const { data: newCustomer, error: customerError } = await supabaseClient
         .from('customers')
         .insert({
@@ -1018,9 +1021,11 @@ async function importEventsToAppointments(
 
       if (customerError) {
         console.error(`❌ Error creando cliente genérico:`, customerError)
+        // ❌ NO continuar si no se puede crear el cliente genérico
+        throw new Error(`No se pudo crear cliente genérico: ${customerError.message}`)
       } else {
         genericCustomerId = newCustomer.id
-        console.log(`✅ Cliente genérico creado: ${genericCustomerId}`)
+        console.log(`✅ Cliente genérico creado UNA VEZ: ${genericCustomerId}`)
       }
     }
 
