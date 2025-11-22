@@ -26,32 +26,80 @@ serve(async (req) => {
     console.log('📋 Method:', req.method)
     console.log('📋 URL:', req.url)
 
-    // ✅ Crear cliente de Supabase
+    // ✅ Verificar que la petición viene de Google Calendar
+    const userAgent = req.headers.get('user-agent') || ''
+    const isFromGoogle = userAgent.includes('APIs-Google') || userAgent.includes('Google')
+    
+    if (!isFromGoogle && req.method === 'POST') {
+      console.warn('⚠️ Petición no viene de Google Calendar:', userAgent)
+      // Permitir de todas formas, pero loguear
+    }
+
+    // ✅ Crear cliente de Supabase (NO requiere autenticación del request)
+    // Google Calendar no puede enviar tokens, así que usamos SERVICE_ROLE_KEY directamente
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    // ✅ Google Calendar envía notificaciones en formato JSON
-    let notification
+    // ✅ Google Calendar puede enviar notificaciones con o sin body
+    // A veces envía un body vacío o sin body para verificación
+    let notification = null
+    let hasBody = false
+    
     try {
-      notification = await req.json()
-      console.log('📨 Notificación recibida:', JSON.stringify(notification, null, 2))
+      const bodyText = await req.text()
+      hasBody = bodyText && bodyText.length > 0
+      
+      if (hasBody) {
+        notification = JSON.parse(bodyText)
+        console.log('📨 Notificación recibida:', JSON.stringify(notification, null, 2))
+      } else {
+        console.log('📨 Petición sin body (puede ser verificación de Google)')
+        // Google Calendar a veces envía peticiones sin body para verificar el endpoint
+        return new Response(
+          JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
+          { 
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
     } catch (error) {
-      console.warn('⚠️ No se pudo parsear el body como JSON:', error)
-      // Si no hay body, puede ser una verificación inicial de Google
+      console.warn('⚠️ Error parseando body:', error)
+      // Si hay error pero es una petición de Google, responder OK
+      if (isFromGoogle) {
+        return new Response(
+          JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
+          { 
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          }
+        )
+      }
+      throw error
+    }
+    
+    if (!notification && hasBody) {
+      console.warn('⚠️ Notificación vacía o null pero había body')
       return new Response(
         JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { 
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       )
     }
     
+    // Si no hay notificación y no hay body, es una verificación
     if (!notification) {
-      console.warn('⚠️ Notificación vacía o null')
-      // Si no hay body, puede ser una verificación inicial de Google
+      console.log('✅ Petición de verificación de Google Calendar')
       return new Response(
         JSON.stringify({ message: 'Webhook endpoint activo', received: true }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        { 
+          status: 200,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
       )
     }
 
