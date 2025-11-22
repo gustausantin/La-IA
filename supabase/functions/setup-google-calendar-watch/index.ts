@@ -130,8 +130,25 @@ serve(async (req) => {
       throw new Error('SUPABASE_URL no está configurado en las variables de entorno')
     }
     
-    const webhookUrl = `${supabaseUrl}/functions/v1/google-calendar-webhook`
-    console.log(`🔗 Webhook URL: ${webhookUrl}`)
+    // ✅ Intentar obtener anon key de variables de entorno o de la integración
+    // Si no está disponible, el webhook debería funcionar con el config.json (auth: false)
+    let supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
+    
+    // Si no está en env, intentar obtenerlo de la integración (puede estar guardado)
+    if (!supabaseAnonKey && integration.config?.supabase_anon_key) {
+      supabaseAnonKey = integration.config.supabase_anon_key
+    }
+    
+    // ✅ Incluir anon key como parámetro para evitar 401 (temporal hasta que funcione el config.json)
+    // Google Calendar no puede enviar headers de autenticación, así que usamos query param
+    let webhookUrl = `${supabaseUrl}/functions/v1/google-calendar-webhook`
+    if (supabaseAnonKey) {
+      webhookUrl += `?apikey=${encodeURIComponent(supabaseAnonKey)}`
+      console.log(`🔗 Webhook URL con apikey: ${webhookUrl.substring(0, 100)}...`)
+    } else {
+      console.log(`🔗 Webhook URL (sin apikey - requiere config.json con auth: false): ${webhookUrl}`)
+      console.warn('⚠️ SUPABASE_ANON_KEY no está disponible. El webhook requiere que supabase.functions.config.json tenga "auth": false')
+    }
     
     const watchChannels: any[] = []
 

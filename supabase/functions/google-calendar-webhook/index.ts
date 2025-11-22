@@ -30,9 +30,27 @@ serve(async (req) => {
     const userAgent = req.headers.get('user-agent') || ''
     const isFromGoogle = userAgent.includes('APIs-Google') || userAgent.includes('Google')
     
+    // ✅ Verificar apikey en URL (solución temporal hasta que funcione el config.json)
+    const url = new URL(req.url)
+    const apikeyFromUrl = url.searchParams.get('apikey')
+    const apikeyFromHeader = req.headers.get('apikey')
+    const authHeader = req.headers.get('authorization')
+    
+    // Si no hay ninguna forma de autenticación y no viene de Google, rechazar
+    if (!isFromGoogle && !apikeyFromUrl && !apikeyFromHeader && !authHeader && req.method === 'POST') {
+      console.warn('⚠️ Petición sin autenticación y no viene de Google Calendar:', userAgent)
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { 
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      )
+    }
+    
     if (!isFromGoogle && req.method === 'POST') {
       console.warn('⚠️ Petición no viene de Google Calendar:', userAgent)
-      // Permitir de todas formas, pero loguear
+      // Permitir de todas formas si tiene apikey, pero loguear
     }
 
     // ✅ Crear cliente de Supabase (NO requiere autenticación del request)
@@ -251,7 +269,11 @@ serve(async (req) => {
 
     let imported = 0
     let updated = 0
+    let cancelled = 0
 
+    // ✅ Obtener lista de gcal_event_ids de los eventos recibidos (para detectar eliminaciones)
+    const receivedEventIds = new Set<string>()
+    
     // ✅ Procesar cada evento
     for (const event of events) {
       const isAllDay = !!event.start.date
@@ -259,6 +281,39 @@ serve(async (req) => {
 
       // Solo procesar eventos con hora (appointments)
       if (hasTime && !isAllDay) {
+        // ✅ Si el evento está cancelado en Google Calendar, cancelarlo en la app
+        if (event.status === 'cancelled') {
+          try {
+            const { data: existingAppointment } = await supabaseClient
+              .from('appointments')
+              .select('id, status')
+              .eq('business_id', businessId)
+              .eq('gcal_event_id', event.id)
+              .maybeSingle()
+            
+            if (existingAppointment && existingAppointment.status !== 'cancelled') {
+              await supabaseClient
+                .from('appointments')
+                .update({
+                  status: 'cancelled',
+                  updated_at: new Date().toISOString()
+                })
+                .eq('id', existingAppointment.id)
+              
+              cancelled++
+              console.log(`✅ Evento cancelado en Google Calendar, cancelado en app: ${event.id}`)
+            }
+          } catch (error) {
+            console.error(`❌ Error cancelando evento ${event.id}:`, error)
+          }
+          continue // No procesar eventos cancelados
+        }
+        
+        // ✅ Agregar a la lista de eventos recibidos
+        if (event.id) {
+          receivedEventIds.add(event.id)
+        }
+        
         try {
           const result = await syncEventToAppointment(
             supabaseClient,
@@ -276,6 +331,43 @@ serve(async (req) => {
       }
     }
 
+    // ✅ Detectar eventos eliminados: appointments que tienen gcal_event_id pero ya no están en Google Calendar
+    // Solo buscar appointments de este calendario específico que fueron creados desde Google Calendar
+    // y que están en el rango de fechas que estamos sincronizando
+    const { data: existingAppointments } = await supabaseClient
+      .from('appointments')
+      .select('id, gcal_event_id, status, calendar_id, appointment_date')
+      .eq('business_id', businessId)
+      .eq('source', 'google_calendar')
+      .eq('calendar_id', calendarId) // ✅ Solo appointments de este calendario
+      .not('gcal_event_id', 'is', null)
+      .in('status', ['pending', 'confirmed', 'blocked']) // Solo cancelar los que están activos
+      .gte('appointment_date', new Date(timeMin).toISOString().split('T')[0]) // ✅ Solo en el rango sincronizado
+      .lte('appointment_date', new Date(timeMax).toISOString().split('T')[0])
+    
+    if (existingAppointments && existingAppointments.length > 0) {
+      for (const appointment of existingAppointments) {
+        // Si el appointment tiene un gcal_event_id que no está en la lista de eventos recibidos
+        if (appointment.gcal_event_id && !receivedEventIds.has(appointment.gcal_event_id)) {
+          // Cancelar el appointment porque el evento fue eliminado de Google Calendar
+          try {
+            await supabaseClient
+              .from('appointments')
+              .update({
+                status: 'cancelled',
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', appointment.id)
+            
+            cancelled++
+            console.log(`✅ Evento eliminado de Google Calendar, cancelado en app: ${appointment.gcal_event_id} (appointment_id: ${appointment.id})`)
+          } catch (error) {
+            console.error(`❌ Error cancelando appointment eliminado ${appointment.id}:`, error)
+          }
+        }
+      }
+    }
+
     // ✅ Actualizar última sincronización
     await supabaseClient
       .from('integrations')
@@ -284,13 +376,14 @@ serve(async (req) => {
       })
       .eq('id', integration.id)
 
-    console.log(`✅ Sincronización completada: ${imported} importados, ${updated} actualizados`)
+    console.log(`✅ Sincronización completada: ${imported} importados, ${updated} actualizados, ${cancelled} cancelados`)
 
     return new Response(
       JSON.stringify({
         success: true,
         imported,
         updated,
+        cancelled,
         calendar_id: calendarId,
         events_processed: events.length
       }),

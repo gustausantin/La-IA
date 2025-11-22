@@ -679,6 +679,73 @@ serve(async (req) => {
         throw new Error('Reservation not found')
       }
 
+      // ✅ Si el status es 'cancelled', eliminar el evento de Google Calendar
+      if (reservation.status === 'cancelled') {
+        console.log(`🗑️ Reserva cancelada, eliminando evento de Google Calendar: ${reservation_id}`)
+        
+        // ✅ Obtener gcal_event_id y calendar_id
+        const internalNotes = reservation?.internal_notes ? 
+          (typeof reservation.internal_notes === 'string' ? JSON.parse(reservation.internal_notes) : reservation.internal_notes) : 
+          {}
+        
+        const eventId = reservation?.gcal_event_id || internalNotes.gcal_event_id
+        const calendarId = reservation?.calendar_id || internalNotes.calendar_id
+
+        if (eventId && calendarId) {
+          // Eliminar evento de Google Calendar
+          const deleteResponse = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId)}/events/${eventId}`,
+            {
+              method: 'DELETE',
+              headers: { 'Authorization': `Bearer ${accessToken}` },
+            }
+          )
+
+          if (!deleteResponse.ok && deleteResponse.status !== 404) {
+            const errorData = await deleteResponse.json().catch(() => ({ error: 'Unknown error' }))
+            console.warn(`⚠️ Error eliminando evento cancelado de Google Calendar: ${JSON.stringify(errorData)}`)
+            // No lanzar error, solo loguear
+          } else {
+            console.log(`✅ Evento cancelado eliminado de Google Calendar: ${eventId}`)
+          }
+
+          // Actualizar appointment para limpiar referencias a Google Calendar
+          await supabaseClient
+            .from('appointments')
+            .update({
+              gcal_event_id: null,
+              calendar_id: null,
+              synced_to_gcal: false,
+              internal_notes: {
+                ...(internalNotes || {}),
+                gcal_event_id: null,
+                calendar_id: null,
+                cancelled_at: new Date().toISOString(),
+              },
+            })
+            .eq('id', reservation_id)
+
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              deleted: true,
+              message: 'Evento eliminado de Google Calendar porque la reserva fue cancelada'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        } else {
+          console.log(`⚠️ Reserva cancelada pero no tiene gcal_event_id o calendar_id, no hay nada que eliminar`)
+          return new Response(
+            JSON.stringify({ 
+              success: true, 
+              skipped: true,
+              message: 'Reserva cancelada pero no estaba sincronizada con Google Calendar'
+            }),
+            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+      }
+
       // ✅ Obtener gcal_event_id desde columna directa o internal_notes
       const internalNotes = reservation.internal_notes ? 
         (typeof reservation.internal_notes === 'string' ? JSON.parse(reservation.internal_notes) : reservation.internal_notes) : 
