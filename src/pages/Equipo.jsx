@@ -852,6 +852,7 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
               emp.assigned_resource_id,
               (resourceUsageMap.get(emp.assigned_resource_id) || 0) + 1
             );
+<<<<<<< Current (Your changes)
           }
         });
         
@@ -942,6 +943,114 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
         
         if (!bestResourceMeta && validationUnavailable) {
           bestResourceMeta = prioritizedResources[0] || null;
+=======
+          }
+        });
+        
+        const prioritizedResources = (availableResources || []).map(resource => ({
+          resource,
+          employeeCount: resourceUsageMap.get(resource.id) || 0
+        })).sort((a, b) => {
+          if (b.employeeCount !== a.employeeCount) return b.employeeCount - a.employeeCount;
+          return a.resource.name.localeCompare(b.resource.name);
+        });
+        
+        console.log('🎯 Recursos priorizados:', prioritizedResources.map(r => ({
+          name: r.resource.name,
+          empleados: r.employeeCount
+        })));
+        
+        const VALIDATION_EMPLOYEE_ID = '00000000-0000-0000-0000-000000000000';
+        const getNextDateForDay = (dayOfWeek) => {
+          const today = new Date();
+          const diff = (dayOfWeek + 7 - today.getDay()) % 7;
+          const target = new Date(today);
+          target.setDate(today.getDate() + diff);
+          return target.toISOString().split('T')[0];
+        };
+        
+        const validateResourceCandidate = (candidate) => {
+          console.log(`\n🔍 Validando recurso: ${candidate.resource.name}`);
+          
+          // Buscar empleados que YA tienen este recurso
+          const empleadosEnRecurso = (currentEmployees || []).filter(emp => 
+            emp.assigned_resource_id === candidate.resource.id
+          );
+          
+          console.log(`   👥 Empleados actuales: ${empleadosEnRecurso.length}`);
+          
+          // Para cada día del nuevo empleado
+          for (const scheduleNuevo of schedules) {
+            if (!scheduleNuevo.is_working || !scheduleNuevo.shifts || scheduleNuevo.shifts.length === 0) continue;
+            
+            const diaNuevo = typeof scheduleNuevo.day_of_week === 'string' 
+              ? parseInt(scheduleNuevo.day_of_week) 
+              : scheduleNuevo.day_of_week;
+            
+            console.log(`   📅 Día ${diaNuevo}:`);
+            
+            // Para cada turno del nuevo empleado
+            for (const turnoNuevo of scheduleNuevo.shifts) {
+              if (!turnoNuevo.start || !turnoNuevo.end) continue;
+              
+              const [hNStart, mNStart] = turnoNuevo.start.split(':').map(Number);
+              const [hNEnd, mNEnd] = turnoNuevo.end.split(':').map(Number);
+              const minNStart = hNStart * 60 + mNStart;
+              const minNEnd = hNEnd * 60 + mNEnd;
+              
+              console.log(`      🆕 ${turnoNuevo.start}-${turnoNuevo.end} (${minNStart}-${minNEnd} min)`);
+              
+              // Verificar contra cada empleado existente
+              for (const empExistente of empleadosEnRecurso) {
+                const schedExistente = (empExistente.employee_schedules || []).find(s => {
+                  const diaEx = typeof s.day_of_week === 'string' ? parseInt(s.day_of_week) : s.day_of_week;
+                  return diaEx === diaNuevo && s.is_working === true;
+                });
+                
+                if (!schedExistente || !schedExistente.shifts || schedExistente.shifts.length === 0) {
+                  console.log(`         ✅ ${empExistente.name}: No trabaja`);
+                  continue;
+                }
+                
+                // Verificar cada turno del empleado existente
+                for (const turnoEx of schedExistente.shifts) {
+                  if (!turnoEx.start || !turnoEx.end) continue;
+                  
+                  const [hExStart, mExStart] = turnoEx.start.split(':').map(Number);
+                  const [hExEnd, mExEnd] = turnoEx.end.split(':').map(Number);
+                  const minExStart = hExStart * 60 + mExStart;
+                  const minExEnd = hExEnd * 60 + mExEnd;
+                  
+                  // SOLAPAMIENTO: (inicio1 < fin2) Y (fin1 > inicio2)
+                  const solapa = (minNStart < minExEnd) && (minNEnd > minExStart);
+                  
+                  console.log(`         👤 ${empExistente.name}: ${turnoEx.start}-${turnoEx.end} (${minExStart}-${minExEnd})`);
+                  console.log(`            (${minNStart} < ${minExEnd}) && (${minNEnd} > ${minExStart}) = ${solapa ? '❌ SOLAPA' : '✅ NO SOLAPA'}`);
+                  
+                  if (solapa) {
+                    console.log(`      ❌ CONFLICTO con ${empExistente.name}`);
+                    return false;
+                  }
+                }
+              }
+            }
+          }
+          
+          console.log(`   ✅ RECURSO DISPONIBLE`);
+          return true;
+        };
+        
+        console.log('\n🎯 PROBANDO RECURSOS EN ORDEN:');
+        let bestResourceMeta = null;
+        
+        for (const candidate of prioritizedResources) {
+          const isValid = validateResourceCandidate(candidate);
+          if (isValid) {
+            bestResourceMeta = candidate;
+            console.log(`\n✅ RECURSO SELECCIONADO: ${candidate.resource.name}`);
+            break;
+          }
+>>>>>>> Incoming (Background Agent changes)
         }
         
         if (!bestResourceMeta) {
