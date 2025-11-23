@@ -1,0 +1,277 @@
+{
+  "name": "No-Shows: Webhook Respuestas WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "whatsapp-response",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "name": "Webhook: Twilio Incoming",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "webhookId": "whatsapp-response"
+    },
+    {
+      "parameters": {
+        "functionCode": "// Extraer datos del webhook de Twilio\nconst incomingMessage = items[0].json.Body; // Texto del cliente\nconst customerPhone = items[0].json.From; // whatsapp:+34600000000\n\n// Limpiar número de teléfono\nconst cleanPhone = customerPhone.replace('whatsapp:', '');\n\nreturn [{\n  json: {\n    customer_phone: cleanPhone,\n    response_text: incomingMessage\n  }\n}];"
+      },
+      "name": "Extraer datos",
+      "type": "n8n-nodes-base.function",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Buscar próximo appointment activo de este cliente\nSELECT \n    a.id AS appointment_id,\n    a.customer_id,\n    COALESCE(c.name, a.customer_name) AS customer_name,\n    a.appointment_date,\n    a.appointment_time,\n    s.name AS service_name,\n    -- Última confirmación enviada\n    (SELECT cc.message_type \n     FROM customer_confirmations cc\n     WHERE cc.appointment_id = a.id\n     ORDER BY cc.sent_at DESC\n     LIMIT 1) AS last_message_type\nFROM appointments a\nLEFT JOIN customers c ON a.customer_id = c.id\nLEFT JOIN services s ON a.service_id = s.id\nWHERE COALESCE(c.phone, a.customer_phone) = '{{$json.customer_phone}}'\nAND a.status IN ('pending', 'confirmed')\nAND a.appointment_date >= CURRENT_DATE\nORDER BY a.appointment_date ASC, a.appointment_time ASC\nLIMIT 1;",
+        "additionalFields": {}
+      },
+      "name": "Buscar appointment del cliente",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [650, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase LA-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.appointment_id}}",
+              "operation": "isNotEmpty"
+            }
+          ]
+        }
+      },
+      "name": "¿Encontró appointment?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Procesar respuesta del cliente\nSELECT process_customer_response(\n    '{{$json.appointment_id}}'::UUID,\n    '{{$json.last_message_type}}',\n    '{{$node[\"Extraer datos\"].json.response_text}}'\n);",
+        "additionalFields": {}
+      },
+      "name": "Procesar respuesta",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase LA-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.process_customer_response}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "¿Confirmó?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{$env.TWILIO_ACCOUNT_SID}}/Messages.json",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "whatsapp:{{$env.TWILIO_WHATSAPP_NUMBER}}"
+            },
+            {
+              "name": "To",
+              "value": "whatsapp:{{$node[\"Extraer datos\"].json.customer_phone}}"
+            },
+            {
+              "name": "Body",
+              "value": "✅ ¡Perfecto, {{$node[\"Buscar appointment del cliente\"].json.customer_name}}!\n\nTu cita está confirmada:\n📅 {{$node[\"Buscar appointment del cliente\"].json.appointment_date}}\n🕐 {{$node[\"Buscar appointment del cliente\"].json.appointment_time}}\n\n¡Te esperamos! 😊"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "WhatsApp: Confirmación exitosa",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 100],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "2",
+          "name": "Twilio Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{$env.TWILIO_ACCOUNT_SID}}/Messages.json",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "whatsapp:{{$env.TWILIO_WHATSAPP_NUMBER}}"
+            },
+            {
+              "name": "To",
+              "value": "whatsapp:{{$node[\"Extraer datos\"].json.customer_phone}}"
+            },
+            {
+              "name": "Body",
+              "value": "Entendido, {{$node[\"Buscar appointment del cliente\"].json.customer_name}}.\n\n¿Deseas cancelar tu cita del {{$node[\"Buscar appointment del cliente\"].json.appointment_date}} a las {{$node[\"Buscar appointment del cliente\"].json.appointment_time}}?\n\nResponde CANCELAR para liberar tu hora."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "WhatsApp: Preguntar cancelación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "2",
+          "name": "Twilio Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "OK"
+      },
+      "name": "Respond OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1650, 200]
+    }
+  ],
+  "connections": {
+    "Webhook: Twilio Incoming": {
+      "main": [
+        [
+          {
+            "node": "Extraer datos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extraer datos": {
+      "main": [
+        [
+          {
+            "node": "Buscar appointment del cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar appointment del cliente": {
+      "main": [
+        [
+          {
+            "node": "¿Encontró appointment?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Encontró appointment?": {
+      "main": [
+        [
+          {
+            "node": "Procesar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar respuesta": {
+      "main": [
+        [
+          {
+            "node": "¿Confirmó?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Confirmó?": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: Confirmación exitosa",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "WhatsApp: Preguntar cancelación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp: Confirmación exitosa": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp: Preguntar cancelación": {
+      "main": [
+        [
+          {
+            "node": "Respond OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-23T00:00:00.000Z",
+  "versionId": "1"
+}
+

@@ -1,0 +1,297 @@
+{
+  "name": "No-Shows: Alertas 2h (Inteligente)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 5
+            }
+          ]
+        }
+      },
+      "name": "Cada 5 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Buscar appointments de ALTO RIESGO en las próximas 2h\nSELECT \n    a.id AS appointment_id,\n    a.customer_id,\n    COALESCE(c.name, a.customer_name) AS customer_name,\n    COALESCE(c.phone, a.customer_phone) AS customer_phone,\n    a.appointment_date,\n    a.appointment_time,\n    s.name AS service_name,\n    a.business_id,\n    risk.risk_score,\n    risk.risk_level,\n    risk.should_auto_cancel,\n    risk.reasons,\n    -- ¿Confirmó en 24h o 4h?\n    COALESCE(\n        (SELECT cc.confirmed \n         FROM customer_confirmations cc\n         WHERE cc.appointment_id = a.id\n         AND cc.message_type IN ('24h', '4h')\n         AND cc.confirmed = TRUE\n         ORDER BY cc.sent_at DESC\n         LIMIT 1),\n        FALSE\n    ) AS has_confirmed\nFROM appointments a\nLEFT JOIN customers c ON a.customer_id = c.id\nLEFT JOIN services s ON a.service_id = s.id\nCROSS JOIN LATERAL calculate_smart_risk_score(a.customer_id) AS risk\nWHERE a.business_id = '{{$env.BUSINESS_ID}}'\nAND a.status IN ('pending', 'confirmed')\nAND a.appointment_date = CURRENT_DATE\nAND a.appointment_time BETWEEN \n    (CURRENT_TIME + INTERVAL '1 hour 55 minutes')\n    AND (CURRENT_TIME + INTERVAL '2 hours 5 minutes')\nAND risk.risk_level IN ('HIGH', 'CRITICAL')\n-- Evitar duplicados\nAND NOT EXISTS (\n    SELECT 1 FROM customer_confirmations cc\n    WHERE cc.appointment_id = a.id\n    AND cc.message_type = '2h'\n    AND cc.sent_at > NOW() - INTERVAL '1 hour 50 minutes'\n);",
+        "additionalFields": {}
+      },
+      "name": "Supabase: Buscar alto riesgo 2h",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [450, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase LA-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{Object.keys($json).length}}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "¿Hay appointments de riesgo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.risk_level === 'CRITICAL' && $json.has_confirmed === false}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "¿CRITICAL y NO confirmó?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [850, 400]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Auto-cancelar (solo si CRITICAL)\nUPDATE appointments\nSET \n    status = 'no_show',\n    updated_at = NOW()\nWHERE id = '{{$json.appointment_id}}'::UUID\nAND status NOT IN ('completed', 'cancelled', 'no_show')\nRETURNING *;",
+        "additionalFields": {}
+      },
+      "name": "Supabase: Marcar no_show (CRITICAL)",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1050, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase LA-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{$env.TWILIO_ACCOUNT_SID}}/Messages.json",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "whatsapp:{{$env.TWILIO_WHATSAPP_NUMBER}}"
+            },
+            {
+              "name": "To",
+              "value": "whatsapp:{{$json.customer_phone}}"
+            },
+            {
+              "name": "Body",
+              "value": "Hola {{$json.customer_name}},\n\nLamentamos informarte que tu cita de hoy a las {{$json.appointment_time}} ha sido cancelada por falta de confirmación.\n\nSi fue un error, llámanos al {{$env.BUSINESS_PHONE}} para reagendar.\n\nDisculpa las molestias."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "WhatsApp: Notificar cancelación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 300],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "2",
+          "name": "Twilio Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "{{$env.BUSINESS_EMAIL}}",
+        "toEmail": "{{$env.STAFF_EMAIL}}",
+        "subject": "🚨 CITA AUTO-CANCELADA (RIESGO CRÍTICO)",
+        "text": "Cliente: {{$json.customer_name}}\nTeléfono: {{$json.customer_phone}}\nHora: {{$json.appointment_time}}\nServicio: {{$json.service_name}}\nRisk Score: {{$json.risk_score}}/100\n\nMotivo: {{JSON.stringify($json.reasons)}}\n\n🔄 Slot liberado automáticamente para nueva reserva."
+      },
+      "name": "Email: Alertar staff (CRITICAL)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1450, 300],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Registrar auto-cancelación\nSELECT record_customer_confirmation(\n    '{{$json.appointment_id}}'::UUID,\n    '2h',\n    'system',\n    'Auto-cancelado por riesgo crítico (score: {{$json.risk_score}})'\n);",
+        "additionalFields": {}
+      },
+      "name": "Registrar cancelación",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1650, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase LA-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "{{$env.BUSINESS_EMAIL}}",
+        "toEmail": "{{$env.STAFF_EMAIL}}",
+        "subject": "⚠️ ALERTA DE RIESGO ALTO (NO Auto-cancelado)",
+        "text": "Cliente: {{$json.customer_name}}\nTeléfono: {{$json.customer_phone}}\nHora: {{$json.appointment_time}} (en 2 horas)\nServicio: {{$json.service_name}}\nRisk Score: {{$json.risk_score}}/100\nRisk Level: {{$json.risk_level}}\n\n🛡️ Acción requerida:\n- Llamar al cliente para confirmar: {{$json.customer_phone}}\n- Si no contesta, decidir manualmente si cancelar\n\n🔗 Ver en LA-IA: {{$env.APP_URL}}/reservas"
+      },
+      "name": "Email: Alertar staff (HIGH)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [1050, 500],
+      "credentials": {
+        "smtp": {
+          "id": "3",
+          "name": "Gmail SMTP"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Registrar alerta de riesgo alto\nSELECT record_customer_confirmation(\n    '{{$json.appointment_id}}'::UUID,\n    '2h',\n    'alert',\n    'Alerta de riesgo alto enviada al staff (score: {{$json.risk_score}})'\n);",
+        "additionalFields": {}
+      },
+      "name": "Registrar alerta",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1250, 500],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase LA-IA"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cada 5 minutos": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Buscar alto riesgo 2h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Buscar alto riesgo 2h": {
+      "main": [
+        [
+          {
+            "node": "¿Hay appointments de riesgo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay appointments de riesgo?": {
+      "main": [
+        [
+          {
+            "node": "¿CRITICAL y NO confirmó?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿CRITICAL y NO confirmó?": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Marcar no_show (CRITICAL)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Email: Alertar staff (HIGH)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Marcar no_show (CRITICAL)": {
+      "main": [
+        [
+          {
+            "node": "WhatsApp: Notificar cancelación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WhatsApp: Notificar cancelación": {
+      "main": [
+        [
+          {
+            "node": "Email: Alertar staff (CRITICAL)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email: Alertar staff (CRITICAL)": {
+      "main": [
+        [
+          {
+            "node": "Registrar cancelación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email: Alertar staff (HIGH)": {
+      "main": [
+        [
+          {
+            "node": "Registrar alerta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-23T00:00:00.000Z",
+  "versionId": "1"
+}
+

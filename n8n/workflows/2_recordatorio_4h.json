@@ -1,0 +1,160 @@
+{
+  "name": "No-Shows: Recordatorio 4h",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "name": "Cada 15 minutos",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Buscar appointments en las próximas 4h que NO confirmaron en 24h\nSELECT \n    a.id AS appointment_id,\n    a.customer_id,\n    COALESCE(c.name, a.customer_name) AS customer_name,\n    COALESCE(c.phone, a.customer_phone) AS customer_phone,\n    a.appointment_date,\n    a.appointment_time,\n    s.name AS service_name,\n    a.business_id,\n    risk.risk_score,\n    risk.risk_level\nFROM appointments a\nLEFT JOIN customers c ON a.customer_id = c.id\nLEFT JOIN services s ON a.service_id = s.id\nCROSS JOIN LATERAL calculate_smart_risk_score(a.customer_id) AS risk\nWHERE a.business_id = '{{$env.BUSINESS_ID}}'\nAND a.status IN ('pending', 'confirmed')\nAND a.appointment_date = CURRENT_DATE\nAND a.appointment_time BETWEEN \n    (CURRENT_TIME + INTERVAL '3 hours 45 minutes')\n    AND (CURRENT_TIME + INTERVAL '4 hours 15 minutes')\n-- Solo si NO confirmó en mensaje 24h\nAND NOT EXISTS (\n    SELECT 1 FROM customer_confirmations cc\n    WHERE cc.appointment_id = a.id\n    AND cc.message_type = '24h'\n    AND cc.confirmed = TRUE\n)\n-- Evitar duplicados (no enviar 4h dos veces)\nAND NOT EXISTS (\n    SELECT 1 FROM customer_confirmations cc\n    WHERE cc.appointment_id = a.id\n    AND cc.message_type = '4h'\n    AND cc.sent_at > NOW() - INTERVAL '3 hours'\n);",
+        "additionalFields": {}
+      },
+      "name": "Supabase: Buscar sin confirmar 4h",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [450, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase LA-IA"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{Object.keys($json).length}}",
+              "operation": "larger",
+              "value2": 0
+            }
+          ]
+        }
+      },
+      "name": "¿Hay appointments sin confirmar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.twilio.com/2010-04-01/Accounts/{{$env.TWILIO_ACCOUNT_SID}}/Messages.json",
+        "authentication": "basicAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "From",
+              "value": "whatsapp:{{$env.TWILIO_WHATSAPP_NUMBER}}"
+            },
+            {
+              "name": "To",
+              "value": "whatsapp:{{$json.customer_phone}}"
+            },
+            {
+              "name": "Body",
+              "value": "⏰ RECORDATORIO URGENTE\n\nHola {{$json.customer_name}},\n\nTu cita es DENTRO DE 4 HORAS:\n📅 Hoy {{$json.appointment_time}}\n✂️ {{$json.service_name}}\n\n🚨 Si no puedes venir, avísanos para dar tu hora a otra persona.\n\nResponde SÍ para confirmar o NO para cancelar."
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Twilio: Enviar WhatsApp 4h",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200],
+      "credentials": {
+        "httpBasicAuth": {
+          "id": "2",
+          "name": "Twilio Auth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Registrar confirmación 4h enviada\nSELECT record_customer_confirmation(\n    '{{$json.appointment_id}}'::UUID,\n    '4h',\n    'whatsapp',\n    '{{$node[\"Twilio: Enviar WhatsApp 4h\"].json.body}}'\n);",
+        "additionalFields": {}
+      },
+      "name": "Supabase: Registrar confirmación 4h",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1050, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "1",
+          "name": "Supabase LA-IA"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Cada 15 minutos": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Buscar sin confirmar 4h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Supabase: Buscar sin confirmar 4h": {
+      "main": [
+        [
+          {
+            "node": "¿Hay appointments sin confirmar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay appointments sin confirmar?": {
+      "main": [
+        [
+          {
+            "node": "Twilio: Enviar WhatsApp 4h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Twilio: Enviar WhatsApp 4h": {
+      "main": [
+        [
+          {
+            "node": "Supabase: Registrar confirmación 4h",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2025-11-23T00:00:00.000Z",
+  "versionId": "1"
+}
+
