@@ -211,14 +211,21 @@ Cada función tiene un propósito único y complementario.
 - Funciones específicas para cada tarea
 - Reutilización de lógica (refresh tokens, mapeos, etc.)
 
-### 3. **⚠️ LEGACY: `google-calendar-sync`**
-**Recomendación**: Revisar si se usa en el frontend. Si no, DEPRECAR.
+### 3. **✅ LEGACY ELIMINADO: `google-calendar-sync`**
+**Estado**: ✅ **ELIMINADO** (2025-11-23)
 
-**Razones**:
-- Usa estructura de datos antigua (`status: 'active'`)
-- No soporta múltiples calendarios
+**Archivos eliminados**:
+- ❌ `supabase/functions/google-calendar-sync/index.ts`
+- ❌ `src/services/GoogleCalendarService.js`
+- ❌ `src/components/configuracion/GoogleCalendarIntegration.jsx`
+- ❌ `src/pages/GoogleCallbackPage.jsx`
+
+**Razones de eliminación**:
+- Usaba estructura de datos antigua (`status: 'active'`)
+- No soportaba múltiples calendarios
 - Sustituida por `sync-google-calendar` (más completa)
-- Usa tabla intermedia `google_calendar_events` (innecesaria)
+- Usaba tabla intermedia `google_calendar_events` (innecesaria)
+- NO se usaba en el frontend activo
 
 ### 4. **✅ Detección de Conflictos**
 - ✅ **Backend**: Ya implementada en `import-google-calendar-initial`
@@ -255,7 +262,7 @@ Cada función tiene un propósito único y complementario.
 |---------|-----------|-----------|-----|--------|
 | `sync-google-calendar` | CRUD tiempo real | Bidireccional | Operaciones individuales | ✅ PROD |
 | `sync-google-calendar-continuous` | Sync periódica | GCal → LA-IA | Job automático | ✅ PROD |
-| `google-calendar-sync` | Sync masiva | Bidireccional | **LEGACY** | ⚠️ DEPRECAR |
+| ~~`google-calendar-sync`~~ | ~~Sync masiva~~ | ~~Bidireccional~~ | **LEGACY** | ❌ **ELIMINADO** |
 | `import-google-calendar-initial` | Setup inicial | GCal → LA-IA | Primera conexión | ✅ PROD |
 | `google-calendar-oauth` | OAuth inicio | - | Setup | ✅ PROD |
 | `google-oauth-callback` | OAuth callback | - | Setup | ✅ PROD |
@@ -269,4 +276,20 @@ Cada función tiene un propósito único y complementario.
 **Fecha de auditoría**: 2025-11-23  
 **Realizada por**: Cursor AI Assistant  
 **Resultado**: ✅ **ARQUITECTURA APROBADA - TODO CORRECTO**
+
+---
+
+## 🧹 LIMPIEZA REALIZADA (2025-11-23)
+
+### Archivos eliminados:
+1. ❌ `supabase/functions/google-calendar-sync/index.ts` (346 líneas)
+2. ❌ `src/services/GoogleCalendarService.js` (código LEGACY)
+3. ❌ `src/components/configuracion/GoogleCalendarIntegration.jsx` (componente no usado)
+4. ❌ `src/pages/GoogleCallbackPage.jsx` (página duplicada, se usa GoogleOAuthCallback.jsx)
+
+### Resultado:
+- ✅ **4 archivos eliminados** (~500 líneas de código LEGACY)
+- ✅ **0 referencias rotas** - Todo verificado y limpio
+- ✅ **Proyecto más limpio y mantenible**
+- ✅ **Arquitectura clarificada** - Solo código en uso activo
 
