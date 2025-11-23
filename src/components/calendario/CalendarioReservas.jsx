@@ -631,6 +631,7 @@ export default function CalendarioReservas({
                     horaFin={horaFin}
                     currentTime={currentTime}
                     calendarExceptions={calendarExceptions}
+                    employeeAbsences={employeeAbsences}
                     onReservationClick={onReservationClick}
                     onSlotClick={onSlotClick}
                     onCellClick={handleCellClick}
@@ -1035,6 +1036,7 @@ function VistaDia({
     horaFin,
     currentTime,
     calendarExceptions = [], // 🆕 Excepciones de calendario (días cerrados, festivos, etc.)
+    employeeAbsences = [], // 🆕 Ausencias de empleados (vacaciones, bajas, etc.)
     onReservationClick, 
     onSlotClick,
     onCellClick,

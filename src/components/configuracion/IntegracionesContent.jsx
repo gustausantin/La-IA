@@ -79,14 +79,14 @@ export default function IntegracionesContent() {
                     // Continuar de todas formas
                 }
                 
-                // ✅ Limpiar parámetros OAuth pero PRESERVAR tab=canales
+                // ✅ Limpiar parámetros OAuth pero PRESERVAR tab=integraciones
                 const url = new URL(window.location.href);
                 url.searchParams.delete('integration');
                 url.searchParams.delete('status');
                 url.searchParams.delete('message');
-                // ✅ Asegurar que tab=canales esté presente
+                // ✅ Asegurar que tab=integraciones esté presente
                 if (!url.searchParams.has('tab')) {
-                    url.searchParams.set('tab', 'canales');
+                    url.searchParams.set('tab', 'integraciones');
                 }
                 window.history.replaceState({}, '', url.toString());
                 
@@ -100,7 +100,7 @@ export default function IntegracionesContent() {
                         .eq('business_id', businessId)
                         .eq('provider', 'google_calendar')
                         .maybeSingle()
-                        .then(({ data: integrationData }) => {
+                        .then(async ({ data: integrationData }) => {
                             const hasImported = integrationData?.config?.initial_import_completed;
                             const isActive = integrationData?.is_active;
                             const calendarSelected = integrationData?.config?.calendar_selection_completed;
@@ -110,8 +110,22 @@ export default function IntegracionesContent() {
                                 console.log('📅 Primera conexión detectada - Mostrando selector de calendarios');
                                 setShowCalendarSelector(true);
                             } else if (!hasImported && isActive) {
-                                console.log('📥 Calendario seleccionado - Ofreciendo importación inicial');
-                                setShowImportModal(true);
+                                console.log('📥 Calendario seleccionado - Verificando conflictos antes de importar...');
+                                
+                                // 🚨 DETECTAR CONFLICTOS antes de ofrecer importación
+                                const conflictResult = await detectConflicts();
+                                
+                                if (conflictResult.hasConflicts) {
+                                    console.log('⚠️ Conflictos detectados en primera conexión');
+                                    setConflicts(conflictResult.conflicts);
+                                    setConflictEvents(conflictResult.events);
+                                    toast.warning(`⚠️ Se encontraron ${conflictResult.conflicts.length} conflicto(s) con reservas existentes.`, {
+                                        duration: 6000
+                                    });
+                                } else {
+                                    console.log('✅ No hay conflictos - Mostrando modal de importación');
+                                    setShowImportModal(true);
+                                }
                             }
                         });
                 }, 800);
@@ -120,6 +134,102 @@ export default function IntegracionesContent() {
             return () => clearTimeout(timeoutId);
         }
     }, [businessId, searchParams]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // 🚨 Función para detectar conflictos entre Google Calendar y appointments existentes
+    const detectConflicts = async () => {
+        try {
+            console.log('🔍 Detectando conflictos entre Google Calendar y LA-IA...');
+            
+            // 1. Obtener eventos de Google Calendar
+            const { data: gcalData, error: gcalError } = await supabase.functions.invoke('sync-google-calendar', {
+                body: {
+                    business_id: businessId,
+                    action: 'list' // Solo listar, no sincronizar
+                }
+            });
+
+            if (gcalError) {
+                console.warn('⚠️ No se pudieron obtener eventos de Google Calendar:', gcalError);
+                return { hasConflicts: false, conflicts: [], events: [] };
+            }
+
+            const gcalEvents = gcalData?.events || [];
+            console.log(`📅 Eventos de Google Calendar: ${gcalEvents.length}`);
+
+            if (gcalEvents.length === 0) {
+                return { hasConflicts: false, conflicts: [], events: [] };
+            }
+
+            // 2. Obtener appointments existentes de LA-IA
+            const { data: appointments, error: apptError } = await supabase
+                .from('appointments')
+                .select('id, customer_name, appointment_date, appointment_time, status, duration_minutes')
+                .eq('business_id', businessId)
+                .in('status', ['confirmed', 'pending'])
+                .gte('appointment_date', new Date().toISOString().split('T')[0]); // Solo futuros
+
+            if (apptError) {
+                console.error('❌ Error obteniendo appointments:', apptError);
+                throw apptError;
+            }
+
+            console.log(`📋 Appointments de LA-IA: ${appointments?.length || 0}`);
+
+            if (!appointments || appointments.length === 0) {
+                return { hasConflicts: false, conflicts: [], events: gcalEvents };
+            }
+
+            // 3. Detectar solapamientos
+            const conflicts = [];
+            
+            for (const gcalEvent of gcalEvents) {
+                const gcalStart = new Date(gcalEvent.start.dateTime || gcalEvent.start.date);
+                const gcalEnd = new Date(gcalEvent.end.dateTime || gcalEvent.end.date);
+                
+                // Verificar contra cada appointment
+                for (const appt of appointments) {
+                    const apptDateTime = new Date(`${appt.appointment_date}T${appt.appointment_time}`);
+                    const apptDuration = appt.duration_minutes || 60;
+                    const apptEnd = new Date(apptDateTime.getTime() + apptDuration * 60000);
+                    
+                    // Detectar solapamiento: (start1 < end2) && (end1 > start2)
+                    const overlaps = (gcalStart < apptEnd) && (gcalEnd > apptDateTime);
+                    
+                    if (overlaps) {
+                        conflicts.push({
+                            gcal_event_id: gcalEvent.id,
+                            gcal_summary: gcalEvent.summary,
+                            gcal_start: gcalEvent.start.dateTime || gcalEvent.start.date,
+                            gcal_end: gcalEvent.end.dateTime || gcalEvent.end.date,
+                            existing_appointment_id: appt.id,
+                            existing_customer_name: appt.customer_name,
+                            existing_appointment_date: appt.appointment_date,
+                            existing_appointment_time: appt.appointment_time,
+                            existing_status: appt.status
+                        });
+                        
+                        console.log('⚠️ Conflicto detectado:', {
+                            gcal: gcalEvent.summary,
+                            laia: appt.customer_name,
+                            fecha: appt.appointment_date
+                        });
+                    }
+                }
+            }
+
+            console.log(`🚨 Total de conflictos detectados: ${conflicts.length}`);
+
+            return {
+                hasConflicts: conflicts.length > 0,
+                conflicts,
+                events: gcalEvents
+            };
+
+        } catch (error) {
+            console.error('❌ Error detectando conflictos:', error);
+            return { hasConflicts: false, conflicts: [], events: [] };
+        }
+    };
 
     const loadIntegrationsConfig = async () => {
         try {
@@ -581,12 +691,12 @@ export default function IntegracionesContent() {
         }
     };
 
-    // Probar sincronización
+    // Probar sincronización con detección de conflictos
     // Sincroniza manualmente las reservas con Google Calendar
     const handleTestSync = async () => {
         try {
             setLoading(true);
-            toast.loading('Sincronizando con Google Calendar...', { id: 'test-sync' });
+            toast.loading('Verificando conflictos...', { id: 'test-sync' });
 
             // ✅ Verificar que el usuario esté autenticado antes de llamar a la función
             const { data: { session }, error: sessionError } = await supabase.auth.getSession();
@@ -599,19 +709,36 @@ export default function IntegracionesContent() {
                 throw new Error('No hay sesión activa. Por favor, inicia sesión nuevamente.');
             }
 
-            console.log('✅ Usuario autenticado, llamando a sync-google-calendar...');
+            console.log('✅ Usuario autenticado, detectando conflictos...');
 
-            // Llamar a Edge Function para sincronizar
+            // 🚨 PASO 1: Detectar conflictos ANTES de sincronizar
+            const conflictResult = await detectConflicts();
+
+            toast.dismiss('test-sync');
+
+            // Si hay conflictos, mostrar modal
+            if (conflictResult.hasConflicts) {
+                console.log('⚠️ Conflictos detectados, mostrando modal...');
+                setConflicts(conflictResult.conflicts);
+                setConflictEvents(conflictResult.events);
+                toast.warning(`⚠️ Se encontraron ${conflictResult.conflicts.length} conflicto(s). Por favor, resuélvelos antes de sincronizar.`, {
+                    duration: 5000
+                });
+                return; // Detener aquí, el usuario debe resolver conflictos
+            }
+
+            // Si NO hay conflictos, proceder con sincronización normal
+            toast.loading('Sincronizando con Google Calendar...', { id: 'test-sync' });
+
             const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
                 body: {
                     business_id: businessId,
-                    action: 'test' // Acción de prueba: solo verifica conexión y lista eventos
+                    action: 'sync' // Sincronizar eventos
                 }
             });
 
             if (error) {
                 console.error('❌ Error en sync-google-calendar:', error);
-                // Si es error de autorización, sugerir recargar sesión
                 if (error.message?.includes('authorization') || error.message?.includes('401')) {
                     throw new Error('Error de autenticación. Por favor, recarga la página e intenta nuevamente.');
                 }
@@ -621,10 +748,7 @@ export default function IntegracionesContent() {
             toast.dismiss('test-sync');
             
             if (data?.success) {
-                // Mensaje simple y claro
-                toast.success('✅ Sincronización completada', { duration: 3000 });
-                
-                // Recargar configuración para actualizar last_sync_at
+                toast.success('✅ Sincronización completada sin conflictos', { duration: 3000 });
                 await loadIntegrationsConfig();
             } else {
                 throw new Error(data?.error || 'Error desconocido');
@@ -634,7 +758,6 @@ export default function IntegracionesContent() {
             console.error('Error en prueba de sincronización:', error);
             toast.dismiss('test-sync');
             
-            // Si es error de CORS o función no encontrada, mostrar mensaje más claro
             if (error.message?.includes('CORS') || error.message?.includes('Failed to send')) {
                 toast.error('⚠️ La función de sincronización no está desplegada. Por favor, despliega la Edge Function sync-google-calendar.', {
                     duration: 7000
@@ -798,6 +921,131 @@ export default function IntegracionesContent() {
                                         }
                                     }}
                                 />
+                            )}
+
+                            {/* ⚙️ Configuración de Prioridad de Conflictos */}
+                            {googleCalendarConfig.config?.calendar_selection_completed && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h4 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                                        ⚡ Resolución Automática de Conflictos
+                                    </h4>
+                                    <p className="text-sm text-blue-800 mb-3">
+                                        Elige qué hacer cuando hay conflictos entre Google Calendar y LA-IA:
+                                    </p>
+                                    <div className="space-y-2">
+                                        <label className="flex items-start gap-3 p-3 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                                            <input
+                                                type="radio"
+                                                name="conflict_priority"
+                                                value="ask"
+                                                checked={!googleCalendarConfig.config?.conflict_resolution_strategy || googleCalendarConfig.config?.conflict_resolution_strategy === 'ask'}
+                                                onChange={async (e) => {
+                                                    try {
+                                                        const { error } = await supabase
+                                                            .from('integrations')
+                                                            .update({
+                                                                config: {
+                                                                    ...googleCalendarConfig.config,
+                                                                    conflict_resolution_strategy: 'ask'
+                                                                }
+                                                            })
+                                                            .eq('id', googleCalendarConfig.id);
+                                                        
+                                                        if (error) throw error;
+                                                        toast.success('Configuración guardada');
+                                                        await loadIntegrationsConfig();
+                                                    } catch (error) {
+                                                        console.error('Error guardando configuración:', error);
+                                                        toast.error('Error al guardar');
+                                                    }
+                                                }}
+                                                className="mt-1"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="font-medium text-gray-900">Preguntarme siempre (Recomendado)</div>
+                                                <div className="text-xs text-gray-600">
+                                                    Mostraré un modal para que decidas qué hacer en cada conflicto
+                                                </div>
+                                            </div>
+                                        </label>
+
+                                        <label className="flex items-start gap-3 p-3 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                                            <input
+                                                type="radio"
+                                                name="conflict_priority"
+                                                value="laia"
+                                                checked={googleCalendarConfig.config?.conflict_resolution_strategy === 'laia'}
+                                                onChange={async (e) => {
+                                                    try {
+                                                        const { error } = await supabase
+                                                            .from('integrations')
+                                                            .update({
+                                                                config: {
+                                                                    ...googleCalendarConfig.config,
+                                                                    conflict_resolution_strategy: 'laia'
+                                                                }
+                                                            })
+                                                            .eq('id', googleCalendarConfig.id);
+                                                        
+                                                        if (error) throw error;
+                                                        toast.success('LA-IA será la fuente de verdad');
+                                                        await loadIntegrationsConfig();
+                                                    } catch (error) {
+                                                        console.error('Error guardando configuración:', error);
+                                                        toast.error('Error al guardar');
+                                                    }
+                                                }}
+                                                className="mt-1"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="font-medium text-gray-900">LA-IA es la fuente de verdad</div>
+                                                <div className="text-xs text-gray-600">
+                                                    Las reservas de LA-IA tienen prioridad, eventos conflictivos de GCal se omitirán
+                                                </div>
+                                            </div>
+                                        </label>
+
+                                        <label className="flex items-start gap-3 p-3 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
+                                            <input
+                                                type="radio"
+                                                name="conflict_priority"
+                                                value="gcal"
+                                                checked={googleCalendarConfig.config?.conflict_resolution_strategy === 'gcal'}
+                                                onChange={async (e) => {
+                                                    if (!confirm('⚠️ Esto cancelará automáticamente las reservas de LA-IA que conflicten con Google Calendar. ¿Estás seguro?')) {
+                                                        e.preventDefault();
+                                                        return;
+                                                    }
+                                                    try {
+                                                        const { error } = await supabase
+                                                            .from('integrations')
+                                                            .update({
+                                                                config: {
+                                                                    ...googleCalendarConfig.config,
+                                                                    conflict_resolution_strategy: 'gcal'
+                                                                }
+                                                            })
+                                                            .eq('id', googleCalendarConfig.id);
+                                                        
+                                                        if (error) throw error;
+                                                        toast.success('Google Calendar será la fuente de verdad');
+                                                        await loadIntegrationsConfig();
+                                                    } catch (error) {
+                                                        console.error('Error guardando configuración:', error);
+                                                        toast.error('Error al guardar');
+                                                    }
+                                                }}
+                                                className="mt-1"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="font-medium text-gray-900">Google Calendar es la fuente de verdad</div>
+                                                <div className="text-xs text-red-600 font-medium">
+                                                    ⚠️ Las reservas de LA-IA se cancelarán automáticamente si hay conflictos
+                                                </div>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
                             )}
 
                             {/* Vincular Empleados con Calendarios (solo si se seleccionó "Por Trabajador") */}
@@ -996,15 +1244,36 @@ export default function IntegracionesContent() {
                     conflicts={conflicts}
                     businessId={businessId}
                     events={conflictEvents}
-                    onResolve={(result) => {
-                        console.log('Conflictos resueltos:', result);
+                    onResolve={async (result) => {
+                        console.log('✅ Conflictos resueltos:', result);
                         setConflicts(null);
                         setConflictEvents([]);
-                        loadIntegrationsConfig();
+                        
+                        // Recargar configuración y mostrar resumen
+                        await loadIntegrationsConfig();
+                        
+                        // Toast de resumen según estrategia
+                        if (result.strategy === 'gcal') {
+                            toast.success(`✅ ${result.imported} eventos importados desde Google Calendar. ${result.cancelled} appointment(s) cancelado(s).`, {
+                                duration: 6000
+                            });
+                        } else if (result.strategy === 'laia') {
+                            toast.success(`✅ ${result.imported} eventos importados. Appointments de LA-IA mantenidos (${result.skipped} eventos omitidos).`, {
+                                duration: 6000
+                            });
+                        } else if (result.strategy === 'skip') {
+                            toast.success(`✅ ${result.imported} eventos sin conflictos importados. ${result.skipped} eventos omitidos.`, {
+                                duration: 6000
+                            });
+                        }
                     }}
                     onCancel={() => {
+                        console.log('❌ Usuario canceló resolución de conflictos');
                         setConflicts(null);
                         setConflictEvents([]);
+                        toast.info('Sincronización cancelada. Puedes resolverlos más tarde.', {
+                            duration: 4000
+                        });
                     }}
                 />
             )}

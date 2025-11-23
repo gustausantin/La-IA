@@ -136,8 +136,8 @@ const Configuracion = () => {
     const [isPlayingAudio, setIsPlayingAudio] = useState(false);
     const audioRef = React.useRef(null);
     
-    // 🆕 IDs válidos de las pestañas (ya agrupadas en 5 bloques)
-    const validTabs = ['asistente', 'negocio', 'reservas', 'canales', 'cuenta'];
+    // 🆕 IDs válidos de las pestañas (ya agrupadas en 6 bloques)
+    const validTabs = ['asistente', 'negocio', 'reservas', 'integraciones', 'canales', 'cuenta'];
     
     // ✅ CRÍTICO: Leer tab de la URL o del state al cargar - PRIORIDAD ABSOLUTA a OAuth redirect
     useEffect(() => {
@@ -146,7 +146,7 @@ const Configuracion = () => {
         
         // ✅ PRIORIDAD MÁXIMA: Si viene OAuth redirect, establecer tab INMEDIATAMENTE y BLOQUEAR cualquier otra lógica
         if (integrationParam === 'google_calendar') {
-            const targetTab = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'canales';
+            const targetTab = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'integraciones';
             console.log('🎯 OAuth redirect detectado - Estableciendo tab INMEDIATAMENTE:', targetTab);
             setActiveTab(targetTab);
             
@@ -167,7 +167,7 @@ const Configuracion = () => {
         }
         // 🔄 Mapeo de tabs antiguos a nuevos (compatibilidad)
         const legacyMapping = {
-            // Tabs antiguos mapeados a la nueva estructura de 5 grupos
+            // Tabs antiguos mapeados a la nueva estructura de 6 grupos
             'general': 'negocio',
             'negocio': 'negocio',
             'recursos': 'negocio',
@@ -175,7 +175,6 @@ const Configuracion = () => {
             'agent': 'asistente',
             'channels': 'canales',
             'notifications': 'canales',
-            'integraciones': 'canales',
             'documentos': 'cuenta'
         };
         const legacyTab = location.state?.activeTab || searchParams.get('tab');
@@ -215,8 +214,8 @@ const Configuracion = () => {
             // ✅ PRESERVAR el tab en la URL al limpiar parámetros OAuth (después de que IntegracionesContent los procese)
             setTimeout(() => {
                 const newSearchParams = new URLSearchParams();
-                // ✅ CRÍTICO: Preservar tab=canales en la URL
-                const tabToKeep = tabFromOAuth || 'canales';
+                // ✅ CRÍTICO: Preservar tab=integraciones en la URL
+                const tabToKeep = tabFromOAuth || 'integraciones';
                 if (validTabs.includes(tabToKeep)) {
                     newSearchParams.set('tab', tabToKeep);
                 }
@@ -346,6 +345,12 @@ const Configuracion = () => {
             label: "Reservas",
             icon: <Calendar className="w-4 h-4" />,
             description: "Configuración de disponibilidad y políticas de reserva"
+        },
+        {
+            id: "integraciones",
+            label: "Integraciones",
+            icon: <Zap className="w-4 h-4" />,
+            description: "Conecta con Google Calendar, WhatsApp y más"
         },
         {
             id: "canales",
@@ -1873,15 +1878,12 @@ const Configuracion = () => {
                                 </div>
                             </SettingSection>
 
-                            {/* 5️⃣ Integraciones debajo de la información de cuenta */}
-                            <IntegracionesContent 
-                                settings={settings}
-                                setSettings={setSettings}
-                                saving={saving}
-                                handleSave={handleSave}
-                            />
-
                         </div>
+                    )}
+
+                    {/* 🔌 INTEGRACIONES - Google Calendar, WhatsApp, etc. */}
+                    {activeTab === "integraciones" && (
+                        <IntegracionesContent />
                     )}
                             
                 </div>
