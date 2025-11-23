@@ -9,7 +9,8 @@ import {
     RefreshCw, Instagram, Facebook, Globe, Bot, X, Send, Clock, 
     ExternalLink, MessageCircle, Users, CheckCheck,
     AlertTriangle, Shield, Check, HelpCircle, Smile, Meh, Frown,
-    Star, Tag, TrendingUp, AlertOctagon, Award, ChevronLeft
+    Star, Tag, TrendingUp, AlertOctagon, Award, ChevronLeft,
+    Volume2, Play, Pause, Copy, CheckCircle
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { 
@@ -84,6 +85,72 @@ const getSatisfactionStars = (metadata) => {
     };
     
     return satisfactionMap[metadata.satisfaction_level] || 0;
+};
+
+// 🆕 MVP: Componente de Audio Player simple
+const AudioPlayer = ({ audioUrl }) => {
+    const [isPlaying, setIsPlaying] = React.useState(false);
+    const audioRef = React.useRef(null);
+
+    const togglePlay = () => {
+        if (audioRef.current) {
+            if (isPlaying) {
+                audioRef.current.pause();
+            } else {
+                audioRef.current.play();
+            }
+            setIsPlaying(!isPlaying);
+        }
+    };
+
+    return (
+        <div className="bg-gradient-to-r from-purple-50 to-blue-50 p-3 rounded-lg border border-purple-200">
+            <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-1">
+                    <Volume2 className="w-4 h-4 text-purple-600" />
+                    <h4 className="font-bold text-sm text-gray-900">Grabación de llamada</h4>
+                </div>
+                <button
+                    onClick={togglePlay}
+                    className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-all shadow hover:shadow-md"
+                >
+                    {isPlaying ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4" />}
+                </button>
+            </div>
+            <audio
+                ref={audioRef}
+                src={audioUrl}
+                onEnded={() => setIsPlaying(false)}
+                className="w-full mt-2"
+                controls
+            />
+        </div>
+    );
+};
+
+// 🆕 MVP: Helper para formatear teléfono (XXX XX XX XX)
+const formatPhoneNumber = (phone) => {
+    if (!phone) return '';
+    const cleaned = phone.replace(/\D/g, '');
+    if (cleaned.length === 9) {
+        return cleaned.replace(/(\d{3})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4');
+    }
+    if (cleaned.length === 11 && cleaned.startsWith('34')) {
+        return '+34 ' + cleaned.substring(2).replace(/(\d{3})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4');
+    }
+    return phone;
+};
+
+// 🆕 MVP: Helper para obtener texto e icono del outcome
+const getOutcomeDisplay = (outcome) => {
+    const outcomes = {
+        reservation_created: { icon: '✅', text: 'Cita Agendada', color: 'text-green-600' },
+        reservation_modified: { icon: '🔄', text: 'Cita Modificada', color: 'text-blue-600' },
+        reservation_cancelled: { icon: '❌', text: 'Cancelación', color: 'text-red-600' },
+        inquiry_answered: { icon: 'ℹ️', text: 'Consulta Atendida', color: 'text-blue-600' },
+        escalated: { icon: '⚠️', text: 'Requiere Atención', color: 'text-orange-600' }
+    };
+    return outcomes[outcome] || { icon: '⚠️', text: 'Pendiente', color: 'text-gray-600' };
 };
 
 export default function Comunicacion() {
@@ -569,8 +636,19 @@ export default function Comunicacion() {
                                                         </span>
                                                     </div>
 
-                                                    {/* Teléfono */}
-                                                    <p className="text-xs text-gray-600 mb-2">{conv.customer_phone}</p>
+                                                    {/* 🆕 MVP: Outcome visible */}
+                                                    {(() => {
+                                                        const outcomeDisplay = getOutcomeDisplay(conv.outcome);
+                                                        return (
+                                                            <p className={`text-xs font-semibold mb-1 ${outcomeDisplay.color} flex items-center gap-1`}>
+                                                                <span>{outcomeDisplay.icon}</span>
+                                                                <span>{outcomeDisplay.text}</span>
+                                                            </p>
+                                                        );
+                                                    })()}
+
+                                                    {/* Teléfono formateado */}
+                                                    <p className="text-xs text-gray-600 mb-2">{formatPhoneNumber(conv.customer_phone)}</p>
 
                                                     {/* Badges */}
                                                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -664,9 +742,47 @@ export default function Comunicacion() {
                                                 <h3 className="font-bold text-xs sm:text-sm text-gray-900 truncate">
                                                     {selectedConversation.customer_name || 'Sin nombre'}
                                                 </h3>
-                                                <p className="text-[10px] sm:text-xs text-gray-600 truncate">{selectedConversation.customer_phone}</p>
+                                                <p className="text-[10px] sm:text-xs text-gray-600 truncate">{formatPhoneNumber(selectedConversation.customer_phone)}</p>
                                             </div>
                                         </div>
+
+                                        {/* 🆕 MVP: Botones de Acción Rápida */}
+                                        <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+                                            {/* Llamar Ahora */}
+                                            <a
+                                                href={`tel:${selectedConversation.customer_phone}`}
+                                                className="px-2 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold shadow hover:shadow-md transition-all flex items-center gap-1"
+                                                title="Llamar ahora"
+                                            >
+                                                <Phone className="w-3 h-3" />
+                                                <span className="hidden sm:inline">Llamar</span>
+                                            </a>
+
+                                            {/* WhatsApp */}
+                                            <a
+                                                href={`https://wa.me/${selectedConversation.customer_phone.replace(/\D/g, '')}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="px-2 py-1.5 text-xs bg-green-500 hover:bg-green-600 text-white rounded-lg font-semibold shadow hover:shadow-md transition-all flex items-center gap-1"
+                                                title="Abrir WhatsApp"
+                                            >
+                                                <MessageSquare className="w-3 h-3" />
+                                                <span className="hidden sm:inline">WhatsApp</span>
+                                            </a>
+
+                                            {/* Copiar Teléfono */}
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(selectedConversation.customer_phone);
+                                                    toast.success('Teléfono copiado');
+                                                }}
+                                                className="px-2 py-1.5 text-xs bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold shadow hover:shadow-md transition-all flex items-center gap-1"
+                                                title="Copiar teléfono"
+                                            >
+                                                <Copy className="w-3 h-3" />
+                                            </button>
+                                        </div>
+
                                         <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                                             {selectedConversation.reservation_id && (
                                                 <button
@@ -726,6 +842,43 @@ export default function Comunicacion() {
                                         )}
                                     </div>
                                 </div>
+
+                                {/* 🆕 MVP: Audio Player + Resumen IA (PRIORIDAD) */}
+                                {selectedConversation.source_channel === 'phone' && (
+                                    <div className="border-b bg-white p-3 space-y-3">
+                                        {/* Audio Player */}
+                                        {selectedConversation.metadata?.recording_url ? (
+                                            <AudioPlayer audioUrl={selectedConversation.metadata.recording_url} />
+                                        ) : (
+                                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center">
+                                                <Volume2 className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+                                                <p className="text-xs text-gray-500">
+                                                    Audio pendiente de procesamiento
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        {/* Resumen IA Simplificado */}
+                                        {selectedConversation.metadata?.conversation_summary ? (
+                                            <div className="bg-yellow-50 p-3 rounded-lg border border-yellow-200">
+                                                <div className="flex items-center gap-2 mb-2">
+                                                    <Bot className="w-4 h-4 text-yellow-600" />
+                                                    <h4 className="font-bold text-sm text-gray-900">Resumen IA</h4>
+                                                </div>
+                                                <p className="text-sm text-gray-700 leading-relaxed">
+                                                    {selectedConversation.metadata.conversation_summary}
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="bg-gray-50 p-3 rounded-lg border border-gray-200 text-center">
+                                                <Bot className="w-5 h-5 text-gray-400 mx-auto mb-1" />
+                                                <p className="text-xs text-gray-500">
+                                                    Resumen no disponible
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                                 
                                 {/* NUEVO: Panel de Análisis IA (si existe metadata) */}
                                 {selectedConversation.metadata && typeof selectedConversation.metadata === 'object' && Object.keys(selectedConversation.metadata).length > 0 && (

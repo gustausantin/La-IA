@@ -8,7 +8,8 @@ import {
     Search, Plus, Users, Mail, Phone, Edit2, X, 
     RefreshCw, Settings, Crown, AlertTriangle,
     Clock, DollarSign, TrendingUp, CheckCircle2, Zap,
-    Target, Send, Eye, MessageSquare, Copy, Download, FileText, BarChart3
+    Target, Send, Eye, MessageSquare, Copy, Download, FileText, BarChart3,
+    Calendar, StickyNote, XCircle
 } from "lucide-react";
 import toast from "react-hot-toast";
 import CustomerModal from "../components/CustomerModal";
@@ -51,6 +52,31 @@ const CUSTOMER_SEGMENTS = {
         description: "Sin visitas recientes - Necesita recuperación",
         priority: 5
     }
+};
+
+// 🆕 MVP: FUNCIÓN PARA FORMATEAR TELÉFONO (XXX XX XX XX)
+const formatPhoneNumber = (phone) => {
+    if (!phone) return '';
+    // Eliminar todos los caracteres no numéricos
+    const cleaned = phone.replace(/\D/g, '');
+    // Formato español: XXX XX XX XX
+    if (cleaned.length === 9) {
+        return cleaned.replace(/(\d{3})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4');
+    }
+    // Si tiene prefijo internacional +34
+    if (cleaned.length === 11 && cleaned.startsWith('34')) {
+        return '+34 ' + cleaned.substring(2).replace(/(\d{3})(\d{2})(\d{2})(\d{2})/, '$1 $2 $3 $4');
+    }
+    // Fallback: devolver el original
+    return phone;
+};
+
+// 🆕 MVP: DETECTAR SI UNA NOTA ES CRÍTICA (palabras clave)
+const isNoteCritical = (note) => {
+    if (!note) return false;
+    const criticalKeywords = ['alergia', 'alergico', 'ojo', 'importante', 'cuidado', 'atencion', 'aviso', 'nunca', 'prohibido'];
+    const noteLower = note.toLowerCase();
+    return criticalKeywords.some(keyword => noteLower.includes(keyword));
 };
 
 // FUNCIÓN PARA CALCULAR SEGMENTO SEGÚN PARÁMETROS DEL VERTICAL
@@ -198,6 +224,41 @@ export default function Clientes() {
 
             if (error) throw error;
 
+            // 🆕 MVP: Cargar próximas citas por cliente
+            const today = format(new Date(), 'yyyy-MM-dd');
+            const { data: nextAppointments } = await supabase
+                .from("appointments")
+                .select("customer_id, appointment_date, appointment_time")
+                .eq("business_id", businessId)
+                .gte("appointment_date", today)
+                .in("status", ["confirmed", "pending", "pending_approval"])
+                .order("appointment_date", { ascending: true })
+                .order("appointment_time", { ascending: true });
+
+            // 🆕 MVP: Agrupar próximas citas por cliente (tomar solo la primera de cada uno)
+            const nextAppointmentByCustomer = {};
+            nextAppointments?.forEach(apt => {
+                if (!nextAppointmentByCustomer[apt.customer_id]) {
+                    nextAppointmentByCustomer[apt.customer_id] = {
+                        date: apt.appointment_date,
+                        time: apt.appointment_time
+                    };
+                }
+            });
+
+            // 🆕 MVP: Cargar contador de no-shows por cliente
+            const { data: noShowData } = await supabase
+                .from("appointments")
+                .select("customer_id, status")
+                .eq("business_id", businessId)
+                .eq("status", "noshow");
+
+            // Agrupar no-shows por cliente
+            const noShowsByCustomer = {};
+            noShowData?.forEach(apt => {
+                noShowsByCustomer[apt.customer_id] = (noShowsByCustomer[apt.customer_id] || 0) + 1;
+            });
+
             // Procesar clientes usando ESQUEMA REAL de Supabase
             const processedCustomers = customers?.map(customer => {
                 // Calcular días desde última visita
@@ -213,6 +274,12 @@ export default function Clientes() {
                 if (verticalParams) {
                     segment = calculateSegmentByVertical(customer, verticalParams);
                 }
+
+                // 🆕 MVP: Agregar próxima cita
+                const nextAppointment = nextAppointmentByCustomer[customer.id] || null;
+
+                // 🆕 MVP: Agregar contador de no-shows
+                const noShowCount = noShowsByCustomer[customer.id] || 0;
                 
                 return {
                     ...customer,
@@ -220,6 +287,9 @@ export default function Clientes() {
                     visits_count: visitsCount, // UI espera visits_count, BD tiene total_visits
                     segment: segment,
                     daysSinceLastVisit,
+                    // 🆕 MVP: Nuevos campos calculados
+                    next_appointment: nextAppointment,
+                    no_show_count: noShowCount,
                     // Valores por defecto para campos que no existen en BD
                     churn_risk_score: 0,
                     predicted_ltv: 0,
@@ -228,6 +298,8 @@ export default function Clientes() {
             }) || [];
 
             console.log("✅ Clientes procesados:", processedCustomers.length);
+            console.log("📅 Próximas citas cargadas:", Object.keys(nextAppointmentByCustomer).length);
+            console.log("🚫 No-shows contabilizados:", Object.keys(noShowsByCustomer).length);
             setCustomers(processedCustomers);
 
         } catch (error) {
@@ -237,7 +309,7 @@ export default function Clientes() {
         } finally {
             setLoading(false);
         }
-    }, [businessId]);
+    }, [businessId, verticalParams]);
 
     // Editar cliente
     const handleEditCustomer = (customer) => {
@@ -535,7 +607,8 @@ export default function Clientes() {
                 </div>
 
                 {/* 🆕 PESTAÑAS: Todos los Clientes | Segmentación CRM */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1.5">
+                {/* 🔴 MVP: Campañas Inteligentes ocultas para V2 */}
+                {/* <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-1.5">
                     <div className="flex items-center gap-2">
                         <button
                             onClick={() => setActiveTab('todos')}
@@ -566,7 +639,7 @@ export default function Clientes() {
                             Campañas Inteligentes
                         </button>
                     </div>
-                </div>
+                </div> */}
 
                 {/* 📊 SEGMENTOS VISUALES - REDISEÑADOS (Más grandes, con barra de progreso) */}
                 {activeTab === 'todos' && (
@@ -885,9 +958,23 @@ export default function Clientes() {
                                         ? 'Ayer' 
                                         : `Hace ${daysSince}d`;
 
-                                    const visits = customer.visits_count || 0;
-                                    const totalSpent = customer.total_spent || 0;
-                                    const avgTicket = visits > 0 ? (totalSpent / visits).toFixed(0) : 0;
+                                    // 🆕 MVP: Formatear próxima cita para mobile
+                                    let nextAppointmentTextMobile = 'Sin agendar';
+                                    if (customer.next_appointment) {
+                                        const aptDate = parseISO(customer.next_appointment.date);
+                                        const today = new Date();
+                                        const daysUntil = Math.floor((aptDate - today) / (1000 * 60 * 60 * 24));
+                                        
+                                        if (daysUntil === 0) {
+                                            nextAppointmentTextMobile = `Hoy`;
+                                        } else if (daysUntil === 1) {
+                                            nextAppointmentTextMobile = `Mañana`;
+                                        } else if (daysUntil <= 7) {
+                                            nextAppointmentTextMobile = format(aptDate, 'dd/MM');
+                                        } else {
+                                            nextAppointmentTextMobile = format(aptDate, 'dd/MM');
+                                        }
+                                    }
 
                                     return (
                                         <div
@@ -911,9 +998,22 @@ export default function Clientes() {
                                                             {segmentInfo.label}
                                                         </span>
                                                         {customer.phone && (
-                                                            <span className="text-xs text-gray-500 flex items-center gap-1">
+                                                            <a 
+                                                                href={`tel:${customer.phone}`}
+                                                                onClick={(e) => e.stopPropagation()}
+                                                                className="text-xs text-blue-600 flex items-center gap-1"
+                                                            >
                                                                 <Phone className="w-3 h-3" />
-                                                                {customer.phone}
+                                                                {formatPhoneNumber(customer.phone)}
+                                                            </a>
+                                                        )}
+                                                        {/* 🆕 MVP: Badge de No-Shows */}
+                                                        {customer.no_show_count > 0 && (
+                                                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                                                                customer.no_show_count >= 2 ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                                                            }`}>
+                                                                <XCircle className="w-3 h-3" />
+                                                                {customer.no_show_count} No-Show
                                                             </span>
                                                         )}
                                                     </div>
@@ -930,20 +1030,60 @@ export default function Clientes() {
                                                 </button>
                                             </div>
 
-                                            {/* Métricas en grid - Mobile-first: responsive */}
-                                            <div className="grid grid-cols-3 gap-1 sm:gap-2 text-center">
-                                                <div className="bg-gray-50 rounded-lg p-2">
-                                                    <div className="text-xs text-gray-500 mb-0.5">Visitas</div>
-                                                    <div className="text-sm font-bold text-gray-900">{visits}</div>
+                                            {/* 🆕 MVP: Métricas simplificadas + Notas + Próxima Cita */}
+                                            <div className="space-y-2">
+                                                {/* Fila 1: Última visita + Próxima cita */}
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div className="bg-gray-50 rounded-lg p-2">
+                                                        <div className="text-xs text-gray-500 mb-0.5 flex items-center gap-1">
+                                                            <Clock className="w-3 h-3" />
+                                                            Última Visita
+                                                        </div>
+                                                        <div className="text-xs font-semibold text-gray-900">{lastVisitText}</div>
+                                                    </div>
+                                                    <div className={`rounded-lg p-2 ${customer.next_appointment ? 'bg-green-50' : 'bg-gray-50'}`}>
+                                                        <div className="text-xs text-gray-500 mb-0.5 flex items-center gap-1">
+                                                            <Calendar className="w-3 h-3" />
+                                                            Próxima Cita
+                                                        </div>
+                                                        <div className={`text-xs font-semibold ${customer.next_appointment ? 'text-green-700' : 'text-gray-400'}`}>
+                                                            {nextAppointmentTextMobile}
+                                                        </div>
+                                                    </div>
                                                 </div>
-                                                <div className="bg-gray-50 rounded-lg p-2">
-                                                    <div className="text-xs text-gray-500 mb-0.5">Ticket €</div>
-                                                    <div className="text-sm font-bold text-gray-900">{avgTicket}</div>
-                                                </div>
-                                                <div className="bg-gray-50 rounded-lg p-2">
-                                                    <div className="text-xs text-gray-500 mb-0.5">Última</div>
-                                                    <div className="text-xs font-semibold text-gray-900">{lastVisitText}</div>
-                                                </div>
+
+                                                {/* Fila 2: Notas (si existen) */}
+                                                {customer.notes && (() => {
+                                                    const isCritical = isNoteCritical(customer.notes);
+                                                    
+                                                    if (isCritical) {
+                                                        // Nota CRÍTICA: fondo rojo suave
+                                                        return (
+                                                            <div className="bg-red-50 border border-red-200 rounded-lg p-2">
+                                                                <div className="text-xs text-red-700 flex items-center gap-1 mb-1">
+                                                                    <AlertTriangle className="w-3 h-3" />
+                                                                    <span className="font-bold">⚠️ Importante:</span>
+                                                                </div>
+                                                                <div className="text-xs text-red-800 font-medium line-clamp-2">
+                                                                    {customer.notes}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    } else {
+                                                        // Nota NORMAL: fondo gris suave
+                                                        return (
+                                                            <div className="bg-gray-50 border border-gray-200 rounded-lg p-2">
+                                                                <div className="text-xs text-gray-600 flex items-center gap-1 mb-1">
+                                                                    <StickyNote className="w-3 h-3" />
+                                                                    <span className="font-semibold">Nota:</span>
+                                                                </div>
+                                                                <div className="text-xs text-gray-700 italic line-clamp-2">
+                                                                    {customer.notes}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                })()}
                                             </div>
                                         </div>
                                     );
@@ -956,13 +1096,11 @@ export default function Clientes() {
                                 <thead className="bg-gray-50 border-b border-gray-200">
                                     <tr>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Cliente</th>
-                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Segmento</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Teléfono</th>
                                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Última Visita</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Visitas</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Ticket Promedio</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Tendencia</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Riesgo</th>
-                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Contacto</th>
+                                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wide">Próxima Cita</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">Notas</th>
+                                        <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide">No-Shows</th>
                                         <th className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wide"></th>
                                     </tr>
                                 </thead>
@@ -1000,90 +1138,30 @@ export default function Clientes() {
                                             ? 'Ayer' 
                                             : `Hace ${daysSince}d`;
 
-                                        // Calcular Ticket Promedio
+                                        // 🆕 MVP: Variables básicas necesarias
                                         const visits = customer.visits_count || 0;
                                         const totalSpent = customer.total_spent || 0;
-                                        const avgTicket = visits > 0 ? (totalSpent / visits).toFixed(0) : 0;
 
-                                        // ✅ Calcular Tendencia usando parámetros del VERTICAL (NO hardcoded)
-                                        let trend = '➡️';
-                                        let trendColor = 'text-gray-500';
-                                        let trendTooltip = 'Estable';
-                                        
-                                        if (verticalParams && daysSince !== null && visits > 0) {
-                                            const riskThreshold = verticalParams.risk_min_days;
-                                            const inactiveThreshold = verticalParams.inactive_days;
-                                            const midPoint = (riskThreshold + inactiveThreshold) / 2;
+                                        // 🆕 MVP: Formatear próxima cita
+                                        let nextAppointmentText = 'Sin agendar';
+                                        let nextAppointmentColor = 'text-gray-400';
+                                        if (customer.next_appointment) {
+                                            const aptDate = parseISO(customer.next_appointment.date);
+                                            const today = new Date();
+                                            const daysUntil = Math.floor((aptDate - today) / (1000 * 60 * 60 * 24));
                                             
-                                            if (daysSince < riskThreshold) {
-                                                trend = '📈';
-                                                trendColor = 'text-green-600';
-                                                trendTooltip = 'Cliente activo';
-                                            } else if (daysSince >= inactiveThreshold) {
-                                                trend = '📉';
-                                                trendColor = 'text-red-600';
-                                                trendTooltip = 'Cliente inactivo';
-                                            } else if (daysSince >= midPoint) {
-                                                trend = '⚠️';
-                                                trendColor = 'text-orange-600';
-                                                trendTooltip = 'En riesgo';
-                                            }
-                                        } else if (daysSince === null || visits === 0) {
-                                            trend = '👋';
-                                            trendColor = 'text-blue-600';
-                                            trendTooltip = 'Cliente nuevo sin visitas';
-                                        }
-
-                                        // ✅ Calcular Riesgo usando parámetros del VERTICAL (NO hardcoded)
-                                        let riskScore = null;
-                                        let riskText = '-';
-                                        let riskColor = 'text-gray-500';
-                                        let riskBgColor = 'bg-gray-100';
-                                        
-                                        if (daysSince === null || visits === 0) {
-                                            // ✅ Cliente nuevo SIN visitas = NO hay riesgo (aún no lo conocemos)
-                                            riskScore = null;
-                                            riskText = '-';
-                                            riskColor = 'text-gray-500';
-                                            riskBgColor = 'bg-gray-100';
-                                        } else if (verticalParams) {
-                                            // ✅ Calcular riesgo basado en parámetros del vertical
-                                            const riskThreshold = verticalParams.risk_min_days;
-                                            const inactiveThreshold = verticalParams.inactive_days;
-                                            
-                                            // Calcular porcentaje basado en umbrales del vertical
-                                            if (daysSince >= inactiveThreshold) {
-                                                riskScore = 90; // Inactivo = alto riesgo
-                                            } else if (daysSince >= riskThreshold) {
-                                                // Riesgo proporcional entre risk_min_days e inactive_days
-                                                const range = inactiveThreshold - riskThreshold;
-                                                const position = daysSince - riskThreshold;
-                                                riskScore = 30 + Math.round((position / range) * 60); // De 30% a 90%
-                                        } else {
-                                                // Activo = bajo riesgo
-                                                riskScore = Math.round((daysSince / riskThreshold) * 30); // De 0% a 30%
-                                            }
-                                            
-                                            // Ajustar por lealtad (visitas y gasto)
-                                            if (visits >= verticalParams.vip_min_visits_12m) riskScore = Math.max(0, riskScore - 20);
-                                            else if (visits >= 5) riskScore = Math.max(0, riskScore - 10);
-                                            
-                                            if (totalSpent >= verticalParams.vip_min_spend_12m) riskScore = Math.max(0, riskScore - 15);
-                                            else if (totalSpent >= 200) riskScore = Math.max(0, riskScore - 5);
-                                            
-                                            riskScore = Math.max(0, Math.min(100, riskScore));
-                                            riskText = `${riskScore}%`;
-                                        
-                                            // Colores según riesgo
-                                        if (riskScore <= 30) {
-                                            riskColor = 'text-green-700';
-                                            riskBgColor = 'bg-green-100';
-                                        } else if (riskScore <= 60) {
-                                            riskColor = 'text-yellow-700';
-                                            riskBgColor = 'bg-yellow-100';
-                                        } else {
-                                            riskColor = 'text-red-700';
-                                            riskBgColor = 'bg-red-100';
+                                            if (daysUntil === 0) {
+                                                nextAppointmentText = `Hoy ${customer.next_appointment.time.substring(0, 5)}`;
+                                                nextAppointmentColor = 'text-green-700 font-semibold';
+                                            } else if (daysUntil === 1) {
+                                                nextAppointmentText = `Mañana ${customer.next_appointment.time.substring(0, 5)}`;
+                                                nextAppointmentColor = 'text-blue-700 font-semibold';
+                                            } else if (daysUntil <= 7) {
+                                                nextAppointmentText = `${format(aptDate, 'dd/MM')} ${customer.next_appointment.time.substring(0, 5)}`;
+                                                nextAppointmentColor = 'text-purple-700';
+                                            } else {
+                                                nextAppointmentText = `${format(aptDate, 'dd/MM/yy')}`;
+                                                nextAppointmentColor = 'text-gray-700';
                                             }
                                         }
 
@@ -1093,7 +1171,7 @@ export default function Clientes() {
                                                 onClick={() => handleViewCustomer(customer)}
                                                 className="hover:bg-blue-50 cursor-pointer transition-colors"
                                             >
-                                                {/* Cliente (Avatar + Nombre) */}
+                                                {/* Cliente (Avatar + Nombre + Segmento Badge) */}
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-3">
                                                         <div className={`w-10 h-10 bg-gradient-to-br ${bgGradients[segmentColor]} rounded-lg flex items-center justify-center text-white font-bold text-sm shadow-sm`}>
@@ -1101,15 +1179,28 @@ export default function Clientes() {
                                                         </div>
                                                         <div className="min-w-0">
                                                             <p className="text-sm font-semibold text-gray-900 truncate">{customer.name}</p>
+                                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${colorClasses[segmentColor]} mt-0.5`}>
+                                                                <span>{CUSTOMER_SEGMENTS[customer.segment]?.icon}</span>
+                                                                {CUSTOMER_SEGMENTS[customer.segment]?.label}
+                                                            </span>
                                                         </div>
                                                     </div>
                                                 </td>
 
-                                                {/* Segmento */}
+                                                {/* Teléfono */}
                                                 <td className="px-4 py-3">
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${colorClasses[segmentColor]}`}>
-                                                        {CUSTOMER_SEGMENTS[customer.segment]?.icon} {CUSTOMER_SEGMENTS[customer.segment]?.label}
-                                                    </span>
+                                                    {customer.phone ? (
+                                                        <a 
+                                                            href={`tel:${customer.phone}`}
+                                                            onClick={(e) => e.stopPropagation()}
+                                                            className="text-sm text-blue-600 hover:text-blue-800 hover:underline flex items-center gap-1"
+                                                        >
+                                                            <Phone className="w-3 h-3" />
+                                                            {formatPhoneNumber(customer.phone)}
+                                                        </a>
+                                                    ) : (
+                                                        <span className="text-sm text-gray-400">-</span>
+                                                    )}
                                                 </td>
 
                                                 {/* Última Visita */}
@@ -1117,48 +1208,89 @@ export default function Clientes() {
                                                     <span className="text-sm text-gray-700">{lastVisitText}</span>
                                                 </td>
 
-                                                {/* Visitas */}
-                                                <td className="px-4 py-3 text-center">
-                                                    <span className="text-sm font-semibold text-gray-900">{visits}</span>
+                                                {/* 🆕 Próxima Cita */}
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-1">
+                                                        <Calendar className="w-4 h-4 text-gray-400" />
+                                                        <span className={`text-sm ${nextAppointmentColor}`}>
+                                                            {nextAppointmentText}
+                                                        </span>
+                                                    </div>
                                                 </td>
 
-                                                {/* Ticket Promedio */}
+                                                {/* 🆕 Notas */}
                                                 <td className="px-4 py-3 text-center">
-                                                    <span className="text-sm font-semibold text-purple-700">
-                                                        {visits > 0 ? `€${avgTicket}` : '-'}
-                                                    </span>
+                                                    {customer.notes ? (
+                                                        (() => {
+                                                            const isCritical = isNoteCritical(customer.notes);
+                                                            const isShort = customer.notes.length <= 25;
+                                                            
+                                                            if (isCritical) {
+                                                                // Nota CRÍTICA: fondo rojo suave
+                                                                return (
+                                                                    <div 
+                                                                        className="inline-flex items-center gap-1 px-2 py-1 bg-red-50 border border-red-200 rounded-lg cursor-help hover:bg-red-100 transition-colors"
+                                                                        title={customer.notes}
+                                                                    >
+                                                                        <AlertTriangle className="w-4 h-4 text-red-600" />
+                                                                        <span className="text-xs text-red-700 font-semibold">
+                                                                            {customer.notes.length > 20 ? customer.notes.substring(0, 20) + '...' : customer.notes}
+                                                                        </span>
+                                                                    </div>
+                                                                );
+                                                            } else if (isShort) {
+                                                                // Nota CORTA: texto gris sin fondo
+                                                                return (
+                                                                    <span className="text-xs text-gray-600 italic">
+                                                                        {customer.notes}
+                                                                    </span>
+                                                                );
+                                                            } else {
+                                                                // Nota LARGA: solo icono con tooltip
+                                                                return (
+                                                                    <div 
+                                                                        className="inline-flex items-center gap-1 cursor-help text-gray-500 hover:text-gray-700 transition-colors"
+                                                                        title={customer.notes}
+                                                                    >
+                                                                        <StickyNote className="w-4 h-4" />
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        })()
+                                                    ) : (
+                                                        <span className="text-gray-400 text-sm">-</span>
+                                                    )}
                                                 </td>
 
-                                                {/* Tendencia */}
+                                                {/* 🆕 No-Shows */}
                                                 <td className="px-4 py-3 text-center">
-                                                    <span 
-                                                        className={`text-lg ${trendColor}`}
-                                                        title={trendTooltip}
-                                                    >
-                                                        {trend}
-                                                    </span>
+                                                    {customer.no_show_count > 0 ? (
+                                                        <div className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${
+                                                            customer.no_show_count >= 3 ? 'bg-red-100 text-red-700' :
+                                                            customer.no_show_count >= 2 ? 'bg-orange-100 text-orange-700' :
+                                                            'bg-yellow-100 text-yellow-700'
+                                                        }`}>
+                                                            <XCircle className="w-3 h-3" />
+                                                            {customer.no_show_count}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-sm text-gray-400 font-medium">0</span>
+                                                    )}
                                                 </td>
 
-                                                {/* Riesgo de Pérdida */}
-                                                <td className="px-4 py-3 text-center">
-                                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${riskBgColor} ${riskColor}`}>
-                                                        {riskText}
-                                                    </span>
-                                                </td>
-
-                                                {/* Contacto */}
+                                                {/* Acciones */}
                                                 <td className="px-4 py-3 text-center">
                                                     <div className="flex items-center justify-center gap-2">
                                                         {customer.phone && (
                                                             <button
                                                                 onClick={(e) => {
                                                                     e.stopPropagation();
-                                                                    window.open(`tel:${customer.phone}`, '_blank');
+                                                                    window.open(`https://wa.me/${customer.phone.replace(/\D/g, '')}`, '_blank');
                                                                 }}
-                                                                className="p-1.5 text-blue-600 hover:bg-blue-100 rounded transition-colors"
-                                                                title={customer.phone}
+                                                                className="p-1.5 text-green-600 hover:bg-green-100 rounded transition-colors"
+                                                                title="WhatsApp"
                                                             >
-                                                                <Phone className="w-4 h-4" />
+                                                                <MessageSquare className="w-4 h-4" />
                                                             </button>
                                                         )}
                                                         {customer.email && (
@@ -1173,20 +1305,16 @@ export default function Clientes() {
                                                                 <Mail className="w-4 h-4" />
                                                             </button>
                                                         )}
+                                                        <button
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleEditCustomer(customer);
+                                                            }}
+                                                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                                                        >
+                                                            <Edit2 className="w-4 h-4" />
+                                                        </button>
                                                     </div>
-                                                </td>
-
-                                                {/* Acciones */}
-                                                <td className="px-4 py-3 text-center">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            handleEditCustomer(customer);
-                                                        }}
-                                                        className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                                                    >
-                                                        <Edit2 className="w-4 h-4" />
-                                                    </button>
                                                 </td>
                                             </tr>
                                         );
