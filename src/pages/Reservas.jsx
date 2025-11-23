@@ -629,6 +629,7 @@ export default function Reservas() {
     const [tables, setTables] = useState([]);
     const [resources, setResources] = useState([]); // 🆕 Recursos/Profesionales para el calendario
     const [calendarExceptions, setCalendarExceptions] = useState([]); // 🆕 Excepciones de calendario (días cerrados)
+    const [employeeAbsences, setEmployeeAbsences] = useState([]); // 🆕 Ausencias de empleados (vacaciones, bajas)
     const [savingPolicy, setSavingPolicy] = useState(false);
     const [policySettings, setPolicySettings] = useState({
         min_party_size: 1,
@@ -955,6 +956,36 @@ export default function Reservas() {
             }));
         }
     }, [businessId]);
+
+    // 🏖️ Cargar ausencias de empleados
+    const loadEmployeeAbsences = useCallback(async () => {
+        if (!businessId) return;
+
+        try {
+            const today = new Date();
+            const futureDate = new Date();
+            futureDate.setDate(today.getDate() + 90); // Cargar ausencias de los próximos 3 meses
+
+            const { data, error } = await supabase
+                .from('employee_absences')
+                .select('*')
+                .eq('business_id', businessId)
+                .gte('end_date', today.toISOString().split('T')[0]) // Ausencias que terminan después de hoy
+                .lte('start_date', futureDate.toISOString().split('T')[0]); // Ausencias que empiezan antes de 3 meses
+
+            if (error) throw error;
+
+            console.log('🏖️ Ausencias de empleados cargadas:', data?.length || 0);
+            setEmployeeAbsences(data || []);
+        } catch (error) {
+            console.error('Error cargando ausencias de empleados:', error);
+        }
+    }, [businessId]);
+
+    // 🏖️ Cargar ausencias al iniciar
+    useEffect(() => {
+        loadEmployeeAbsences();
+    }, [loadEmployeeAbsences]);
 
     // Cargar reservas
     const loadReservations = useCallback(async () => {
@@ -1883,10 +1914,19 @@ export default function Reservas() {
         };
         window.addEventListener('calendar-exception-updated', handleCalendarUpdate);
         
+        // 🆕 Recargar cuando se actualicen ausencias de empleados
+        const handleAbsencesUpdate = () => {
+            console.log('🏖️ Ausencias actualizadas - recargando datos...');
+            loadEmployeeAbsences(); // Recargar ausencias
+            loadReservations(); // Recargar reservas por si se cancelaron algunas
+        };
+        window.addEventListener('absences-updated', handleAbsencesUpdate);
+        
         return () => {
             window.removeEventListener('schedule-updated', handleScheduleUpdate);
             window.removeEventListener('force-business-reload', handleBusinessReload);
             window.removeEventListener('calendar-exception-updated', handleCalendarUpdate);
+            window.removeEventListener('absences-updated', handleAbsencesUpdate);
         };
     }, [businessId, loadCalendarExceptions]);
     
@@ -2664,6 +2704,7 @@ export default function Reservas() {
                         blockages={blockages} // 🆕 Bloqueos de horas
                         businessSettings={business?.settings} // 🆕 Configuración del negocio (incluye operating_hours)
                         calendarExceptions={calendarExceptions} // 🆕 Excepciones de calendario (días cerrados)
+                        employeeAbsences={employeeAbsences} // 🆕 Ausencias de empleados (vacaciones, bajas)
                         onReservationClick={(reserva) => {
                             setViewingReservation(reserva);
                             setShowDetailsModal(true);

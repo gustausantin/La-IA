@@ -306,6 +306,26 @@ export class AutoSlotRegenerationService {
       const slotsUpdated = result?.total_slots_generated || data?.total_slots_generated || data?.affected_count || data?.slots_created || 0;
 
       console.log(`✅ Regeneración completada: ${slotsUpdated} slots actualizados`);
+      
+      // 🧹 Limpiar slots de días cerrados después de la regeneración
+      console.log('🧹 Limpiando slots de días cerrados...');
+      try {
+        const { data: cleanupData, error: cleanupError } = await supabase.rpc('cleanup_all_closed_day_slots', {
+          p_business_id: businessId
+        });
+        
+        if (cleanupError) {
+          console.warn('⚠️ Error limpiando días cerrados:', cleanupError);
+        } else if (cleanupData && cleanupData.length > 0) {
+          const totalCleaned = cleanupData.reduce((sum, item) => sum + (item.deleted_slots || 0), 0);
+          console.log(`🧹 Limpiados ${totalCleaned} slots de ${cleanupData.length} días cerrados`);
+        } else {
+          console.log('✅ No había slots en días cerrados');
+        }
+      } catch (cleanupError) {
+        console.warn('⚠️ Error en limpieza de días cerrados:', cleanupError);
+        // No bloquear el flujo principal por esto
+      }
 
       // 🛡️ 4. Consultar reservas activas en el rango para informar al usuario
       let protectedReservations = [];

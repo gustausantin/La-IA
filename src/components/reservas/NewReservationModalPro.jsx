@@ -563,11 +563,9 @@ export default function NewReservationModalPro({
                     });
                     
                     if (syncError) {
-                        console.error('❌ Error sincronizando con Google Calendar:', syncError);
-                        toast('⚠️ Reserva creada pero no se pudo sincronizar con Google Calendar', { 
-                            icon: '⚠️',
-                            duration: 6000 
-                        });
+                        // ⚠️ Solo advertencia en consola, no mostrar toast si no está configurado
+                        console.warn('⚠️ Google Calendar no sincronizado (probablemente no configurado):', syncError.message || syncError);
+                        // No mostrar toast de error si es simplemente que no está configurado
                     } else {
                         console.log('✅ Respuesta de sync-google-calendar:', syncData);
                         

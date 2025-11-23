@@ -11,7 +11,7 @@ import { format, parseISO, addDays } from 'date-fns';
 import { 
   Users, Plus, Edit3, Trash2, Clock, CheckCircle2, 
   X, ArrowRight, ArrowLeft, Loader2, Save, Calendar,
-  Palmtree, Copy
+  Palmtree, Copy, AlertTriangle, User
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -798,16 +798,24 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
         
         if (empError) throw empError;
         
-        console.log('🔍 DEBUG: Empleados actuales cargados:', currentEmployees?.length || 0);
+        console.log('\n🔍🔍🔍 DEBUG CRÍTICO: Empleados actuales cargados:', currentEmployees?.length || 0);
         if (currentEmployees && currentEmployees.length > 0) {
           currentEmployees.forEach(emp => {
-            console.log(`  - ${emp.name}: recurso=${emp.assigned_resource_id}, horarios=${emp.employee_schedules?.length || 0}`);
-            if (emp.employee_schedules) {
+            console.log(`\n👤 ${emp.name}:`);
+            console.log(`   - Recurso asignado: ${emp.assigned_resource_id}`);
+            console.log(`   - Número de horarios: ${emp.employee_schedules?.length || 0}`);
+            
+            if (emp.employee_schedules && emp.employee_schedules.length > 0) {
               emp.employee_schedules.forEach(sched => {
-                console.log(`    Día ${sched.day_of_week}: trabajando=${sched.is_working}, shifts=${JSON.stringify(sched.shifts)}`);
+                const dia = typeof sched.day_of_week === 'string' ? parseInt(sched.day_of_week) : sched.day_of_week;
+                console.log(`   - Día ${dia} (${['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][dia]}): trabaja=${sched.is_working}, turnos=${JSON.stringify(sched.shifts)}`);
               });
+            } else {
+              console.log(`   ⚠️ NO TIENE HORARIOS CARGADOS`);
             }
           });
+        } else {
+          console.log('   ⚠️ NO HAY EMPLEADOS EXISTENTES');
         }
         
         // Convertir horarios del nuevo empleado a minutos totales por día
@@ -844,146 +852,165 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
           shifts: newEmployeeMinutes[day].shifts
         })));
         
-        // 🎯 NUEVA LÓGICA: Validar disponibilidad real usando funciones oficiales (Supabase RPC)
-        const resourceUsageMap = new Map();
+        // 🎯 ALGORITMO ULTRA-SIMPLE: COMPLETAR RECURSOS EXISTENTES
+        console.log('\n🔥🔥🔥 ASIGNACIÓN AUTOMÁTICA DE RECURSO - ALGORITMO SIMPLIFICADO');
+        
+        // Construir mapa de ocupación de cada recurso por día/hora
+        const recursosOcupacion = new Map();
+        
+        // Inicializar todos los recursos con arrays vacíos
+        availableResources.forEach(resource => {
+          recursosOcupacion.set(resource.id, {
+            name: resource.name,
+            empleados: [],
+            ocupacionPorDia: {} // día -> array de rangos ocupados
+          });
+        });
+        
+        // Registrar ocupación de cada empleado existente
+        console.log('\n📋 PASO 1: Registrando ocupación actual...');
         (currentEmployees || []).forEach(emp => {
-          if (emp.assigned_resource_id) {
-            resourceUsageMap.set(
-              emp.assigned_resource_id,
-              (resourceUsageMap.get(emp.assigned_resource_id) || 0) + 1
-            );
+          if (!emp.assigned_resource_id) {
+            console.log(`  ⚠️ ${emp.name}: Sin recurso asignado, ignorando`);
+            return;
           }
-        });
-        
-        const prioritizedResources = (availableResources || []).map(resource => ({
-          resource,
-          employeeCount: resourceUsageMap.get(resource.id) || 0
-        })).sort((a, b) => {
-          if (b.employeeCount !== a.employeeCount) return b.employeeCount - a.employeeCount;
-          return a.resource.name.localeCompare(b.resource.name);
-        });
-        
-        console.log('🎯 Recursos priorizados:', prioritizedResources.map(r => ({
-          name: r.resource.name,
-          empleados: r.employeeCount
-        })));
-        
-        const VALIDATION_EMPLOYEE_ID = '00000000-0000-0000-0000-000000000000';
-        const getNextDateForDay = (dayOfWeek) => {
-          const today = new Date();
-          const diff = (dayOfWeek + 7 - today.getDay()) % 7;
-          const target = new Date(today);
-          target.setDate(today.getDate() + diff);
-          return target.toISOString().split('T')[0];
-        };
-        
-        const validateResourceCandidate = (candidate) => {
-          console.log(`\n🔍 Validando recurso: ${candidate.resource.name}`);
           
-          // Buscar empleados que YA tienen este recurso
-          const empleadosEnRecurso = (currentEmployees || []).filter(emp => 
-            emp.assigned_resource_id === candidate.resource.id
+          const recurso = recursosOcupacion.get(emp.assigned_resource_id);
+          if (!recurso) {
+            console.log(`  ⚠️ ${emp.name}: Recurso ${emp.assigned_resource_id} no encontrado, ignorando`);
+            return;
+          }
+          
+          // Verificar si tiene horarios válidos
+          const horariosValidos = (emp.employee_schedules || []).filter(s => 
+            s.is_working && s.shifts && s.shifts.length > 0
           );
           
-          console.log(`   👥 Empleados actuales: ${empleadosEnRecurso.length}`);
-          
-          // Para cada día del nuevo empleado
-          for (const scheduleNuevo of schedules) {
-            if (!scheduleNuevo.is_working || !scheduleNuevo.shifts || scheduleNuevo.shifts.length === 0) continue;
-            
-            const diaNuevo = typeof scheduleNuevo.day_of_week === 'string' 
-              ? parseInt(scheduleNuevo.day_of_week) 
-              : scheduleNuevo.day_of_week;
-            
-            console.log(`   📅 Día ${diaNuevo}:`);
-            
-            // Para cada turno del nuevo empleado
-            for (const turnoNuevo of scheduleNuevo.shifts) {
-              if (!turnoNuevo.start || !turnoNuevo.end) continue;
-              
-              const [hNStart, mNStart] = turnoNuevo.start.split(':').map(Number);
-              const [hNEnd, mNEnd] = turnoNuevo.end.split(':').map(Number);
-              const minNStart = hNStart * 60 + mNStart;
-              const minNEnd = hNEnd * 60 + mNEnd;
-              
-              console.log(`      🆕 ${turnoNuevo.start}-${turnoNuevo.end} (${minNStart}-${minNEnd} min)`);
-              
-              // Verificar contra cada empleado existente
-              for (const empExistente of empleadosEnRecurso) {
-                const schedExistente = (empExistente.employee_schedules || []).find(s => {
-                  const diaEx = typeof s.day_of_week === 'string' ? parseInt(s.day_of_week) : s.day_of_week;
-                  return diaEx === diaNuevo && s.is_working === true;
-                });
-                
-                if (!schedExistente || !schedExistente.shifts || schedExistente.shifts.length === 0) {
-                  console.log(`         ✅ ${empExistente.name}: No trabaja`);
-                  continue;
-                }
-                
-                // Verificar cada turno del empleado existente
-                for (const turnoEx of schedExistente.shifts) {
-                  if (!turnoEx.start || !turnoEx.end) continue;
-                  
-                  const [hExStart, mExStart] = turnoEx.start.split(':').map(Number);
-                  const [hExEnd, mExEnd] = turnoEx.end.split(':').map(Number);
-                  const minExStart = hExStart * 60 + mExStart;
-                  const minExEnd = hExEnd * 60 + mExEnd;
-                  
-                  // SOLAPAMIENTO: (inicio1 < fin2) Y (fin1 > inicio2)
-                  const solapa = (minNStart < minExEnd) && (minNEnd > minExStart);
-                  
-                  console.log(`         👤 ${empExistente.name}: ${turnoEx.start}-${turnoEx.end} (${minExStart}-${minExEnd})`);
-                  console.log(`            (${minNStart} < ${minExEnd}) && (${minNEnd} > ${minExStart}) = ${solapa ? '❌ SOLAPA' : '✅ NO SOLAPA'}`);
-                  
-                  if (solapa) {
-                    console.log(`      ❌ CONFLICTO con ${empExistente.name}`);
-                    return false;
-                  }
-                }
-              }
-            }
+          if (horariosValidos.length === 0) {
+            console.log(`  ⚠️ ${emp.name} → ${recurso.name} (SIN HORARIOS VÁLIDOS - NO SE REGISTRA OCUPACIÓN)`);
+            return;
           }
           
-          console.log(`   ✅ RECURSO DISPONIBLE`);
-          return true;
-        };
+          recurso.empleados.push(emp.name);
+          console.log(`  👤 ${emp.name} → ${recurso.name} (${horariosValidos.length} días con horarios)`);
+          
+          (emp.employee_schedules || []).forEach(sched => {
+            if (!sched.is_working || !sched.shifts || sched.shifts.length === 0) return;
+            
+            const dia = typeof sched.day_of_week === 'string' ? parseInt(sched.day_of_week) : sched.day_of_week;
+            
+            if (!recurso.ocupacionPorDia[dia]) {
+              recurso.ocupacionPorDia[dia] = [];
+            }
+            
+            sched.shifts.forEach(shift => {
+              const [hStart, mStart] = shift.start.split(':').map(Number);
+              const [hEnd, mEnd] = shift.end.split(':').map(Number);
+              recurso.ocupacionPorDia[dia].push({
+                empleado: emp.name,
+                inicio: hStart * 60 + mStart,
+                fin: hEnd * 60 + mEnd,
+                horario: `${shift.start}-${shift.end}`
+              });
+              console.log(`     Día ${dia}: ${shift.start}-${shift.end}`);
+            });
+          });
+        });
         
-        console.log('\n🎯 PROBANDO RECURSOS EN ORDEN:');
-        let bestResourceMeta = null;
+        // Verificar cada recurso para el nuevo empleado
+        console.log('\n📋 PASO 2: Verificando disponibilidad para nuevo empleado...');
+        const recursosDisponibles = [];
         
-        for (const candidate of prioritizedResources) {
-          const isValid = validateResourceCandidate(candidate);
-          if (isValid) {
-            bestResourceMeta = candidate;
-            console.log(`\n✅ RECURSO SELECCIONADO: ${candidate.resource.name}`);
-            break;
+        for (const resource of availableResources) {
+          const recurso = recursosOcupacion.get(resource.id);
+          console.log(`\n🔍 Verificando: ${recurso.name} (${recurso.empleados.length} empleados)`);
+          
+          let tieneConflicto = false;
+          
+          // Verificar cada día que trabajará el nuevo empleado
+          for (const schedNuevo of schedules) {
+            if (!schedNuevo.is_working || !schedNuevo.shifts || schedNuevo.shifts.length === 0) continue;
+            
+            const dia = typeof schedNuevo.day_of_week === 'string' ? parseInt(schedNuevo.day_of_week) : schedNuevo.day_of_week;
+            const ocupacionDia = recurso.ocupacionPorDia[dia] || [];
+            
+            console.log(`  Día ${dia}: ${ocupacionDia.length} bloques ocupados`);
+            
+            // Verificar cada turno del nuevo empleado
+            for (const turnoNuevo of schedNuevo.shifts) {
+              const [hStart, mStart] = turnoNuevo.start.split(':').map(Number);
+              const [hEnd, mEnd] = turnoNuevo.end.split(':').map(Number);
+              const inicioNuevo = hStart * 60 + mStart;
+              const finNuevo = hEnd * 60 + mEnd;
+              
+              console.log(`    Turno: ${turnoNuevo.start}-${turnoNuevo.end} (${inicioNuevo}-${finNuevo})`);
+              
+              // Verificar contra cada bloque ocupado
+              for (const bloque of ocupacionDia) {
+                const solapa = (inicioNuevo < bloque.fin) && (finNuevo > bloque.inicio);
+                console.log(`      vs ${bloque.empleado} ${bloque.horario} (${bloque.inicio}-${bloque.fin}): ${solapa ? '❌ SOLAPA' : '✅ OK'}`);
+                
+                if (solapa) {
+                  tieneConflicto = true;
+                  break;
+                }
+              }
+              
+              if (tieneConflicto) break;
+            }
+            
+            if (tieneConflicto) break;
+          }
+          
+          if (!tieneConflicto) {
+            recursosDisponibles.push({
+              id: resource.id,
+              name: recurso.name,
+              empleados: recurso.empleados.length,
+              priority: recurso.empleados.length > 0 ? 1000 + recurso.empleados.length : 0
+            });
+            console.log(`  ✅ DISPONIBLE (prioridad: ${recurso.empleados.length > 0 ? 'ALTA - completar' : 'BAJA - nuevo'})`);
+          } else {
+            console.log(`  ❌ CONFLICTO`);
           }
         }
         
-        if (!bestResourceMeta) {
-          toast.error('❌ No hay recursos disponibles sin conflictos horarios. Crea un nuevo recurso o ajusta horarios.', { duration: 5000 });
+        // Ordenar por prioridad (recursos con más empleados primero)
+        recursosDisponibles.sort((a, b) => b.priority - a.priority);
+        
+        console.log('\n📊 RESUMEN:');
+        recursosDisponibles.forEach((r, i) => {
+          console.log(`  ${i + 1}. ${r.name}: ${r.empleados} empleados (prioridad: ${r.priority})`);
+        });
+        
+        if (recursosDisponibles.length === 0) {
+          console.error('\n❌ NO HAY RECURSOS DISPONIBLES');
+          toast.error('❌ No hay recursos disponibles sin conflictos horarios.', { duration: 5000 });
           setSaving(false);
           return;
         }
         
-        finalResourceId = bestResourceMeta.resource.id;
-        resourceAssignmentType = 'manual'; // ✅ Bloquear recurso elegido para evitar reasignaciones automáticas
+        const recursoSeleccionado = recursosDisponibles[0];
+        finalResourceId = recursoSeleccionado.id;
+        resourceAssignmentType = 'manual';
         
-        if (bestResourceMeta.employeeCount > 0) {
-          console.log(`✅ Reutilizando ${bestResourceMeta.resource.name} (ya tiene ${bestResourceMeta.employeeCount} empleado(s))`);
+        console.log(`\n✅✅✅ RECURSO SELECCIONADO: ${recursoSeleccionado.name}`);
+        console.log(`   Empleados actuales: ${recursoSeleccionado.empleados}`);
+        console.log(`   Tipo: ${recursoSeleccionado.empleados > 0 ? 'COMPLETAR EXISTENTE' : 'NUEVO'}`);
+        
+        if (recursoSeleccionado.empleados > 0) {
           toast.success(
-            `✅ Asignado a ${bestResourceMeta.resource.name}\n🎯 Optimizado: completando recurso existente`,
+            `✅ ${recursoSeleccionado.name}\n🎯 Completando recurso (${recursoSeleccionado.empleados} empleado${recursoSeleccionado.empleados > 1 ? 's' : ''} actual${recursoSeleccionado.empleados > 1 ? 'es' : ''})`,
             { duration: 5000 }
           );
         } else {
-          console.log(`⚠️ Usando recurso nuevo: ${bestResourceMeta.resource.name}`);
           toast.success(
-            `✅ Asignado a ${bestResourceMeta.resource.name}\n⚠️ Recurso nuevo (no había recursos compatibles en uso)`,
+            `✅ ${recursoSeleccionado.name}\n⚪ Recurso nuevo`,
             { duration: 4000 }
           );
         }
         
-        window.__lastAutoAssignedResource = bestResourceMeta.resource.name;
+        window.__lastAutoAssignedResource = recursoSeleccionado.name;
       } else {
         window.__lastAutoAssignedResource = null;
       }
@@ -1936,9 +1963,172 @@ function EditScheduleModal({ employee, onClose, onSuccess, resources = [] }) {
 
       if (insertError) throw insertError;
 
-      toast.success('¡Horario guardado! ✅');
+      // 🎯 REASIGNACIÓN AUTOMÁTICA DE RECURSOS AL CAMBIAR HORARIOS
+      console.log('\n🔄 RECALCULANDO ASIGNACIÓN DE RECURSO tras cambio de horario...');
       
-      // ⭐ NUEVO: Auto-regenerar disponibilidades
+      try {
+        // Obtener todos los empleados activos con sus horarios
+        const { data: allEmployees, error: empError } = await supabase
+          .from('employees')
+          .select(`
+            id,
+            name,
+            assigned_resource_id,
+            employee_schedules (
+              day_of_week,
+              is_working,
+              shifts
+            )
+          `)
+          .eq('business_id', employee.business_id)
+          .eq('is_active', true);
+        
+        if (empError) throw empError;
+        
+        // Obtener recursos disponibles
+        const { data: availableResources, error: resError } = await supabase
+          .from('resources')
+          .select('id, name')
+          .eq('business_id', employee.business_id)
+          .eq('is_active', true);
+        
+        if (resError) throw resError;
+        
+        if (!availableResources || availableResources.length === 0) {
+          console.log('⚠️ No hay recursos disponibles, manteniendo asignación actual');
+        } else {
+          // Construir mapa de ocupación
+          const recursosOcupacion = new Map();
+          availableResources.forEach(resource => {
+            recursosOcupacion.set(resource.id, {
+              name: resource.name,
+              empleados: [],
+              ocupacionPorDia: {}
+            });
+          });
+          
+          // Registrar ocupación de OTROS empleados (no este)
+          allEmployees.forEach(emp => {
+            if (emp.id === employee.id) return; // Saltar el empleado actual
+            if (!emp.assigned_resource_id) return;
+            
+            const recurso = recursosOcupacion.get(emp.assigned_resource_id);
+            if (!recurso) return;
+            
+            const horariosValidos = (emp.employee_schedules || []).filter(s => 
+              s.is_working && s.shifts && s.shifts.length > 0
+            );
+            
+            if (horariosValidos.length === 0) return;
+            
+            recurso.empleados.push(emp.name);
+            
+            (emp.employee_schedules || []).forEach(sched => {
+              if (!sched.is_working || !sched.shifts || sched.shifts.length === 0) return;
+              
+              const dia = typeof sched.day_of_week === 'string' ? parseInt(sched.day_of_week) : sched.day_of_week;
+              
+              if (!recurso.ocupacionPorDia[dia]) {
+                recurso.ocupacionPorDia[dia] = [];
+              }
+              
+              sched.shifts.forEach(shift => {
+                const [hStart, mStart] = shift.start.split(':').map(Number);
+                const [hEnd, mEnd] = shift.end.split(':').map(Number);
+                recurso.ocupacionPorDia[dia].push({
+                  empleado: emp.name,
+                  inicio: hStart * 60 + mStart,
+                  fin: hEnd * 60 + mEnd,
+                  horario: `${shift.start}-${shift.end}`
+                });
+              });
+            });
+          });
+          
+          // Verificar disponibilidad del empleado actual
+          const recursosDisponibles = [];
+          
+          for (const resource of availableResources) {
+            const recurso = recursosOcupacion.get(resource.id);
+            let tieneConflicto = false;
+            
+            for (const schedNuevo of schedules) {
+              if (!schedNuevo.is_working || !schedNuevo.shifts || schedNuevo.shifts.length === 0) continue;
+              
+              const dia = typeof schedNuevo.day_of_week === 'string' ? parseInt(schedNuevo.day_of_week) : schedNuevo.day_of_week;
+              const ocupacionDia = recurso.ocupacionPorDia[dia] || [];
+              
+              for (const turnoNuevo of schedNuevo.shifts) {
+                const [hStart, mStart] = turnoNuevo.start.split(':').map(Number);
+                const [hEnd, mEnd] = turnoNuevo.end.split(':').map(Number);
+                const inicioNuevo = hStart * 60 + mStart;
+                const finNuevo = hEnd * 60 + mEnd;
+                
+                for (const bloque of ocupacionDia) {
+                  const solapa = (inicioNuevo < bloque.fin) && (finNuevo > bloque.inicio);
+                  if (solapa) {
+                    tieneConflicto = true;
+                    break;
+                  }
+                }
+                
+                if (tieneConflicto) break;
+              }
+              
+              if (tieneConflicto) break;
+            }
+            
+            if (!tieneConflicto) {
+              recursosDisponibles.push({
+                id: resource.id,
+                name: recurso.name,
+                empleados: recurso.empleados.length,
+                priority: recurso.empleados.length > 0 ? 1000 + recurso.empleados.length : 0
+              });
+            }
+          }
+          
+          // Ordenar por prioridad y seleccionar el mejor
+          recursosDisponibles.sort((a, b) => b.priority - a.priority);
+          
+          if (recursosDisponibles.length > 0) {
+            const mejorRecurso = recursosDisponibles[0];
+            
+            // Si es diferente al actual, actualizar
+            if (mejorRecurso.id !== employee.assigned_resource_id) {
+              console.log(`🔄 Reasignando de ${employee.assigned_resource_id} a ${mejorRecurso.name}`);
+              
+              await supabase
+                .from('employees')
+                .update({ assigned_resource_id: mejorRecurso.id })
+                .eq('id', employee.id);
+              
+              // Actualizar resource_id en todos los schedules
+              await supabase
+                .from('employee_schedules')
+                .update({ resource_id: mejorRecurso.id })
+                .eq('employee_id', employee.id);
+              
+              toast.success(
+                `¡Horario guardado! ✅\n🔄 Recurso reasignado a: ${mejorRecurso.name}`,
+                { duration: 5000 }
+              );
+            } else {
+              console.log(`✅ Recurso óptimo sigue siendo: ${employee.assigned_resource_id}`);
+              toast.success('¡Horario guardado! ✅');
+            }
+          } else {
+            console.log('⚠️ No hay recursos compatibles disponibles');
+            toast.success('¡Horario guardado! ✅');
+          }
+        }
+      } catch (reassignError) {
+        console.error('⚠️ Error en reasignación automática:', reassignError);
+        // No bloquear el guardado por esto
+        toast.success('¡Horario guardado! ✅');
+      }
+      
+      // ⭐ Auto-regenerar disponibilidades
       try {
         const AutoSlotRegenerationService = (await import('../services/AutoSlotRegenerationService')).default;
         await AutoSlotRegenerationService.regenerateAfterAction(
@@ -2203,6 +2393,7 @@ function ManageAbsencesModal({ employee, businessId, onClose, onSuccess }) {
   const [loading, setLoading] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingAbsence, setEditingAbsence] = useState(null);
+  const [conflictData, setConflictData] = useState(null); // 🆕 Para mostrar modal de conflictos
   
   const [formData, setFormData] = useState({
     reason: 'vacation',
@@ -2342,7 +2533,38 @@ function ManageAbsencesModal({ employee, businessId, onClose, onSuccess }) {
       window.dispatchEvent(new CustomEvent('absences-updated'));
     } catch (error) {
       console.error('Error guardando ausencia:', error);
-      toast.error('Error al guardar ausencia');
+      
+      // 🚨 Manejar error de reservas existentes
+      if (error.message && error.message.includes('reserva(s)')) {
+        // Parsear el mensaje para extraer información de las reservas
+        const message = error.message;
+        const countMatch = message.match(/Tienes (\d+) reserva\(s\)/);
+        const reservationCount = countMatch ? parseInt(countMatch[1]) : 0;
+        
+        // Extraer las reservas del mensaje
+        const reservationLines = message.split('\n').filter(line => line.trim().startsWith('-'));
+        const reservations = reservationLines.map(line => {
+          // Formato: "  - 2025-11-24 a las 10:15:00 (Jimena Castillo)"
+          const match = line.match(/- ([\d-]+) a las ([\d:]+) \(([^)]+)\)/);
+          if (match) {
+            return {
+              date: match[1],
+              time: match[2],
+              customer: match[3]
+            };
+          }
+          return null;
+        }).filter(Boolean);
+        
+        // Mostrar modal de conflictos
+        setConflictData({
+          count: reservationCount,
+          reservations,
+          dateRange: `${formData.start_date} - ${formData.end_date}`
+        });
+      } else {
+        toast.error(error.message || 'Error al guardar ausencia');
+      }
     } finally {
       setSaving(false);
     }
@@ -2709,8 +2931,144 @@ function ManageAbsencesModal({ employee, businessId, onClose, onSuccess }) {
           </button>
         </div>
       </div>
+
+      {/* 🚨 MODAL DE CONFLICTOS CON RESERVAS */}
+      {conflictData && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="bg-gradient-to-r from-red-600 to-orange-600 px-6 py-5 text-white">
+              <div className="flex items-start gap-4">
+                <div className="bg-white/20 p-3 rounded-xl backdrop-blur-sm">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-2xl font-bold mb-1">
+                    ⚠️ No se puede crear la ausencia
+                  </h3>
+                  <p className="text-red-50 text-sm">
+                    Hay {conflictData.count} reserva{conflictData.count > 1 ? 's' : ''} confirmada{conflictData.count > 1 ? 's' : ''} en este período
+                  </p>
+                </div>
+                <button
+                  onClick={() => setConflictData(null)}
+                  className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Cuerpo */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {/* Mensaje explicativo */}
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg mb-6">
+                <div className="flex items-start gap-3">
+                  <div className="text-2xl">🛡️</div>
+                  <div>
+                    <p className="font-bold text-yellow-900 mb-1">
+                      Las reservas son sagradas
+                    </p>
+                    <p className="text-sm text-yellow-800 leading-relaxed">
+                      No puedes crear una ausencia cuando hay reservas confirmadas. 
+                      Debes <span className="font-bold">cancelar o reasignar</span> estas reservas primero.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Lista de reservas conflictivas */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-gray-900 mb-3 flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-red-600" />
+                  Reservas que bloquean esta ausencia:
+                </h4>
+                
+                {conflictData.reservations.map((reservation, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-gradient-to-r from-red-50 to-orange-50 border-l-4 border-red-500 p-4 rounded-lg"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="bg-red-100 text-red-700 rounded-full w-8 h-8 flex items-center justify-center font-bold text-sm flex-shrink-0">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <User className="w-4 h-4 text-red-600" />
+                          <p className="font-bold text-gray-900">
+                            {reservation.customer}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-4 text-sm text-gray-700">
+                          <span className="flex items-center gap-1">
+                            <Calendar className="w-4 h-4" />
+                            {new Date(reservation.date).toLocaleDateString('es-ES', {
+                              weekday: 'long',
+                              day: 'numeric',
+                              month: 'long'
+                            })}
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {reservation.time.substring(0, 5)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Acciones sugeridas */}
+              <div className="mt-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h4 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
+                  💡 ¿Qué puedes hacer?
+                </h4>
+                <ul className="space-y-2 text-sm text-blue-800">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600">•</span>
+                    <span><strong>Cancelar</strong> las reservas si ya no son necesarias</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600">•</span>
+                    <span><strong>Reasignar</strong> las reservas a otro trabajador disponible</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600">•</span>
+                    <span><strong>Ajustar las fechas</strong> de la ausencia para evitar estos días</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 bg-gray-50 border-t border-gray-200 flex gap-3">
+              <button
+                onClick={() => setConflictData(null)}
+                className="flex-1 px-4 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 font-semibold rounded-xl transition-colors"
+              >
+                Entendido
+              </button>
+              <button
+                onClick={() => {
+                  setConflictData(null);
+                  onClose();
+                  // Navegar a la página de reservas
+                  window.location.href = '/reservas';
+                }}
+                className="flex-1 px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+              >
+                <Calendar className="w-4 h-4" />
+                Ir a Reservas
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 

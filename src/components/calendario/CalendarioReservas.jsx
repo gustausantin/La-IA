@@ -89,6 +89,7 @@ export default function CalendarioReservas({
     blockages = [], // 🆕 Bloqueos de horas
     businessSettings = null, // 🆕 Configuración del negocio (incluye operating_hours)
     calendarExceptions = [], // 🆕 Excepciones de calendario (días cerrados, festivos, etc.)
+    employeeAbsences = [], // 🆕 Ausencias de empleados (vacaciones, bajas, etc.)
     onReservationClick = () => {},
     onSlotClick = () => {},
     onRefresh = () => {},
@@ -1321,6 +1322,13 @@ function VistaDia({
         setDragOverSlot(null);
     };
 
+    // 🚨 VERIFICAR SI EL DÍA ESTÁ CERRADO EN EL CALENDARIO (calcular UNA VEZ para todo el día)
+    // fechaStr ya está definido arriba en la línea 1077
+    const dayException = calendarExceptions?.find(
+        ex => ex.exception_date === fechaStr
+    );
+    const isDayClosed = dayException && (dayException.is_open === false || dayException.is_open === null);
+
     return (
         <div className="bg-white rounded-xl shadow-lg border-2 border-gray-300 relative" style={{ overflow: 'visible' }}>
             {/* TABLA HTML - Alineación PERFECTA garantizada */}
@@ -1335,19 +1343,22 @@ function VistaDia({
                         
                         {/* Recursos/Empleados - HORIZONTAL CENTRADO */}
                         {recursosDisplay.map((recurso, idx) => {
-                            // 🚨 VERIFICAR SI EL DÍA ESTÁ CERRADO EN EL CALENDARIO
-                            const fechaStr = format(fecha, 'yyyy-MM-dd');
-                            const dayException = calendarExceptions?.find(
-                                ex => ex.exception_date === fechaStr
-                            );
-                            const isDayClosed = dayException && (dayException.is_open === false || dayException.is_open === null);
                             
-                            // Si el día está cerrado, mostrar "Sin horario" para TODOS los empleados
+                            // Verificar si el empleado tiene ausencia este día
+                            const tieneAusenciaHoy = employeeAbsences.some(absence => {
+                                if (absence.employee_id !== recurso.id) return false;
+                                const startDate = new Date(absence.start_date);
+                                const endDate = new Date(absence.end_date);
+                                const currentDate = new Date(fechaStr);
+                                return currentDate >= startDate && currentDate <= endDate;
+                            });
+                            
+                            // Si el día está cerrado O el empleado tiene ausencia, mostrar "Sin horario"
                             let horarioTexto = 'Sin horario';
                             let tieneHorarioHoy = false;
                             
-                            if (!isDayClosed) {
-                                // Solo calcular horario si el día NO está cerrado
+                            if (!isDayClosed && !tieneAusenciaHoy) {
+                                // Solo calcular horario si el día NO está cerrado y NO tiene ausencia
                             const schedulesToday = recurso.employee_schedules?.filter(s => 
                                 s.day_of_week === diaSemanaActual && s.is_working
                             ) || [];
@@ -1360,6 +1371,8 @@ function VistaDia({
                                 const ultimoTurno = shifts[shifts.length - 1];
                                 horarioTexto = `${primerTurno.start.slice(0, 5)} - ${ultimoTurno.end.slice(0, 5)}`;
                                 }
+                            } else if (tieneAusenciaHoy) {
+                                horarioTexto = '🏖️ Ausente';
                             }
 
                             return (
@@ -1465,26 +1478,59 @@ function VistaDia({
                                     return horaReserva === (hora - 1) && minReserva === 45;
                                 });
 
-                                // 🚫 Verificar si empleado NO trabaja en esta hora (hora:00)
-                                const schedulesToday = recurso.employee_schedules?.filter(s => 
-                                    s.day_of_week === diaSemanaActual && s.is_working
-                                ) || [];
+                                // 🚫 Verificar si el día está cerrado O si empleado tiene ausencia O NO trabaja en esta hora
+                                let estaFueraDeHorario = isDayClosed; // Si el día está cerrado, marcar como fuera de horario
                                 
-                                let estaFueraDeHorario = true;
-                                if (schedulesToday.length > 0 && schedulesToday[0].shifts) {
-                                    const shifts = schedulesToday[0].shifts;
-                                    const minutosActuales = hora * 60; // hora:00 en minutos
+                                // 🏖️ Verificar si el empleado tiene ausencia este día
+                                const empleadoTieneAusencia = employeeAbsences.some(absence => {
+                                    if (absence.employee_id !== recurso.id) return false;
                                     
-                                    // Verificar si este momento está dentro de algún turno
-                                    // La hora EXACTA de inicio NO está disponible (empiezan 1 minuto después)
-                                    // La hora EXACTA de fin SÍ está disponible (trabajan hasta esa hora)
-                                    estaFueraDeHorario = !shifts.some(shift => {
-                                        const [hInicio, mInicio] = shift.start.split(':').map(Number);
-                                        const [hFin, mFin] = shift.end.split(':').map(Number);
-                                        const inicioMin = hInicio * 60 + mInicio;
-                                        const finMin = hFin * 60 + mFin;
-                                        return minutosActuales > inicioMin && minutosActuales <= finMin;
-                                    });
+                                    const startDate = new Date(absence.start_date);
+                                    const endDate = new Date(absence.end_date);
+                                    const currentDate = new Date(fechaStr);
+                                    
+                                    // Verificar si la fecha actual está en el rango de ausencia
+                                    if (currentDate >= startDate && currentDate <= endDate) {
+                                        // Si es ausencia de todo el día, marcar como ausente
+                                        if (absence.all_day) return true;
+                                        
+                                        // Si es ausencia parcial, verificar si esta hora está en el rango
+                                        if (absence.start_time && absence.end_time) {
+                                            const [hStart, mStart] = absence.start_time.split(':').map(Number);
+                                            const [hEnd, mEnd] = absence.end_time.split(':').map(Number);
+                                            const ausenciaStart = hStart * 60 + mStart;
+                                            const ausenciaEnd = hEnd * 60 + mEnd;
+                                            const horaActual = hora * 60;
+                                            return horaActual >= ausenciaStart && horaActual < ausenciaEnd;
+                                        }
+                                    }
+                                    return false;
+                                });
+                                
+                                if (empleadoTieneAusencia) {
+                                    estaFueraDeHorario = true;
+                                } else if (!isDayClosed) {
+                                    // Solo verificar horarios del empleado si el día NO está cerrado y NO tiene ausencia
+                                    const schedulesToday = recurso.employee_schedules?.filter(s => 
+                                        s.day_of_week === diaSemanaActual && s.is_working
+                                    ) || [];
+                                    
+                                    estaFueraDeHorario = true;
+                                    if (schedulesToday.length > 0 && schedulesToday[0].shifts) {
+                                        const shifts = schedulesToday[0].shifts;
+                                        const minutosActuales = hora * 60; // hora:00 en minutos
+                                        
+                                        // Verificar si este momento está dentro de algún turno
+                                        // La hora EXACTA de inicio NO está disponible (empiezan 1 minuto después)
+                                        // La hora EXACTA de fin SÍ está disponible (trabajan hasta esa hora)
+                                        estaFueraDeHorario = !shifts.some(shift => {
+                                            const [hInicio, mInicio] = shift.start.split(':').map(Number);
+                                            const [hFin, mFin] = shift.end.split(':').map(Number);
+                                            const inicioMin = hInicio * 60 + mInicio;
+                                            const finMin = hFin * 60 + mFin;
+                                            return minutosActuales > inicioMin && minutosActuales <= finMin;
+                                        });
+                                    }
                                 }
                                 
                                 // 🔒 Buscar bloqueos de este recurso en esta hora
@@ -1806,23 +1852,53 @@ function VistaDia({
 
                                         const estaOcupado = !!reservaEnEsteCelda;
                                         
-                                        // 🚫 Verificar si empleado NO trabaja en este minuto
-                                        const schedulesToday = recurso.employee_schedules?.filter(s => 
-                                            s.day_of_week === diaSemanaActual && s.is_working
-                                        ) || [];
+                                        // 🚫 Verificar si el día está cerrado O si empleado tiene ausencia O NO trabaja en este minuto
+                                        let estaFueraDeHorarioMinuto = isDayClosed; // Si el día está cerrado, marcar como fuera de horario
                                         
-                                        let estaFueraDeHorarioMinuto = true;
-                                        if (schedulesToday.length > 0 && schedulesToday[0].shifts) {
-                                            const shifts = schedulesToday[0].shifts;
-                                            const minutosDesdeMedianoche = hora * 60 + minuto;
+                                        // 🏖️ Verificar si el empleado tiene ausencia este día
+                                        const empleadoTieneAusenciaMinuto = employeeAbsences.some(absence => {
+                                            if (absence.employee_id !== recurso.id) return false;
                                             
-                                            estaFueraDeHorarioMinuto = !shifts.some(shift => {
-                                                const [hInicio, mInicio] = shift.start.split(':').map(Number);
-                                                const [hFin, mFin] = shift.end.split(':').map(Number);
-                                                const inicioMin = hInicio * 60 + mInicio;
-                                                const finMin = hFin * 60 + mFin;
-                                                return minutosDesdeMedianoche > inicioMin && minutosDesdeMedianoche <= finMin;
-                                            });
+                                            const startDate = new Date(absence.start_date);
+                                            const endDate = new Date(absence.end_date);
+                                            const currentDate = new Date(fechaStr);
+                                            
+                                            if (currentDate >= startDate && currentDate <= endDate) {
+                                                if (absence.all_day) return true;
+                                                
+                                                if (absence.start_time && absence.end_time) {
+                                                    const [hStart, mStart] = absence.start_time.split(':').map(Number);
+                                                    const [hEnd, mEnd] = absence.end_time.split(':').map(Number);
+                                                    const ausenciaStart = hStart * 60 + mStart;
+                                                    const ausenciaEnd = hEnd * 60 + mEnd;
+                                                    const minutoActual = hora * 60 + minuto;
+                                                    return minutoActual >= ausenciaStart && minutoActual < ausenciaEnd;
+                                                }
+                                            }
+                                            return false;
+                                        });
+                                        
+                                        if (empleadoTieneAusenciaMinuto) {
+                                            estaFueraDeHorarioMinuto = true;
+                                        } else if (!isDayClosed) {
+                                            // Solo verificar horarios del empleado si el día NO está cerrado y NO tiene ausencia
+                                            const schedulesToday = recurso.employee_schedules?.filter(s => 
+                                                s.day_of_week === diaSemanaActual && s.is_working
+                                            ) || [];
+                                            
+                                            estaFueraDeHorarioMinuto = true;
+                                            if (schedulesToday.length > 0 && schedulesToday[0].shifts) {
+                                                const shifts = schedulesToday[0].shifts;
+                                                const minutosDesdeMedianoche = hora * 60 + minuto;
+                                                
+                                                estaFueraDeHorarioMinuto = !shifts.some(shift => {
+                                                    const [hInicio, mInicio] = shift.start.split(':').map(Number);
+                                                    const [hFin, mFin] = shift.end.split(':').map(Number);
+                                                    const inicioMin = hInicio * 60 + mInicio;
+                                                    const finMin = hFin * 60 + mFin;
+                                                    return minutosDesdeMedianoche > inicioMin && minutosDesdeMedianoche <= finMin;
+                                                });
+                                            }
                                         }
                                         
                                         // 🆕 Drag over state para intervalos de 15min
