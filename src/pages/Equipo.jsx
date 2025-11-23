@@ -852,98 +852,6 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
               emp.assigned_resource_id,
               (resourceUsageMap.get(emp.assigned_resource_id) || 0) + 1
             );
-<<<<<<< Current (Your changes)
-          }
-        });
-        
-        const prioritizedResources = (availableResources || []).map(resource => ({
-          resource,
-          employeeCount: resourceUsageMap.get(resource.id) || 0
-        })).sort((a, b) => {
-          if (b.employeeCount !== a.employeeCount) return b.employeeCount - a.employeeCount;
-          return a.resource.name.localeCompare(b.resource.name);
-        });
-        
-        console.log('🎯 Recursos priorizados:', prioritizedResources.map(r => ({
-          name: r.resource.name,
-          empleados: r.employeeCount
-        })));
-        
-        const VALIDATION_EMPLOYEE_ID = '00000000-0000-0000-0000-000000000000';
-        const getNextDateForDay = (dayOfWeek) => {
-          const today = new Date();
-          const diff = (dayOfWeek + 7 - today.getDay()) % 7;
-          const target = new Date(today);
-          target.setDate(today.getDate() + diff);
-          return target.toISOString().split('T')[0];
-        };
-        
-        const validateResourceCandidate = async (candidate) => {
-          for (const schedule of schedules) {
-            if (!schedule.is_working || !schedule.shifts || schedule.shifts.length === 0) continue;
-            
-            const dayNumber = typeof schedule.day_of_week === 'string'
-              ? parseInt(schedule.day_of_week)
-              : schedule.day_of_week;
-            const referenceDate = getNextDateForDay(dayNumber);
-            
-            for (const shift of schedule.shifts) {
-              if (!shift.start || !shift.end) continue;
-              
-              const { data, error } = await supabase.rpc('validate_resource_assignment', {
-                p_business_id: businessId,
-                p_employee_id: VALIDATION_EMPLOYEE_ID,
-                p_resource_id: candidate.resource.id,
-                p_day_of_week: dayNumber,
-                p_start_time: shift.start,
-                p_end_time: shift.end,
-                p_date: referenceDate
-              });
-              
-              if (error) {
-                const message = error.message?.toLowerCase?.() || '';
-                if (message.includes('does not exist') || message.includes('permission denied')) {
-                  throw new Error('VALIDATION_UNAVAILABLE');
-                }
-                
-                console.error('❌ Error inesperado validando recurso:', candidate.resource.name, error);
-                throw error;
-              }
-              
-              if (data === false) {
-                console.log(`⏭️ ${candidate.resource.name} NO disponible para ${shift.start}-${shift.end} (día ${dayNumber})`);
-                return false;
-              }
-            }
-          }
-          
-          return true;
-        };
-        
-        let bestResourceMeta = null;
-        let validationUnavailable = false;
-        
-        for (const candidate of prioritizedResources) {
-          try {
-            const isValid = await validateResourceCandidate(candidate);
-            if (isValid) {
-              bestResourceMeta = candidate;
-              console.log(`✅ Recurso confirmado por Supabase: ${candidate.resource.name}`);
-              break;
-            }
-          } catch (validationError) {
-            if (validationError.message === 'VALIDATION_UNAVAILABLE') {
-              validationUnavailable = true;
-              console.warn('⚠️ RPC validate_resource_assignment no disponible. Usando heurística local.');
-              break;
-            }
-            throw validationError;
-          }
-        }
-        
-        if (!bestResourceMeta && validationUnavailable) {
-          bestResourceMeta = prioritizedResources[0] || null;
-=======
           }
         });
         
@@ -1050,7 +958,6 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
             console.log(`\n✅ RECURSO SELECCIONADO: ${candidate.resource.name}`);
             break;
           }
->>>>>>> Incoming (Background Agent changes)
         }
         
         if (!bestResourceMeta) {
