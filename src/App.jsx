@@ -13,36 +13,64 @@ import logger from './utils/logger';
 // Debug logging
 logger.info('Starting React application...');
 
+// Función helper para lazy loading con manejo de errores y reintentos
+const lazyWithRetry = (componentImport, retries = 3, delay = 1000) => {
+  return lazy(() => {
+    return new Promise((resolve, reject) => {
+      const attemptImport = (attemptNumber) => {
+        componentImport()
+          .then(resolve)
+          .catch((error) => {
+            // Si es un error de red o conexión, intentar reintentar
+            if (
+              (error.message?.includes('Failed to fetch') || 
+               error.message?.includes('ERR_CONNECTION_REFUSED') ||
+               error.message?.includes('dynamically imported module')) &&
+              attemptNumber < retries
+            ) {
+              logger.warn(`Reintentando carga de módulo (intento ${attemptNumber + 1}/${retries})...`);
+              setTimeout(() => attemptImport(attemptNumber + 1), delay * attemptNumber);
+            } else {
+              logger.error('Error al cargar módulo dinámico:', error);
+              reject(error);
+            }
+          });
+      };
+      attemptImport(0);
+    });
+  });
+};
+
 // Lazy loading mejorado con preload y error boundaries
-const Layout = lazy(() => import('./components/Layout'));
-const Login = lazy(() => import('./pages/Login'));
-const Confirm = lazy(() => import('./pages/Confirm'));
-const GoogleOAuthCallback = lazy(() => import('./pages/GoogleOAuthCallback'));
-const Reservas = lazy(() => import('./pages/Reservas'));
-const Clientes = lazy(() => import('./pages/Clientes'));
-// const PlantillasCRM = lazy(() => import('./pages/PlantillasCRM')); // ❌ ARCHIVO NO EXISTE
-const Calendario = lazy(() => import('./pages/Calendario'));
-const Comunicacion = lazy(() => import('./pages/Comunicacion'));
-// const Analytics = lazy(() => import('./pages/Analytics')); // Deshabilitado temporalmente
-const Configuracion = lazy(() => import('./pages/Configuracion'));
-const Servicios = lazy(() => import('./pages/configuracion/Servicios'));
-const CRMProximosMensajes = lazy(() => import('./pages/CRMProximosMensajes'));
+const Layout = lazyWithRetry(() => import('./components/Layout'));
+const Login = lazyWithRetry(() => import('./pages/Login'));
+const Confirm = lazyWithRetry(() => import('./pages/Confirm'));
+const GoogleOAuthCallback = lazyWithRetry(() => import('./pages/GoogleOAuthCallback'));
+const Reservas = lazyWithRetry(() => import('./pages/Reservas'));
+const Clientes = lazyWithRetry(() => import('./pages/Clientes'));
+// const PlantillasCRM = lazyWithRetry(() => import('./pages/PlantillasCRM')); // ❌ ARCHIVO NO EXISTE
+const Calendario = lazyWithRetry(() => import('./pages/Calendario'));
+const Comunicacion = lazyWithRetry(() => import('./pages/Comunicacion'));
+// const Analytics = lazyWithRetry(() => import('./pages/Analytics')); // Deshabilitado temporalmente
+const Configuracion = lazyWithRetry(() => import('./pages/Configuracion'));
+const Servicios = lazyWithRetry(() => import('./pages/configuracion/Servicios'));
+const CRMProximosMensajes = lazyWithRetry(() => import('./pages/CRMProximosMensajes'));
 
 // 🚀 CRM v2 - Nuevas páginas
-const Consumos = lazy(() => import('./pages/Consumos'));
-const AvailabilityTester = lazy(() => import('./components/AvailabilityTester'));
-const Disponibilidad = lazy(() => import('./pages/Disponibilidad')); // ⚠️ TEMPORAL - Para verificar lógica y métricas
-const Equipo = lazy(() => import('./pages/Equipo'));
+const Consumos = lazyWithRetry(() => import('./pages/Consumos'));
+const AvailabilityTester = lazyWithRetry(() => import('./components/AvailabilityTester'));
+const Disponibilidad = lazyWithRetry(() => import('./pages/Disponibilidad')); // ⚠️ TEMPORAL - Para verificar lógica y métricas
+const Equipo = lazyWithRetry(() => import('./pages/Equipo'));
 const TuEquipo = Equipo; // Alias para claridad
 
 // 🛡️ Sistema de No-Shows SIMPLIFICADO (Versión 3.0)
-const NoShowControl = lazy(() => import('./pages/NoShowsSimple'));
+const NoShowControl = lazyWithRetry(() => import('./pages/NoShowsSimple'));
 
 // 💎 Dashboard VIVO - La Recepcionista IA (Nuevo con Avatar y Chat)
-const Dashboard = lazy(() => import('./pages/Dashboard'));
+const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
 
 // 🎯 Wizard de Onboarding para nuevos usuarios
-const OnboardingWizard = lazy(() => import('./components/onboarding/OnboardingWizard'));
+const OnboardingWizard = lazyWithRetry(() => import('./components/onboarding/OnboardingWizard'));
 
 // Páginas de prueba eliminadas - funcionalidad migrada al Dashboard original
 

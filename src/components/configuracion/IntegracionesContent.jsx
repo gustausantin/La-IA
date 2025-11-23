@@ -35,6 +35,8 @@ export default function IntegracionesContent() {
     const [mappingType, setMappingType] = useState(null); // ✅ 'employee' | 'resource' | null
     const [conflicts, setConflicts] = useState(null); // ✅ Conflictos detectados
     const [conflictEvents, setConflictEvents] = useState([]); // ✅ Eventos con conflictos
+    const [showDisconnectModal, setShowDisconnectModal] = useState(false); // ✅ Modal de confirmación de desconexión
+    const [disconnectStats, setDisconnectStats] = useState(null); // ✅ Estadísticas para el modal
 
     // Cargar configuración de integraciones
     useEffect(() => {
@@ -327,38 +329,248 @@ export default function IntegracionesContent() {
         }
     };
 
-    // Desconectar Google Calendar
-    const handleDisconnectGoogleCalendar = async () => {
-        if (!confirm('¿Estás seguro de desconectar Google Calendar? Se detendrá la sincronización y deberás volver a conectar para usarlo.')) {
-            return;
-        }
+    // Obtener estadísticas antes de desconectar
+    const getDisconnectStats = async () => {
+        try {
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
 
+            // 1. Obtener todos los eventos de Google Calendar y filtrar en JavaScript
+            const { data: allGcalEvents, error: gcalError } = await supabase
+                .from('appointments')
+                .select('id, appointment_date, appointment_time')
+                .eq('business_id', businessId)
+                .eq('source', 'google_calendar');
+
+            if (gcalError) throw gcalError;
+
+            // Filtrar eventos futuros
+            const futureGcalEvents = (allGcalEvents || []).filter(event => {
+                if (event.appointment_date > today) return true;
+                if (event.appointment_date === today && event.appointment_time >= currentTime) return true;
+                return false;
+            });
+
+            // Filtrar eventos pasados
+            const pastGcalEvents = (allGcalEvents || []).filter(event => {
+                if (event.appointment_date < today) return true;
+                if (event.appointment_date === today && event.appointment_time < currentTime) return true;
+                return false;
+            });
+
+            // 2. Contar eventos de LA-IA que fueron sincronizados (tienen gcal_event_id)
+            const { data: laiaSyncedEvents, error: laiaError } = await supabase
+                .from('appointments')
+                .select('id')
+                .eq('business_id', businessId)
+                .neq('source', 'google_calendar')
+                .not('gcal_event_id', 'is', null);
+
+            if (laiaError) throw laiaError;
+
+            return {
+                futureGcalCount: futureGcalEvents.length,
+                laiaSyncedCount: laiaSyncedEvents?.length || 0,
+                pastGcalCount: pastGcalEvents.length
+            };
+        } catch (error) {
+            console.error('Error obteniendo estadísticas:', error);
+            return {
+                futureGcalCount: 0,
+                laiaSyncedCount: 0,
+                pastGcalCount: 0
+            };
+        }
+    };
+
+    // Abrir modal de confirmación con estadísticas
+    const handleDisconnectClick = async () => {
+        setLoading(true);
+        try {
+            const stats = await getDisconnectStats();
+            setDisconnectStats(stats);
+            setShowDisconnectModal(true);
+        } catch (error) {
+            console.error('Error obteniendo estadísticas:', error);
+            toast.error('Error al obtener estadísticas');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Desconectar Google Calendar (ejecutado después de confirmar en el modal)
+    const handleDisconnectGoogleCalendar = async () => {
         try {
             setLoading(true);
+            setShowDisconnectModal(false);
             toast.loading('Desconectando Google Calendar...', { id: 'google-disconnect' });
 
-            // ✅ DESCONECTAR: Marcar como inactivo (no actualizar status si tiene constraint)
+            const now = new Date();
+            const today = now.toISOString().split('T')[0];
+            const currentTime = now.toTimeString().split(' ')[0].substring(0, 5);
+
+            // ✅ PASO 1: Cancelar webhooks/watch de Google Calendar
+            try {
+                console.log('🛑 Cancelando webhooks/watch de Google Calendar...');
+                const { error: watchError } = await supabase.functions.invoke('stop-google-calendar-watch', {
+                    body: {
+                        business_id: businessId
+                    }
+                });
+                
+                if (watchError) {
+                    console.warn('⚠️ Error cancelando watch (puede que no exista):', watchError);
+                } else {
+                    console.log('✅ Webhooks/watch de Google Calendar cancelados');
+                }
+            } catch (watchError) {
+                console.warn('⚠️ Error al intentar cancelar watch:', watchError);
+            }
+
+            // ✅ PASO 2: Eliminar eventos futuros de Google Calendar
+            console.log('🗑️ Eliminando eventos futuros de Google Calendar...');
+            
+            // Primero obtener los eventos futuros
+            const { data: allGcalEvents, error: fetchError } = await supabase
+                .from('appointments')
+                .select('id, table_id, appointment_date, appointment_time')
+                .eq('business_id', businessId)
+                .eq('source', 'google_calendar');
+
+            if (fetchError) throw fetchError;
+
+            // Filtrar eventos futuros en JavaScript
+            const futureEvents = (allGcalEvents || []).filter(event => {
+                if (event.appointment_date > today) return true;
+                if (event.appointment_date === today && event.appointment_time >= currentTime) return true;
+                return false;
+            });
+
+            // Eliminar eventos futuros
+            let deletedFutureEvents = [];
+            if (futureEvents.length > 0) {
+                const futureEventIds = futureEvents.map(e => e.id);
+                const { data: deleted, error: deleteError } = await supabase
+                    .from('appointments')
+                    .delete()
+                    .in('id', futureEventIds)
+                    .select('id, table_id, appointment_date, appointment_time');
+
+                if (deleteError) {
+                    console.error('❌ Error eliminando eventos futuros:', deleteError);
+                } else {
+                    deletedFutureEvents = deleted || [];
+                    console.log(`✅ ${deletedFutureEvents.length} eventos futuros de Google Calendar eliminados`);
+                }
+            } else {
+                console.log('ℹ️ No hay eventos futuros de Google Calendar para eliminar');
+            }
+
+            if (deleteError) {
+                console.error('❌ Error eliminando eventos futuros:', deleteError);
+            } else {
+                console.log(`✅ ${deletedFutureEvents?.length || 0} eventos futuros de Google Calendar eliminados`);
+                
+                // Liberar availability_slots asociados
+                if (deletedFutureEvents && deletedFutureEvents.length > 0) {
+                    for (const event of deletedFutureEvents) {
+                        if (event.table_id && event.appointment_date && event.appointment_time) {
+                            const { error: slotError } = await supabase
+                                .from('availability_slots')
+                                .update({
+                                    status: 'free',
+                                    is_available: true,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('table_id', event.table_id)
+                                .eq('slot_date', event.appointment_date)
+                                .eq('start_time', event.appointment_time);
+
+                            if (slotError) {
+                                console.warn(`⚠️ Error liberando slot para evento ${event.id}:`, slotError);
+                            }
+                        }
+                    }
+                    console.log('✅ Slots liberados');
+                }
+            }
+
+            // ✅ PASO 3: Desvincular eventos de LA-IA que fueron sincronizados
+            console.log('🔗 Desvinculando eventos de LA-IA sincronizados...');
+            const { data: unlinkedEvents, error: unlinkError } = await supabase
+                .from('appointments')
+                .update({
+                    gcal_event_id: null,
+                    synced_to_gcal: false,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('business_id', businessId)
+                .neq('source', 'google_calendar')
+                .not('gcal_event_id', 'is', null)
+                .select('id');
+
+            if (unlinkError) {
+                console.error('❌ Error desvinculando eventos:', unlinkError);
+            } else {
+                console.log(`✅ ${unlinkedEvents?.length || 0} eventos de LA-IA desvinculados`);
+            }
+
+            // ✅ PASO 4: Limpiar tabla de caché de Google Calendar
+            console.log('🧹 Limpiando caché de Google Calendar...');
+            const { error: cacheError } = await supabase
+                .from('google_calendar_events')
+                .delete()
+                .eq('business_id', businessId);
+
+            if (cacheError) {
+                console.warn('⚠️ Error limpiando caché (puede que la tabla no exista):', cacheError);
+            } else {
+                console.log('✅ Caché de Google Calendar limpiado');
+            }
+
+            // ✅ PASO 5: Marcar integración como inactiva
             const { error } = await supabase
                 .from('integrations')
                 .update({
                     is_active: false,
-                    disconnected_at: new Date().toISOString()
+                    disconnected_at: new Date().toISOString(),
+                    config: {
+                        ...googleCalendarConfig.config,
+                        watch_channel_id: null,
+                        watch_resource_id: null,
+                        watch_expiration: null
+                    }
                 })
                 .eq('id', googleCalendarConfig.id);
 
             if (error) throw error;
 
             toast.dismiss('google-disconnect');
-            toast.success('✅ Google Calendar desconectado correctamente', { duration: 3000 });
             
-            // ✅ ACTUALIZAR ESTADO INMEDIATAMENTE (sin esperar recarga)
+            // Mostrar resumen de lo que se hizo
+            const summary = [];
+            if (deletedFutureEvents?.length > 0) {
+                summary.push(`${deletedFutureEvents.length} citas futuras de Google Calendar eliminadas`);
+            }
+            if (unlinkedEvents?.length > 0) {
+                summary.push(`${unlinkedEvents.length} citas de LA-IA desvinculadas`);
+            }
+            
+            toast.success(
+                `✅ Google Calendar desconectado correctamente. ${summary.length > 0 ? summary.join(', ') + '.' : 'Todas las comunicaciones se han detenido.'}`,
+                { duration: 5000 }
+            );
+            
+            // ✅ ACTUALIZAR ESTADO INMEDIATAMENTE
             setGoogleCalendarConnected(false);
             setGoogleCalendarConfig(null);
+            setDisconnectStats(null);
             
-            // Recargar configuración para asegurar estado actualizado
+            // Recargar configuración
             await loadIntegrationsConfig();
 
-            console.log('✅ Desconexión completada - Estado actualizado a DESCONECTADO');
+            console.log('✅ Desconexión completada - Estado actualizado a DESCONECTADO - Sin comunicación con Google Calendar');
 
         } catch (error) {
             console.error('❌ Error desconectando:', error);
@@ -681,7 +893,7 @@ export default function IntegracionesContent() {
                                     ) : null;
                                 })()}
                                 <button
-                                    onClick={handleDisconnectGoogleCalendar}
+                                    onClick={handleDisconnectClick}
                                     disabled={loading}
                                     className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all font-medium disabled:opacity-50"
                                 >
@@ -795,6 +1007,114 @@ export default function IntegracionesContent() {
                         setConflictEvents([]);
                     }}
                 />
+            )}
+
+            {/* ✅ Modal de Confirmación de Desconexión Mejorado */}
+            {showDisconnectModal && disconnectStats && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
+                        {/* Header */}
+                        <div className="p-6 border-b border-gray-200">
+                            <div className="flex items-center gap-3">
+                                <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
+                                    <AlertCircle className="w-6 h-6 text-red-600" />
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-bold text-gray-900">¿Desconectar Google Calendar?</h3>
+                                    <p className="text-sm text-gray-600 mt-1">Esto detendrá la sincronización automática</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Contenido con estadísticas */}
+                        <div className="p-6 space-y-4">
+                            {/* Historial - Se mantiene */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-start gap-3">
+                                    <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <span className="text-blue-600 font-bold">📊</span>
+                                    </div>
+                                    <div className="flex-1">
+                                        <p className="font-semibold text-blue-900 mb-1">Historial</p>
+                                        <p className="text-sm text-blue-800">
+                                            Se mantendrán <strong>{disconnectStats.pastGcalCount}</strong> citas pasadas para tus estadísticas.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Citas futuras de Google Calendar - Se eliminan */}
+                            {disconnectStats.futureGcalCount > 0 && (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <span className="text-red-600 font-bold">🗑️</span>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-red-900 mb-1">Citas futuras de Google Calendar</p>
+                                            <p className="text-sm text-red-800">
+                                                Se eliminarán <strong>{disconnectStats.futureGcalCount}</strong> citas para liberar tu agenda.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Citas de LA-IA - Se mantienen */}
+                            {disconnectStats.laiaSyncedCount > 0 && (
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                            <span className="text-green-600 font-bold">✅</span>
+                                        </div>
+                                        <div className="flex-1">
+                                            <p className="font-semibold text-green-900 mb-1">Citas creadas en LA-IA</p>
+                                            <p className="text-sm text-green-800">
+                                                Se mantendrán <strong>{disconnectStats.laiaSyncedCount}</strong> citas, solo se desvincularán del calendario.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Mensaje si no hay nada que eliminar */}
+                            {disconnectStats.futureGcalCount === 0 && disconnectStats.laiaSyncedCount === 0 && (
+                                <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                    <p className="text-sm text-gray-700">
+                                        No hay citas futuras de Google Calendar ni citas sincronizadas. Solo se detendrá la sincronización.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer con botones */}
+                        <div className="p-6 border-t border-gray-200 flex gap-3">
+                            <button
+                                onClick={() => {
+                                    setShowDisconnectModal(false);
+                                    setDisconnectStats(null);
+                                }}
+                                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors font-medium"
+                            >
+                                Cancelar
+                            </button>
+                            <button
+                                onClick={handleDisconnectGoogleCalendar}
+                                disabled={loading}
+                                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                                {loading ? (
+                                    <span className="flex items-center justify-center gap-2">
+                                        <RefreshCw className="w-4 h-4 animate-spin" />
+                                        Desconectando...
+                                    </span>
+                                ) : (
+                                    'Sí, desconectar y limpiar'
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );

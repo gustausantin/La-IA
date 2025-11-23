@@ -68,7 +68,7 @@ export class AutoSlotRegenerationService {
       'BUSINESS_NOT_FOUND': 'El negocio no existe o no está activo. Por favor, verifica la configuración.',
       'NO_OPERATING_HOURS': 'No se han configurado horarios de apertura. Ve a Configuración > Horarios y configura los horarios del negocio.',
       'NO_ACTIVE_EMPLOYEES': `No hay empleados activos. Agrega al menos un empleado en la sección Equipo.`,
-      'NO_EMPLOYEE_SCHEDULES': `Los empleados activos no tienen horarios configurados. Ve a Equipo y configura los horarios de trabajo.`,
+      'NO_EMPLOYEE_SCHEDULES': `⚠️ Los empleados activos no tienen horarios configurados. Ve a "Tu Equipo" y configura los horarios de trabajo para generar disponibilidad.`,
       'NO_RESOURCES': 'No hay recursos disponibles (mesas, salones, etc.). Agrega recursos en la configuración.',
       'VALIDATION_ERROR': 'Error al validar los requisitos previos. Por favor, intenta nuevamente.',
       'UNKNOWN_ERROR': 'Error desconocido. Por favor, contacta al soporte.',
@@ -139,10 +139,24 @@ export class AutoSlotRegenerationService {
           }
           
           if (!silent) {
-            toast.error(errorMessage, {
-              duration: 5000,
-              position: 'bottom-center'
-            });
+            // Si es NO_EMPLOYEE_SCHEDULES, mostrar como aviso (warning) en lugar de error
+            if (validation.errorCode === 'NO_EMPLOYEE_SCHEDULES') {
+              toast(errorMessage, {
+                icon: '⚠️',
+                duration: 6000,
+                position: 'bottom-center',
+                style: {
+                  background: '#FEF3C7',
+                  color: '#92400E',
+                  border: '1px solid #FCD34D'
+                }
+              });
+            } else {
+              toast.error(errorMessage, {
+                duration: 5000,
+                position: 'bottom-center'
+              });
+            }
           }
 
           return {

@@ -803,13 +803,17 @@ export default function Calendario() {
                 setSelectedEvent(existingEvent);
                 setShowEventDetailModal(true);
             } else {
-                // NO HAY EVENTO → Mostrar modal de creación
+                // NO HAY EVENTO → Mostrar modal de creación con fecha pre-rellenada
+                const dateString = format(date, 'yyyy-MM-dd'); // Formato YYYY-MM-DD para input type="date"
                 setEventForm({
                     title: '',
                     description: '',
                     start_time: '09:00',
                     end_time: '22:00',
-                    closed: false
+                    closed: false,
+                    isRange: false, // Por defecto día único
+                    startDate: dateString, // ✅ Pre-rellenar con el día seleccionado
+                    endDate: dateString    // ✅ Pre-rellenar con el día seleccionado
                 });
                 setShowEventModal(true);
             }
@@ -1194,20 +1198,30 @@ export default function Calendario() {
                                 detail: { reason: 'business_hours_changed', slotsUpdated: result.slotsUpdated }
                             }));
                         } else {
-                            // Si falla, solo mostrar toast de error (NO modal bloqueante)
-                            toast.error('⚠️ Error al actualizar disponibilidad. Intenta regenerar manualmente desde Disponibilidades.', {
-                                duration: 5000
-                            });
+                            // Si falla, verificar si es un caso esperado (sin horarios de empleados)
+                            // NO mostrar error si es NO_EMPLOYEE_SCHEDULES (es un caso esperado, no un error real)
+                            if (result.errorCode !== 'NO_EMPLOYEE_SCHEDULES') {
+                                toast.error('⚠️ Error al actualizar disponibilidad. Intenta regenerar manualmente desde Disponibilidades.', {
+                                    duration: 5000
+                                });
+                            } else {
+                                // Caso esperado: empleados sin horarios configurados
+                                console.log('ℹ️ Regeneración omitida: empleados sin horarios configurados (caso esperado)');
+                            }
                             console.error('❌ Regeneración automática falló:', result.error);
                         }
                     } catch (error) {
                         console.error('❌ Error en regeneración automática:', error);
                         toast.dismiss(regenerationToast);
                         
-                        // Si hay error, solo mostrar toast (NO modal bloqueante)
-                        toast.error('⚠️ Error al actualizar disponibilidad. Intenta regenerar manualmente desde Disponibilidades.', {
-                            duration: 5000
-                        });
+                        // Solo mostrar error si no es un caso esperado
+                        // NO mostrar error si es relacionado con horarios de empleados
+                        if (!error.message?.includes('NO_EMPLOYEE_SCHEDULES') && 
+                            !error.message?.includes('horarios configurados')) {
+                            toast.error('⚠️ Error al actualizar disponibilidad. Intenta regenerar manualmente desde Disponibilidades.', {
+                                duration: 5000
+                            });
+                        }
                     }
                 } else {
                     console.log('✅ No se regenera: usuario está configurando el sistema por primera vez');
@@ -2103,12 +2117,18 @@ export default function Calendario() {
                                         }
                                     }
                                     
+                                    // Formatear fecha para el input type="date"
+                                    const dateString = format(eventDate, 'yyyy-MM-dd');
+                                    
                                     setEventForm({
                                         title: selectedEvent.title || selectedEvent.reason || '',
                                         description: selectedEvent.description || '',
                                         start_time: selectedEvent.start_time || selectedEvent.open_time || '09:00',
                                         end_time: selectedEvent.end_time || selectedEvent.close_time || '22:00',
-                                        closed: selectedEvent.is_closed !== undefined ? selectedEvent.is_closed : !selectedEvent.is_open
+                                        closed: selectedEvent.is_closed !== undefined ? selectedEvent.is_closed : !selectedEvent.is_open,
+                                        isRange: false, // Por defecto día único (se puede cambiar después)
+                                        startDate: dateString, // ✅ Pre-rellenar con la fecha del evento
+                                        endDate: dateString    // ✅ Pre-rellenar con la fecha del evento
                                     });
                                     setShowEventDetailModal(false);
                                     setShowEventModal(true);
