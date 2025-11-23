@@ -761,6 +761,7 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
     try {
       // 🎯 ASIGNACIÓN AUTOMÁTICA DE RECURSOS
       let finalResourceId = formData.assigned_resource_id;
+      let resourceAssignmentType = formData.assigned_resource_id === 'auto' ? 'auto' : 'manual';
       
       if (formData.assigned_resource_id === 'auto') {
         // Buscar recursos disponibles
@@ -784,6 +785,7 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
           .from('employees')
           .select(`
             id, 
+            name,
             assigned_resource_id,
             employee_schedules (
               day_of_week,
@@ -796,179 +798,182 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
         
         if (empError) throw empError;
         
+        console.log('🔍 DEBUG: Empleados actuales cargados:', currentEmployees?.length || 0);
+        if (currentEmployees && currentEmployees.length > 0) {
+          currentEmployees.forEach(emp => {
+            console.log(`  - ${emp.name}: recurso=${emp.assigned_resource_id}, horarios=${emp.employee_schedules?.length || 0}`);
+            if (emp.employee_schedules) {
+              emp.employee_schedules.forEach(sched => {
+                console.log(`    Día ${sched.day_of_week}: trabajando=${sched.is_working}, shifts=${JSON.stringify(sched.shifts)}`);
+              });
+            }
+          });
+        }
+        
         // Convertir horarios del nuevo empleado a minutos totales por día
         const newEmployeeMinutes = {};
         schedules.forEach(schedule => {
           if (!schedule.is_working) return;
           
-          let totalMinutes = 0;
-          schedule.shifts.forEach(shift => {
-            const [hStart, mStart] = shift.start.split(':').map(Number);
-            const [hEnd, mEnd] = shift.end.split(':').map(Number);
-            const startMin = hStart * 60 + mStart;
-            const endMin = hEnd * 60 + mEnd;
-            totalMinutes += (endMin - startMin);
-          });
+          // Normalizar day_of_week a número para comparación consistente
+          const dayKey = typeof schedule.day_of_week === 'string' 
+            ? parseInt(schedule.day_of_week) 
+            : schedule.day_of_week;
           
-          newEmployeeMinutes[schedule.day_of_week] = {
+          let totalMinutes = 0;
+          if (schedule.shifts && Array.isArray(schedule.shifts)) {
+            schedule.shifts.forEach(shift => {
+              if (shift.start && shift.end) {
+                const [hStart, mStart] = shift.start.split(':').map(Number);
+                const [hEnd, mEnd] = shift.end.split(':').map(Number);
+                const startMin = hStart * 60 + mStart;
+                const endMin = hEnd * 60 + mEnd;
+                totalMinutes += (endMin - startMin);
+              }
+            });
+          }
+          
+          newEmployeeMinutes[dayKey] = {
             totalMinutes,
-            shifts: schedule.shifts
+            shifts: schedule.shifts || []
           };
         });
         
-        // 🎯 ALGORITMO OPTIMIZADO: Priorizar recursos con empleados existentes que tienen horarios libres
-        // Estrategia: Llenar primero recursos existentes antes de usar recursos vacíos
-        // ✅ MEJORA: Verificar conflictos día por día y solo descartar si hay conflicto en TODOS los días trabajados
-        const resourceAnalysis = availableResources.map(resource => {
-          const employeesInResource = (currentEmployees || []).filter(emp => 
-            emp.assigned_resource_id === resource.id
-          );
-          
-          let totalConflictMinutes = 0;
-          let totalOccupiedMinutes = 0;
-          let daysWithConflicts = 0;
-          let daysWorkedByNewEmployee = 0;
-          let hasAnyEmployee = employeesInResource.length > 0;
-          
-          // Analizar cada día
-          for (const [dayOfWeek, newEmpData] of Object.entries(newEmployeeMinutes)) {
-            const day = parseInt(dayOfWeek);
-            daysWorkedByNewEmployee++;
-            
-            // Minutos ocupados por empleados existentes en este día
-            let occupiedRanges = [];
-            
-            employeesInResource.forEach(emp => {
-              const schedDay = emp.employee_schedules?.find(s => s.day_of_week === day && s.is_working);
-              if (schedDay && schedDay.shifts) {
-                schedDay.shifts.forEach(shift => {
-                  const [hStart, mStart] = shift.start.split(':').map(Number);
-                  const [hEnd, mEnd] = shift.end.split(':').map(Number);
-                  occupiedRanges.push({
-                    start: hStart * 60 + mStart,
-                    end: hEnd * 60 + mEnd
-                  });
-                });
-              }
-            });
-            
-            // Calcular minutos ocupados totales en este día
-            const dayOccupiedMinutes = occupiedRanges.reduce((sum, range) => 
-              sum + (range.end - range.start), 0
+        console.log('🔍 DEBUG: Horarios del nuevo empleado:', Object.keys(newEmployeeMinutes).map(day => ({
+          day: parseInt(day),
+          shifts: newEmployeeMinutes[day].shifts
+        })));
+        
+        // 🎯 NUEVA LÓGICA: Validar disponibilidad real usando funciones oficiales (Supabase RPC)
+        const resourceUsageMap = new Map();
+        (currentEmployees || []).forEach(emp => {
+          if (emp.assigned_resource_id) {
+            resourceUsageMap.set(
+              emp.assigned_resource_id,
+              (resourceUsageMap.get(emp.assigned_resource_id) || 0) + 1
             );
-            totalOccupiedMinutes += dayOccupiedMinutes;
+          }
+        });
+        
+        const prioritizedResources = (availableResources || []).map(resource => ({
+          resource,
+          employeeCount: resourceUsageMap.get(resource.id) || 0
+        })).sort((a, b) => {
+          if (b.employeeCount !== a.employeeCount) return b.employeeCount - a.employeeCount;
+          return a.resource.name.localeCompare(b.resource.name);
+        });
+        
+        console.log('🎯 Recursos priorizados:', prioritizedResources.map(r => ({
+          name: r.resource.name,
+          empleados: r.employeeCount
+        })));
+        
+        const VALIDATION_EMPLOYEE_ID = '00000000-0000-0000-0000-000000000000';
+        const getNextDateForDay = (dayOfWeek) => {
+          const today = new Date();
+          const diff = (dayOfWeek + 7 - today.getDay()) % 7;
+          const target = new Date(today);
+          target.setDate(today.getDate() + diff);
+          return target.toISOString().split('T')[0];
+        };
+        
+        const validateResourceCandidate = async (candidate) => {
+          for (const schedule of schedules) {
+            if (!schedule.is_working || !schedule.shifts || schedule.shifts.length === 0) continue;
             
-            // Verificar si el nuevo empleado solapa con empleados existentes en ESTE DÍA
-            let dayHasConflict = false;
-            newEmpData.shifts.forEach(newShift => {
-              const [hStart, mStart] = newShift.start.split(':').map(Number);
-              const [hEnd, mEnd] = newShift.end.split(':').map(Number);
-              const newStart = hStart * 60 + mStart;
-              const newEnd = hEnd * 60 + mEnd;
+            const dayNumber = typeof schedule.day_of_week === 'string'
+              ? parseInt(schedule.day_of_week)
+              : schedule.day_of_week;
+            const referenceDate = getNextDateForDay(dayNumber);
+            
+            for (const shift of schedule.shifts) {
+              if (!shift.start || !shift.end) continue;
               
-              occupiedRanges.forEach(occupied => {
-                // Verificar solapamiento
-                const overlapStart = Math.max(newStart, occupied.start);
-                const overlapEnd = Math.min(newEnd, occupied.end);
-                
-                if (overlapStart < overlapEnd) {
-                  dayHasConflict = true;
-                  totalConflictMinutes += (overlapEnd - overlapStart);
-                }
+              const { data, error } = await supabase.rpc('validate_resource_assignment', {
+                p_business_id: businessId,
+                p_employee_id: VALIDATION_EMPLOYEE_ID,
+                p_resource_id: candidate.resource.id,
+                p_day_of_week: dayNumber,
+                p_start_time: shift.start,
+                p_end_time: shift.end,
+                p_date: referenceDate
               });
-            });
-            
-            if (dayHasConflict) {
-              daysWithConflicts++;
+              
+              if (error) {
+                const message = error.message?.toLowerCase?.() || '';
+                if (message.includes('does not exist') || message.includes('permission denied')) {
+                  throw new Error('VALIDATION_UNAVAILABLE');
+                }
+                
+                console.error('❌ Error inesperado validando recurso:', candidate.resource.name, error);
+                throw error;
+              }
+              
+              if (data === false) {
+                console.log(`⏭️ ${candidate.resource.name} NO disponible para ${shift.start}-${shift.end} (día ${dayNumber})`);
+                return false;
+              }
             }
           }
           
-          // ✅ LÓGICA CORRECTA: Si hay conflicto en AL MENOS UN día, NO podemos usar este recurso
-          // Porque un empleado tiene un solo recurso asignado para todos los días
-          // Si el nuevo empleado trabaja en horarios diferentes (ej: tarde vs mañana), NO hay conflicto
-          const hasConflict = daysWithConflicts > 0;
-          
-          // 🎯 PUNTUACIÓN OPTIMIZADA:
-          // 1. Si hay conflicto en TODOS los días → -1000 (no viable)
-          // 2. Si NO hay conflicto Y tiene empleados → +10000 + minutos ocupados (PRIORIDAD MÁXIMA: llenar recursos existentes)
-          // 3. Si NO hay conflicto Y NO tiene empleados → 0 (PRIORIDAD BAJA: recursos vacíos)
-          // Esto asegura que siempre se prioricen recursos con empleados que tienen horarios libres
-          const score = hasConflict 
-            ? -1000 
-            : hasAnyEmployee 
-              ? 10000 + totalOccupiedMinutes  // ✅ PRIORIDAD MÁXIMA: Recursos con empleados pero horarios libres
-              : 0;  // ⚠️ BAJA PRIORIDAD: Recursos vacíos (solo si no hay opciones mejores)
-          
-          return {
-            resource,
-            score,
-            hasConflict,
-            hasAnyEmployee,
-            employeeCount: employeesInResource.length,
-            occupiedMinutes: totalOccupiedMinutes,
-            daysWithConflicts,
-            daysWorkedByNewEmployee
-          };
-        });
+          return true;
+        };
         
-        // Ordenar por puntuación (mayor = mejor aprovechamiento)
-        resourceAnalysis.sort((a, b) => b.score - a.score);
+        let bestResourceMeta = null;
+        let validationUnavailable = false;
         
-        console.log('🔍 Análisis de recursos:', resourceAnalysis.map(r => ({
-          name: r.resource.name,
-          score: r.score,
-          hasConflict: r.hasConflict,
-          hasEmployees: r.hasAnyEmployee,
-          employees: r.employeeCount,
-          daysWithConflicts: r.daysWithConflicts,
-          daysWorked: r.daysWorkedByNewEmployee,
-          occupiedMinutes: r.occupiedMinutes
-        })));
-        
-        // Seleccionar el mejor recurso sin conflictos
-        // ✅ PRIORIDAD: Primero recursos con empleados existentes (score más alto)
-        const bestResource = resourceAnalysis.find(r => !r.hasConflict);
-        
-        if (bestResource) {
-          finalResourceId = bestResource.resource.id;
-          
-          // Mensaje informativo según el tipo de asignación
-          if (bestResource.hasAnyEmployee) {
-            console.log(`✅ Asignación optimizada: ${bestResource.resource.name}`);
-            console.log(`   - Reutilizando recurso existente con ${bestResource.employeeCount} empleado(s)`);
-            console.log(`   - ${bestResource.occupiedMinutes} minutos ya ocupados`);
-            console.log(`   - Nuevo empleado completará horarios libres → Aprovechamiento máximo`);
-            console.log(`   - Score: ${bestResource.score} (prioridad alta por tener empleados existentes)`);
-            toast.success(
-              `✅ Asignado a ${bestResource.resource.name} (optimizado: reutiliza recurso existente)`,
-              { duration: 4000 }
-            );
-          } else {
-            console.log(`✅ Asignación: ${bestResource.resource.name}`);
-            console.log(`   - Nuevo recurso (todos los recursos existentes tienen conflictos o no hay recursos con empleados)`);
-            console.log(`   - Score: ${bestResource.score} (recurso vacío)`);
-            toast.success(`✅ Asignado a ${bestResource.resource.name}`, { duration: 3000 });
+        for (const candidate of prioritizedResources) {
+          try {
+            const isValid = await validateResourceCandidate(candidate);
+            if (isValid) {
+              bestResourceMeta = candidate;
+              console.log(`✅ Recurso confirmado por Supabase: ${candidate.resource.name}`);
+              break;
+            }
+          } catch (validationError) {
+            if (validationError.message === 'VALIDATION_UNAVAILABLE') {
+              validationUnavailable = true;
+              console.warn('⚠️ RPC validate_resource_assignment no disponible. Usando heurística local.');
+              break;
+            }
+            throw validationError;
           }
-          
-          window.__lastAutoAssignedResource = bestResource.resource.name;
-        } else {
-          // Si no hay recursos sin conflictos, mostrar información de depuración
-          const conflictedResources = resourceAnalysis.filter(r => r.hasConflict);
-          console.error('❌ Todos los recursos tienen conflictos:', conflictedResources.map(r => ({
-            name: r.resource.name,
-            daysWithConflicts: r.daysWithConflicts,
-            daysWorked: r.daysWorkedByNewEmployee,
-            hasEmployees: r.hasAnyEmployee
-          })));
-          toast.error('❌ No hay recursos disponibles sin conflictos horarios. Crea un nuevo recurso.', { duration: 5000 });
+        }
+        
+        if (!bestResourceMeta && validationUnavailable) {
+          bestResourceMeta = prioritizedResources[0] || null;
+        }
+        
+        if (!bestResourceMeta) {
+          toast.error('❌ No hay recursos disponibles sin conflictos horarios. Crea un nuevo recurso o ajusta horarios.', { duration: 5000 });
           setSaving(false);
           return;
         }
+        
+        finalResourceId = bestResourceMeta.resource.id;
+        resourceAssignmentType = 'manual'; // ✅ Bloquear recurso elegido para evitar reasignaciones automáticas
+        
+        if (bestResourceMeta.employeeCount > 0) {
+          console.log(`✅ Reutilizando ${bestResourceMeta.resource.name} (ya tiene ${bestResourceMeta.employeeCount} empleado(s))`);
+          toast.success(
+            `✅ Asignado a ${bestResourceMeta.resource.name}\n🎯 Optimizado: completando recurso existente`,
+            { duration: 5000 }
+          );
+        } else {
+          console.log(`⚠️ Usando recurso nuevo: ${bestResourceMeta.resource.name}`);
+          toast.success(
+            `✅ Asignado a ${bestResourceMeta.resource.name}\n⚠️ Recurso nuevo (no había recursos compatibles en uso)`,
+            { duration: 4000 }
+          );
+        }
+        
+        window.__lastAutoAssignedResource = bestResourceMeta.resource.name;
       } else {
         window.__lastAutoAssignedResource = null;
       }
       
       // 1. Crear empleado con recurso asignado
+      console.log(`💾 Guardando empleado con recurso asignado: ${finalResourceId}`);
       const { data: newEmployee, error: empError } = await supabase
         .from('employees')
         .insert([{
@@ -978,13 +983,17 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
           phone: formData.phone.trim() || null,
           role: formData.role,
           color: formData.color,
-          assigned_resource_id: finalResourceId,
+          assigned_resource_id: finalResourceId,  // ✅ Recurso asignado automáticamente
           is_active: true,
           is_owner: false,
           position_order: 999
         }])
         .select()
         .single();
+      
+      if (newEmployee) {
+        console.log(`✅ Empleado creado: ${newEmployee.name} con recurso ${newEmployee.assigned_resource_id}`);
+      }
 
       if (empError) throw empError;
 
@@ -1001,7 +1010,7 @@ function AddEmployeeModal({ businessId, onClose, onSuccess }) {
             breaks: [],
             // ⭐ Asignar el recurso calculado
             resource_id: finalResourceId,
-            resource_assignment_type: formData.assigned_resource_id === 'auto' ? 'auto' : 'manual'
+            resource_assignment_type: resourceAssignmentType
           })
           .eq('employee_id', newEmployee.id)
           .eq('day_of_week', schedule.day_of_week);
