@@ -183,20 +183,49 @@ export default function Comunicacion() {
         if (!business?.id) return;
         try {
             setLoading(true);
+            // 🏗️ ARQUITECTURA PROFESIONAL: Usar JOINs cuando customer_id existe
+            // Solo pedimos columnas que sabemos que existen
             const { data, error } = await supabase
                 .from('agent_conversations')
-                .select(`*, customers(id, name, email, phone), appointments(id, appointment_date, appointment_time)`)
+                .select(`
+                    *,
+                    customer:customers(id, name, email, phone, notes),
+                    appointment:appointments(id, appointment_date, appointment_time, status)
+                `)
                 .eq('business_id', business.id)
                 .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
                 .order('created_at', { ascending: false });
-            if (error) throw error;
-            setConversations(data || []);
+            
+            let conversationsData = [];
+            
+            if (error) {
+                // Si el error es por columnas faltantes o FKs no encontradas, hacer fallback
+                if (error.code === 'PGRST200' || error.code === '42703') {
+                    console.warn('⚠️ Columnas no encontradas en JOIN, usando query simple sin JOINs');
+                    const { data: simpleData, error: simpleError } = await supabase
+                        .from('agent_conversations')
+                        .select('*')
+                        .eq('business_id', business.id)
+                        .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+                        .order('created_at', { ascending: false });
+                    if (simpleError) throw simpleError;
+                    conversationsData = simpleData || [];
+                    console.log('ℹ️ Usando datos básicos de agent_conversations (sin JOINs)');
+                } else {
+                    throw error;
+                }
+            } else {
+                conversationsData = data || [];
+                console.log('✅ FKs y JOINs funcionando correctamente');
+            }
+            
+            setConversations(conversationsData);
             
             // 🆕 Calcular métricas por tipología
-            const tipologiaMetrics = calculateTipologiaMetrics(data || []);
+            const tipologiaMetrics = calculateTipologiaMetrics(conversationsData);
             
             // Calcular estadísticas enriquecidas
-            const conversationsWithAnalysis = (data || []).filter(c => c.metadata && typeof c.metadata === 'object');
+            const conversationsWithAnalysis = conversationsData.filter(c => c.metadata && typeof c.metadata === 'object');
             const totalAnalyzed = conversationsWithAnalysis.length;
             
             // % Positivos
@@ -223,9 +252,9 @@ export default function Comunicacion() {
                 : 0;
             
             setStats({
-                total: (data || []).length,
-                active: (data || []).filter(c => c.status === 'active').length,
-                resolved: (data || []).filter(c => c.status === 'resolved').length,
+                total: conversationsData.length,
+                active: conversationsData.filter(c => c.status === 'active').length,
+                resolved: conversationsData.filter(c => c.status === 'resolved').length,
                 avgSatisfaction: parseFloat(avgSatisfaction),
                 positivePercent,
                 escalations,

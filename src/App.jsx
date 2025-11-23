@@ -67,7 +67,10 @@ const TuEquipo = Equipo; // Alias para claridad
 const NoShowControl = lazyWithRetry(() => import('./pages/NoShowsSimple'));
 
 // 💎 Dashboard VIVO - La Recepcionista IA (Nuevo con Avatar y Chat)
-const Dashboard = lazyWithRetry(() => import('./pages/Dashboard'));
+// const Dashboard = lazyWithRetry(() => import('./pages/Dashboard')); // Dashboard legacy
+
+// 🧠 Dashboard "Socio Virtual" - El COO Inteligente
+const Dashboard = lazyWithRetry(() => import('./pages/DashboardSocioVirtual'));
 
 // 🎯 Wizard de Onboarding para nuevos usuarios
 const OnboardingWizard = lazyWithRetry(() => import('./components/onboarding/OnboardingWizard'));
