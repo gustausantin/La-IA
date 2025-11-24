@@ -67,6 +67,9 @@ serve(async (req) => {
 
     const { business_id, action, reservation_id, direction } = requestBody
 
+    // ✅ Log de depuración para ver qué acción se está enviando
+    console.log('📋 Request body:', { business_id, action, reservation_id, direction })
+
     // ✅ Validar que business_id está presente
     if (!business_id) {
       return new Response(
@@ -241,6 +244,146 @@ serve(async (req) => {
           timed_events: timedEvents.length,
           calendars: calendarIds.length, // Cantidad de calendarios procesados
           calendar_details: calendarResults, // Detalle por calendario
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ✅ Nueva acción: 'list' - Solo listar eventos sin sincronizar
+    if (action === 'list') {
+      const timeMin = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const timeMax = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+      
+      const allEvents: any[] = []
+      
+      for (const calId of calendarIds) {
+        try {
+          const eventsResponse = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${calId}/events?timeMin=${timeMin}&timeMax=${timeMax}&maxResults=100&singleEvents=true&orderBy=startTime`,
+            {
+              headers: { 'Authorization': `Bearer ${accessToken}` },
+            }
+          )
+
+          if (!eventsResponse.ok) {
+            const errorData = await eventsResponse.json().catch(() => ({ error: 'Unknown error' }))
+            console.warn(`⚠️ Error obteniendo eventos del calendario ${calId}:`, errorData)
+            
+            if (eventsResponse.status === 401 || eventsResponse.status === 403) {
+              throw new Error(`Error de autenticación con Google Calendar: ${JSON.stringify(errorData)}`)
+            }
+            
+            continue
+          }
+
+          const eventsData = await eventsResponse.json()
+          const calendarEvents = eventsData.items || []
+          
+          // Agregar calendar_id a cada evento para saber de dónde viene
+          const eventsWithCalendarId = calendarEvents.map((event: any) => ({
+            ...event,
+            calendar_id: calId,
+          }))
+          
+          allEvents.push(...eventsWithCalendarId)
+        } catch (error) {
+          console.error(`❌ Error procesando calendario ${calId}:`, error)
+        }
+      }
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          events: allEvents,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // ✅ Nueva acción: 'sync' - Sincronizar eventos bidireccionales
+    if (action === 'sync') {
+      console.log('🔄 Iniciando sincronización bidireccional...')
+      
+      const timeMin = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const timeMax = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString()
+      
+      // 1. PULL: Obtener eventos de Google Calendar
+      const gcalEvents: any[] = []
+      
+      for (const calId of calendarIds) {
+        try {
+          const eventsResponse = await fetch(
+            `https://www.googleapis.com/calendar/v3/calendars/${calId}/events?timeMin=${timeMin}&timeMax=${timeMax}&maxResults=100&singleEvents=true&orderBy=startTime`,
+            {
+              headers: { 'Authorization': `Bearer ${accessToken}` },
+            }
+          )
+
+          if (!eventsResponse.ok) {
+            const errorData = await eventsResponse.json().catch(() => ({ error: 'Unknown error' }))
+            console.warn(`⚠️ Error obteniendo eventos del calendario ${calId}:`, errorData)
+            
+            if (eventsResponse.status === 401 || eventsResponse.status === 403) {
+              throw new Error(`Error de autenticación con Google Calendar: ${JSON.stringify(errorData)}`)
+            }
+            
+            continue
+          }
+
+          const eventsData = await eventsResponse.json()
+          const calendarEvents = eventsData.items || []
+          
+          gcalEvents.push(...calendarEvents.map((e: any) => ({ ...e, calendar_id: calId })))
+        } catch (error) {
+          console.error(`❌ Error procesando calendario ${calId}:`, error)
+        }
+      }
+      
+      console.log(`📥 Obtenidos ${gcalEvents.length} eventos de Google Calendar`)
+      
+      // 2. PUSH: Sincronizar appointments no sincronizados a Google Calendar
+      const { data: unsyncedAppointments, error: appointmentsError } = await supabaseClient
+        .from('appointments')
+        .select('*')
+        .eq('business_id', business_id)
+        .eq('synced_to_gcal', false)
+        .in('status', ['confirmed', 'pending'])
+        .gte('appointment_date', new Date().toISOString().split('T')[0]) // Solo futuras
+      
+      if (appointmentsError) {
+        console.error('❌ Error obteniendo appointments:', appointmentsError)
+      }
+      
+      let syncedCount = 0
+      let skippedCount = 0
+      
+      for (const appointment of unsyncedAppointments || []) {
+        try {
+          const targetCalendarId = await getCalendarForAppointment(appointment)
+          
+          if (!targetCalendarId) {
+            console.log(`⏭️ Saltando appointment ${appointment.id} - sin calendario mapeado`)
+            skippedCount++
+            continue
+          }
+          
+          await createGoogleCalendarEvent(appointment, targetCalendarId)
+          syncedCount++
+          console.log(`✅ Appointment ${appointment.id} sincronizado a ${targetCalendarId}`)
+        } catch (error) {
+          console.error(`❌ Error sincronizando appointment ${appointment.id}:`, error)
+          skippedCount++
+        }
+      }
+      
+      console.log(`📤 Sincronizados ${syncedCount} appointments, ${skippedCount} omitidos`)
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          pulled_events: gcalEvents.length,
+          pushed_appointments: syncedCount,
+          skipped: skippedCount,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -1085,7 +1228,10 @@ serve(async (req) => {
       )
     }
 
-    throw new Error('Invalid action')
+    // Si llegamos aquí, la acción no es válida
+    console.error('❌ Invalid action received:', action)
+    console.error('Available actions: test, list, sync, create, push, update, delete')
+    throw new Error(`Invalid action: ${action}. Available actions: test, list, sync, create, push, update, delete`)
 
   } catch (error) {
     console.error('Sync error:', error)

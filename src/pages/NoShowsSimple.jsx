@@ -94,22 +94,43 @@ export default function NoShowsSimple() {
 
     const handleMarkConfirmed = async (appointmentId) => {
         try {
-            // Registrar confirmación manual
-            const { error } = await supabase
+            // Obtener customer_id de la appointment
+            const { data: appointment } = await supabase
+                .from('appointments')
+                .select('customer_id')
+                .eq('id', appointmentId)
+                .single();
+
+            if (!appointment) throw new Error('Appointment not found');
+
+            // 1️⃣ ACTUALIZAR STATUS EN APPOINTMENTS
+            const { error: updateError } = await supabase
+                .from('appointments')
+                .update({ 
+                    status: 'confirmed',
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', appointmentId);
+
+            if (updateError) throw updateError;
+
+            // 2️⃣ REGISTRAR EN CUSTOMER_CONFIRMATIONS
+            const { error: confirmError } = await supabase
                 .from('customer_confirmations')
                 .insert({
+                    customer_id: appointment.customer_id,
                     appointment_id: appointmentId,
                     business_id: business.id,
-                    sent_at: new Date().toISOString(),
-                    message_type: 'Mensaje manual',
+                    message_type: 'manual',
                     message_channel: 'phone',
-                    message_content: 'Confirmado por teléfono',
-                    responded_at: new Date().toISOString(),
-                    response_time_minutes: 0,
-                    confirmed: true
+                    message_sent: 'Confirmado manualmente por teléfono',
+                    sent_at: new Date().toISOString(),
+                    confirmed: true,
+                    response_text: 'Confirmación manual',
+                    response_at: new Date().toISOString()
                 });
 
-            if (error) throw error;
+            if (confirmError) throw confirmError;
 
             toast.success('✅ Marcada como confirmada');
             loadData();
