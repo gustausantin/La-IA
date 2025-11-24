@@ -46,7 +46,8 @@ class RealtimeService {
       
     } catch (error) {
       log.error('❌ Failed to initialize realtime service:', error);
-      throw error;
+      // NO lanzar error - la app puede funcionar sin realtime
+      log.warn('⚠️ Realtime deshabilitado. La app funcionará normalmente, pero sin actualizaciones automáticas.');
     }
   }
 
@@ -89,6 +90,12 @@ class RealtimeService {
         .subscribe((status) => {
           log.info('📡 Business channel status:', status);
           this.updateConnectionState(status === 'SUBSCRIBED' ? 'connected' : 'disconnected');
+          
+          // Si falla la conexión, no es crítico - la app sigue funcionando
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            log.warn('⚠️ Realtime deshabilitado temporalmente');
+            // No lanzar error - la app puede funcionar sin realtime
+          }
         });
 
       // Canal de presencia para usuarios online
@@ -139,7 +146,8 @@ class RealtimeService {
 
     } catch (error) {
       log.error('❌ Failed to setup Supabase realtime:', error);
-      throw error;
+      // NO lanzar error - la app puede funcionar sin realtime
+      log.warn('⚠️ Realtime deshabilitado temporalmente');
     }
   }
 

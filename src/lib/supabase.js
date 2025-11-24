@@ -2,6 +2,7 @@
 import { createClient } from "@supabase/supabase-js";
 import toast from "react-hot-toast";
 import { log } from "../utils/logger.js";
+
 // Configuración desde variables de entorno (SEGURO)
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -15,17 +16,20 @@ log.debug('🔍 Configuración Supabase:');
 log.debug('URL:', supabaseUrl ? '✅ Configurada' : '❌ Falta');
 log.debug('Key:', supabaseKey ? '✅ Configurada' : '❌ Falta');
 
-// Cliente con ANON KEY (para auth y queries normales)
+// Configuración robusta del cliente Supabase
 export const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: true
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+    storageKey: 'sb-auth-token',
   },
   global: {
     headers: {
-      'x-client-info': 'la-ia-app@1.0.0'
-    }
+      'x-client-info': 'la-ia-app@1.0.0',
+    },
   },
   db: {
     schema: 'public'

@@ -74,6 +74,36 @@ const getStatusIcon = (reservation) => {
     return null;
 };
 
+// 🚨 DETECTAR URGENCIA CRÍTICA DE NO-SHOW
+// Criterios: HOY + Alto Riesgo + <2h + No confirmado
+const isUrgentNoShow = (reservation, currentDate) => {
+    // 1. Solo citas de HOY
+    const reservationDate = reservation.reservation_date || reservation.appointment_date;
+    const today = format(currentDate, 'yyyy-MM-dd');
+    if (reservationDate !== today) return false;
+    
+    // 2. Calcular horas hasta la cita
+    const now = new Date();
+    const timeStr = reservation.reservation_time || reservation.appointment_time || '00:00';
+    const [hours, minutes] = timeStr.split(':').map(Number);
+    const reservationDateTime = new Date(currentDate);
+    reservationDateTime.setHours(hours, minutes, 0, 0);
+    
+    const hoursUntil = (reservationDateTime - now) / (1000 * 60 * 60); // Convertir a horas
+    
+    // 3. Criterios de urgencia
+    // - Faltan menos de 2 horas
+    // - Aún no ha pasado (hoursUntil > 0)
+    // - NO está confirmado (no tiene confirmed_24h ni confirmed_4h)
+    const isLessThan2Hours = hoursUntil < 2 && hoursUntil > 0;
+    const isNotConfirmed = !reservation.confirmed_24h && !reservation.confirmed_4h;
+    
+    // 4. Solo si status es 'pending' o 'confirmed' (no aplicar a 'completed', 'cancelled', 'no_show')
+    const isActiveStatus = ['pending', 'confirmed'].includes(reservation.status);
+    
+    return isLessThan2Hours && isNotConfirmed && isActiveStatus;
+};
+
 // 🕐 CALCULAR HORA DE FIN
 const calcularHoraFin = (horaInicio, duracionMinutos) => {
     const [hora, minuto] = horaInicio.split(':').map(Number);
@@ -1624,6 +1654,9 @@ function VistaDia({
                                             const isDragging = draggingReservation?.id === reserva.id;
                                             const statusIcon = getStatusIcon(reserva);
                                             
+                                            // 🚨 DETECTAR URGENCIA CRÍTICA DE NO-SHOW
+                                            const isUrgent = isUrgentNoShow(reserva, fecha);
+                                            
                                             // 🆕 DURACIÓN VISUAL: Calcular altura del bloque
                                             const duracionMinutos = calcularDuracionReserva(reserva);
                                             const numSlots = Math.ceil(duracionMinutos / 15); // Cuántos intervalos de 15min ocupa
@@ -1645,11 +1678,15 @@ function VistaDia({
                                                         const timeStr = `${hora.toString().padStart(2, '0')}:00`;
                                                         onCellClick(recurso, fechaStr, timeStr, reserva, null);
                                                     }}
-                                                    className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} ${employeeColor ? '' : colors.bgHover} rounded-lg shadow-md transition-all ${
+                                                    className={`${
+                                                        isUrgent 
+                                                            ? 'bg-red-50 border-l-[6px] border-red-600 animate-pulse' 
+                                                            : (employeeColor ? '' : colors.bg) + ' ' + (employeeColor ? '' : colors.border) + ' ' + (employeeColor ? '' : colors.bgHover)
+                                                    } rounded-lg shadow-md transition-all ${
                                                         reserva.status === 'no_show' ? 'opacity-50 line-through' : ''
                                                     } ${
                                                         isDragging ? 'opacity-50 scale-95 rotate-2 cursor-grabbing' : 'hover:shadow-lg hover:scale-105 hover:-translate-y-0.5 cursor-grab'
-                                                    }`}
+                                                    } ${isUrgent ? 'ring-2 ring-red-400 shadow-red-200' : ''}`}
                                                     style={{
                                                         height: `${alturaTotal}px`,
                                                         position: 'absolute',
@@ -1657,11 +1694,14 @@ function VistaDia({
                                                         left: '3px',
                                                         right: '3px',
                                                         padding: duracionMinutos <= 30 ? '2px 4px' : '4px 6px',
-                                                        zIndex: 20,
+                                                        zIndex: isUrgent ? 30 : 20, // Mayor z-index para urgentes
                                                         pointerEvents: 'auto',
                                                         boxSizing: 'border-box',
-                                                        // 🎨 Aplicar color del empleado si es evento bloqueado
-                                                        ...(employeeColor ? {
+                                                        // 🚨 Urgencia crítica tiene prioridad sobre color de empleado
+                                                        ...(isUrgent ? {
+                                                            backgroundColor: '#fef2f2', // bg-red-50
+                                                            borderLeft: '6px solid #dc2626', // border-red-600
+                                                        } : employeeColor ? {
                                                             backgroundColor: `${employeeColor}20`, // 20% de opacidad
                                                             borderLeft: `5px solid ${employeeColor}`,
                                                         } : {})
@@ -1677,13 +1717,20 @@ function VistaDia({
                                                         }
                                                     }}
                                                 >
+                                                    {/* 🚨 BADGE URGENTE (si aplica) */}
+                                                    {isUrgent && (
+                                                        <div className="absolute -top-1 -right-1 px-1.5 py-0.5 bg-red-600 text-white text-[9px] font-extrabold rounded-full shadow-lg flex items-center gap-0.5 z-10 animate-pulse">
+                                                            📞 &lt;2H
+                                                        </div>
+                                                    )}
+                                                    
                                                     {/* 🎨 DISEÑO ADAPTATIVO según duración */}
                                                     {duracionMinutos <= 30 ? (
                                                         // ⚡ DISEÑO ULTRA-COMPACTO para 15-30 min - TODA LA INFO
                                                         <>
                                                             {/* Línea 1: Cliente + Estado */}
                                                             <div className="flex items-center justify-between gap-1 mb-0.5">
-                                                                <p className={`font-bold text-[11px] ${colors.text} truncate flex-1 leading-tight`}>
+                                                                <p className={`font-bold text-[11px] ${isUrgent ? 'text-red-900' : colors.text} truncate flex-1 leading-tight`}>
                                                                     {reserva.customer_name}
                                                                 </p>
                                                                 {statusIcon && (
@@ -1743,7 +1790,7 @@ function VistaDia({
                                                         <>
                                                             {/* Línea 1: Cliente + Estado */}
                                                             <div className="flex items-start justify-between gap-1 mb-1">
-                                                                <p className={`font-bold text-sm ${colors.text} truncate flex-1 leading-snug`}>
+                                                                <p className={`font-bold text-sm ${isUrgent ? 'text-red-900' : colors.text} truncate flex-1 leading-snug`}>
                                                                     {reserva.customer_name}
                                                                 </p>
                                                                 {statusIcon && (
@@ -2557,5 +2604,3 @@ function VistaMes({ fecha, reservations, resources = [], onReservationClick, onD
         </div>
     );
 }
-
-

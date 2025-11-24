@@ -1,13 +1,13 @@
 
 /* src/index.css - Base mejorada para Son-IA */
 
+/* Importar utilidades mobile-first PRIMERO */
+@import './styles/mobile-utilities.css';
+
 /* Directivas de Tailwind */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-/* Importar utilidades mobile-first */
-@import './styles/mobile-utilities.css';
 
 /* Importar sistema de design corporativo - removido */
 
