@@ -321,3 +321,4 @@ Uso: SELECT * FROM get_noshow_stats(business_id, ''2025-01-01'', ''2025-01-31'')
 
 SELECT 'Migración 20251123_03_noshows_risk_intelligence_FIXED completada exitosamente' AS status;
 
+

@@ -126,3 +126,4 @@ SELECT
     AVG(no_show_count) as avg_noshows_per_customer
 FROM customers;
 
+

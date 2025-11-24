@@ -31,3 +31,4 @@ JOIN pg_namespace n ON p.pronamespace = n.oid
 WHERE p.proname = 'get_upcoming_free_slots'
   AND n.nspname = 'public';
 
+

@@ -23,3 +23,4 @@ supabase functions deploy cancel-appointments-batch
 # ¡LISTO! Las 4 funciones estarán desplegadas
 # ============================================
 
+

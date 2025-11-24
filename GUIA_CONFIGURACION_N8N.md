@@ -369,3 +369,4 @@ Tu sistema de no-shows está configurado. Ahora:
 - 💰 Ingresos: +300€/mes
 - ⏱️ Tiempo: -2h/semana del staff
 
+

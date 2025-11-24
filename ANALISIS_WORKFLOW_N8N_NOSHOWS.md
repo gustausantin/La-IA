@@ -401,3 +401,4 @@ EXECUTE FUNCTION release_slots_on_noshow_or_cancel();
 
 Te toma ~2 horas y tendrás el sistema completamente automatizado.
 
+

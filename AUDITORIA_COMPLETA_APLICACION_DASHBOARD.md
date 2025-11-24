@@ -1325,3 +1325,4 @@ Todos los componentes están documentados, todas las tablas verificadas, y el pl
 
 **Próximo paso**: ¿Empezamos con la Fase 1 (Backend Intelligence)?
 
+

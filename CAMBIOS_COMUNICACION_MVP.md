@@ -453,3 +453,4 @@ const getOutcomeDisplay = (outcome) => {
 **Líneas agregadas**: ~150  
 **Errores de lint**: 0 ✅
 
+

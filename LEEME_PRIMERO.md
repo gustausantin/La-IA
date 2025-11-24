@@ -317,3 +317,4 @@ Empieza por: `AUDITORIA_COMPLETA_APLICACION_DASHBOARD.md` (especificaciones téc
 
 ¿Empezamos con la implementación? 🚀
 
+

@@ -751,3 +751,4 @@ Este documento es la hoja de ruta completa para implementar el Dashboard "Socio 
 **Tiempo estimado total**: 8-10 horas  
 **Impacto esperado**: 🚀 Game Changer
 
+

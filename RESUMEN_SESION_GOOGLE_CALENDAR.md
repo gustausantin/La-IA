@@ -201,3 +201,4 @@ async detectConflicts() {
 
 **Notas finales**: El usuario ahora tiene control total sobre conflictos entre Google Calendar y LA-IA. El sistema es robusto, profesional y escalable. 🚀
 
+

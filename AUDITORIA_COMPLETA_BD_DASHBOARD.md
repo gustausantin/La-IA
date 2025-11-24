@@ -369,3 +369,4 @@ if (conflictos.length > 0) {
 
 **Siguiente acción:** Codificar componentes con las queries reales documentadas arriba.
 
+

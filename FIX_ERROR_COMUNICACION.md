@@ -177,3 +177,4 @@ Luego sí podrías hacer:
 **Solución:** Quitar JOINs innecesarios  
 **Tiempo:** 5 minutos ⚡
 
+

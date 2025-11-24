@@ -681,3 +681,4 @@ SELECT * FROM get_noshow_stats(
 **Versión**: 2.0 (Arquitectura Corregida)  
 **Última actualización**: 2025-11-23
 
+

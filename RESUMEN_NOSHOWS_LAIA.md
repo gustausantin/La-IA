@@ -237,3 +237,4 @@ Conectar `scheduled_messages` con WhatsApp/SMS/Email para envío real de mensaje
 
 **¿Necesitas que implemente alguna de estas mejoras?** 🚀
 
+

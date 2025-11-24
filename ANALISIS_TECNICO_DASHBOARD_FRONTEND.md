@@ -665,3 +665,4 @@ Cada decisión está basada en el código existente y las capacidades reales del
 
 **Próximo paso:** Empezar a crear los hooks y componentes con calidad de producción.
 
+
