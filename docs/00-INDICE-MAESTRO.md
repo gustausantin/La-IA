@@ -1,8 +1,9 @@
 # 📚 ÍNDICE MAESTRO - LA-IA APP V1
 
-**Fecha de última actualización:** 11 Noviembre 2025  
-**Versión:** 2.2  
-**Estado del Proyecto:** ✅ Producción - 100% Funcional + Dashboard Vivo
+**Fecha de última actualización:** 24 Noviembre 2025  
+**Versión:** 3.0  
+**Estado del Proyecto:** ✅ Producción - 100% Funcional + Dashboard Vivo  
+**Reorganización completa:** ✅ Documentación completamente organizada
 
 ---
 
@@ -30,10 +31,14 @@
 | 🏗️ **Arquitectura** | Stack técnico, base de datos, diseño | [01-arquitectura](#-01-arquitectura) |
 | ⚙️ **Sistemas** | No-Shows, CRM, Disponibilidades, N8N | [02-sistemas](#-02-sistemas) |
 | 📖 **Manuales** | Guías de usuario, PWA, ejecutivo | [03-manuales](#-03-manuales) |
-| 💻 **Desarrollo** | Normas, reglas, checklist | [04-desarrollo](#-04-desarrollo) |
-| 🔍 **Auditorías** | Informes de auditoría y análisis | [05-auditorias](#-05-auditorias) |
-| 📝 **Changelogs** | Historial de cambios | [06-changelogs](#-06-changelogs) |
-| 🗄️ **Legacy** | Documentos obsoletos/históricos | [07-legacy](#-07-legacy) |
+| 📊 **Dashboard** | Dashboard Socio Virtual, análisis técnico | [04-dashboard](#-04-dashboard) |
+| 📝 **Resúmenes** | Resúmenes ejecutivos, MVP, comunicaciones | [05-resumenes](#-05-resumenes) |
+| 📘 **Guías** | Guías de configuración y despliegue | [06-guias](#-06-guias) |
+| 📅 **Google Calendar** | Integración Google Calendar y webhooks | [07-google-calendar](#-07-google-calendar) |
+| 🚫 **NoShows** | Documentación específica de NoShows | [08-noshows](#-08-noshows) |
+| 🔍 **Auditorías** | Informes de auditoría y análisis | [09-auditorias](#-09-auditorias) |
+| 🛠️ **Implementaciones** | Documentación de implementaciones | [10-implementaciones](#-10-implementaciones) |
+| 🗄️ **Archive** | Documentos históricos y obsoletos | [archive](#-archive) |
 
 ---
 
@@ -221,40 +226,238 @@ Normas, reglas y checklist para desarrollo.
 
 ---
 
-## 🔍 05-AUDITORIAS
+## 📊 04-DASHBOARD
+
+Documentación completa del Dashboard "Socio Virtual".
+
+### **Documentos:**
+
+1. **[LEEME_PRIMERO.md](04-dashboard/LEEME_PRIMERO.md)** ⭐ **EMPIEZA AQUÍ**
+   - Resumen ejecutivo del dashboard
+   - Guía rápida de 2 minutos
+   - Enlaces a todos los documentos relacionados
+
+2. **[PROPUESTA_DASHBOARD_SOCIO_VIRTUAL.md](04-dashboard/PROPUESTA_DASHBOARD_SOCIO_VIRTUAL.md)**
+   - Diseño completo del dashboard
+   - 4 escenarios principales
+   - Plan de implementación
+
+3. **[RESUMEN_EJECUTIVO_DASHBOARD.md](04-dashboard/RESUMEN_EJECUTIVO_DASHBOARD.md)**
+   - Síntesis ejecutiva
+   - ROI y métricas
+   - Comparativa con competencia
+
+4. **[AUDITORIA_COMPLETA_APLICACION_DASHBOARD.md](04-dashboard/AUDITORIA_COMPLETA_APLICACION_DASHBOARD.md)**
+   - Análisis técnico completo
+   - Revisión de componentes
+   - Especificaciones técnicas
+
+5. **[AUDITORIA_COMPLETA_BD_DASHBOARD.md](04-dashboard/AUDITORIA_COMPLETA_BD_DASHBOARD.md)**
+   - Auditoría de base de datos
+   - Estructura de tablas
+   - Funciones SQL necesarias
+
+6. **[DIAGRAMA_VISUAL_DASHBOARD.md](04-dashboard/DIAGRAMA_VISUAL_DASHBOARD.md)**
+   - Diagramas visuales
+   - Layouts y flujos
+   - Diseño responsive
+
+7. **[ANALISIS_TECNICO_DASHBOARD_FRONTEND.md](04-dashboard/ANALISIS_TECNICO_DASHBOARD_FRONTEND.md)**
+   - Análisis técnico frontend
+   - Componentes React
+   - Hooks y servicios
+
+---
+
+## 📝 05-RESUMENES
+
+Resúmenes ejecutivos, documentación de MVP y comunicaciones.
+
+### **Documentos:**
+
+1. **[RESUMEN_EJECUTIVO_MVP.md](05-resumenes/RESUMEN_EJECUTIVO_MVP.md)**
+   - Resumen ejecutivo del MVP
+   - Estado y progreso
+
+2. **[README_MVP_COMUNICACION.md](05-resumenes/README_MVP_COMUNICACION.md)**
+   - Comunicación del MVP
+   - Estado de implementación
+
+3. **[COMUNICACION_MVP_READY.md](05-resumenes/COMUNICACION_MVP_READY.md)**
+   - Anuncio de MVP listo
+   - Características principales
+
+4. **[CAMBIOS_COMUNICACION_MVP.md](05-resumenes/CAMBIOS_COMUNICACION_MVP.md)**
+   - Cambios en comunicación
+   - Actualizaciones
+
+5. **[SOLUCION_PROFESIONAL_COMPLETA.md](05-resumenes/SOLUCION_PROFESIONAL_COMPLETA.md)**
+   - Solución profesional completa
+   - Implementación
+
+---
+
+## 📘 06-GUIAS
+
+Guías de configuración, despliegue y producción.
+
+### **Documentos:**
+
+1. **[GUIA_CONFIGURACION_N8N.md](06-guias/GUIA_CONFIGURACION_N8N.md)**
+   - Configuración de N8N
+   - Workflows y automatizaciones
+
+2. **[GUIA_FINAL_DESPLIEGUE.md](06-guias/GUIA_FINAL_DESPLIEGUE.md)**
+   - Guía completa de despliegue
+   - Pasos y procedimientos
+
+3. **[CONFIGURACION-PRODUCCION-AVATARES.md](06-guias/CONFIGURACION-PRODUCCION-AVATARES.md)**
+   - Configuración de avatares en producción
+   - Setup y optimización
+
+4. **[VERIFICAR-IMAGENES-SUPABASE.md](06-guias/VERIFICAR-IMAGENES-SUPABASE.md)**
+   - Verificación de imágenes en Supabase
+   - Troubleshooting
+
+---
+
+## 📅 07-GOOGLE-CALENDAR
+
+Documentación completa de la integración con Google Calendar.
+
+### **Documentos:**
+
+1. **[GOOGLE-CALENDAR-INTEGRACION-COMPLETA.md](07-google-calendar/GOOGLE-CALENDAR-INTEGRACION-COMPLETA.md)**
+   - Integración completa
+   - Setup y configuración
+
+2. **[GOOGLE-CALENDAR-SETUP.md](07-google-calendar/GOOGLE-CALENDAR-SETUP.md)**
+   - Guía de setup
+   - Pasos de configuración
+
+3. **[GOOGLE-CALENDAR-MULTI-USER.md](07-google-calendar/GOOGLE-CALENDAR-MULTI-USER.md)**
+   - Soporte multi-usuario
+   - Configuración avanzada
+
+4. **[GOOGLE-OAUTH-SECURITY.md](07-google-calendar/GOOGLE-OAUTH-SECURITY.md)**
+   - Seguridad OAuth
+   - Mejores prácticas
+
+5. **[SOLUCION-GOOGLE-CALENDAR-OAUTH.md](07-google-calendar/SOLUCION-GOOGLE-CALENDAR-OAUTH.md)**
+   - Solución OAuth
+   - Troubleshooting
+
+6. **[COMO_FUNCIONA_GOOGLE_CALENDAR_WEBHOOK.md](07-google-calendar/COMO_FUNCIONA_GOOGLE_CALENDAR_WEBHOOK.md)**
+   - Funcionamiento de webhooks
+   - Flujos y procesos
+
+7. **[SOLUCION_WEBHOOK.md](07-google-calendar/SOLUCION_WEBHOOK.md)**
+   - Solución de problemas de webhooks
+   - Diagnóstico
+
+8. **[DIAGNOSTICO_WEBHOOK.md](07-google-calendar/DIAGNOSTICO_WEBHOOK.md)**
+   - Diagnóstico de webhooks
+   - Troubleshooting
+
+---
+
+## 🚫 08-NOSHOWS
+
+Documentación específica del sistema de NoShows.
+
+### **Documentos:**
+
+1. **[AUDITORIA_NOSHOWS_COMPLETA.md](08-noshows/AUDITORIA_NOSHOWS_COMPLETA.md)**
+   - Auditoría completa del sistema
+   - Análisis exhaustivo
+
+2. **[ANALISIS_WORKFLOW_N8N_NOSHOWS.md](08-noshows/ANALISIS_WORKFLOW_N8N_NOSHOWS.md)**
+   - Análisis de workflows N8N
+   - Automatizaciones
+
+3. **[IMPLEMENTACION_NOSHOWS_RESUMEN.md](08-noshows/IMPLEMENTACION_NOSHOWS_RESUMEN.md)**
+   - Resumen de implementación
+   - Estado y progreso
+
+4. **[NOTAS_MIGRACION_NOSHOWS.md](08-noshows/NOTAS_MIGRACION_NOSHOWS.md)**
+   - Notas de migración
+   - Cambios y actualizaciones
+
+5. **[RESUMEN_NOSHOWS_LAIA.md](08-noshows/RESUMEN_NOSHOWS_LAIA.md)**
+   - Resumen ejecutivo
+   - Estado del sistema
+
+---
+
+## 🔍 09-AUDITORIAS
 
 Informes de auditoría y análisis del sistema.
 
 ### **Documentos:**
 
-1. **[INFORME_AUDITORIA_COMPLETA.md](05-auditorias/INFORME_AUDITORIA_COMPLETA.md)**
-   - Auditoría exhaustiva del proyecto
-   - Puntuación: 8.2/10
-   - Fortalezas y áreas de mejora
+1. **[AUDITORIA-GOOGLE-CALENDAR-INTEGRATION.md](09-auditorias/AUDITORIA-GOOGLE-CALENDAR-INTEGRATION.md)**
+   - Auditoría de integración Google Calendar
+   - Análisis y recomendaciones
 
-2. **[DIAGNOSTICO_FINAL.md](05-auditorias/DIAGNOSTICO_FINAL.md)**
-   - Diagnóstico técnico completo
-   - Recomendaciones
+2. **[AUDITORIA-RECURSO-TRABAJADOR-IMPORTACION.md](09-auditorias/AUDITORIA-RECURSO-TRABAJADOR-IMPORTACION.md)**
+   - Auditoría de importación de recursos
+   - Procesos y validaciones
 
-3. **[AUDITORIA_DASHBOARD_CRM_ACTUAL.md](05-auditorias/AUDITORIA_DASHBOARD_CRM_ACTUAL.md)**
-   - Análisis del dashboard CRM
-   - Optimizaciones aplicadas
+3. **[AUDITORIA-RECURSOS-EMPLEADOS-GOOGLE-CALENDAR.md](09-auditorias/AUDITORIA-RECURSOS-EMPLEADOS-GOOGLE-CALENDAR.md)**
+   - Auditoría de recursos y empleados
+   - Sincronización con Google Calendar
 
-4. **[ANALISIS_CONTACT_NAME.md](05-auditorias/ANALISIS_CONTACT_NAME.md)**
-   - Análisis de contactos
-   - Mejoras implementadas
+4. **[AUDITORIA-SISTEMA-DISPONIBILIDADES-2025-11-17.md](09-auditorias/AUDITORIA-SISTEMA-DISPONIBILIDADES-2025-11-17.md)**
+   - Auditoría del sistema de disponibilidades
+   - Análisis y mejoras
 
-5. **[AUDITORIA_PROTECCION_RESERVAS_2025-10-07.md](05-auditorias/AUDITORIA_PROTECCION_RESERVAS_2025-10-07.md)**
-   - Auditoría de protección de reservas
-   - Sistema ultra-robusto verificado
+5. **[AUDITORIA-SISTEMA-RESERVAS-2025-11-22.md](09-auditorias/AUDITORIA-SISTEMA-RESERVAS-2025-11-22.md)**
+   - Auditoría del sistema de reservas
+   - Validaciones y procesos
 
-6. **[AUDITORIA-COMPLETA-FINALIZADA-2025.md](05-auditorias/AUDITORIA-COMPLETA-FINALIZADA-2025.md)**
-   - Auditoría final del sistema
-   - Estado: ✅ Aprobado
+6. **[RESUMEN-AUDITORIA-MOBILE-FIRST-FINAL.md](09-auditorias/RESUMEN-AUDITORIA-MOBILE-FIRST-FINAL.md)**
+   - Resumen de auditoría Mobile First
+   - Estado y conclusiones
 
 ---
 
-## 📝 06-CHANGELOGS
+## 🛠️ 10-IMPLEMENTACIONES
+
+Documentación de implementaciones específicas.
+
+### **Documentos:**
+
+1. **[IMPLEMENTACION-AVATARES-PREDEFINIDOS-2025-11-11.md](10-implementaciones/IMPLEMENTACION-AVATARES-PREDEFINIDOS-2025-11-11.md)**
+   - Implementación de avatares predefinidos
+   - Setup y configuración
+
+2. **[IMPLEMENTACION-EMPLOYEE-BASED-AVAILABILITY-2025-11-12.md](10-implementaciones/IMPLEMENTACION-EMPLOYEE-BASED-AVAILABILITY-2025-11-12.md)**
+   - Implementación de disponibilidades basadas en empleados
+   - Sistema y lógica
+
+3. **[MOBILE-FIRST-IMPLEMENTACION-COMPLETA.md](10-implementaciones/MOBILE-FIRST-IMPLEMENTACION-COMPLETA.md)**
+   - Implementación Mobile First completa
+   - Diseño responsive
+
+4. **[ONBOARDING-5-PASOS-IMPLEMENTADO.md](10-implementaciones/ONBOARDING-5-PASOS-IMPLEMENTADO.md)**
+   - Implementación de onboarding en 5 pasos
+   - Flujos y procesos
+
+5. **[REFACTOR-ONBOARDING-PWA-COMPLETO.md](10-implementaciones/REFACTOR-ONBOARDING-PWA-COMPLETO.md)**
+   - Refactor completo de onboarding PWA
+   - Mejoras y optimizaciones
+
+6. **[VOICE-SELECTOR-IMPLEMENTADO.md](10-implementaciones/VOICE-SELECTOR-IMPLEMENTADO.md)**
+   - Implementación del selector de voz
+   - Configuración y uso
+
+7. **[RESUMEN-IMPLEMENTACION-CALENDARIO-RECURSOS.md](10-implementaciones/RESUMEN-IMPLEMENTACION-CALENDARIO-RECURSOS.md)**
+   - Resumen de implementación de calendario de recursos
+   - Estado y progreso
+
+---
+
+## 📝 06-CHANGELOGS (Archive)
 
 Historial de cambios y actualizaciones.
 
@@ -294,7 +497,7 @@ Historial de cambios y actualizaciones.
 
 ---
 
-## 🗄️ 07-LEGACY
+## 🗄️ ARCHIVE
 
 Documentos históricos y obsoletos (conservados para referencia).
 
@@ -304,6 +507,7 @@ Documentos históricos y obsoletos (conservados para referencia).
 - Planes completados
 - Pruebas antiguas
 - READMEs anteriores
+- Changelogs históricos
 
 ---
 
@@ -312,14 +516,30 @@ Documentos históricos y obsoletos (conservados para referencia).
 ### **Carpetas del Proyecto:**
 
 ```
-La-ia-app-V1/
-├── docs/                    ← Estás aquí
-├── src/                     ← Código fuente React
-├── supabase/migrations/     ← Migraciones SQL (32 archivos)
-├── scripts/sql/             ← Scripts SQL organizados
-├── n8n/                     ← Workflows N8N
-├── email-templates/         ← Templates de email
-└── public/                  ← Assets públicos
+La-ia-app/
+├── docs/                          ← Documentación organizada
+│   ├── 01-arquitectura/          ← Arquitectura y schema
+│   ├── 02-sistemas/              ← Sistemas core
+│   ├── 03-workflows/             ← Workflows N8N
+│   ├── 04-dashboard/             ← Dashboard Socio Virtual
+│   ├── 05-resumenes/             ← Resúmenes ejecutivos
+│   ├── 06-guias/                 ← Guías de configuración
+│   ├── 07-google-calendar/       ← Integración Google Calendar
+│   ├── 08-noshows/               ← Sistema NoShows
+│   ├── 09-auditorias/            ← Auditorías y análisis
+│   ├── 10-implementaciones/     ← Implementaciones específicas
+│   └── archive/                  ← Documentos históricos
+├── src/                          ← Código fuente React
+├── supabase/
+│   ├── migrations/              ← Migraciones SQL (78 archivos)
+│   ├── scripts/
+│   │   └── diagnostic/          ← Scripts SQL de diagnóstico
+│   └── functions/               ← Edge Functions
+├── scripts/
+│   └── deployment/              ← Scripts de despliegue
+├── n8n/                         ← Workflows N8N
+├── email-templates/              ← Templates de email
+└── public/                       ← Assets públicos
 ```
 
 ### **Enlaces Importantes:**
@@ -335,14 +555,17 @@ La-ia-app-V1/
 
 | Categoría | Documentos | Estado |
 |-----------|------------|--------|
-| **Arquitectura** | 4 | ✅ Completo |
-| **Sistemas** | 5 | ✅ Consolidado |
-| **Manuales** | 5 | ✅ Actualizado |
-| **Desarrollo** | 4 | ✅ Vigente |
-| **Auditorías** | 6 | ✅ Archivado |
-| **Changelogs** | 8 | ✅ Organizado |
-| **Legacy** | ~20 | 📦 Archivado |
-| **TOTAL** | **52** | ✅ Organizado |
+| **Arquitectura** | 15+ | ✅ Completo |
+| **Sistemas** | 18+ | ✅ Consolidado |
+| **Dashboard** | 13 | ✅ Completo |
+| **Resúmenes** | 9 | ✅ Actualizado |
+| **Guías** | 4 | ✅ Actualizado |
+| **Google Calendar** | 18 | ✅ Completo |
+| **NoShows** | 5 | ✅ Organizado |
+| **Auditorías** | 6 | ✅ Organizado |
+| **Implementaciones** | 7 | ✅ Organizado |
+| **Archive** | 24+ | 📦 Archivado |
+| **TOTAL** | **119+** | ✅ Completamente Organizado |
 
 ---
 
@@ -368,17 +591,21 @@ Para una comprensión rápida del proyecto, lee estos en orden:
 ✅ **Índice al día** siempre  
 
 ### **Última Reorganización:**
-**Fecha:** 09 Octubre 2025  
+**Fecha:** 24 Noviembre 2025  
 **Cambios:**
-- ✅ Consolidados 14 docs de No-Shows → 2 docs
-- ✅ Consolidados 5 docs de Disponibilidades → 1 doc
-- ✅ Consolidados 3 docs de CRM → 1 doc
-- ✅ Consolidados 3 docs de N8N → 1 doc
-- ✅ Eliminados ~20 archivos obsoletos
-- ✅ Reorganizadas todas las carpetas
-- ✅ Limpiada raíz del proyecto
+- ✅ Creadas 10 carpetas temáticas en docs/
+- ✅ Movidos 50+ archivos .md de la raíz a carpetas organizadas
+- ✅ Movidos 8 archivos SQL de diagnóstico a supabase/scripts/diagnostic/
+- ✅ Movidos scripts de despliegue a scripts/deployment/
+- ✅ Eliminado archivo corrupto "tatus --short"
+- ✅ Organizados todos los documentos por categoría
+- ✅ Limpiada completamente la raíz del proyecto
+- ✅ Actualizado índice maestro con nueva estructura
 
-**Resultado:** De **39 archivos .md** en raíz → **1 solo** (README.md) ✅
+**Resultado:** 
+- De **50+ archivos .md** en raíz → **1 solo** (README.md) ✅
+- De **8 archivos SQL** en raíz → **0** (todos en supabase/scripts/) ✅
+- Documentación completamente organizada y navegable ✅
 
 ---
 
@@ -392,7 +619,7 @@ Para preguntas sobre la documentación:
 
 ---
 
-**Última actualización:** 09 Octubre 2025  
+**Última actualización:** 24 Noviembre 2025  
 **Mantenido por:** La-IA App Team  
-**Estado:** ✅ Producción Ready
+**Estado:** ✅ Producción Ready - Documentación Completamente Organizada
 

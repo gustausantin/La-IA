@@ -24,6 +24,9 @@ import {
 import { useDashboardSnapshot } from '../hooks/useDashboardSnapshot';
 import { useActionExecutor } from '../hooks/useActionExecutor';
 
+// Configuración de avatares
+import { getAvatarById } from '../config/avatars';
+
 export default function DashboardSocioVirtual() {
     const { business, user } = useAuthContext();
     const navigate = useNavigate();
@@ -32,6 +35,61 @@ export default function DashboardSocioVirtual() {
     const { executeAction, executing } = useActionExecutor();
 
     const [chatMessage, setChatMessage] = React.useState('');
+
+    // Obtener configuración del agente desde business.settings
+    const agentConfig = React.useMemo(() => {
+        // Si no hay business todavía, usar fallback
+        if (!business) {
+            const defaultAvatar = getAvatarById('elena'); // Lua por defecto
+            return {
+                name: defaultAvatar.name || 'Lua',
+                avatar_url: defaultAvatar.avatar_url,
+                avatar_id: 'elena'
+            };
+        }
+
+        // Si hay settings y agent, usarlo
+        if (business.settings && business.settings.agent) {
+            const agent = business.settings.agent;
+            
+            // Si hay avatar_url personalizado, usarlo directamente
+            if (agent.avatar_url) {
+                return {
+                    name: agent.name || 'Lua',
+                    avatar_url: agent.avatar_url,
+                    avatar_id: agent.avatar_id
+                };
+            }
+            
+            // Si solo hay avatar_id, buscar el avatar en la configuración
+            if (agent.avatar_id) {
+                const avatar = getAvatarById(agent.avatar_id);
+                return {
+                    name: agent.name || avatar.name || 'Lua',
+                    avatar_url: avatar.avatar_url,
+                    avatar_id: agent.avatar_id
+                };
+            }
+            
+            // Si hay agent pero sin avatar_id, usar el nombre personalizado si existe
+            if (agent.name) {
+                const defaultAvatar = getAvatarById('elena');
+                return {
+                    name: agent.name,
+                    avatar_url: defaultAvatar.avatar_url,
+                    avatar_id: 'elena'
+                };
+            }
+        }
+        
+        // Fallback final: Lua por defecto
+        const defaultAvatar = getAvatarById('elena');
+        return {
+            name: defaultAvatar.name || 'Lua',
+            avatar_url: defaultAvatar.avatar_url,
+            avatar_id: 'elena'
+        };
+    }, [business]);
 
     // Handler de acciones
     const handleAction = async (action) => {
@@ -93,12 +151,14 @@ export default function DashboardSocioVirtual() {
                             <div className="w-48 h-48 rounded-full bg-gradient-to-br from-purple-500 via-blue-500 to-indigo-600 p-2 shadow-2xl">
                                 <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
                                     <img
-                                        src="/lua_avatar.png"
-                                        alt="Lua"
+                                        src={agentConfig.avatar_url}
+                                        alt={agentConfig.name}
                                         className="w-full h-full object-cover"
                                         onError={(e) => {
+                                            // Fallback si la imagen no carga
                                             e.target.style.display = 'none';
-                                            e.target.parentElement.innerHTML = '<div class="w-full h-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-6xl font-bold">L</div>';
+                                            const fallbackLetter = (agentConfig.name || 'L')[0].toUpperCase();
+                                            e.target.parentElement.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-6xl font-bold">${fallbackLetter}</div>`;
                                         }}
                                     />
                                 </div>
@@ -111,7 +171,7 @@ export default function DashboardSocioVirtual() {
                         </div>
 
                         {/* Nombre */}
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">Lua</h2>
+                        <h2 className="text-3xl font-bold text-gray-900 mb-2">{agentConfig.name}</h2>
                         <p className="text-sm text-gray-500 mb-6">Tu socia virtual</p>
 
                         {/* Bocadillo Inteligente */}
