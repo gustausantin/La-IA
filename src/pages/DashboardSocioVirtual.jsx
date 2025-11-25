@@ -30,6 +30,9 @@ export default function DashboardSocioVirtual() {
 
     // Estado para controlar qué acordeón está expandido
     const [expandedId, setExpandedId] = useState(null);
+    
+    // Estado para la animación de "typing..."
+    const [showTyping, setShowTyping] = useState(true);
 
     // Obtener configuración del agente desde business.settings
     const agentConfig = React.useMemo(() => {
@@ -158,16 +161,20 @@ export default function DashboardSocioVirtual() {
     const mood = snapshot?.mood || "zen";
     const bloques = snapshot?.bloques || [];
     const data = snapshot?.data || {};
+    
+    // Simular animación de typing (debe estar después de declarar mensaje)
+    React.useEffect(() => {
+        if (snapshot && mensaje) {
+            setShowTyping(true);
+            const timer = setTimeout(() => setShowTyping(false), 1500);
+            return () => clearTimeout(timer);
+        }
+    }, [snapshot, mensaje]);
 
     // Ordenar bloques por prioridad (1 = más urgente)
     const bloquesOrdenados = [...bloques].sort((a, b) => a.prioridad - b.prioridad);
 
-    // Auto-expandir el primero al inicio
-    React.useEffect(() => {
-        if (bloquesOrdenados.length > 0 && expandedId === null) {
-            setExpandedId(bloquesOrdenados[0].id);
-        }
-    }, [bloquesOrdenados, expandedId]);
+    // No auto-expandir nada - todos cerrados al inicio
 
     // Obtener URL del avatar en modo "working"
     const getWorkingModeAvatar = (url) => {
@@ -250,98 +257,52 @@ export default function DashboardSocioVirtual() {
                 overflow: 'hidden'
             }}
         >
-            {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo y accesos directos */}
+            {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo */}
             <div 
                 className="avatar-column"
                 style={{
                     display: 'flex',
                     flexDirection: 'column',
                     height: '100%',
-                    width: '100%'
+                    width: '100%',
+                    backgroundColor: '#F3F4F6'
                 }}
             >
-                {/* Foto del avatar */}
+                {/* Foto del avatar con marco elegante */}
                 <div 
                     style={{
                         position: 'relative',
-                        backgroundImage: workingModeUrl ? `url(${workingModeUrl})` : 'none',
-                        backgroundSize: 'cover',
-                        backgroundPosition: 'center 25%',
-                        backgroundRepeat: 'no-repeat',
-                        backgroundColor: '#F3F4F6',
-                        height: '77%',
+                        height: '75%',
                         width: '100%',
-                        flexShrink: 0
+                        flexShrink: 0,
+                        padding: '12px',
+                        backgroundColor: '#F3F4F6'
                     }}
                 >
-                {/* Indicador de "en línea" (esquina superior derecha) */}
-                <div className="absolute top-6 right-6 z-30">
-                    <div className="flex items-center space-x-2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border-2 border-green-200">
-                        <div className="relative">
-                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                            <div className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-ping opacity-75"></div>
-                        </div>
-                        <span className="text-xs font-semibold text-green-700">En línea</span>
-                                </div>
-                            </div>
-
-
-                {/* Nombre del agente (badge en la parte inferior izquierda) */}
-                <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.8, duration: 0.5 }}
-                    className="absolute bottom-24 left-6 z-30"
-                >
-                    <div className="inline-block bg-white/90 backdrop-blur-md px-6 py-3 rounded-full shadow-lg border-2 border-gray-200">
-                        <p className="text-xs text-gray-500 font-medium">Tu Asistente Virtual</p>
-                        <p className={`text-xl font-bold ${config.accentColor}`}>{agentConfig.name}</p>
-                    </div>
-                </motion.div>
-                </div>
-
-                {/* SECCIÓN ACCESOS DIRECTOS: Debajo de la foto, centrada */}
-                <div 
-                    className="accesos-directos-section" 
-                    style={{ 
-                        padding: '20px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flex: 1
-                    }}
-                >
-                    <div className="mb-4 text-center">
-                        <h2 className="text-lg font-bold text-gray-800 mb-1">⚡ Accesos Directos</h2>
-                        <p className="text-xs text-gray-500">Acciones más utilizadas</p>
-                    </div>
-                    <div 
-                        className="grid grid-cols-5 gap-3 w-full"
+                    <div
                         style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(5, 1fr)',
-                            gap: '12px',
-                            maxWidth: '100%'
+                            backgroundImage: workingModeUrl ? `url(${workingModeUrl})` : 'none',
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center 15%',
+                            backgroundRepeat: 'no-repeat',
+                            backgroundColor: '#F3F4F6',
+                            height: '100%',
+                            width: '100%',
+                            borderRadius: '16px',
+                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15), inset 0 0 0 3px rgba(255, 255, 255, 0.3)',
+                            border: '2px solid rgba(0, 0, 0, 0.1)'
                         }}
                     >
-                        {botonesAccionRapida.map((boton) => {
-                            const IconComponent = boton.icon;
-                            return (
-                                <button
-                                    key={boton.id}
-                                    onClick={boton.onClick}
-                                    className="group relative bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-purple-400 hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center gap-2 hover:scale-105"
-                                >
-                                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center group-hover:from-purple-200 group-hover:to-blue-200 transition-colors">
-                                        <IconComponent className="w-5 h-5 text-purple-600 group-hover:text-purple-700" />
-                                    </div>
-                                    <span className="text-xs font-semibold text-gray-700 text-center leading-tight group-hover:text-purple-600 transition-colors">
-                                        {boton.label}
-                                    </span>
-                                </button>
-                            );
-                        })}
+                        {/* Indicador de "en línea" (esquina superior derecha) */}
+                        <div className="absolute top-6 right-6 z-30">
+                            <div className="flex items-center space-x-2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border-2 border-green-200">
+                                <div className="relative">
+                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                    <div className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-ping opacity-75"></div>
+                                </div>
+                                <span className="text-xs font-semibold text-green-700">En línea</span>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -353,13 +314,13 @@ export default function DashboardSocioVirtual() {
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
-                    gap: '27px',
+                    gap: '18px',
                     height: '100vh',
                     maxWidth: '1080px',
                     margin: '0 auto',
-                    padding: '22px 36px 22px 63px',
+                    padding: '18px 30px 18px 50px',
                     overflowY: 'auto',
-                    backgroundColor: '#F8FAFC',
+                    backgroundColor: '#F3F4F6',
                     width: '100%'
                 }}
             >
@@ -367,23 +328,45 @@ export default function DashboardSocioVirtual() {
                 <div className="data-header" style={{ marginTop: 0, position: 'relative' }}>
                     <div className="flex justify-between items-start mb-4">
                         <div>
-                            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-2" style={{ marginTop: 0 }}>
+                            <h1 
+                                className="font-black tracking-tight mb-3"
+                                style={{ 
+                                    marginTop: 0,
+                                    fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    backgroundClip: 'text',
+                                    textShadow: '0 0 30px rgba(102, 126, 234, 0.3)',
+                                    lineHeight: '1.2'
+                                }}
+                            >
                                 La Oficina de {agentConfig.name}
                             </h1>
-                            <p className="text-sm text-gray-600">
-                                {business?.name} • {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                            </p>
+                            <div className="flex items-center gap-3 mt-2">
+                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full border-2 border-purple-200 shadow-sm">
+                                    <div className="w-2 h-2 bg-purple-600 rounded-full animate-pulse"></div>
+                                    <span className="text-sm font-bold text-purple-700">
+                                        {business?.name}
+                                    </span>
+                                </div>
+                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-gray-200 shadow-sm">
+                                    <span className="text-sm font-semibold text-gray-700">
+                                        {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
                         <button
                             onClick={refresh}
-                            className="text-sm text-gray-700 hover:text-gray-900 font-medium flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 transition-all shadow-sm"
+                            className="text-sm text-white font-bold flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105"
                         >
                             <RefreshCw className="w-4 h-4" />
                             Actualizar
                         </button>
                     </div>
 
-                    {/* BOCADILLO: Posicionado entre el título y la bandeja de entrada */}
+                    {/* BOCADILLO GRANDE Y PROMINENTE */}
                     <motion.div
                         initial={{ opacity: 0, y: -10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -391,10 +374,10 @@ export default function DashboardSocioVirtual() {
                         className="speech-bubble"
                     style={{
                         position: 'relative',
-                        marginTop: '54px',
+                        marginTop: '40px',
                         marginLeft: '0px',
                         marginRight: 'auto',
-                        maxWidth: '85%',
+                        maxWidth: '92%',
                         zIndex: 100
                     }}
                     >
@@ -402,58 +385,89 @@ export default function DashboardSocioVirtual() {
                         <div 
                             className={`
                                 ${config.bubbleBg} ${config.borderColor} 
-                                backdrop-blur-md rounded-2xl shadow-xl p-5
+                                backdrop-blur-md rounded-2xl p-6
                                 relative
                             `} 
                             style={{ 
-                                borderWidth: '3px'
+                                borderWidth: '3px',
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)'
                             }}
                         >
                             {/* Triángulo pronunciado que apunta hacia la cara de Lua (estilo cómic) */}
                             <div 
                                 className="absolute w-0 h-0"
                                 style={{
-                                    bottom: '25px',
-                                    left: '-50px',
+                                    bottom: '20px',
+                                    left: '-40px',
                                     borderStyle: 'solid',
-                                    borderWidth: '25px 50px 25px 0',
+                                    borderWidth: '20px 40px 20px 0',
                                     borderColor: `transparent ${config.tailBg} transparent transparent`,
-                                    filter: 'drop-shadow(-3px 0 4px rgba(0,0,0,0.1))',
+                                    filter: 'drop-shadow(-2px 0 3px rgba(0,0,0,0.08))',
                                     transform: 'translateY(0)'
                                 }}
                             ></div>
                             
-                            {/* Borde del triángulo (más pronunciado) */}
+                            {/* Borde del triángulo */}
                             <div 
                                 className="absolute w-0 h-0"
                                 style={{
-                                    bottom: '25px',
-                                    left: '-52px',
+                                    bottom: '20px',
+                                    left: '-42px',
                                     borderStyle: 'solid',
-                                    borderWidth: '25px 50px 25px 0',
+                                    borderWidth: '20px 40px 20px 0',
                                     borderColor: `transparent ${config.tailBorder} transparent transparent`,
                                     zIndex: -1
                                 }}
                             ></div>
                             
                             {/* Efecto de brillo sutil */}
-                            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/30 to-transparent pointer-events-none"></div>
+                            <div className="absolute inset-0 rounded-xl bg-gradient-to-br from-white/30 to-transparent pointer-events-none"></div>
                             
-                            <p className={`text-sm md:text-base font-medium ${config.accentColor} leading-relaxed relative z-10`}>
-                                {mensaje}
-                            </p>
+                            {showTyping ? (
+                                <div className="flex items-center gap-2">
+                                    <div className="flex gap-1">
+                                        <motion.div 
+                                            className="w-2 h-2 bg-gray-400 rounded-full"
+                                            animate={{ scale: [1, 1.3, 1] }}
+                                            transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
+                                        />
+                                        <motion.div 
+                                            className="w-2 h-2 bg-gray-400 rounded-full"
+                                            animate={{ scale: [1, 1.3, 1] }}
+                                            transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
+                                        />
+                                        <motion.div 
+                                            className="w-2 h-2 bg-gray-400 rounded-full"
+                                            animate={{ scale: [1, 1.3, 1] }}
+                                            transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
+                                        />
+                                    </div>
+                                    <span className={`text-sm font-medium ${config.accentColor}`}>
+                                        Analizando...
+                                    </span>
+                                </div>
+                            ) : (
+                                <motion.p 
+                                    initial={{ opacity: 0, y: 5 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.4 }}
+                                    className={`text-base font-semibold ${config.accentColor} leading-relaxed relative z-10`}
+                                >
+                                    {mensaje}
+                                </motion.p>
+                            )}
                             {accion && (
                                 <motion.button
                                     initial={{ opacity: 0, scale: 0.9 }}
                                     animate={{ opacity: 1, scale: 1 }}
                                     transition={{ delay: 0.5, duration: 0.3 }}
-                                    whileHover={{ scale: 1.03 }}
-                                    whileTap={{ scale: 0.97 }}
+                                    whileHover={{ scale: 1.02 }}
+                                    whileTap={{ scale: 0.98 }}
                                     onClick={() => handleAction(accion)}
                                             className={`
-                                        mt-4 w-full py-3 px-6 rounded-xl font-semibold text-white
+                                        mt-3 w-full py-2 px-4 rounded-lg font-semibold text-white text-sm
                                         ${config.buttonBg}
-                                        shadow-lg transition-all duration-200 relative z-10
+                                        shadow-md transition-all duration-200 relative z-10
                                     `}
                                 >
                                     {accion.label || 'Acción'}
@@ -463,14 +477,16 @@ export default function DashboardSocioVirtual() {
                     </motion.div>
                 </div>
 
-                {/* Sección Bandeja - Compactada */}
-                <div className="bottom-section bandeja-container" style={{ marginTop: '0', paddingBottom: '40px' }}>
-                    {/* Título de la sección - Bandeja de Entrada */}
-                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm mb-6">
-                        <h2 className="text-xl font-bold text-gray-900 mb-1">📋 Bandeja de Entrada</h2>
-                        <p className="text-sm text-gray-600">
-                            {bloquesOrdenados.length} informe(s) • Ordenados por prioridad
-                        </p>
+                {/* Sección Bandeja - Con más espacio arriba */}
+                <div className="bottom-section bandeja-container" style={{ marginTop: '48px', paddingBottom: '40px' }}>
+                    {/* Contador de informes - Elegante y discreto */}
+                    <div className="mb-5">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-50 to-blue-50 rounded-full border border-purple-200/50">
+                            <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse"></div>
+                            <span className="text-xs font-bold text-purple-700 uppercase tracking-wide">
+                                {bloquesOrdenados.length} {bloquesOrdenados.length === 1 ? 'Informe' : 'Informes'}
+                            </span>
+                        </div>
                     </div>
 
                     {/* Grid de Dossiers (Acordeones) - 2 COLUMNAS exactas */}
@@ -480,7 +496,7 @@ export default function DashboardSocioVirtual() {
                             style={{
                                 display: 'grid',
                                 gridTemplateColumns: 'repeat(2, 1fr)',
-                                gap: '20px',
+                                gap: '14px',
                                 alignItems: 'start'
                             }}
                         >
@@ -510,18 +526,6 @@ export default function DashboardSocioVirtual() {
                     )}
                 </div>
 
-                {/* Footer con metadata */}
-                {snapshot?.metadata && (
-                    <div className="mt-8 text-center text-xs text-gray-500">
-                        <p>
-                            Última actualización: {new Date(snapshot.metadata.timestamp).toLocaleTimeString('es-ES')} 
-                            {' • '}
-                            {snapshot.metadata.tokens_used} tokens 
-                            {' • '}
-                            ${snapshot.metadata.cost_usd.toFixed(6)} USD
-                        </p>
-                    </div>
-                )}
             </div>
         </div>
     );
