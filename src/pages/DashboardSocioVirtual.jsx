@@ -1,10 +1,11 @@
 // ====================================
-// DASHBOARD SOCIO VIRTUAL v5.0 - "EL ESCRITORIO INTERACTIVO"
-// Avatar GIGANTE como fondo + Glassmorphism + Dossiers
+// DASHBOARD SOCIO VIRTUAL v7.1 - "EL ESCRITORIO INTERACTIVO"
+// Estructura CSS Grid limpia + Bocadillo desbordando desde columna izquierda
 // ====================================
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { motion } from 'framer-motion';
 import { useAuthContext } from '../contexts/AuthContext';
 
 // Hooks personalizados
@@ -12,14 +13,13 @@ import { useDashboardSnapshot } from '../hooks/useDashboardSnapshot';
 import { useActionExecutor } from '../hooks/useActionExecutor';
 
 // Componentes del dashboard
-import LuaAvatarLarge from '../components/dashboard/LuaAvatarLarge';
 import BloqueAcordeon from '../components/dashboard/BloqueAcordeon';
 
 // Configuración de avatares
 import { getAvatarById } from '../config/avatars';
 
 // Iconos para botones de acción rápida
-import { Calendar, DollarSign, AlertTriangle, Users, BarChart3 } from 'lucide-react';
+import { Calendar, DollarSign, AlertTriangle, Users, BarChart3, RefreshCw } from 'lucide-react';
 
 export default function DashboardSocioVirtual() {
     const { business, user } = useAuthContext();
@@ -169,142 +169,329 @@ export default function DashboardSocioVirtual() {
         }
     }, [bloquesOrdenados, expandedId]);
 
+    // Obtener URL del avatar en modo "working"
+    const getWorkingModeAvatar = (url) => {
+        if (!url) return null;
+        if (url.includes('_') && url.includes('.1.png')) return url;
+        const match = url.match(/Avatar_(\d+)\.png/);
+        if (match) {
+            const number = match[1];
+            return url.replace(`Avatar_${number}.png`, `Avatar_${number}.1.png`);
+        }
+        return url;
+    };
+
+    const workingModeUrl = getWorkingModeAvatar(agentConfig.avatar_url);
+
+    // Colores según el mood para el bocadillo
+    const moodConfig = {
+        zen: {
+            bubbleBg: 'bg-green-50',
+            borderColor: 'border-green-300',
+            accentColor: 'text-green-700',
+            buttonBg: 'bg-green-500 hover:bg-green-600',
+            tailBg: '#f0fdf4',
+            tailBorder: '#86efac'
+        },
+        happy: {
+            bubbleBg: 'bg-blue-50',
+            borderColor: 'border-blue-300',
+            accentColor: 'text-blue-700',
+            buttonBg: 'bg-blue-500 hover:bg-blue-600',
+            tailBg: '#eff6ff',
+            tailBorder: '#93c5fd'
+        },
+        focused: {
+            bubbleBg: 'bg-purple-50',
+            borderColor: 'border-purple-300',
+            accentColor: 'text-purple-700',
+            buttonBg: 'bg-purple-500 hover:bg-purple-600',
+            tailBg: '#faf5ff',
+            tailBorder: '#c4b5fd'
+        },
+        serious: {
+            bubbleBg: 'bg-orange-50',
+            borderColor: 'border-orange-300',
+            accentColor: 'text-orange-700',
+            buttonBg: 'bg-orange-500 hover:bg-orange-600',
+            tailBg: '#fff7ed',
+            tailBorder: '#fdba74'
+        },
+        urgent: {
+            bubbleBg: 'bg-red-50',
+            borderColor: 'border-red-300',
+            accentColor: 'text-red-700',
+            buttonBg: 'bg-red-500 hover:bg-red-600',
+            tailBg: '#fef2f2',
+            tailBorder: '#fca5a5'
+        }
+    };
+
+    const config = moodConfig[mood] || moodConfig.zen;
+
     if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white mb-4"></div>
-                    <p className="text-white text-lg font-medium">Analizando el estado de tu negocio...</p>
+                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-600 mb-4"></div>
+                    <p className="text-gray-700 text-lg font-medium">Analizando el estado de tu negocio...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-slate-900">
-            {/* Header con título dinámico */}
-            <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 px-6 py-4 shadow-2xl">
-                <div className="max-w-[1920px] mx-auto flex justify-between items-center">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white">
-                            El Despacho de {agentConfig.name}
-                        </h1>
-                        <p className="text-sm text-slate-400">
-                            {business?.name} • {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                        </p>
+        <div 
+            className="dashboard-container"
+            style={{
+                display: 'grid',
+                gridTemplateColumns: 'minmax(350px, 32%) 1fr',
+                height: '100vh',
+                overflow: 'hidden'
+            }}
+        >
+            {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo */}
+            <div 
+                className="avatar-column"
+                style={{
+                    position: 'relative',
+                    backgroundImage: workingModeUrl ? `url(${workingModeUrl})` : 'none',
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center top',
+                    backgroundRepeat: 'no-repeat',
+                    height: '100%',
+                    width: '100%',
+                    objectFit: 'cover',
+                    objectPosition: 'center top'
+                }}
+            >
+                {/* Indicador de "en línea" (esquina superior derecha) */}
+                <div className="absolute top-6 right-6 z-30">
+                    <div className="flex items-center space-x-2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border-2 border-green-200">
+                        <div className="relative">
+                            <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                            <div className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-ping opacity-75"></div>
+                        </div>
+                        <span className="text-xs font-semibold text-green-700">En línea</span>
                     </div>
-                    <button
-                        onClick={refresh}
-                        className="text-sm text-slate-300 hover:text-white font-medium flex items-center gap-2 px-4 py-2 bg-slate-700 rounded-lg border border-slate-600 hover:border-slate-500 transition-all"
+                </div>
+
+                {/* BOCADILLO: Dentro de la columna izquierda, desbordando hacia la derecha */}
+                <motion.div
+                    initial={{ opacity: 0, x: -20, scale: 0.95 }}
+                    animate={{ opacity: 1, x: 0, scale: 1 }}
+                    transition={{ delay: 0.3, duration: 0.6, type: "spring" }}
+                    className="speech-bubble"
+                    style={{
+                        position: 'absolute',
+                        top: '15%',
+                        left: '105%',
+                        width: '90%',
+                        maxWidth: 'none',
+                        zIndex: 100
+                    }}
+                >
+                    {/* Contenido del bocadillo */}
+                    <div 
+                        className={`
+                            ${config.bubbleBg} ${config.borderColor} 
+                            backdrop-blur-md rounded-3xl shadow-2xl p-6
+                            relative
+                        `} 
+                        style={{ 
+                            borderWidth: '3px'
+                        }}
                     >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                        Actualizar
-                    </button>
+                        {/* Triángulo que apunta a la boca (usando ::after) */}
+                        <div 
+                            className="absolute -left-3 top-6 w-0 h-0"
+                            style={{
+                                borderTop: '10px solid transparent',
+                                borderBottom: '10px solid transparent',
+                                borderRight: `15px solid ${config.tailBg}`
+                            }}
+                        ></div>
+                        
+                        {/* Borde del triángulo */}
+                        <div 
+                            className="absolute -left-4 top-6 w-0 h-0"
+                            style={{
+                                borderTop: '10px solid transparent',
+                                borderBottom: '10px solid transparent',
+                                borderRight: `15px solid ${config.tailBorder}`,
+                                zIndex: -1
+                            }}
+                        ></div>
+                        
+                        {/* Efecto de brillo sutil */}
+                        <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/30 to-transparent pointer-events-none"></div>
+                        
+                        <p className={`text-base md:text-lg font-medium ${config.accentColor} leading-relaxed relative z-10`}>
+                            {mensaje}
+                        </p>
+                        {accion && (
+                            <motion.button
+                                initial={{ opacity: 0, scale: 0.9 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{ delay: 0.5, duration: 0.3 }}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.97 }}
+                                onClick={() => handleAction(accion)}
+                                className={`
+                                    mt-4 w-full py-3 px-6 rounded-xl font-semibold text-white
+                                    ${config.buttonBg}
+                                    shadow-lg transition-all duration-200 relative z-10
+                                `}
+                            >
+                                {accion.label || 'Acción'}
+                            </motion.button>
+                        )}
+                    </div>
+                </motion.div>
+
+                {/* Nombre del agente (badge en la parte inferior izquierda) */}
+                <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.8, duration: 0.5 }}
+                    className="absolute bottom-24 left-6 z-30"
+                >
+                    <div className="inline-block bg-white/90 backdrop-blur-md px-6 py-3 rounded-full shadow-lg border-2 border-gray-200">
+                        <p className="text-xs text-gray-500 font-medium">Tu Asistente Virtual</p>
+                        <p className={`text-xl font-bold ${config.accentColor}`}>{agentConfig.name}</p>
+                    </div>
+                </motion.div>
+
+                {/* ACCIONES RÁPIDAS: Flotantes en la parte inferior con degradado */}
+                <div 
+                    className="quick-actions-overlay"
+                    style={{
+                        position: 'absolute',
+                        bottom: 0,
+                        left: 0,
+                        width: '100%',
+                        padding: '20px',
+                        background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
+                        display: 'flex',
+                        gap: '10px',
+                        overflowX: 'auto',
+                        zIndex: 30
+                    }}
+                >
+                    {botonesAccionRapida.map((boton) => {
+                        const IconComponent = boton.icon;
+                        return (
+                            <button
+                                key={boton.id}
+                                onClick={boton.onClick}
+                                className="action-btn flex flex-col items-center justify-center p-3 bg-white/90 backdrop-blur-md rounded-lg border border-white/50 hover:border-blue-400/50 hover:bg-white transition-all duration-200 group shadow-lg flex-shrink-0"
+                                style={{ minWidth: '100px' }}
+                            >
+                                <IconComponent className="w-6 h-6 text-gray-600 group-hover:text-blue-600 transition-colors mb-1" />
+                                <span className="text-xs font-medium text-gray-700 text-center leading-tight">
+                                    {boton.label}
+                                </span>
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
-            {/* ESCRITORIO INTERACTIVO */}
-            <div className="h-screen flex overflow-hidden">
-                
-                {/* ZONA IZQUIERDA (40%): Avatar GIGANTE como fondo */}
-                <div className="w-full lg:w-[40%] relative">
-                    <LuaAvatarLarge
-                        avatarUrl={agentConfig.avatar_url}
-                        agentName={agentConfig.name}
-                        mensaje={mensaje}
-                        accion={accion}
-                        mood={mood}
-                        onActionClick={handleAction}
-                    />
-                </div>
-
-                {/* ZONA DERECHA (60%): Glassmorphism + Pila de Dossiers */}
-                <div className="w-full lg:w-[60%] relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-xl overflow-y-auto">
-                    
-                    {/* Contenedor de Dossiers con efecto "tablet de cristal" */}
-                    <div className="p-6 space-y-4">
-                        
-                        {/* Título de la sección */}
-                        <div className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10">
-                            <h2 className="text-xl font-bold text-white mb-1">📋 Bandeja de Entrada</h2>
-                            <p className="text-sm text-slate-300">
-                                {bloquesOrdenados.length} informe(s) • Ordenados por prioridad
+            {/* COLUMNA DERECHA: Grid de datos */}
+            <div 
+                className="data-column"
+                style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between',
+                    height: '100%',
+                    paddingTop: 0,
+                    paddingLeft: '40px',
+                    paddingRight: '40px',
+                    paddingBottom: '40px',
+                    overflowY: 'auto',
+                    backgroundColor: '#F8FAFC'
+                }}
+            >
+                {/* Header con título */}
+                <div className="data-header" style={{ marginTop: 0 }}>
+                    <div className="flex justify-between items-start mb-6">
+                        <div>
+                            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-2" style={{ marginTop: 0 }}>
+                                La Oficina de {agentConfig.name}
+                            </h1>
+                            <p className="text-base text-gray-600">
+                                {business?.name} • {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </p>
                         </div>
+                        <button
+                            onClick={refresh}
+                            className="text-sm text-gray-700 hover:text-gray-900 font-medium flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200 hover:bg-gray-50 transition-all shadow-sm"
+                        >
+                            <RefreshCw className="w-4 h-4" />
+                            Actualizar
+                        </button>
+                    </div>
 
-                        {/* Pila de Dossiers (Acordeones) */}
-                        {bloquesOrdenados.length > 0 ? (
-                            <div className="space-y-3">
-                                {bloquesOrdenados.map((bloque) => (
-                                    <BloqueAcordeon
-                                        key={bloque.id}
-                                        id={bloque.id}
-                                        titulo={bloque.id}
-                                        textoColapsado={bloque.texto_colapsado}
-                                        prioridad={bloque.prioridad}
-                                        data={data}
-                                        isExpanded={expandedId === bloque.id}
-                                        onToggle={() => setExpandedId(expandedId === bloque.id ? null : bloque.id)}
-                                    />
-                                ))}
-                            </div>
-                        ) : (
-                            <div className="bg-white/5 backdrop-blur-md rounded-xl p-8 text-center border border-white/10">
-                                <p className="text-slate-400 mb-4">No hay información disponible</p>
-                                <button
-                                    onClick={refresh}
-                                    className="text-blue-400 hover:text-blue-300 font-medium"
-                                >
-                                    Intentar de nuevo
-                                </button>
-                            </div>
-                        )}
-
-                        {/* LÍNEA DIVISORIA - "Borde del Escritorio" */}
-                        <div className="my-8">
-                            <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
-                        </div>
-
-                        {/* BOTONES DE ACCIÓN RÁPIDA */}
-                        <div>
-                            <h3 className="text-center text-sm font-semibold text-slate-300 mb-4">
-                                Acciones Rápidas
-                            </h3>
-                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-                                {botonesAccionRapida.map((boton) => {
-                                    const IconComponent = boton.icon;
-                                    return (
-                                        <button
-                                            key={boton.id}
-                                            onClick={boton.onClick}
-                                            className="flex flex-col items-center justify-center p-4 bg-white/5 backdrop-blur-md rounded-xl border border-white/10 hover:border-blue-400/50 hover:bg-white/10 transition-all duration-200 group"
-                                        >
-                                            <IconComponent className="w-8 h-8 text-slate-400 group-hover:text-blue-400 transition-colors mb-2" />
-                                            <span className="text-xs font-medium text-slate-300 text-center">
-                                                {boton.label}
-                                            </span>
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-
-                        {/* Footer con metadata */}
-                        {snapshot?.metadata && (
-                            <div className="mt-8 text-center text-xs text-slate-500">
-                                <p>
-                                    Última actualización: {new Date(snapshot.metadata.timestamp).toLocaleTimeString('es-ES')} 
-                                    {' • '}
-                                    {snapshot.metadata.tokens_used} tokens 
-                                    {' • '}
-                                    ${snapshot.metadata.cost_usd.toFixed(6)} USD
-                                </p>
-                            </div>
-                        )}
+                    {/* Título de la sección - Bandeja de Entrada */}
+                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                        <h2 className="text-xl font-bold text-gray-900 mb-1">📋 Bandeja de Entrada</h2>
+                        <p className="text-sm text-gray-600">
+                            {bloquesOrdenados.length} informe(s) • Ordenados por prioridad
+                        </p>
                     </div>
                 </div>
+
+                {/* Grid de Dossiers (Acordeones) - 2 COLUMNAS exactas */}
+                {bloquesOrdenados.length > 0 ? (
+                    <div 
+                        className="cards-grid"
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(2, 1fr)',
+                            gap: '20px',
+                            alignItems: 'start',
+                            flexGrow: 1,
+                            alignContent: 'start'
+                        }}
+                    >
+                        {bloquesOrdenados.map((bloque) => (
+                            <BloqueAcordeon
+                                key={bloque.id}
+                                id={bloque.id}
+                                titulo={bloque.id}
+                                textoColapsado={bloque.texto_colapsado}
+                                prioridad={bloque.prioridad}
+                                data={data}
+                                isExpanded={expandedId === bloque.id}
+                                onToggle={() => setExpandedId(expandedId === bloque.id ? null : bloque.id)}
+                            />
+                        ))}
+                    </div>
+                ) : (
+                    <div className="bg-white rounded-xl p-8 text-center border border-gray-200 shadow-sm">
+                        <p className="text-gray-700 mb-4">No hay información disponible</p>
+                        <button
+                            onClick={refresh}
+                            className="text-blue-600 hover:text-blue-700 font-medium"
+                        >
+                            Intentar de nuevo
+                        </button>
+                    </div>
+                )}
+
+                {/* Footer con metadata */}
+                {snapshot?.metadata && (
+                    <div className="mt-8 text-center text-xs text-gray-500">
+                        <p>
+                            Última actualización: {new Date(snapshot.metadata.timestamp).toLocaleTimeString('es-ES')} 
+                            {' • '}
+                            {snapshot.metadata.tokens_used} tokens 
+                            {' • '}
+                            ${snapshot.metadata.cost_usd.toFixed(6)} USD
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
     );

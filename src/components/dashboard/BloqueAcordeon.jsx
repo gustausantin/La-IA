@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 
 /**
- * Componente "Dossier" / Carpeta en el escritorio
- * Diseño tipo "pila de informes" con efecto físico
+ * Componente "Dossier Profesional" con Glassmorphism
+ * Estilo elegante con fondo blanco/gris y bordes de color
  */
 export default function BloqueAcordeon({ 
   id, 
@@ -25,68 +25,46 @@ export default function BloqueAcordeon({
 }) {
   
   // Configuración visual según tipo de bloque
+  // SOLO usamos el color para el borde izquierdo, NO para el fondo
   const bloqueConfig = {
     RESERVAS: {
       icon: Calendar,
-      color: 'purple',
-      bgLight: 'bg-purple-50',
-      bgCard: 'bg-gradient-to-r from-purple-500 to-purple-600',
-      border: 'border-purple-400',
-      text: 'text-purple-700',
-      textWhite: 'text-white'
+      borderColor: 'border-l-purple-500',
+      iconColor: 'text-purple-500'
     },
     EQUIPO: {
       icon: Users,
-      color: 'blue',
-      bgLight: 'bg-blue-50',
-      bgCard: 'bg-gradient-to-r from-blue-500 to-blue-600',
-      border: 'border-blue-400',
-      text: 'text-blue-700',
-      textWhite: 'text-white'
+      borderColor: 'border-l-blue-500',
+      iconColor: 'text-blue-500'
     },
     FACTURACION: {
       icon: DollarSign,
-      color: 'green',
-      bgLight: 'bg-green-50',
-      bgCard: 'bg-gradient-to-r from-green-500 to-green-600',
-      border: 'border-green-400',
-      text: 'text-green-700',
-      textWhite: 'text-white'
+      borderColor: 'border-l-green-500',
+      iconColor: 'text-green-500'
     },
     COMUNICACIONES: {
       icon: MessageSquare,
-      color: 'yellow',
-      bgLight: 'bg-yellow-50',
-      bgCard: 'bg-gradient-to-r from-yellow-500 to-yellow-600',
-      border: 'border-yellow-400',
-      text: 'text-yellow-700',
-      textWhite: 'text-white'
+      borderColor: 'border-l-yellow-500',
+      iconColor: 'text-yellow-500'
     },
     NOSHOWS: {
       icon: AlertTriangle,
-      color: 'red',
-      bgLight: 'bg-red-50',
-      bgCard: 'bg-gradient-to-r from-red-500 to-red-600',
-      border: 'border-red-400',
-      text: 'text-red-700',
-      textWhite: 'text-white'
+      borderColor: 'border-l-red-500',
+      iconColor: 'text-red-500'
     },
     CLIENTES: {
       icon: Star,
-      color: 'pink',
-      bgLight: 'bg-pink-50',
-      bgCard: 'bg-gradient-to-r from-pink-500 to-pink-600',
-      border: 'border-pink-400',
-      text: 'text-pink-700',
-      textWhite: 'text-white'
+      borderColor: 'border-l-pink-500',
+      iconColor: 'text-pink-500'
     }
   };
 
   const config = bloqueConfig[id] || bloqueConfig.RESERVAS;
   const IconComponent = config.icon;
 
-  // Determinar si es urgente (prioridad 1 o 2)
+  // Determinar si es urgente (prioridad 1 o 2) - borde más grueso
   const isUrgent = prioridad <= 2;
+  const borderWidth = isUrgent ? 'border-l-4' : 'border-l-2';
 
   return (
     <motion.div
@@ -96,28 +74,30 @@ export default function BloqueAcordeon({
       transition={{ duration: 0.4, delay: prioridad * 0.05 }}
       className="w-full"
     >
-      {/* Header del "dossier" (siempre visible - parece el lomo de una carpeta) */}
+      {/* Header del "dossier" - Glassmorphism elegante */}
       <motion.div
         onClick={onToggle}
-        whileHover={{ scale: 1.02, x: 5 }}
-        whileTap={{ scale: 0.98 }}
+        whileHover={{ scale: 1.01, x: 3 }}
+        whileTap={{ scale: 0.99 }}
         className={`
-          ${config.bgCard} 
-          cursor-pointer rounded-lg shadow-md hover:shadow-xl 
+          bg-white/90 backdrop-blur-md
+          ${borderWidth} ${config.borderColor}
+          border-t border-r border-b border-gray-200
+          cursor-pointer rounded-lg shadow-md hover:shadow-lg 
           transition-all duration-200 p-4
-          ${isUrgent ? 'ring-2 ring-yellow-400 ring-offset-2' : ''}
+          ${isUrgent ? 'ring-1 ring-yellow-400/50' : ''}
         `}
       >
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3 flex-1">
-            <div className="bg-white/20 p-2 rounded-lg backdrop-blur-sm">
-              <IconComponent className={`w-5 h-5 ${config.textWhite}`} />
+            <div className="bg-gray-50 p-2 rounded-lg border border-gray-200">
+              <IconComponent className={`w-5 h-5 ${config.iconColor}`} />
             </div>
             <div className="flex-1">
-              <p className={`text-sm font-bold ${config.textWhite} uppercase tracking-wide`}>
+              <p className="text-sm font-bold text-gray-900 uppercase tracking-wide">
                 {titulo || id}
               </p>
-              <p className="text-xs text-white/80 mt-0.5">
+              <p className="text-xs text-gray-600 mt-0.5">
                 {textoColapsado}
               </p>
             </div>
@@ -126,14 +106,14 @@ export default function BloqueAcordeon({
           <motion.div
             animate={{ rotate: isExpanded ? 90 : 0 }}
             transition={{ duration: 0.3 }}
-            className="bg-white/20 p-1.5 rounded-full backdrop-blur-sm"
+            className="bg-gray-50 p-1.5 rounded-full border border-gray-200"
           >
-            <ChevronRight className={`w-4 h-4 ${config.textWhite}`} />
+            <ChevronRight className="w-4 h-4 text-gray-600" />
           </motion.div>
         </div>
       </motion.div>
 
-      {/* Contenido expandido (el "informe" desplegado) */}
+      {/* Contenido expandido - Glassmorphism más intenso */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -145,8 +125,9 @@ export default function BloqueAcordeon({
           >
             <div className={`
               mt-2 p-4 rounded-lg 
-              bg-white/95 backdrop-blur-md 
-              border-2 ${config.border}
+              bg-white/95 backdrop-blur-lg
+              ${borderWidth} ${config.borderColor}
+              border-t border-r border-b border-gray-300
               shadow-lg
             `}>
               {renderContenidoExpandido(id, data, config)}
@@ -263,7 +244,7 @@ function renderContenidoExpandido(id, data, config) {
           </div>
           
           {data?.facturacion?.promedio_diario > 0 && (
-            <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-2">
+            <div className="text-xs text-gray-600 bg-gray-50 rounded-lg p-2 border border-gray-200">
               <p>📊 Promedio diario: {data.facturacion.promedio_diario.toFixed(2)}€</p>
               <p className={data.facturacion.porcentaje_vs_promedio >= 100 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
                 {data.facturacion.porcentaje_vs_promedio >= 100 ? '📈' : '📉'} {data.facturacion.porcentaje_vs_promedio}% vs promedio
@@ -296,7 +277,7 @@ function renderContenidoExpandido(id, data, config) {
                   </span>
                 </div>
                 {cliente.notas && (
-                  <p className="text-xs text-gray-500 mt-2 bg-yellow-50 p-2 rounded">
+                  <p className="text-xs text-gray-500 mt-2 bg-yellow-50 p-2 rounded border border-yellow-200">
                     📝 {cliente.notas}
                   </p>
                 )}
