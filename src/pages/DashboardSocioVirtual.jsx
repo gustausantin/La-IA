@@ -245,26 +245,35 @@ export default function DashboardSocioVirtual() {
             className="dashboard-container"
             style={{
                 display: 'grid',
-                gridTemplateColumns: 'minmax(350px, 32%) 1fr',
+                gridTemplateColumns: '38% 1fr',
                 height: '100vh',
                 overflow: 'hidden'
             }}
         >
-            {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo */}
+            {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo y accesos directos */}
             <div 
                 className="avatar-column"
                 style={{
-                    position: 'relative',
-                    backgroundImage: workingModeUrl ? `url(${workingModeUrl})` : 'none',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center top',
-                    backgroundRepeat: 'no-repeat',
+                    display: 'flex',
+                    flexDirection: 'column',
                     height: '100%',
-                    width: '100%',
-                    objectFit: 'cover',
-                    objectPosition: 'center top'
+                    width: '100%'
                 }}
             >
+                {/* Foto del avatar */}
+                <div 
+                    style={{
+                        position: 'relative',
+                        backgroundImage: workingModeUrl ? `url(${workingModeUrl})` : 'none',
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center 25%',
+                        backgroundRepeat: 'no-repeat',
+                        backgroundColor: '#F3F4F6',
+                        height: '77%',
+                        width: '100%',
+                        flexShrink: 0
+                    }}
+                >
                 {/* Indicador de "en línea" (esquina superior derecha) */}
                 <div className="absolute top-6 right-6 z-30">
                     <div className="flex items-center space-x-2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border-2 border-green-200">
@@ -273,81 +282,9 @@ export default function DashboardSocioVirtual() {
                             <div className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-ping opacity-75"></div>
                         </div>
                         <span className="text-xs font-semibold text-green-700">En línea</span>
-                    </div>
-                </div>
+                                </div>
+                            </div>
 
-                {/* BOCADILLO: Dentro de la columna izquierda, desbordando hacia la derecha */}
-                <motion.div
-                    initial={{ opacity: 0, x: -20, scale: 0.95 }}
-                    animate={{ opacity: 1, x: 0, scale: 1 }}
-                    transition={{ delay: 0.3, duration: 0.6, type: "spring" }}
-                    className="speech-bubble"
-                    style={{
-                        position: 'absolute',
-                        top: '15%',
-                        left: '105%',
-                        width: '90%',
-                        maxWidth: 'none',
-                        zIndex: 100
-                    }}
-                >
-                    {/* Contenido del bocadillo */}
-                    <div 
-                        className={`
-                            ${config.bubbleBg} ${config.borderColor} 
-                            backdrop-blur-md rounded-3xl shadow-2xl p-6
-                            relative
-                        `} 
-                        style={{ 
-                            borderWidth: '3px'
-                        }}
-                    >
-                        {/* Triángulo que apunta a la boca (usando ::after) */}
-                        <div 
-                            className="absolute -left-3 top-6 w-0 h-0"
-                            style={{
-                                borderTop: '10px solid transparent',
-                                borderBottom: '10px solid transparent',
-                                borderRight: `15px solid ${config.tailBg}`
-                            }}
-                        ></div>
-                        
-                        {/* Borde del triángulo */}
-                        <div 
-                            className="absolute -left-4 top-6 w-0 h-0"
-                            style={{
-                                borderTop: '10px solid transparent',
-                                borderBottom: '10px solid transparent',
-                                borderRight: `15px solid ${config.tailBorder}`,
-                                zIndex: -1
-                            }}
-                        ></div>
-                        
-                        {/* Efecto de brillo sutil */}
-                        <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/30 to-transparent pointer-events-none"></div>
-                        
-                        <p className={`text-base md:text-lg font-medium ${config.accentColor} leading-relaxed relative z-10`}>
-                            {mensaje}
-                        </p>
-                        {accion && (
-                            <motion.button
-                                initial={{ opacity: 0, scale: 0.9 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{ delay: 0.5, duration: 0.3 }}
-                                whileHover={{ scale: 1.03 }}
-                                whileTap={{ scale: 0.97 }}
-                                onClick={() => handleAction(accion)}
-                                className={`
-                                    mt-4 w-full py-3 px-6 rounded-xl font-semibold text-white
-                                    ${config.buttonBg}
-                                    shadow-lg transition-all duration-200 relative z-10
-                                `}
-                            >
-                                {accion.label || 'Acción'}
-                            </motion.button>
-                        )}
-                    </div>
-                </motion.div>
 
                 {/* Nombre del agente (badge en la parte inferior izquierda) */}
                 <motion.div
@@ -361,39 +298,51 @@ export default function DashboardSocioVirtual() {
                         <p className={`text-xl font-bold ${config.accentColor}`}>{agentConfig.name}</p>
                     </div>
                 </motion.div>
+                </div>
 
-                {/* ACCIONES RÁPIDAS: Flotantes en la parte inferior con degradado */}
+                {/* SECCIÓN ACCESOS DIRECTOS: Debajo de la foto, centrada */}
                 <div 
-                    className="quick-actions-overlay"
-                    style={{
-                        position: 'absolute',
-                        bottom: 0,
-                        left: 0,
-                        width: '100%',
+                    className="accesos-directos-section" 
+                    style={{ 
                         padding: '20px',
-                        background: 'linear-gradient(to top, rgba(0,0,0,0.8), transparent)',
                         display: 'flex',
-                        gap: '10px',
-                        overflowX: 'auto',
-                        zIndex: 30
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flex: 1
                     }}
                 >
-                    {botonesAccionRapida.map((boton) => {
-                        const IconComponent = boton.icon;
-                        return (
-                            <button
-                                key={boton.id}
-                                onClick={boton.onClick}
-                                className="action-btn flex flex-col items-center justify-center p-3 bg-white/90 backdrop-blur-md rounded-lg border border-white/50 hover:border-blue-400/50 hover:bg-white transition-all duration-200 group shadow-lg flex-shrink-0"
-                                style={{ minWidth: '100px' }}
-                            >
-                                <IconComponent className="w-6 h-6 text-gray-600 group-hover:text-blue-600 transition-colors mb-1" />
-                                <span className="text-xs font-medium text-gray-700 text-center leading-tight">
-                                    {boton.label}
-                                </span>
-                            </button>
-                        );
-                    })}
+                    <div className="mb-4 text-center">
+                        <h2 className="text-lg font-bold text-gray-800 mb-1">⚡ Accesos Directos</h2>
+                        <p className="text-xs text-gray-500">Acciones más utilizadas</p>
+                    </div>
+                    <div 
+                        className="grid grid-cols-5 gap-3 w-full"
+                        style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(5, 1fr)',
+                            gap: '12px',
+                            maxWidth: '100%'
+                        }}
+                    >
+                        {botonesAccionRapida.map((boton) => {
+                            const IconComponent = boton.icon;
+                            return (
+                                <button
+                                    key={boton.id}
+                                    onClick={boton.onClick}
+                                    className="group relative bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-purple-400 hover:shadow-lg transition-all duration-200 flex flex-col items-center justify-center gap-2 hover:scale-105"
+                                >
+                                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-100 to-blue-100 flex items-center justify-center group-hover:from-purple-200 group-hover:to-blue-200 transition-colors">
+                                        <IconComponent className="w-5 h-5 text-purple-600 group-hover:text-purple-700" />
+                                    </div>
+                                    <span className="text-xs font-semibold text-gray-700 text-center leading-tight group-hover:text-purple-600 transition-colors">
+                                        {boton.label}
+                                    </span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 
@@ -403,24 +352,25 @@ export default function DashboardSocioVirtual() {
                 style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    height: '100%',
-                    paddingTop: 0,
-                    paddingLeft: '40px',
-                    paddingRight: '40px',
-                    paddingBottom: '40px',
+                    justifyContent: 'flex-start',
+                    gap: '27px',
+                    height: '100vh',
+                    maxWidth: '1080px',
+                    margin: '0 auto',
+                    padding: '22px 36px 22px 63px',
                     overflowY: 'auto',
-                    backgroundColor: '#F8FAFC'
+                    backgroundColor: '#F8FAFC',
+                    width: '100%'
                 }}
             >
-                {/* Header con título */}
-                <div className="data-header" style={{ marginTop: 0 }}>
-                    <div className="flex justify-between items-start mb-6">
+                {/* Header con título - ARRIBA */}
+                <div className="data-header" style={{ marginTop: 0, position: 'relative' }}>
+                    <div className="flex justify-between items-start mb-4">
                         <div>
-                            <h1 className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-2" style={{ marginTop: 0 }}>
+                            <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 bg-clip-text text-transparent mb-2" style={{ marginTop: 0 }}>
                                 La Oficina de {agentConfig.name}
                             </h1>
-                            <p className="text-base text-gray-600">
+                            <p className="text-sm text-gray-600">
                                 {business?.name} • {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
                             </p>
                         </div>
@@ -433,52 +383,132 @@ export default function DashboardSocioVirtual() {
                         </button>
                     </div>
 
+                    {/* BOCADILLO: Posicionado entre el título y la bandeja de entrada */}
+                    <motion.div
+                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        transition={{ delay: 0.3, duration: 0.6, type: "spring" }}
+                        className="speech-bubble"
+                    style={{
+                        position: 'relative',
+                        marginTop: '54px',
+                        marginLeft: '0px',
+                        marginRight: 'auto',
+                        maxWidth: '85%',
+                        zIndex: 100
+                    }}
+                    >
+                        {/* Contenido del bocadillo */}
+                        <div 
+                            className={`
+                                ${config.bubbleBg} ${config.borderColor} 
+                                backdrop-blur-md rounded-2xl shadow-xl p-5
+                                relative
+                            `} 
+                            style={{ 
+                                borderWidth: '3px'
+                            }}
+                        >
+                            {/* Triángulo pronunciado que apunta hacia la cara de Lua (estilo cómic) */}
+                            <div 
+                                className="absolute w-0 h-0"
+                                style={{
+                                    bottom: '25px',
+                                    left: '-50px',
+                                    borderStyle: 'solid',
+                                    borderWidth: '25px 50px 25px 0',
+                                    borderColor: `transparent ${config.tailBg} transparent transparent`,
+                                    filter: 'drop-shadow(-3px 0 4px rgba(0,0,0,0.1))',
+                                    transform: 'translateY(0)'
+                                }}
+                            ></div>
+                            
+                            {/* Borde del triángulo (más pronunciado) */}
+                            <div 
+                                className="absolute w-0 h-0"
+                                style={{
+                                    bottom: '25px',
+                                    left: '-52px',
+                                    borderStyle: 'solid',
+                                    borderWidth: '25px 50px 25px 0',
+                                    borderColor: `transparent ${config.tailBorder} transparent transparent`,
+                                    zIndex: -1
+                                }}
+                            ></div>
+                            
+                            {/* Efecto de brillo sutil */}
+                            <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-white/30 to-transparent pointer-events-none"></div>
+                            
+                            <p className={`text-sm md:text-base font-medium ${config.accentColor} leading-relaxed relative z-10`}>
+                                {mensaje}
+                            </p>
+                            {accion && (
+                                <motion.button
+                                    initial={{ opacity: 0, scale: 0.9 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    transition={{ delay: 0.5, duration: 0.3 }}
+                                    whileHover={{ scale: 1.03 }}
+                                    whileTap={{ scale: 0.97 }}
+                                    onClick={() => handleAction(accion)}
+                                            className={`
+                                        mt-4 w-full py-3 px-6 rounded-xl font-semibold text-white
+                                        ${config.buttonBg}
+                                        shadow-lg transition-all duration-200 relative z-10
+                                    `}
+                                >
+                                    {accion.label || 'Acción'}
+                                </motion.button>
+                            )}
+                        </div>
+                    </motion.div>
+                </div>
+
+                {/* Sección Bandeja - Compactada */}
+                <div className="bottom-section bandeja-container" style={{ marginTop: '0', paddingBottom: '40px' }}>
                     {/* Título de la sección - Bandeja de Entrada */}
-                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm">
+                    <div className="bg-white rounded-xl p-4 border border-gray-200 shadow-sm mb-6">
                         <h2 className="text-xl font-bold text-gray-900 mb-1">📋 Bandeja de Entrada</h2>
                         <p className="text-sm text-gray-600">
                             {bloquesOrdenados.length} informe(s) • Ordenados por prioridad
                         </p>
                     </div>
-                </div>
 
-                {/* Grid de Dossiers (Acordeones) - 2 COLUMNAS exactas */}
-                {bloquesOrdenados.length > 0 ? (
-                    <div 
-                        className="cards-grid"
-                        style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(2, 1fr)',
-                            gap: '20px',
-                            alignItems: 'start',
-                            flexGrow: 1,
-                            alignContent: 'start'
-                        }}
-                    >
-                        {bloquesOrdenados.map((bloque) => (
-                            <BloqueAcordeon
-                                key={bloque.id}
-                                id={bloque.id}
-                                titulo={bloque.id}
-                                textoColapsado={bloque.texto_colapsado}
-                                prioridad={bloque.prioridad}
-                                data={data}
-                                isExpanded={expandedId === bloque.id}
-                                onToggle={() => setExpandedId(expandedId === bloque.id ? null : bloque.id)}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="bg-white rounded-xl p-8 text-center border border-gray-200 shadow-sm">
-                        <p className="text-gray-700 mb-4">No hay información disponible</p>
-                        <button
-                            onClick={refresh}
-                            className="text-blue-600 hover:text-blue-700 font-medium"
+                    {/* Grid de Dossiers (Acordeones) - 2 COLUMNAS exactas */}
+                    {bloquesOrdenados.length > 0 ? (
+                        <div 
+                            className="cards-grid"
+                            style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(2, 1fr)',
+                                gap: '20px',
+                                alignItems: 'start'
+                            }}
                         >
-                            Intentar de nuevo
-                        </button>
-                    </div>
-                )}
+                            {bloquesOrdenados.map((bloque) => (
+                                <BloqueAcordeon
+                                    key={bloque.id}
+                                    id={bloque.id}
+                                    titulo={bloque.id}
+                                    textoColapsado={bloque.texto_colapsado}
+                                    prioridad={bloque.prioridad}
+                                    data={data}
+                                    isExpanded={expandedId === bloque.id}
+                                    onToggle={() => setExpandedId(expandedId === bloque.id ? null : bloque.id)}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="bg-white rounded-xl p-8 text-center border border-gray-200 shadow-sm">
+                            <p className="text-gray-700 mb-4">No hay información disponible</p>
+                            <button
+                                onClick={refresh}
+                                className="text-blue-600 hover:text-blue-700 font-medium"
+                            >
+                                Intentar de nuevo
+                            </button>
+                        </div>
+                    )}
+                </div>
 
                 {/* Footer con metadata */}
                 {snapshot?.metadata && (
