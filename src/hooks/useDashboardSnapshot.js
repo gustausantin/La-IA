@@ -23,6 +23,9 @@ export const useDashboardSnapshot = (businessId) => {
     try {
       logger.info('📊 Fetching dashboard snapshot for business:', businessId);
       
+      // ⏱️ Iniciar medición de tiempo
+      const startTime = performance.now();
+      
       // Llamada a la Edge Function get-snapshot
       const { data, error: functionError } = await supabase.functions.invoke('get-snapshot', {
         body: { 
@@ -30,6 +33,12 @@ export const useDashboardSnapshot = (businessId) => {
           timestamp: new Date().toISOString()
         }
       });
+      
+      // ⏱️ Finalizar medición de tiempo
+      const endTime = performance.now();
+      const totalTime = Math.round(endTime - startTime);
+      
+      logger.info(`⏱️ TIMING CLIENT: get-snapshot completado en ${totalTime}ms (${(totalTime/1000).toFixed(2)}s)`);
 
       if (functionError) {
         throw functionError;

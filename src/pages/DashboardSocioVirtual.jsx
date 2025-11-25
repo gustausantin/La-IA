@@ -3,10 +3,11 @@
 // Estructura CSS Grid limpia + Bocadillo desbordando desde columna izquierda
 // ====================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuthContext } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabase';
 
 // Hooks personalizados
 import { useDashboardSnapshot } from '../hooks/useDashboardSnapshot';
@@ -33,6 +34,10 @@ export default function DashboardSocioVirtual() {
     
     // Estado para la animación de "typing..."
     const [showTyping, setShowTyping] = useState(true);
+    
+    // 🔮 Estado para preview de mañana
+    const [previewManana, setPreviewManana] = useState(null);
+    const [loadingPreview, setLoadingPreview] = useState(false);
 
     // Obtener configuración del agente desde business.settings
     const agentConfig = React.useMemo(() => {
@@ -82,6 +87,47 @@ export default function DashboardSocioVirtual() {
             avatar_id: 'elena'
         };
     }, [business]);
+
+    // 🔮 Cargar preview de mañana DESPUÉS de que se cargue el snapshot de hoy
+    useEffect(() => {
+        const loadPreviewManana = async () => {
+            // Solo cargar si el snapshot de hoy ya está cargado
+            if (!snapshot || loading || !business?.id) return;
+            
+            setLoadingPreview(true);
+            
+            try {
+                // Calcular fecha de mañana
+                const manana = new Date();
+                manana.setDate(manana.getDate() + 1);
+                const targetDate = manana.toISOString();
+                
+                console.log('🔮 Cargando preview de mañana...');
+                
+                const { data, error } = await supabase.functions.invoke('get-snapshot-preview', {
+                    body: {
+                        business_id: business.id,
+                        target_date: targetDate
+                    }
+                });
+                
+                if (error) {
+                    console.error('❌ Error cargando preview:', error);
+                    return;
+                }
+                
+                console.log('✅ Preview de mañana cargado:', data);
+                setPreviewManana(data);
+                
+            } catch (error) {
+                console.error('❌ Error en loadPreviewManana:', error);
+            } finally {
+                setLoadingPreview(false);
+            }
+        };
+        
+        loadPreviewManana();
+    }, [snapshot, loading, business?.id]);
 
     const handleAction = async (action) => {
         console.log('🎬 Ejecutando acción:', action);
@@ -522,6 +568,74 @@ export default function DashboardSocioVirtual() {
                             >
                                 Intentar de nuevo
                             </button>
+                        </div>
+                    )}
+
+                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA */}
+                    {previewManana && (
+                        <motion.div
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.3, duration: 0.5 }}
+                            className="mt-8 bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg"
+                        >
+                            {/* Header */}
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center shadow-md">
+                                    <span className="text-2xl">🔮</span>
+                                </div>
+                                <div>
+                                    <h3 className="text-xl font-black text-purple-900">
+                                        Lo que te espera mañana
+                                    </h3>
+                                    <p className="text-sm text-purple-600 font-medium">
+                                        {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
+                                            weekday: 'long', 
+                                            day: 'numeric', 
+                                            month: 'long' 
+                                        })}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            {/* Mensaje de resumen */}
+                            <p className="text-gray-700 text-base mb-5 leading-relaxed font-medium">
+                                {previewManana.mensaje}
+                            </p>
+                            
+                            {/* 4 Puntos clave */}
+                            <div className="grid grid-cols-2 gap-3">
+                                {previewManana.puntos?.map((punto, idx) => (
+                                    <motion.div
+                                        key={idx}
+                                        initial={{ opacity: 0, scale: 0.9 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: 0.5 + (idx * 0.1), duration: 0.3 }}
+                                        className="flex items-start gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm hover:shadow-md transition-shadow border border-purple-100"
+                                    >
+                                        <span className="text-3xl flex-shrink-0">{punto.icono}</span>
+                                        <span className="text-sm text-gray-700 font-medium leading-snug flex-1">
+                                            {punto.texto}
+                                        </span>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </motion.div>
+                    )}
+
+                    {/* Loading preview */}
+                    {loadingPreview && !previewManana && (
+                        <div className="mt-8 bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-6 border-2 border-purple-200">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center animate-pulse">
+                                    🔮
+                                </div>
+                                <div>
+                                    <p className="text-purple-700 font-medium">
+                                        Analizando el día de mañana...
+                                    </p>
+                                </div>
+                            </div>
                         </div>
                     )}
                 </div>

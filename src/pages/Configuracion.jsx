@@ -857,6 +857,12 @@ const Configuracion = () => {
                     .eq("id", effectivebusinessId);
 
                 if (error) throw error;
+                
+                // ✅ Disparar evento para que el dashboard se actualice con el nuevo agente
+                window.dispatchEvent(new CustomEvent('agent-updated', {
+                    detail: { agent: agentData }
+                }));
+                console.log('✅ Evento agent-updated disparado');
             } else if (section === "Configuración de notificaciones") {
                 // Validaciones previas para notificaciones
                 const n = settings.notifications || {};

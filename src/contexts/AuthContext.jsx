@@ -375,13 +375,24 @@ const AuthProvider = ({ children }) => {
       }
     };
     
+    // ✅ Event listener para cuando se actualiza el agente
+    const handleAgentUpdate = async () => {
+      console.log('🔄 AuthContext: Agente actualizado, recargando negocio...');
+      if (user?.id) {
+        await fetchBusinessInfo(user.id, true);
+        console.log('✅ AuthContext: Negocio recargado con nuevo agente');
+      }
+    };
+    
     window.addEventListener('business-updated', handleBusinessUpdate);
     window.addEventListener('force-business-reload', handleForceBusinessReload);
+    window.addEventListener('agent-updated', handleAgentUpdate);
 
     return () => {
       subscription.unsubscribe();
       window.removeEventListener('business-updated', handleBusinessUpdate);
       window.removeEventListener('force-business-reload', handleForceBusinessReload);
+      window.removeEventListener('agent-updated', handleAgentUpdate);
     };
   }, []);
 
