@@ -117,3 +117,4 @@ Por si en el futuro cambias el puerto de Vite.
 **Requiere:** Acceso al Dashboard de Supabase
 
 
+

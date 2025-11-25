@@ -236,3 +236,4 @@ O contactar a soporte de Supabase con:
 **Nota:** Los errores de PWA (Service Worker deshabilitado) son normales en modo desarrollo y no afectan la funcionalidad.
 
 
+

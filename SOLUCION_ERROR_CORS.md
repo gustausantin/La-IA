@@ -175,3 +175,4 @@ Contacta conmigo y proporciona:
 **Nota:** Este error es común en desarrollo local y generalmente se soluciona con las variables de entorno correctas.
 
 
+

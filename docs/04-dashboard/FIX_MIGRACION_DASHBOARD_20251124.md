@@ -159,3 +159,4 @@ Después de ejecutar la migración:
 **Estado:** ✅ Migración corregida y lista para ejecutar
 
 
+

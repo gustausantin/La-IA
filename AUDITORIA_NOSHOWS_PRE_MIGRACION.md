@@ -351,3 +351,4 @@ Una vez aplicada, ejecutar **todos los tests** (Test 1-5) para verificar:
 **Riesgo:** 🟢 BAJO (solo corrige bugs, no cambia estructura)
 
 
+

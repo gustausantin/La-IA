@@ -607,3 +607,4 @@ clientes (especiales + sugerencias reactivación), comunicaciones (mensajes + ll
 no-shows (estadísticas mes), facturación (día/semana/mes + top servicios).';
 
 
+

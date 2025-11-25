@@ -121,3 +121,4 @@ wss://localhost:5173
 **La app está 100% funcional. Los WebSockets son una mejora opcional.**
 
 
+
