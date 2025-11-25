@@ -1,31 +1,25 @@
 // ====================================
-// DASHBOARD SOCIO VIRTUAL - Diseño "Lua Grande"
-// Basado en: image_4a2497.jpg (Avatar grande + 3 tarjetas derecha)
+// DASHBOARD SOCIO VIRTUAL v5.0 - "EL ESCRITORIO INTERACTIVO"
+// Avatar GIGANTE como fondo + Glassmorphism + Dossiers
 // ====================================
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../contexts/AuthContext';
-import { 
-  DollarSign, 
-  Calendar, 
-  AlertTriangle,
-  Users,
-  Phone,
-  Lock,
-  TrendingUp,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Send
-} from 'lucide-react';
 
 // Hooks personalizados
 import { useDashboardSnapshot } from '../hooks/useDashboardSnapshot';
 import { useActionExecutor } from '../hooks/useActionExecutor';
 
+// Componentes del dashboard
+import LuaAvatarLarge from '../components/dashboard/LuaAvatarLarge';
+import BloqueAcordeon from '../components/dashboard/BloqueAcordeon';
+
 // Configuración de avatares
 import { getAvatarById } from '../config/avatars';
+
+// Iconos para botones de acción rápida
+import { Calendar, DollarSign, AlertTriangle, Users, BarChart3 } from 'lucide-react';
 
 export default function DashboardSocioVirtual() {
     const { business, user } = useAuthContext();
@@ -34,13 +28,13 @@ export default function DashboardSocioVirtual() {
     const { snapshot, loading, refresh } = useDashboardSnapshot(business?.id);
     const { executeAction, executing } = useActionExecutor();
 
-    const [chatMessage, setChatMessage] = React.useState('');
+    // Estado para controlar qué acordeón está expandido
+    const [expandedId, setExpandedId] = useState(null);
 
     // Obtener configuración del agente desde business.settings
     const agentConfig = React.useMemo(() => {
-        // Si no hay business todavía, usar fallback
         if (!business) {
-            const defaultAvatar = getAvatarById('elena'); // Lua por defecto
+            const defaultAvatar = getAvatarById('elena');
             return {
                 name: defaultAvatar.name || 'Lua',
                 avatar_url: defaultAvatar.avatar_url,
@@ -48,11 +42,9 @@ export default function DashboardSocioVirtual() {
             };
         }
 
-        // Si hay settings y agent, usarlo
-        if (business.settings && business.settings.agent) {
+        if (business.settings?.agent) {
             const agent = business.settings.agent;
             
-            // Si hay avatar_url personalizado, usarlo directamente
             if (agent.avatar_url) {
                 return {
                     name: agent.name || 'Lua',
@@ -61,7 +53,6 @@ export default function DashboardSocioVirtual() {
                 };
             }
             
-            // Si solo hay avatar_id, buscar el avatar en la configuración
             if (agent.avatar_id) {
                 const avatar = getAvatarById(agent.avatar_id);
                 return {
@@ -71,7 +62,6 @@ export default function DashboardSocioVirtual() {
                 };
             }
             
-            // Si hay agent pero sin avatar_id, usar el nombre personalizado si existe
             if (agent.name) {
                 const defaultAvatar = getAvatarById('elena');
                 return {
@@ -82,7 +72,6 @@ export default function DashboardSocioVirtual() {
             }
         }
         
-        // Fallback final: Lua por defecto
         const defaultAvatar = getAvatarById('elena');
         return {
             name: defaultAvatar.name || 'Lua',
@@ -91,252 +80,231 @@ export default function DashboardSocioVirtual() {
         };
     }, [business]);
 
-    // Handler de acciones
     const handleAction = async (action) => {
-        if (action.payload?.route) {
+        console.log('🎬 Ejecutando acción:', action);
+        
+        // TIPO 1: Llamar por teléfono
+        if (action.tipo === 'call' && action.payload?.telefono) {
+            window.open(`tel:${action.payload.telefono}`, '_self');
+            return;
+        }
+        
+        // TIPO 2: Navegar a otra ruta
+        if (action.tipo === 'navigate' && action.payload?.route) {
             navigate(action.payload.route);
             return;
         }
+        
+        // TIPO 3: WhatsApp
+        if (action.tipo === 'whatsapp' && action.payload?.telefono) {
+            const mensaje = action.payload.mensaje || '';
+            window.open(`https://wa.me/${action.payload.telefono.replace(/\D/g, '')}?text=${encodeURIComponent(mensaje)}`, '_blank');
+            return;
+        }
+        
+        // TIPO 4: Ejecutar endpoint (transferir cita, etc.)
+        if (action.tipo === 'endpoint') {
+            const result = await executeAction(action);
+            if (result?.success) {
+                setTimeout(refresh, 2000);
+            }
+            return;
+        }
+        
+        // Fallback: usar el ejecutor genérico
         const result = await executeAction(action);
         if (result?.success) {
             setTimeout(refresh, 2000);
         }
     };
 
-    // Botones rápidos
-    const quickActions = [
-        { icon: Calendar, label: '¿Qué tengo hoy?', action: () => navigate('/reservas') },
-        { icon: DollarSign, label: '¿Cómo va la caja?', action: () => navigate('/reportes') },
-        { icon: Lock, label: 'Bloquear agenda', action: () => {} },
-        { icon: Phone, label: 'Última llamada', action: () => navigate('/comunicaciones') }
+    // Botones de acción rápida (los "5 sagrados")
+    const botonesAccionRapida = [
+        {
+            id: 'agenda-hoy',
+            label: '¿Qué tengo hoy?',
+            icon: Calendar,
+            onClick: () => navigate('/reservas')
+        },
+        {
+            id: 'caja',
+            label: '¿Cómo va la caja?',
+            icon: DollarSign,
+            onClick: () => navigate('/facturacion')
+        },
+        {
+            id: 'riesgos',
+            label: '¿Hay riesgos?',
+            icon: AlertTriangle,
+            onClick: () => navigate('/no-shows')
+        },
+        {
+            id: 'equipo',
+            label: '¿Quién falta?',
+            icon: Users,
+            onClick: () => navigate('/horario')
+        },
+        {
+            id: 'resumen',
+            label: 'Ver resumen',
+            icon: BarChart3,
+            onClick: () => window.location.reload()
+        }
     ];
 
-    const stats = snapshot?.data?.stats || {};
-    const teamSummary = snapshot?.data?.team_summary || '';
+    // Datos del snapshot
+    const mensaje = snapshot?.mensaje || "Analizando tu negocio...";
+    const accion = snapshot?.accion || null;
+    const mood = snapshot?.mood || "zen";
+    const bloques = snapshot?.bloques || [];
+    const data = snapshot?.data || {};
 
-    // Redirigir si no hay negocio
+    // Ordenar bloques por prioridad (1 = más urgente)
+    const bloquesOrdenados = [...bloques].sort((a, b) => a.prioridad - b.prioridad);
+
+    // Auto-expandir el primero al inicio
     React.useEffect(() => {
-        if (user && business === null && !loading) {
-            navigate('/onboarding', { replace: true });
+        if (bloquesOrdenados.length > 0 && expandedId === null) {
+            setExpandedId(bloquesOrdenados[0].id);
         }
-    }, [user, business, loading, navigate]);
+    }, [bloquesOrdenados, expandedId]);
 
-    if (loading && !snapshot) {
+    if (loading) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center">
+            <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
                 <div className="text-center">
-                    <div className="w-16 h-16 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                    <p className="text-gray-700 font-semibold">Cargando...</p>
+                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-white mb-4"></div>
+                    <p className="text-white text-lg font-medium">Analizando el estado de tu negocio...</p>
                 </div>
             </div>
         );
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-purple-50 p-4 md:p-8">
-            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="min-h-screen bg-slate-900">
+            {/* Header con título dinámico */}
+            <div className="bg-gradient-to-r from-slate-800 to-slate-900 border-b border-slate-700 px-6 py-4 shadow-2xl">
+                <div className="max-w-[1920px] mx-auto flex justify-between items-center">
+                    <div>
+                        <h1 className="text-2xl font-bold text-white">
+                            El Despacho de {agentConfig.name}
+                        </h1>
+                        <p className="text-sm text-slate-400">
+                            {business?.name} • {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </p>
+                    </div>
+                    <button
+                        onClick={refresh}
+                        className="text-sm text-slate-300 hover:text-white font-medium flex items-center gap-2 px-4 py-2 bg-slate-700 rounded-lg border border-slate-600 hover:border-slate-500 transition-all"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Actualizar
+                    </button>
+                </div>
+            </div>
+
+            {/* ESCRITORIO INTERACTIVO */}
+            <div className="h-screen flex overflow-hidden">
                 
-                {/* ============================================ */}
-                {/* ZONA IZQUIERDA: LUA (LA PROTAGONISTA) */}
-                {/* ============================================ */}
-                <div className="flex flex-col space-y-6">
+                {/* ZONA IZQUIERDA (40%): Avatar GIGANTE como fondo */}
+                <div className="w-full lg:w-[40%] relative">
+                    <LuaAvatarLarge
+                        avatarUrl={agentConfig.avatar_url}
+                        agentName={agentConfig.name}
+                        mensaje={mensaje}
+                        accion={accion}
+                        mood={mood}
+                        onActionClick={handleAction}
+                    />
+                </div>
+
+                {/* ZONA DERECHA (60%): Glassmorphism + Pila de Dossiers */}
+                <div className="w-full lg:w-[60%] relative bg-gradient-to-br from-slate-800/50 to-slate-900/50 backdrop-blur-xl overflow-y-auto">
                     
-                    {/* Avatar Grande + Estado */}
-                    <div className="bg-white rounded-3xl shadow-xl p-8 flex flex-col items-center relative overflow-hidden">
-                        {/* Decoración fondo */}
-                        <div className="absolute top-0 right-0 w-64 h-64 bg-gradient-to-br from-purple-200 to-blue-200 rounded-full blur-3xl opacity-30 -mr-32 -mt-32"></div>
+                    {/* Contenedor de Dossiers con efecto "tablet de cristal" */}
+                    <div className="p-6 space-y-4">
                         
-                        {/* Avatar */}
-                        <div className="relative z-10 mb-6">
-                            <div className="w-48 h-48 rounded-full bg-gradient-to-br from-purple-500 via-blue-500 to-indigo-600 p-2 shadow-2xl">
-                                <div className="w-full h-full rounded-full overflow-hidden bg-white flex items-center justify-center">
-                                    <img
-                                        src={agentConfig.avatar_url}
-                                        alt={agentConfig.name}
-                                        className="w-full h-full object-cover"
-                                        onError={(e) => {
-                                            // Fallback si la imagen no carga
-                                            e.target.style.display = 'none';
-                                            const fallbackLetter = (agentConfig.name || 'L')[0].toUpperCase();
-                                            e.target.parentElement.innerHTML = `<div class="w-full h-full bg-gradient-to-br from-purple-400 to-blue-500 flex items-center justify-center text-white text-6xl font-bold">${fallbackLetter}</div>`;
-                                        }}
+                        {/* Título de la sección */}
+                        <div className="bg-white/5 backdrop-blur-md rounded-xl p-4 border border-white/10">
+                            <h2 className="text-xl font-bold text-white mb-1">📋 Bandeja de Entrada</h2>
+                            <p className="text-sm text-slate-300">
+                                {bloquesOrdenados.length} informe(s) • Ordenados por prioridad
+                            </p>
+                        </div>
+
+                        {/* Pila de Dossiers (Acordeones) */}
+                        {bloquesOrdenados.length > 0 ? (
+                            <div className="space-y-3">
+                                {bloquesOrdenados.map((bloque) => (
+                                    <BloqueAcordeon
+                                        key={bloque.id}
+                                        id={bloque.id}
+                                        titulo={bloque.id}
+                                        textoColapsado={bloque.texto_colapsado}
+                                        prioridad={bloque.prioridad}
+                                        data={data}
+                                        isExpanded={expandedId === bloque.id}
+                                        onToggle={() => setExpandedId(expandedId === bloque.id ? null : bloque.id)}
                                     />
-                                </div>
+                                ))}
                             </div>
-                            {/* Badge "Activa" */}
-                            <div className="absolute bottom-2 right-2 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 shadow-lg">
-                                <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
-                                Activa
-                            </div>
-                        </div>
-
-                        {/* Nombre */}
-                        <h2 className="text-3xl font-bold text-gray-900 mb-2">{agentConfig.name}</h2>
-                        <p className="text-sm text-gray-500 mb-6">Tu socia virtual</p>
-
-                        {/* Bocadillo Inteligente */}
-                        <div className="w-full bg-gradient-to-br from-blue-50 to-purple-50 rounded-2xl p-6 border-2 border-blue-200 relative">
-                            {/* Pico del bocadillo */}
-                            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 w-6 h-6 bg-gradient-to-br from-blue-50 to-purple-50 border-l-2 border-t-2 border-blue-200 rotate-45"></div>
-                            
-                            <div className="flex items-start gap-3">
-                                <div className="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
-                                    <span className="text-xl">💬</span>
-                                </div>
-                                <div className="flex-1">
-                                    <p className="text-gray-800 leading-relaxed font-medium">
-                                        {snapshot?.lua_message || "¡Hola! Analizando tu negocio..."}
-                                    </p>
-                                </div>
-                            </div>
-
-                            {/* Botones Mágicos (si hay acciones) */}
-                            {snapshot?.actions && snapshot.actions.length > 0 && (
-                                <div className="flex flex-wrap gap-2 mt-4">
-                                    {snapshot.actions.map((action) => (
-                                        <button
-                                            key={action.id}
-                                            onClick={() => handleAction(action)}
-                                            disabled={executing}
-                                            className={`
-                                                flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold
-                                                transition-all shadow-md hover:shadow-lg active:scale-95
-                                                ${action.type === 'destructive' 
-                                                    ? 'bg-red-500 hover:bg-red-600 text-white' 
-                                                    : 'bg-white hover:bg-gray-50 text-gray-700 border-2 border-gray-200'
-                                                }
-                                            `}
-                                        >
-                                            {action.type === 'destructive' ? <XCircle size={16} /> : <Send size={16} />}
-                                            {action.label}
-                                        </button>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Sección: ¿Necesitas algo? */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4">¿Necesitas algo?</h3>
-                        
-                        {/* Botones Rápidos */}
-                        <div className="grid grid-cols-2 gap-3 mb-4">
-                            {quickActions.map((qa, idx) => (
+                        ) : (
+                            <div className="bg-white/5 backdrop-blur-md rounded-xl p-8 text-center border border-white/10">
+                                <p className="text-slate-400 mb-4">No hay información disponible</p>
                                 <button
-                                    key={idx}
-                                    onClick={qa.action}
-                                    className="flex items-center gap-2 px-4 py-3 bg-gradient-to-br from-purple-50 to-blue-50 hover:from-purple-100 hover:to-blue-100 rounded-xl border-2 border-purple-200 text-sm font-semibold text-gray-700 transition-all"
+                                    onClick={refresh}
+                                    className="text-blue-400 hover:text-blue-300 font-medium"
                                 >
-                                    <qa.icon size={18} className="text-purple-600" />
-                                    {qa.label}
+                                    Intentar de nuevo
                                 </button>
-                            ))}
+                            </div>
+                        )}
+
+                        {/* LÍNEA DIVISORIA - "Borde del Escritorio" */}
+                        <div className="my-8">
+                            <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
                         </div>
 
-                        {/* Input de chat */}
-                        <div className="flex gap-2">
-                            <input
-                                type="text"
-                                value={chatMessage}
-                                onChange={(e) => setChatMessage(e.target.value)}
-                                placeholder="Escribe tu pregunta..."
-                                className="flex-1 px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none"
-                            />
-                            <button className="px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all">
-                                Enviar
-                            </button>
+                        {/* BOTONES DE ACCIÓN RÁPIDA */}
+                        <div>
+                            <h3 className="text-center text-sm font-semibold text-slate-300 mb-4">
+                                Acciones Rápidas
+                            </h3>
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                                {botonesAccionRapida.map((boton) => {
+                                    const IconComponent = boton.icon;
+                                    return (
+                                        <button
+                                            key={boton.id}
+                                            onClick={boton.onClick}
+                                            className="flex flex-col items-center justify-center p-4 bg-white/5 backdrop-blur-md rounded-xl border border-white/10 hover:border-blue-400/50 hover:bg-white/10 transition-all duration-200 group"
+                                        >
+                                            <IconComponent className="w-8 h-8 text-slate-400 group-hover:text-blue-400 transition-colors mb-2" />
+                                            <span className="text-xs font-medium text-slate-300 text-center">
+                                                {boton.label}
+                                            </span>
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
+
+                        {/* Footer con metadata */}
+                        {snapshot?.metadata && (
+                            <div className="mt-8 text-center text-xs text-slate-500">
+                                <p>
+                                    Última actualización: {new Date(snapshot.metadata.timestamp).toLocaleTimeString('es-ES')} 
+                                    {' • '}
+                                    {snapshot.metadata.tokens_used} tokens 
+                                    {' • '}
+                                    ${snapshot.metadata.cost_usd.toFixed(6)} USD
+                                </p>
+                            </div>
+                        )}
                     </div>
-
                 </div>
-
-                {/* ============================================ */}
-                {/* ZONA DERECHA: EL NEGOCIO (3 TARJETAS) */}
-                {/* ============================================ */}
-                <div className="flex flex-col space-y-6">
-                    
-                    {/* Tarjeta 1: Así va tu negocio hoy (CON SEMÁFORO) */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <TrendingUp size={20} className="text-purple-600" />
-                            Así va tu negocio hoy
-                        </h3>
-                        <div className="grid grid-cols-3 gap-4">
-                            {/* Facturación */}
-                            <div className={`text-center p-4 rounded-xl ${stats.estimated_revenue > 100 ? 'bg-green-50' : 'bg-red-50'}`}>
-                                <DollarSign className={`w-6 h-6 mx-auto mb-2 ${stats.estimated_revenue > 100 ? 'text-green-600' : 'text-red-600'}`} />
-                                <div className={`text-2xl font-bold ${stats.estimated_revenue > 100 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {stats.estimated_revenue || 0}€
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">Facturado hoy</div>
-                            </div>
-
-                            {/* Huecos libres */}
-                            <div className="text-center p-4 rounded-xl bg-blue-50">
-                                <Calendar className="w-6 h-6 text-blue-600 mx-auto mb-2" />
-                                <div className="text-2xl font-bold text-blue-600">
-                                    {stats.today_appointments || 0}
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">Huecos libres</div>
-                            </div>
-
-                            {/* En riesgo */}
-                            <div className={`text-center p-4 rounded-xl ${stats.high_risk_no_shows > 0 ? 'bg-orange-50' : 'bg-gray-50'}`}>
-                                <AlertTriangle className={`w-6 h-6 mx-auto mb-2 ${stats.high_risk_no_shows > 0 ? 'text-orange-600' : 'text-gray-400'}`} />
-                                <div className={`text-2xl font-bold ${stats.high_risk_no_shows > 0 ? 'text-orange-600' : 'text-gray-400'}`}>
-                                    {stats.high_risk_no_shows || 0}
-                                </div>
-                                <div className="text-xs text-gray-600 mt-1">En riesgo</div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Tarjeta 2: Siguiente en entrar (PRÓXIMAS CITAS) */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <Clock size={20} className="text-purple-600" />
-                            Siguiente en entrar
-                        </h3>
-                        <div className="space-y-3">
-                            {/* Aquí irían las próximas citas */}
-                            <div className="flex items-center justify-between p-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl border border-purple-200">
-                                <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold">
-                                        10:00
-                                    </div>
-                                    <div>
-                                        <div className="font-semibold text-gray-900">Próxima cita</div>
-                                        <div className="text-sm text-gray-600">Hoy no hay citas programadas</div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Tarjeta 3: Tu equipo hoy (CON ALERTAS) */}
-                    <div className="bg-white rounded-3xl shadow-xl p-6">
-                        <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
-                            <Users size={20} className="text-purple-600" />
-                            Tu equipo hoy
-                        </h3>
-                        <div className="space-y-3">
-                            <div className="p-4 bg-gray-50 rounded-xl">
-                                <p className="text-sm text-gray-600">{teamSummary || "Cargando estado del equipo..."}</p>
-                            </div>
-                            
-                            {/* Botón para ver detalle */}
-                            <button
-                                onClick={() => navigate('/equipo')}
-                                className="w-full py-3 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl font-semibold hover:from-purple-700 hover:to-blue-700 transition-all"
-                            >
-                                Ver equipo completo
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
-
             </div>
         </div>
     );

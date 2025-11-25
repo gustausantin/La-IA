@@ -265,3 +265,4 @@ El problema puede estar en el proyecto de Supabase. Contacta a soporte de Supaba
 - ✅ Variables de entorno verificadas
 - ⏳ CORS: pendiente configuración en Supabase Dashboard
 
+

@@ -133,3 +133,4 @@ SELECT 'Migración 20251123_01_fix_cleanup_past_free_slots completada' AS status
 
 
 
+

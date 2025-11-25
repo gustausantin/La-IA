@@ -262,3 +262,4 @@ Si encuentras **cualquier error**, envíame:
 **Tiempo total estimado:** 5-10 minutos  
 **Riesgo:** 🟢 BAJO
 
+

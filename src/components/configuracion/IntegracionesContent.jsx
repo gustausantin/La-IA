@@ -21,7 +21,6 @@ import ResourceCalendarLinker from './ResourceCalendarLinker';
 import EmployeeCalendarLinker from './EmployeeCalendarLinker';
 import UnassignedAppointmentsReview from './UnassignedAppointmentsReview';
 import CalendarMappingTypeSelector from './CalendarMappingTypeSelector';
-import GoogleCalendarConflictModal from './GoogleCalendarConflictModal';
 
 export default function IntegracionesContent() {
     const { businessId, business } = useAuthContext();
@@ -110,22 +109,11 @@ export default function IntegracionesContent() {
                                 console.log('📅 Primera conexión detectada - Mostrando selector de calendarios');
                                 setShowCalendarSelector(true);
                             } else if (!hasImported && isActive) {
-                                console.log('📥 Calendario seleccionado - Verificando conflictos antes de importar...');
+                                console.log('📥 Calendario seleccionado - Listo para importar');
                                 
-                                // 🚨 DETECTAR CONFLICTOS antes de ofrecer importación
-                                const conflictResult = await detectConflicts();
-                                
-                                if (conflictResult.hasConflicts) {
-                                    console.log('⚠️ Conflictos detectados en primera conexión');
-                                    setConflicts(conflictResult.conflicts);
-                                    setConflictEvents(conflictResult.events);
-                                    toast.warning(`⚠️ Se encontraron ${conflictResult.conflicts.length} conflicto(s) con reservas existentes.`, {
-                                        duration: 6000
-                                    });
-                                } else {
-                                    console.log('✅ No hay conflictos - Mostrando modal de importación');
-                                    setShowImportModal(true);
-                                }
+                                // ✅ CAMBIO: Ya NO detenemos por solapamientos
+                                // Mostramos el modal de importación directamente
+                                setShowImportModal(true);
                             }
                         });
                 }, 800);
@@ -709,25 +697,17 @@ export default function IntegracionesContent() {
                 throw new Error('No hay sesión activa. Por favor, inicia sesión nuevamente.');
             }
 
-            console.log('✅ Usuario autenticado, detectando conflictos...');
+            console.log('✅ Usuario autenticado, iniciando sincronización...');
 
-            // 🚨 PASO 1: Detectar conflictos ANTES de sincronizar
+            // ✅ CAMBIO: Ya NO detenemos por solapamientos
+            // Los solapamientos son normales y se verán visualmente en el calendario
             const conflictResult = await detectConflicts();
-
-            toast.dismiss('test-sync');
-
-            // Si hay conflictos, mostrar modal
+            
             if (conflictResult.hasConflicts) {
-                console.log('⚠️ Conflictos detectados, mostrando modal...');
-                setConflicts(conflictResult.conflicts);
-                setConflictEvents(conflictResult.events);
-                toast.warning(`⚠️ Se encontraron ${conflictResult.conflicts.length} conflicto(s). Por favor, resuélvelos antes de sincronizar.`, {
-                    duration: 5000
-                });
-                return; // Detener aquí, el usuario debe resolver conflictos
+                console.log(`ℹ️ Se detectaron ${conflictResult.conflicts.length} solapamiento(s) - esto es normal`);
+                console.log('💡 Los solapamientos pueden ser: dobles turnos, eventos personales, trabajos simultáneos');
             }
 
-            // Si NO hay conflictos, proceder con sincronización normal
             toast.loading('Sincronizando con Google Calendar...', { id: 'test-sync' });
 
             const { data, error } = await supabase.functions.invoke('sync-google-calendar', {
@@ -923,127 +903,45 @@ export default function IntegracionesContent() {
                                 />
                             )}
 
-                            {/* ⚙️ Configuración de Prioridad de Conflictos */}
+                            {/* ✅ Tarjeta Informativa - Tu Agenda Conectada */}
                             {googleCalendarConfig.config?.calendar_selection_completed && (
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <h4 className="font-bold text-blue-900 mb-2 flex items-center gap-2">
-                                        ⚡ Resolución Automática de Conflictos
-                                    </h4>
-                                    <p className="text-sm text-blue-800 mb-3">
-                                        Elige qué hacer cuando hay conflictos entre Google Calendar y LA-IA:
-                                    </p>
-                                    <div className="space-y-2">
-                                        <label className="flex items-start gap-3 p-3 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
-                                            <input
-                                                type="radio"
-                                                name="conflict_priority"
-                                                value="ask"
-                                                checked={!googleCalendarConfig.config?.conflict_resolution_strategy || googleCalendarConfig.config?.conflict_resolution_strategy === 'ask'}
-                                                onChange={async (e) => {
-                                                    try {
-                                                        const { error } = await supabase
-                                                            .from('integrations')
-                                                            .update({
-                                                                config: {
-                                                                    ...googleCalendarConfig.config,
-                                                                    conflict_resolution_strategy: 'ask'
-                                                                }
-                                                            })
-                                                            .eq('id', googleCalendarConfig.id);
-                                                        
-                                                        if (error) throw error;
-                                                        toast.success('Configuración guardada');
-                                                        await loadIntegrationsConfig();
-                                                    } catch (error) {
-                                                        console.error('Error guardando configuración:', error);
-                                                        toast.error('Error al guardar');
-                                                    }
-                                                }}
-                                                className="mt-1"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="font-medium text-gray-900">Preguntarme siempre (Recomendado)</div>
-                                                <div className="text-xs text-gray-600">
-                                                    Mostraré un modal para que decidas qué hacer en cada conflicto
-                                                </div>
+                                <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mt-6">
+                                    <h3 className="flex items-center gap-2 text-blue-900 font-bold text-lg mb-3">
+                                        <RefreshCw className="w-5 h-5" />
+                                        Tu Agenda, Siempre Conectada
+                                    </h3>
+                                    
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-blue-800">
+                                        {/* Columna 1: LA-IA -> Google */}
+                                        <div className="flex gap-3">
+                                            <div className="bg-white p-2 rounded-full h-8 w-8 flex items-center justify-center shadow-sm text-lg flex-shrink-0">
+                                                🤖
                                             </div>
-                                        </label>
-
-                                        <label className="flex items-start gap-3 p-3 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
-                                            <input
-                                                type="radio"
-                                                name="conflict_priority"
-                                                value="laia"
-                                                checked={googleCalendarConfig.config?.conflict_resolution_strategy === 'laia'}
-                                                onChange={async (e) => {
-                                                    try {
-                                                        const { error } = await supabase
-                                                            .from('integrations')
-                                                            .update({
-                                                                config: {
-                                                                    ...googleCalendarConfig.config,
-                                                                    conflict_resolution_strategy: 'laia'
-                                                                }
-                                                            })
-                                                            .eq('id', googleCalendarConfig.id);
-                                                        
-                                                        if (error) throw error;
-                                                        toast.success('LA-IA será la fuente de verdad');
-                                                        await loadIntegrationsConfig();
-                                                    } catch (error) {
-                                                        console.error('Error guardando configuración:', error);
-                                                        toast.error('Error al guardar');
-                                                    }
-                                                }}
-                                                className="mt-1"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="font-medium text-gray-900">LA-IA es la fuente de verdad</div>
-                                                <div className="text-xs text-gray-600">
-                                                    Las reservas de LA-IA tienen prioridad, eventos conflictivos de GCal se omitirán
-                                                </div>
+                                            <div>
+                                                <p className="font-bold">Lo que pasa en LA-IA...</p>
+                                                <p className="opacity-90 mt-1">Aparece en tu Google Calendar automáticamente para que lo veas en tu móvil.</p>
                                             </div>
-                                        </label>
-
-                                        <label className="flex items-start gap-3 p-3 bg-white border border-blue-200 rounded-lg cursor-pointer hover:bg-blue-50 transition-colors">
-                                            <input
-                                                type="radio"
-                                                name="conflict_priority"
-                                                value="gcal"
-                                                checked={googleCalendarConfig.config?.conflict_resolution_strategy === 'gcal'}
-                                                onChange={async (e) => {
-                                                    if (!confirm('⚠️ Esto cancelará automáticamente las reservas de LA-IA que conflicten con Google Calendar. ¿Estás seguro?')) {
-                                                        e.preventDefault();
-                                                        return;
-                                                    }
-                                                    try {
-                                                        const { error } = await supabase
-                                                            .from('integrations')
-                                                            .update({
-                                                                config: {
-                                                                    ...googleCalendarConfig.config,
-                                                                    conflict_resolution_strategy: 'gcal'
-                                                                }
-                                                            })
-                                                            .eq('id', googleCalendarConfig.id);
-                                                        
-                                                        if (error) throw error;
-                                                        toast.success('Google Calendar será la fuente de verdad');
-                                                        await loadIntegrationsConfig();
-                                                    } catch (error) {
-                                                        console.error('Error guardando configuración:', error);
-                                                        toast.error('Error al guardar');
-                                                    }
-                                                }}
-                                                className="mt-1"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="font-medium text-gray-900">Google Calendar es la fuente de verdad</div>
-                                                <div className="text-xs text-red-600 font-medium">
-                                                    ⚠️ Las reservas de LA-IA se cancelarán automáticamente si hay conflictos
-                                                </div>
+                                        </div>
+                                        
+                                        {/* Columna 2: Google -> LA-IA */}
+                                        <div className="flex gap-3">
+                                            <div className="bg-white p-2 rounded-full h-8 w-8 flex items-center justify-center shadow-sm text-lg flex-shrink-0">
+                                                📅
                                             </div>
-                                        </label>
+                                            <div>
+                                                <p className="font-bold">Lo que anotas en Google...</p>
+                                                <p className="opacity-90 mt-1">Ocupa el hueco en LA-IA para que nadie te reserve a esa hora. Respetamos tus asuntos personales.</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="mt-4 p-3 bg-blue-100 rounded-lg">
+                                        <p className="text-xs text-blue-900 flex items-start gap-2">
+                                            <span className="text-base">💡</span>
+                                            <span className="flex-1">
+                                                ¿Ves dos citas a la misma hora? No te preocupes. Si algo se "monta" encima de otra cosa, simplemente revisa tu calendario y borra la que sobre. Tú tienes el control.
+                                            </span>
+                                        </p>
                                     </div>
                                 </div>
                             )}
@@ -1238,45 +1136,9 @@ export default function IntegracionesContent() {
                 />
             )}
 
-            {/* ✅ Modal de Conflictos - Mostrar cuando hay conflictos entre Google Calendar y appointments existentes */}
-            {conflicts && conflicts.length > 0 && (
-                <GoogleCalendarConflictModal
-                    conflicts={conflicts}
-                    businessId={businessId}
-                    events={conflictEvents}
-                    onResolve={async (result) => {
-                        console.log('✅ Conflictos resueltos:', result);
-                        setConflicts(null);
-                        setConflictEvents([]);
-                        
-                        // Recargar configuración y mostrar resumen
-                        await loadIntegrationsConfig();
-                        
-                        // Toast de resumen según estrategia
-                        if (result.strategy === 'gcal') {
-                            toast.success(`✅ ${result.imported} eventos importados desde Google Calendar. ${result.cancelled} appointment(s) cancelado(s).`, {
-                                duration: 6000
-                            });
-                        } else if (result.strategy === 'laia') {
-                            toast.success(`✅ ${result.imported} eventos importados. Appointments de LA-IA mantenidos (${result.skipped} eventos omitidos).`, {
-                                duration: 6000
-                            });
-                        } else if (result.strategy === 'skip') {
-                            toast.success(`✅ ${result.imported} eventos sin conflictos importados. ${result.skipped} eventos omitidos.`, {
-                                duration: 6000
-                            });
-                        }
-                    }}
-                    onCancel={() => {
-                        console.log('❌ Usuario canceló resolución de conflictos');
-                        setConflicts(null);
-                        setConflictEvents([]);
-                        toast.info('Sincronización cancelada. Puedes resolverlos más tarde.', {
-                            duration: 4000
-                        });
-                    }}
-                />
-            )}
+            {/* ✅ Modal de Conflictos ELIMINADO - Ya no detenemos la importación por solapamientos */}
+            {/* Los solapamientos son normales (doble turno, eventos personales, etc.) */}
+            {/* Se mostrarán visualmente en el calendario y el usuario decide si ajustarlos */}
 
             {/* ✅ Modal de Confirmación de Desconexión Mejorado */}
             {showDisconnectModal && disconnectStats && (

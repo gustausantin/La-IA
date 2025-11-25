@@ -29,10 +29,10 @@ CREATE FUNCTION detect_employee_absences_with_appointments(
 )
 RETURNS TABLE (
   employee_id UUID,
-  employee_name TEXT,
+  employee_name VARCHAR,
   employee_avatar_url TEXT,
-  absence_type TEXT,
-  absence_reason TEXT,
+  absence_type VARCHAR,
+  absence_reason VARCHAR,
   affected_count INTEGER,
   affected_appointments JSONB,
   alternative_employees JSONB
@@ -46,8 +46,8 @@ BEGIN
       e.id,
       e.name,
       e.avatar_url,
-      ea.absence_type,
-      ea.reason
+      ea.reason AS absence_type,
+      COALESCE(ea.reason_label, ea.reason) AS absence_reason
     FROM employees e
     JOIN employee_absences ea ON ea.employee_id = e.id
     WHERE e.business_id = p_business_id
@@ -63,7 +63,7 @@ BEGIN
       ae.name AS emp_name,
       ae.avatar_url AS emp_avatar,
       ae.absence_type,
-      ae.reason,
+      ae.absence_reason,
       COUNT(a.id)::INTEGER AS total_affected,
       jsonb_agg(
         jsonb_build_object(
@@ -86,7 +86,7 @@ BEGIN
       AND a.appointment_time >= p_timestamp::TIME
       -- Cita no cancelada ni completada
       AND a.status NOT IN ('cancelled', 'completed', 'no_show')
-    GROUP BY ae.id, ae.name, ae.avatar_url, ae.absence_type, ae.reason
+    GROUP BY ae.id, ae.name, ae.avatar_url, ae.absence_type, ae.absence_reason
   ),
   -- Empleados alternativos disponibles
   alternatives AS (
@@ -118,7 +118,7 @@ BEGIN
     aa.emp_name,
     aa.emp_avatar,
     aa.absence_type,
-    aa.reason,
+    aa.absence_reason,
     aa.total_affected,
     aa.appointments_json,
     COALESCE(alt.alternative_emps, '[]'::jsonb)
@@ -158,13 +158,13 @@ CREATE FUNCTION get_high_risk_appointments(
 RETURNS TABLE (
   appointment_id UUID,
   customer_id UUID,
-  customer_name TEXT,
-  customer_phone TEXT,
-  customer_email TEXT,
+  customer_name VARCHAR,
+  customer_phone VARCHAR,
+  customer_email VARCHAR,
   appointment_date DATE,
   appointment_time TIME,
-  service_name TEXT,
-  employee_name TEXT,
+  service_name VARCHAR,
+  employee_name VARCHAR,
   risk_score INTEGER,
   risk_level TEXT,
   no_show_count INTEGER,
@@ -175,58 +175,91 @@ RETURNS TABLE (
 ) AS $$
 BEGIN
   RETURN QUERY
+  WITH risk_calculations AS (
+    SELECT 
+      a.id AS appointment_id,
+      a.customer_id,
+      a.customer_name,
+      a.customer_phone,
+      a.customer_email,
+      a.appointment_date,
+      a.appointment_time,
+      COALESCE(bs.name, 'Servicio') AS service_name,
+      COALESCE(e.name, 'Sin asignar') AS employee_name,
+      COALESCE(c.no_show_count, 0) AS no_show_count,
+      COALESCE(
+        EXTRACT(DAY FROM (p_timestamp::DATE - c.last_visit_at))::INTEGER,
+        999
+      ) AS days_since_last_visit,
+      EXTRACT(EPOCH FROM (
+        (a.appointment_date + a.appointment_time) - p_timestamp
+      )) / 3600 AS hours_until,
+      -- Calcular risk_score manualmente (simplificado)
+      LEAST(100, GREATEST(0, 
+        -- Factor 1: Historial de no-shows (0-40 pts)
+        (COALESCE(c.no_show_count, 0) * 20) +
+        -- Factor 2: Inactividad (0-25 pts)
+        CASE 
+          WHEN COALESCE(EXTRACT(DAY FROM (p_timestamp::DATE - c.last_visit_at)), 999) > 180 THEN 25
+          WHEN COALESCE(EXTRACT(DAY FROM (p_timestamp::DATE - c.last_visit_at)), 999) > 90 THEN 15
+          WHEN COALESCE(EXTRACT(DAY FROM (p_timestamp::DATE - c.last_visit_at)), 999) > 45 THEN 10
+          ELSE 0
+        END +
+        -- Factor 3: Urgencia temporal (0-50 pts)
+        CASE 
+          WHEN EXTRACT(EPOCH FROM ((a.appointment_date + a.appointment_time) - p_timestamp)) / 3600 < 2 THEN 50
+          WHEN EXTRACT(EPOCH FROM ((a.appointment_date + a.appointment_time) - p_timestamp)) / 3600 < 4 THEN 30
+          WHEN EXTRACT(EPOCH FROM ((a.appointment_date + a.appointment_time) - p_timestamp)) / 3600 < 12 THEN 15
+          ELSE 0
+        END
+      ))::INTEGER AS risk_score
+    FROM appointments a
+    LEFT JOIN customers c ON c.id = a.customer_id
+    LEFT JOIN business_services bs ON bs.id = a.service_id
+    LEFT JOIN employees e ON e.id = a.employee_id
+    WHERE a.business_id = p_business_id
+      AND (a.appointment_date > p_timestamp::DATE 
+        OR (a.appointment_date = p_timestamp::DATE 
+            AND a.appointment_time > p_timestamp::TIME))
+      AND a.status NOT IN ('cancelled', 'completed', 'no_show')
+  )
   SELECT 
-    a.id,
-    a.customer_id,
-    a.customer_name,
-    a.customer_phone,
-    a.customer_email,
-    a.appointment_date,
-    a.appointment_time,
-    COALESCE(bs.name, 'Servicio') AS service_name,
-    COALESCE(e.name, 'Sin asignar') AS employee_name,
-    drs.risk_score,
-    drs.risk_level,
-    COALESCE(c.no_show_count, 0) AS no_show_count,
-    COALESCE(
-      EXTRACT(DAY FROM (p_timestamp::DATE - c.last_visit_date))::INTEGER,
-      999
-    ) AS days_since_last_visit,
+    rc.appointment_id,
+    rc.customer_id,
+    rc.customer_name,
+    rc.customer_phone,
+    rc.customer_email,
+    rc.appointment_date,
+    rc.appointment_time,
+    rc.service_name,
+    rc.employee_name,
+    rc.risk_score,
+    CASE 
+      WHEN rc.risk_score >= 70 THEN 'high'
+      WHEN rc.risk_score >= 40 THEN 'medium'
+      ELSE 'low'
+    END AS risk_level,
+    rc.no_show_count,
+    rc.days_since_last_visit,
     (
-      SELECT sent_at 
-      FROM customer_confirmations 
-      WHERE appointment_id = a.id 
-      ORDER BY sent_at DESC 
+      SELECT cc.sent_at 
+      FROM customer_confirmations cc
+      WHERE cc.appointment_id = rc.appointment_id 
+      ORDER BY cc.sent_at DESC 
       LIMIT 1
     ) AS last_confirmation_sent_at,
-    (
-      SELECT confirmed 
-      FROM customer_confirmations 
-      WHERE appointment_id = a.id 
-        AND confirmed = TRUE 
-      ORDER BY sent_at DESC 
+    COALESCE((
+      SELECT cc2.confirmed 
+      FROM customer_confirmations cc2
+      WHERE cc2.appointment_id = rc.appointment_id 
+        AND cc2.confirmed = TRUE 
+      ORDER BY cc2.sent_at DESC 
       LIMIT 1
-    ) AS confirmed,
-    EXTRACT(EPOCH FROM (
-      (a.appointment_date + a.appointment_time) - p_timestamp
-    )) / 3600 AS hours_until_appointment
-  FROM appointments a
-  CROSS JOIN LATERAL calculate_dynamic_risk_score(a.id) drs
-  LEFT JOIN customers c ON c.id = a.customer_id
-  LEFT JOIN business_services bs ON bs.id = a.service_id
-  LEFT JOIN employees e ON e.id = a.employee_id
-  WHERE a.business_id = p_business_id
-    -- Cita es para hoy o futura
-    AND (a.appointment_date > p_timestamp::DATE 
-      OR (a.appointment_date = p_timestamp::DATE 
-          AND a.appointment_time > p_timestamp::TIME))
-    -- Riesgo alto
-    AND drs.risk_score >= p_risk_threshold
-    -- No cancelada ni completada
-    AND a.status NOT IN ('cancelled', 'completed', 'no_show')
-  ORDER BY 
-    drs.risk_score DESC, 
-    hours_until_appointment ASC
+    ), false) AS confirmed,
+    rc.hours_until
+  FROM risk_calculations rc
+  WHERE rc.risk_score >= p_risk_threshold
+  ORDER BY rc.risk_score DESC, rc.hours_until ASC
   LIMIT 10;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
@@ -264,9 +297,9 @@ RETURNS TABLE (
   start_time TIME,
   end_time TIME,
   employee_id UUID,
-  employee_name TEXT,
+  employee_name VARCHAR,
   resource_id UUID,
-  resource_name TEXT,
+  resource_name VARCHAR,
   minutes_until_slot INTEGER,
   potential_services JSONB
 ) AS $$
@@ -291,7 +324,7 @@ BEGIN
           'id', bs.id,
           'name', bs.name,
           'duration_minutes', bs.duration_minutes,
-          'price', bs.price
+          'price', bs.suggested_price
         )
       )
       FROM business_services bs

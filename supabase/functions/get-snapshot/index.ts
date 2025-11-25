@@ -1,6 +1,6 @@
 // ============================================
-// Edge Function: get-snapshot
-// Propósito: Analizar estado del negocio y devolver escenario crítico actual
+// Edge Function: get-snapshot (v3.0 - Orden Dinámico Completo)
+// Propósito: OpenAI analiza y ORDENA los 6 bloques de información dinámicamente
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -12,6 +12,38 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ============================================
+// CACHÉ EN MEMORIA (60 segundos)
+// ============================================
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 60000; // 60 segundos
+
+function getCacheKey(businessId: string): string {
+  const minute = Math.floor(Date.now() / CACHE_TTL);
+  return `${businessId}:${minute}`;
+}
+
+function getFromCache(businessId: string): any | null {
+  const key = getCacheKey(businessId);
+  const cached = cache.get(key);
+  
+  if (cached && (Date.now() - cached.timestamp) < CACHE_TTL) {
+    console.log(`✅ Usando caché (edad: ${Date.now() - cached.timestamp}ms)`);
+    return cached.data;
+  }
+  
+  return null;
+}
+
+function saveToCache(businessId: string, data: any): void {
+  const key = getCacheKey(businessId);
+  cache.set(key, {
+    data,
+    timestamp: Date.now()
+  });
+  console.log(`💾 Guardado en caché (key: ${key})`);
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -19,7 +51,14 @@ serve(async (req) => {
   }
 
   try {
-    // 1. Crear cliente Supabase
+    // 1. Obtener API Key de OpenAI
+    const OPENAI_API_KEY = Deno.env.get("OPENAI_API_KEY");
+    
+    if (!OPENAI_API_KEY) {
+      throw new Error("⚠️ OPENAI_API_KEY no está configurada en Supabase Secrets");
+    }
+
+    // 2. Crear cliente Supabase
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
@@ -30,7 +69,7 @@ serve(async (req) => {
       }
     );
 
-    // 2. Obtener parámetros
+    // 3. Obtener parámetros
     const { business_id, timestamp } = await req.json();
     
     if (!business_id) {
@@ -41,7 +80,21 @@ serve(async (req) => {
 
     console.log(`📊 Analizando snapshot para business ${business_id} en ${currentTimestamp}`);
 
-    // 3. Obtener datos del negocio
+    // 4. Verificar caché primero
+    const cachedResponse = getFromCache(business_id);
+    if (cachedResponse) {
+      console.log(`⚡ Devolviendo respuesta desde caché`);
+      return new Response(
+        JSON.stringify(cachedResponse),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log(`🔄 Caché no disponible, procesando nueva solicitud...`);
+
+    // 5. Obtener datos del negocio y configuración del agente
     const { data: business, error: businessError } = await supabaseClient
       .from("businesses")
       .select("name, settings, vertical_type")
@@ -52,71 +105,121 @@ serve(async (req) => {
       throw new Error("Negocio no encontrado");
     }
 
-    // ============================================
-    // PRIORIDAD 1: CRISIS DE PERSONAL
-    // ============================================
-    console.log("🔍 Verificando crisis de personal...");
-    
-    const { data: employeeConflicts, error: conflictError } = await supabaseClient
-      .rpc("detect_employee_absences_with_appointments", {
+    // Extraer configuración del agente
+    const agentConfig = business.settings?.agent || {};
+    const agentName = agentConfig.name || "Asistente";
+    const agentBio = agentConfig.bio || "Asistente virtual profesional";
+    const ownerName = business.settings?.contact_name || "Jefe";
+    const businessName = business.name || "el negocio";
+    const businessType = business.vertical_type || "servicios";
+
+    console.log(`🤖 Agente: ${agentName} | Dueño: ${ownerName} | Negocio: ${businessName}`);
+
+    // 5. Obtener snapshot unificado de la BD
+    const sqlStart = Date.now();
+    const { data: snapshot, error: snapshotError } = await supabaseClient
+      .rpc("get_unified_dashboard_snapshot", {
         p_business_id: business_id,
         p_timestamp: currentTimestamp,
       });
+    const sqlDuration = Date.now() - sqlStart;
 
-    if (!conflictError && employeeConflicts && employeeConflicts.length > 0) {
-      console.log(`🚨 CRISIS DETECTADA: ${employeeConflicts.length} empleado(s) ausente(s) con citas`);
-      return buildCrisisPersonalScenario(employeeConflicts[0], business, corsHeaders);
+    if (snapshotError) {
+      console.error("❌ Error al obtener snapshot:", snapshotError);
+      throw new Error(`Error al obtener snapshot: ${snapshotError.message}`);
     }
 
-    // ============================================
-    // PRIORIDAD 2: RIESGO DE NO-SHOW
-    // ============================================
-    console.log("🔍 Verificando riesgo de no-show...");
-    
-    const { data: highRiskAppts, error: riskError } = await supabaseClient
-      .rpc("get_high_risk_appointments", {
-        p_business_id: business_id,
-        p_timestamp: currentTimestamp,
-        p_risk_threshold: 60,
-      });
+    console.log(`✅ Snapshot obtenido en ${sqlDuration}ms:`, JSON.stringify(snapshot).substring(0, 200) + "...");
 
-    if (!riskError && highRiskAppts && highRiskAppts.length > 0) {
-      console.log(`⚠️ RIESGO DETECTADO: ${highRiskAppts.length} cita(s) con alto riesgo`);
-      return buildRiesgoNoShowScenario(highRiskAppts[0], business, corsHeaders);
+    // 6. Construir prompts para OpenAI
+    const systemPrompt = buildSystemPrompt(agentName, businessName, businessType, agentBio, ownerName);
+    const userPrompt = buildUserPrompt(agentName, ownerName, snapshot);
+
+    console.log("🧠 Enviando a OpenAI...");
+
+    // 7. Llamar a OpenAI
+    const openaiStart = Date.now();
+    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt,
+          },
+          {
+            role: "user",
+            content: userPrompt,
+          },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.4, // Balance entre consistencia y variedad
+        max_tokens: 600, // Aumentado para el orden dinámico
+      }),
+    });
+
+    if (!openaiResponse.ok) {
+      const errorData = await openaiResponse.json();
+      throw new Error(`OpenAI API error: ${errorData.error?.message || "Unknown error"}`);
     }
 
-    // ============================================
-    // PRIORIDAD 3: HUECO MUERTO
-    // ============================================
-    console.log("🔍 Verificando huecos libres...");
-    
-    const { data: freeSlots, error: slotsError } = await supabaseClient
-      .rpc("get_upcoming_free_slots", {
-        p_business_id: business_id,
-        p_timestamp: currentTimestamp,
-        p_hours_ahead: 2,
-      });
+    const openaiData = await openaiResponse.json();
+    const openaiDuration = Date.now() - openaiStart;
+    const aiDecision = JSON.parse(openaiData.choices[0].message.content);
 
-    if (!slotsError && freeSlots && freeSlots.length > 0) {
-      console.log(`💰 OPORTUNIDAD: ${freeSlots.length} hueco(s) libre(s) próximos`);
-      return buildHuecoMuertoScenario(freeSlots[0], business, corsHeaders);
-    }
+    console.log(`✅ OpenAI respondió en ${openaiDuration}ms`);
+    console.log("✅ Decisión de IA:", JSON.stringify(aiDecision));
 
-    // ============================================
-    // PRIORIDAD 4: PALMADA EN LA ESPALDA
-    // ============================================
-    console.log("👏 Todo bien, generando palmada en la espalda...");
-    return buildPalmadaEspaldaScenario(business_id, currentTimestamp, business, supabaseClient, corsHeaders);
+    // 8. Calcular costo
+    const totalTokens = openaiData.usage.total_tokens;
+    const inputTokens = openaiData.usage.prompt_tokens;
+    const outputTokens = openaiData.usage.completion_tokens;
+    const costUSD = (inputTokens / 1000000) * 0.15 + (outputTokens / 1000000) * 0.60;
+
+    console.log(`📊 Tokens: ${totalTokens} (in: ${inputTokens}, out: ${outputTokens})`);
+    console.log(`💰 Costo: $${costUSD.toFixed(6)} USD`);
+    console.log(`⏱️ TIMING: SQL=${sqlDuration}ms | OpenAI=${openaiDuration}ms | TOTAL=${sqlDuration + openaiDuration}ms`);
+
+    // 9. Preparar respuesta
+    const response = {
+      ...aiDecision,
+      data: snapshot, // Datos originales para el frontend
+      metadata: {
+        agent_name: agentName,
+        business_name: businessName,
+        timestamp: currentTimestamp,
+        tokens_used: totalTokens,
+        cost_usd: parseFloat(costUSD.toFixed(6)),
+        cached: false,
+      },
+    };
+
+    // 10. Guardar en caché
+    saveToCache(business_id, response);
+
+    // 11. Devolver respuesta
+    return new Response(
+      JSON.stringify(response),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
 
   } catch (error) {
     console.error("❌ Error en get-snapshot:", error);
     return new Response(
       JSON.stringify({ 
         error: error.message,
-        scenario: "ERROR",
-        priority: "LOW",
-        lua_message: "Hubo un error al analizar el estado. Intenta refrescar.",
-        actions: []
+        prioridad: "ERROR",
+        mood: "alert",
+        mensaje: "Hubo un error al analizar el estado. Intenta refrescar.",
+        accion: null,
+        bloques: [],
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -127,281 +230,157 @@ serve(async (req) => {
 });
 
 // ============================================
-// ESCENARIO 1: CRISIS DE PERSONAL
+// FUNCIÓN: Construir System Prompt
 // ============================================
-function buildCrisisPersonalScenario(conflict: any, business: any, corsHeaders: any) {
-  const affectedAppts = conflict.affected_appointments || [];
-  const alternatives = conflict.alternative_employees || [];
-  
-  const message = `🚨 Alerta Roja: ${conflict.employee_name} no viene hoy y tiene ${conflict.affected_count} cita(s) asignada(s).${
-    alternatives.length > 0 
-      ? ` ${alternatives[0].name} está libre en esos horarios.`
-      : " No hay empleados alternativos disponibles."
-  }`;
+function buildSystemPrompt(
+  agentName: string,
+  businessName: string,
+  businessType: string,
+  agentBio: string,
+  ownerName: string
+): string {
+  return `Eres ${agentName}, el asistente virtual de ${businessName} (${businessType}).
 
-  const actions = [];
+Tu personalidad: ${agentBio}
 
-  // Acción 1: Transferir citas (si hay alternativas)
-  if (alternatives.length > 0) {
-    actions.push({
-      id: "transfer_appointments",
-      label: `🔀 Mover citas a ${alternatives[0].name} y avisar`,
-      endpoint: "/functions/v1/transfer-appointments",
-      type: "destructive",
-      payload: {
-        business_id: business.id,
-        from_employee_id: conflict.employee_id,
-        from_employee_name: conflict.employee_name,
-        to_employee_id: alternatives[0].id,
-        to_employee_name: alternatives[0].name,
-        to_resource_id: alternatives[0].assigned_resource_id,
-        appointment_ids: affectedAppts.map((a: any) => a.id),
-        notify_customers: true,
-      },
-    });
-  }
+TU MISIÓN:
+1. Analizar el snapshot del negocio (6 bloques de información)
+2. Decidir QUÉ es lo MÁS IMPORTANTE en este momento
+3. ORDENAR los 6 bloques de información de MÁS a MENOS urgente
+4. Generar un mensaje principal para ${ownerName}
+5. Proponer una acción ejecutable (si aplica)
 
-  // Acción 2: Cancelar citas
-  actions.push({
-    id: "cancel_appointments_batch",
-    label: "🚫 Cancelar y pedir reagendar",
-    endpoint: "/functions/v1/cancel-appointments-batch",
-    type: "destructive",
-    payload: {
-      business_id: business.id,
-      appointment_ids: affectedAppts.map((a: any) => a.id),
-      cancellation_reason: `${conflict.employee_name} no está disponible`,
-      send_reschedule_message: true,
-    },
-  });
+REGLAS ABSOLUTAS:
+1. Solo hablas de datos que existen en el snapshot JSON
+2. NO inventes datos, ofertas, descuentos o campañas
+3. NO propongas acciones fuera del catálogo permitido
+4. Varía tu lenguaje (no uses siempre las mismas palabras)
+5. Mensaje principal: máximo 60 palabras (2-3 frases)
+6. Texto colapsado de cada bloque: máximo 20 palabras (1 frase)
 
-  return new Response(
-    JSON.stringify({
-      scenario: "CRISIS_PERSONAL",
-      priority: "CRITICAL",
-      lua_message: message,
-      data: {
-        employee: {
-          id: conflict.employee_id,
-          name: conflict.employee_name,
-          avatar_url: conflict.employee_avatar_url,
-          absence_type: conflict.absence_type,
-          absence_reason: conflict.absence_reason,
-        },
-        affected_appointments: affectedAppts,
-        alternatives: alternatives,
-      },
-      actions: actions,
-    }),
+LOS 6 BLOQUES DE INFORMACIÓN:
+1. RESERVAS - Agenda, próximas citas, conflictos, huecos libres
+2. EQUIPO - Estado del equipo, ausencias, disponibilidad
+3. FACTURACION - Ingresos hoy, semana, mes, comparativas
+4. COMUNICACIONES - Mensajes, llamadas, incidencias urgentes
+5. NOSHOWS - Citas en riesgo de no-show
+6. CLIENTES - VIPs, nuevos, en riesgo, sugerencias de reactivación
+
+JERARQUÍA DE PRIORIDAD (De mayor a menor):
+
+NIVEL 1 - CRISIS:
+- horarios.ausentes_hoy.length > 0 Y citas_afectadas > 0
+- reservas.conflictos > 0
+→ Prioridad: "CRISIS", Mood: "alert", Bloque principal: EQUIPO
+
+NIVEL 2 - RIESGO:
+- noshows.en_riesgo_hoy con horas_hasta < 2
+- comunicaciones.incidencias_urgentes.length > 0
+→ Prioridad: "RIESGO", Mood: "serious", Bloque principal: NOSHOWS o COMUNICACIONES
+
+NIVEL 3 - OPORTUNIDAD:
+- clientes.especiales_hoy con segmento='vip' Y minutos_hasta < 240
+- clientes.especiales_hoy con segmento='nuevo' Y minutos_hasta < 240
+→ Prioridad: "OPORTUNIDAD", Mood: "happy", Bloque principal: CLIENTES
+
+NIVEL 4 - INFORMATIVO:
+- Día normal, sin alertas críticas
+→ Prioridad: "INFORMATIVO", Mood: "zen", Bloque principal: RESERVAS o FACTURACION
+
+NIVEL 5 - CELEBRACIÓN:
+- facturacion.porcentaje_vs_promedio > 150
+→ Prioridad: "CELEBRACION", Mood: "excited", Bloque principal: FACTURACION
+
+CATÁLOGO DE ACCIONES PERMITIDAS:
+
+1. transferir_citas - Reasignar citas de empleado ausente
+   Condición: horarios.ausentes_hoy.length > 0 Y alternativas disponibles
+   Tipo: "endpoint"
+
+2. cancelar_citas - Cancelar citas sin alternativa
+   Condición: horarios.ausentes_hoy.length > 0 Y NO hay alternativas
+   Tipo: "endpoint"
+
+3. llamar_cliente - Llamar a cliente con riesgo no-show
+   Condición: noshows.en_riesgo_hoy con horas_hasta < 2
+   Tipo: "call"
+   Payload: { "telefono": "string" }
+
+4. whatsapp_cliente - WhatsApp a cliente con riesgo
+   Condición: noshows.en_riesgo_hoy con horas_hasta < 4
+   Tipo: "whatsapp"
+   Payload: { "telefono": "string", "mensaje": "string" }
+
+5. ver_ficha_cliente - Ver detalles de cliente VIP/nuevo
+   Condición: clientes.especiales_hoy con segmento='vip' o 'nuevo'
+   Tipo: "navigate"
+   Payload: { "route": "/clientes/:id" }
+
+6. reactivar_cliente - Sugerir reactivación de cliente en riesgo
+   Condición: clientes.sugerencias_reactivacion.length > 0
+   Tipo: "whatsapp"
+   Payload: { "telefono": "string", "mensaje": "string sugerido" }
+
+7. ver_reservas - Ir a página de reservas
+   Tipo: "navigate"
+   Payload: { "route": "/reservas" }
+
+8. ver_equipo - Ver estado completo del equipo
+   Tipo: "navigate"
+   Payload: { "route": "/equipo" }
+
+9. ver_facturacion - Ver detalles financieros
+   Tipo: "navigate"
+   Payload: { "route": "/facturacion" }
+
+10. ver_comunicaciones - Ver mensajes/llamadas
+    Tipo: "navigate"
+    Payload: { "route": "/comunicaciones" }
+
+11. null - Sin acción necesaria
+
+FORMATO DE RESPUESTA (JSON puro, sin markdown):
+{
+  "prioridad": "CRISIS" | "RIESGO" | "OPORTUNIDAD" | "INFORMATIVO" | "CELEBRACION",
+  "mood": "alert" | "serious" | "happy" | "zen" | "excited",
+  "mensaje": "string (máx 60 palabras)",
+  "accion": {
+    "id": "string del catálogo" | null,
+    "label": "string descriptivo",
+    "tipo": "endpoint" | "navigate" | "call" | "whatsapp",
+    "payload": object
+  } | null,
+  "bloques": [
     {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      "id": "RESERVAS" | "EQUIPO" | "FACTURACION" | "COMUNICACIONES" | "NOSHOWS" | "CLIENTES",
+      "prioridad": 1-6,
+      "texto_colapsado": "string (máx 20 palabras)"
     }
-  );
+  ]
+}
+
+IMPORTANTE: El array "bloques" DEBE tener los 6 bloques SIEMPRE, ordenados de más (1) a menos (6) urgente.`;
 }
 
 // ============================================
-// ESCENARIO 2: RIESGO DE NO-SHOW
+// FUNCIÓN: Construir User Prompt
 // ============================================
-function buildRiesgoNoShowScenario(appt: any, business: any, corsHeaders: any) {
-  const hoursUntil = Math.floor(appt.hours_until_appointment);
-  
-  const message = `⚠️ Ojo con las ${appt.appointment_time.substring(0, 5)}. Viene ${appt.customer_name} (${appt.no_show_count > 0 ? `tiene historial de plantones` : `riesgo detectado`}) y no ha confirmado. ¿Quieres asegurar el tiro?`;
+function buildUserPrompt(
+  agentName: string,
+  ownerName: string,
+  snapshot: any
+): string {
+  return `${agentName}, analiza este snapshot y responde:
 
-  const actions = [
-    {
-      id: "call_customer",
-      label: "📞 Llamar ahora",
-      endpoint: null,
-      type: "safe",
-      payload: {
-        phone: appt.customer_phone,
-        action: "call",
-      },
-    },
-    {
-      id: "whatsapp_customer",
-      label: "💬 Enviar WhatsApp manual",
-      endpoint: null,
-      type: "safe",
-      payload: {
-        phone: appt.customer_phone,
-        message: `Hola ${appt.customer_name}, ¿sigues viniendo a tu cita de las ${appt.appointment_time.substring(0, 5)}? Tengo lista de espera.`,
-        action: "whatsapp",
-      },
-    },
-  ];
+SNAPSHOT COMPLETO:
+${JSON.stringify(snapshot, null, 2)}
 
-  return new Response(
-    JSON.stringify({
-      scenario: "RIESGO_NOSHOW",
-      priority: "HIGH",
-      lua_message: message,
-      data: {
-        appointment: {
-          id: appt.appointment_id,
-          customer_name: appt.customer_name,
-          customer_phone: appt.customer_phone,
-          customer_email: appt.customer_email,
-          date: appt.appointment_date,
-          time: appt.appointment_time,
-          service_name: appt.service_name,
-          employee_name: appt.employee_name,
-          risk_score: appt.risk_score,
-          risk_level: appt.risk_level,
-          no_show_count: appt.no_show_count,
-          days_since_last_visit: appt.days_since_last_visit,
-          hours_until: hoursUntil,
-        },
-      },
-      actions: actions,
-    }),
-    {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
-  );
+TAREAS:
+1. Identifica el problema/oportunidad MÁS IMPORTANTE
+2. Genera un mensaje principal (máx 60 palabras)
+3. Propón UNA acción del catálogo (o null si no aplica)
+4. Ordena los 6 bloques de más a menos urgente
+5. Escribe el texto colapsado de cada bloque (máx 20 palabras)
+
+Responde SOLO con JSON (sin markdown):`;
 }
-
-// ============================================
-// ESCENARIO 3: HUECO MUERTO
-// ============================================
-function buildHuecoMuertoScenario(slot: any, business: any, corsHeaders: any) {
-  const timeStr = slot.start_time.substring(0, 5);
-  const minutesUntil = slot.minutes_until_slot;
-  
-  const message = `💰 Se ha quedado libre el hueco de las ${timeStr} (en ${Math.floor(minutesUntil / 60)}h ${minutesUntil % 60}min). Es dinero perdido. ¿Quieres que te redacte una oferta para tus Estados de WhatsApp?`;
-
-  const potentialServices = slot.potential_services || [];
-  const defaultService = potentialServices[0] || { name: "Servicio", duration_minutes: 60 };
-
-  const actions = [
-    {
-      id: "generate_flash_offer",
-      label: "✨ Generar Texto Oferta (15% dto)",
-      endpoint: "/functions/v1/generate-flash-offer-text",
-      type: "safe",
-      payload: {
-        business_id: business.id,
-        slot_time: timeStr,
-        service_name: defaultService.name,
-        discount_percent: 15,
-        vertical_type: business.vertical_type || "salon",
-      },
-    },
-  ];
-
-  return new Response(
-    JSON.stringify({
-      scenario: "HUECO_MUERTO",
-      priority: "MEDIUM",
-      lua_message: message,
-      data: {
-        slot: {
-          id: slot.slot_id,
-          date: slot.slot_date,
-          start_time: slot.start_time,
-          end_time: slot.end_time,
-          employee_name: slot.employee_name,
-          resource_name: slot.resource_name,
-          minutes_until: minutesUntil,
-          potential_services: potentialServices,
-        },
-      },
-      actions: actions,
-    }),
-    {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
-  );
-}
-
-// ============================================
-// ESCENARIO 4: PALMADA EN LA ESPALDA
-// ============================================
-async function buildPalmadaEspaldaScenario(
-  businessId: string, 
-  timestamp: string, 
-  business: any, 
-  supabaseClient: any, 
-  corsHeaders: any
-) {
-  // Obtener métricas del día
-  const today = new Date(timestamp).toISOString().split("T")[0];
-  
-  // Citas de hoy
-  const { data: todayAppts } = await supabaseClient
-    .from("appointments")
-    .select("id, status")
-    .eq("business_id", businessId)
-    .eq("appointment_date", today);
-
-  const completedCount = todayAppts?.filter((a: any) => a.status === "completed").length || 0;
-  const totalCount = todayAppts?.length || 0;
-
-  // Caja aproximada (si existe campo price en appointments o services)
-  // Por simplicidad, usamos un valor estimado
-  const estimatedRevenue = completedCount * 50; // €50 promedio por servicio
-
-  // Determinar tono según contexto
-  const currentHour = new Date(timestamp).getHours();
-  let message = "";
-
-  // Si es temprano y no hay caja, tono realista
-  if (currentHour < 14 && estimatedRevenue === 0) {
-    message = "🌅 Mañana tranquila de momento. ¿Movemos las redes para activar reservas?";
-  }
-  // Si es tarde y caja baja, tono empático
-  else if (currentHour >= 16 && estimatedRevenue < 200) {
-    message = `💼 Día tranquilo. Llevas ${estimatedRevenue}€. Mañana es otro día.`;
-  }
-  // Si va bien, palmada real
-  else if (estimatedRevenue > 300 || completedCount > 8) {
-    message = `👏 La maquinaria está perfecta. Llevas ${estimatedRevenue}€ hoy y cero retrasos. ${totalCount > completedCount ? `Tu próxima rotación pronto.` : `¡Gran día!`}`;
-  }
-  // Default neutro
-  else {
-    message = `✨ Todo fluye bien. Llevas ${estimatedRevenue}€ y ${completedCount} cita(s) completada(s).`;
-  }
-
-  const actions = [
-    {
-      id: "view_tomorrow",
-      label: "📅 Ver agenda de mañana",
-      endpoint: null,
-      type: "safe",
-      payload: {
-        route: "/reservas?date=tomorrow",
-      },
-    },
-    {
-      id: "view_revenue_breakdown",
-      label: "💰 Ver desglose de caja",
-      endpoint: null,
-      type: "safe",
-      payload: {
-        route: "/reportes?view=revenue",
-      },
-    },
-  ];
-
-  return new Response(
-    JSON.stringify({
-      scenario: "PALMADA_ESPALDA",
-      priority: "LOW",
-      lua_message: message,
-      data: {
-        stats: {
-          today_appointments: totalCount,
-          completed_appointments: completedCount,
-          estimated_revenue: estimatedRevenue,
-          current_hour: currentHour,
-        },
-      },
-      actions: actions,
-    }),
-    {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    }
-  );
-}
-
-

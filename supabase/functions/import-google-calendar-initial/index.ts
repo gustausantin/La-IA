@@ -202,17 +202,12 @@ serve(async (req) => {
         integration.config?.employee_calendar_mapping || {}
       )
 
-      // Si hay conflictos, devolverlos para que el frontend los muestre
+      // ✅ CAMBIO: Ya NO detenemos la importación por conflictos
+      // Los solapamientos son válidos (2 barberos, tinte+corte, etc.)
+      // El usuario los verá en el calendario y decidirá si es necesario ajustar
       if (conflicts.length > 0) {
-        return new Response(
-          JSON.stringify({
-            success: false,
-            has_conflicts: true,
-            conflicts: conflicts,
-            message: `Se encontraron ${conflicts.length} conflicto(s) entre Google Calendar y appointments existentes`
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        )
+        console.log(`⚠️ ${conflicts.length} solapamiento(s) detectado(s) - se importarán de todas formas`)
+        console.log(`ℹ️ Los solapamientos no son errores: pueden ser dobles turnos, eventos personales, etc.`)
       }
 
       // Import all-day events to calendar_exceptions

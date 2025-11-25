@@ -404,3 +404,4 @@ Uso: SELECT process_customer_response(appointment_id, ''24h'', ''Si, confirmo'')
 SELECT 'Migración 20251123_02_noshows_infrastructure_FIXED completada exitosamente' AS status;
 
 
+

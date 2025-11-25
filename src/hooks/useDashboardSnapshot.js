@@ -39,7 +39,7 @@ export const useDashboardSnapshot = (businessId) => {
         throw new Error('No data returned from get-snapshot');
       }
 
-      logger.info('✅ Snapshot received:', data.scenario);
+      logger.info('✅ Snapshot received:', data.prioridad || data.scenario);
       
       setSnapshot(data);
       setLastUpdate(new Date());
@@ -49,21 +49,19 @@ export const useDashboardSnapshot = (businessId) => {
       logger.error('❌ Error fetching dashboard snapshot:', err);
       setError(err);
       
-      // Fallback: mostrar escenario de error
+      // Fallback: mostrar escenario de error (nuevo formato)
       setSnapshot({
-        scenario: 'ERROR',
-        priority: 'LOW',
-        lua_message: 'Hubo un problema al analizar el estado. Intenta refrescar.',
-        actions: [
-          {
-            id: 'refresh',
-            label: '🔄 Refrescar',
-            endpoint: null,
-            type: 'safe',
-            payload: { action: 'refresh' }
-          }
-        ],
-        data: {}
+        prioridad: 'ERROR',
+        mood: 'serious',
+        mensaje: 'Hubo un problema al analizar el estado. Intenta refrescar.',
+        accion: {
+          id: 'refresh',
+          label: '🔄 Refrescar',
+          tipo: 'navigate',
+          payload: { route: '/dashboard-socio-virtual' }
+        },
+        data: {},
+        metadata: {}
       });
     } finally {
       setLoading(false);

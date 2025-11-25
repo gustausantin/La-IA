@@ -315,3 +315,4 @@ Verificar que el div padre tenga `position: relative`
 
 🦞 **¡Vamos a ver ese parpadeo rojo en acción!**
 
+

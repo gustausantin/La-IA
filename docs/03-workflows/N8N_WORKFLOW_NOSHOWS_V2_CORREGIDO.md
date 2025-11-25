@@ -682,3 +682,4 @@ SELECT * FROM get_noshow_stats(
 **Última actualización**: 2025-11-23
 
 
+
