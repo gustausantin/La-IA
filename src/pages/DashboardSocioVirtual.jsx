@@ -488,17 +488,18 @@ export default function DashboardSocioVirtual() {
                     backgroundColor: '#F3F4F6'
                 }}
             >
-                {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo */}
+                {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo - FIJA */}
                 <div 
                     className="avatar-column"
                     style={{
                         display: 'flex',
                         flexDirection: 'column',
-                        minHeight: '100vh',
-                        height: 'auto',
+                        height: '100vh',
                         width: '100%',
                         backgroundColor: '#F3F4F6',
-                        overflowY: 'auto'
+                        position: 'sticky',
+                        top: 0,
+                        alignSelf: 'flex-start'
                     }}
                 >
                     {/* Foto del avatar con marco elegante */}

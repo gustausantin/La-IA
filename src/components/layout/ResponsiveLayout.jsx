@@ -82,7 +82,7 @@ const ResponsiveSidebar = ({ isOpen, onClose, currentPath, navigation }) => {
       {/* Sidebar */}
       <motion.div
         className={`
-          fixed top-0 left-0 h-full w-72 bg-white border-r border-gray-200 z-50
+          fixed top-0 left-0 h-full w-72 bg-gray-100 border-r border-gray-200 z-50
           ${isMobile ? 'shadow-xl' : 'lg:relative lg:translate-x-0'}
         `}
         variants={sidebarVariants}

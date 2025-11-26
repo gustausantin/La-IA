@@ -210,7 +210,7 @@ export default function Layout() {
                     {/* ========================================
                         SIDEBAR DESKTOP (solo visible en lg+)
                     ======================================== */}
-                    <aside className="hidden lg:flex lg:w-64 bg-white shadow-lg flex-col border-r border-gray-200">
+                    <aside className="hidden lg:flex lg:w-64 bg-gray-100 shadow-lg flex-col border-r border-gray-200">
                         {/* Info del negocio */}
                         <div className="px-4 py-4 bg-gray-50 border-b border-gray-200">
                             <h3 className="font-semibold text-gray-900 truncate">
