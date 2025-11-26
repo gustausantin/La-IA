@@ -422,8 +422,9 @@ export default function DashboardSocioVirtual() {
             style={{
                 display: 'grid',
                 gridTemplateColumns: '38% 1fr',
-                height: '100vh',
-                overflow: 'hidden'
+                minHeight: '100vh',
+                height: 'auto',
+                overflow: 'visible'
             }}
         >
             {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo */}
@@ -432,16 +433,18 @@ export default function DashboardSocioVirtual() {
                 style={{
                     display: 'flex',
                     flexDirection: 'column',
-                    height: '100%',
+                    minHeight: '100vh',
+                    height: 'auto',
                     width: '100%',
-                    backgroundColor: '#F3F4F6'
+                    backgroundColor: '#F3F4F6',
+                    overflowY: 'auto'
                 }}
             >
                 {/* Foto del avatar con marco elegante */}
                 <div 
                     style={{
                         position: 'relative',
-                        height: '75%',
+                        height: '75%', // Tamaño original restaurado
                         width: '100%',
                         flexShrink: 0,
                         padding: '12px',
@@ -474,6 +477,108 @@ export default function DashboardSocioVirtual() {
                         </div>
                     </div>
                 </div>
+
+                {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - Debajo del avatar */}
+                {previewManana && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.4, duration: 0.5 }}
+                        style={{
+                            flex: '1',
+                            padding: '20px 12px',
+                            display: 'flex',
+                            flexDirection: 'column'
+                        }}
+                    >
+                        {/* Separador visual */}
+                        <div style={{
+                            height: '2px',
+                            background: 'linear-gradient(90deg, transparent, #9333ea, transparent)',
+                            marginBottom: '20px',
+                            borderRadius: '2px'
+                        }}></div>
+
+                        {/* Título destacado */}
+                        <div className="mb-4">
+                            <h2 
+                                className="font-black text-2xl mb-2"
+                                style={{
+                                    background: 'linear-gradient(135deg, #9333ea 0%, #3b82f6 100%)',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    backgroundClip: 'text',
+                                    lineHeight: '1.2'
+                                }}
+                            >
+                                Lo que te espera mañana
+                            </h2>
+                            <p className="text-sm font-semibold text-gray-600">
+                                {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
+                                    weekday: 'long', 
+                                    day: 'numeric', 
+                                    month: 'long' 
+                                })}
+                            </p>
+                        </div>
+
+                        {/* Contenedor con fondo destacado */}
+                        <div 
+                            className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 rounded-2xl p-5 border-2 border-purple-200 shadow-lg"
+                            style={{ flex: '1' }}
+                        >
+                            {/* Mensaje de resumen */}
+                            <p className="text-gray-800 text-sm mb-4 leading-relaxed font-semibold">
+                                {previewManana.mensaje}
+                            </p>
+                            
+                            {/* 4 Puntos clave - Grid 2x2 */}
+                            <div className="grid grid-cols-1 gap-2.5">
+                                {previewManana.puntos?.map((punto, idx) => (
+                                    <motion.div
+                                        key={idx}
+                                        initial={{ opacity: 0, x: -10 }}
+                                        animate={{ opacity: 1, x: 0 }}
+                                        transition={{ delay: 0.5 + (idx * 0.1), duration: 0.3 }}
+                                        className="flex items-start gap-2.5 p-3 bg-white/90 backdrop-blur-sm rounded-xl shadow-sm hover:shadow-md transition-all border border-purple-100"
+                                    >
+                                        <span className="text-2xl flex-shrink-0">{punto.icono}</span>
+                                        <span className="text-xs text-gray-700 font-medium leading-snug flex-1">
+                                            {punto.texto}
+                                        </span>
+                                    </motion.div>
+                                ))}
+                            </div>
+                        </div>
+                    </motion.div>
+                )}
+
+                {/* Loading preview */}
+                {loadingPreview && !previewManana && (
+                    <div 
+                        style={{
+                            flex: '1',
+                            padding: '20px 12px',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                        }}
+                    >
+                        <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-5 border-2 border-purple-200 w-full">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center animate-pulse">
+                                    🔮
+                                </div>
+                                <div>
+                                    <p className="text-purple-700 font-medium text-sm">
+                                        Analizando el día de mañana...
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* COLUMNA DERECHA: Grid de datos */}
@@ -484,11 +589,12 @@ export default function DashboardSocioVirtual() {
                     flexDirection: 'column',
                     justifyContent: 'flex-start',
                     gap: '18px',
-                    height: '100vh',
+                    minHeight: '100vh',
+                    height: 'auto',
                     maxWidth: '1080px',
                     margin: '0 auto',
                     padding: '18px 30px 18px 50px',
-                    overflowY: 'auto',
+                    overflowY: 'visible',
                     backgroundColor: '#F3F4F6',
                     width: '100%'
                 }}
@@ -691,74 +797,6 @@ export default function DashboardSocioVirtual() {
                             >
                                 Intentar de nuevo
                             </button>
-                        </div>
-                    )}
-
-                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA */}
-                    {previewManana && (
-                        <motion.div
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.3, duration: 0.5 }}
-                            className="mt-8 bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 rounded-2xl p-6 border-2 border-purple-200 shadow-lg"
-                        >
-                            {/* Header */}
-                            <div className="flex items-center gap-3 mb-4">
-                                <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-blue-600 rounded-full flex items-center justify-center shadow-md">
-                                    <span className="text-2xl">🔮</span>
-                                </div>
-                                <div>
-                                    <h3 className="text-xl font-black text-purple-900">
-                                        Lo que te espera mañana
-                                    </h3>
-                                    <p className="text-sm text-purple-600 font-medium">
-                                        {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
-                                            weekday: 'long', 
-                                            day: 'numeric', 
-                                            month: 'long' 
-                                        })}
-                                    </p>
-                                </div>
-                            </div>
-                            
-                            {/* Mensaje de resumen */}
-                            <p className="text-gray-700 text-base mb-5 leading-relaxed font-medium">
-                                {previewManana.mensaje}
-                            </p>
-                            
-                            {/* 4 Puntos clave */}
-                            <div className="grid grid-cols-2 gap-3">
-                                {previewManana.puntos?.map((punto, idx) => (
-                                    <motion.div
-                                        key={idx}
-                                        initial={{ opacity: 0, scale: 0.9 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ delay: 0.5 + (idx * 0.1), duration: 0.3 }}
-                                        className="flex items-start gap-3 p-4 bg-white/80 backdrop-blur-sm rounded-xl shadow-sm hover:shadow-md transition-shadow border border-purple-100"
-                                    >
-                                        <span className="text-3xl flex-shrink-0">{punto.icono}</span>
-                                        <span className="text-sm text-gray-700 font-medium leading-snug flex-1">
-                                            {punto.texto}
-                                        </span>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* Loading preview */}
-                    {loadingPreview && !previewManana && (
-                        <div className="mt-8 bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-6 border-2 border-purple-200">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center animate-pulse">
-                                    🔮
-                                </div>
-                                <div>
-                                    <p className="text-purple-700 font-medium">
-                                        Analizando el día de mañana...
-                                    </p>
-                                </div>
-                            </div>
                         </div>
                     )}
                 </div>
