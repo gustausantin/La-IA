@@ -407,3 +407,4 @@ SELECT 'Migración 20251123_02_noshows_infrastructure_FIXED completada exitosame
 
 
 
+
