@@ -118,118 +118,74 @@ export default function DashboardSocioVirtual() {
         }
     }, [business]);
     
-    // ✅ Recargar business al montar el componente (para asegurar datos frescos)
+    // ✅ Listener OPTIMIZADO para actualización del agente (con debounce)
     useEffect(() => {
-        const reloadBusinessOnMount = async () => {
-            if (!business?.id) return;
-            
-            console.log('🔄 Dashboard: Componente montado, recargando business para asegurar datos frescos...');
-            
-            try {
-                const { data: freshBusiness, error } = await supabase
-                    .from('businesses')
-                    .select('*')
-                    .eq('id', business.id)
-                    .single();
-                
-                if (!error && freshBusiness) {
-                    console.log('✅ Dashboard: Business recargado al montar:', {
-                        agentId: freshBusiness?.settings?.agent?.avatar_id,
-                        agentName: freshBusiness?.settings?.agent?.name
-                    });
-                    setLocalBusiness(freshBusiness);
-                }
-            } catch (error) {
-                console.error('❌ Dashboard: Error al recargar business al montar:', error);
-            }
-        };
+        let debounceTimer = null;
+        let isReloading = false; // Flag para evitar recargas simultáneas
         
-        // Pequeño delay para asegurar que todo esté listo
-        const timer = setTimeout(reloadBusinessOnMount, 200);
-        
-        return () => clearTimeout(timer);
-    }, []); // Solo al montar
-    
-    // ✅ Listener AGRESIVO para forzar actualización cuando se actualiza el agente
-    useEffect(() => {
         const handleAgentUpdate = async (event) => {
-            const force = event?.detail?.force;
-            console.log('🔄 Dashboard: Evento agent-updated recibido', { force });
-            
-            // Obtener businessId del contexto o del business actual
-            const businessIdToUse = business?.id || localBusiness?.id;
-            
-            if (!businessIdToUse) {
-                console.warn('⚠️ Dashboard: No hay business.id, esperando 500ms y reintentando...');
-                // Retry después de un delay
-                setTimeout(() => {
-                    const retryId = business?.id || localBusiness?.id;
-                    if (retryId) {
-                        handleAgentUpdate({ detail: { force: true } });
-                    }
-                }, 500);
+            // Si ya hay una recarga en progreso, ignorar
+            if (isReloading) {
+                console.log('⏭️ Dashboard: Recarga ya en progreso, ignorando evento');
                 return;
             }
             
-            try {
-                console.log('📡 Dashboard: Recargando business desde Supabase...', { businessId: businessIdToUse });
+            // Debounce: esperar 100ms antes de procesar (consolidar múltiples eventos)
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
+            
+            debounceTimer = setTimeout(async () => {
+                const businessIdToUse = business?.id || localBusiness?.id;
                 
-                // ✅ RECARGAR DIRECTAMENTE desde Supabase (más rápido y confiable)
-                const { data: updatedBusiness, error } = await supabase
-                    .from('businesses')
-                    .select('*')
-                    .eq('id', businessIdToUse)
-                    .single();
-                
-                if (error) {
-                    console.error('❌ Dashboard: Error al recargar business:', error);
-                    // Retry una vez más
-                    if (!force) {
-                        setTimeout(() => handleAgentUpdate({ detail: { force: true } }), 300);
-                    }
+                if (!businessIdToUse) {
+                    console.warn('⚠️ Dashboard: No hay business.id disponible');
                     return;
                 }
                 
-                console.log('✅ Dashboard: Business recargado directamente:', {
-                    agentId: updatedBusiness?.settings?.agent?.avatar_id,
-                    agentName: updatedBusiness?.settings?.agent?.name,
-                    agentUrl: updatedBusiness?.settings?.agent?.avatar_url
-                });
+                isReloading = true;
+                console.log('🔄 Dashboard: Recargando business después de actualización del agente...');
                 
-                // Actualizar el estado local INMEDIATAMENTE
-                setLocalBusiness(updatedBusiness);
-                
-                // Forzar re-render múltiples veces para asegurar
-                setAgentUpdateKey(prev => prev + 1);
-                
-                // Segundo update después de un pequeño delay para asegurar
-                setTimeout(() => {
+                try {
+                    // ✅ RECARGAR DIRECTAMENTE desde Supabase
+                    const { data: updatedBusiness, error } = await supabase
+                        .from('businesses')
+                        .select('*')
+                        .eq('id', businessIdToUse)
+                        .single();
+                    
+                    if (error) {
+                        console.error('❌ Dashboard: Error al recargar business:', error);
+                        isReloading = false;
+                        return;
+                    }
+                    
+                    console.log('✅ Dashboard: Business actualizado:', {
+                        agentId: updatedBusiness?.settings?.agent?.avatar_id,
+                        agentName: updatedBusiness?.settings?.agent?.name
+                    });
+                    
+                    // Actualizar el estado local
+                    setLocalBusiness(updatedBusiness);
+                    
+                    // Forzar re-render
                     setAgentUpdateKey(prev => prev + 1);
-                }, 100);
-                
-                // También disparar evento para que AuthContext se actualice
-                window.dispatchEvent(new CustomEvent('force-business-reload'));
-                
-            } catch (error) {
-                console.error('❌ Dashboard: Error en handleAgentUpdate:', error);
-            }
+                    
+                } catch (error) {
+                    console.error('❌ Dashboard: Error en handleAgentUpdate:', error);
+                } finally {
+                    isReloading = false;
+                }
+            }, 100); // Debounce de 100ms
         };
         
         window.addEventListener('agent-updated', handleAgentUpdate);
         
-        // ✅ También recargar cuando la página vuelve a ser visible (por si el usuario cambió de pestaña)
-        const handleVisibilityChange = () => {
-            if (document.visibilityState === 'visible' && business?.id) {
-                console.log('👁️ Dashboard: Página visible, recargando business...');
-                handleAgentUpdate({ detail: { force: true } });
-            }
-        };
-        
-        document.addEventListener('visibilitychange', handleVisibilityChange);
-        
         return () => {
+            if (debounceTimer) {
+                clearTimeout(debounceTimer);
+            }
             window.removeEventListener('agent-updated', handleAgentUpdate);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
     }, [business?.id, localBusiness?.id]);
 
@@ -427,12 +383,34 @@ export default function DashboardSocioVirtual() {
 
     const config = moodConfig[mood] || moodConfig.zen;
 
+    // ✅ Skeleton state mientras carga (mejora percepción de velocidad)
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-600 mb-4"></div>
-                    <p className="text-gray-700 text-lg font-medium">Analizando el estado de tu negocio...</p>
+            <div 
+                className="dashboard-container"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: '38% 1fr',
+                    height: '100vh',
+                    overflow: 'hidden',
+                    backgroundColor: '#F3F4F6'
+                }}
+            >
+                {/* Skeleton: Columna izquierda (Avatar) */}
+                <div className="animate-pulse" style={{ padding: '20px', backgroundColor: '#F3F4F6' }}>
+                    <div className="bg-gray-200 rounded-2xl" style={{ height: '75%', marginBottom: '20px' }}></div>
+                    <div className="bg-gray-200 rounded-2xl" style={{ height: '25%' }}></div>
+                </div>
+                
+                {/* Skeleton: Columna derecha (Dashboard) */}
+                <div className="animate-pulse" style={{ padding: '30px' }}>
+                    <div className="bg-gray-200 rounded-lg h-8 w-64 mb-6"></div>
+                    <div className="bg-gray-200 rounded-lg h-6 w-48 mb-8"></div>
+                    <div className="grid grid-cols-2 gap-4">
+                        {[1, 2, 3, 4, 5, 6].map((i) => (
+                            <div key={i} className="bg-gray-200 rounded-lg h-24"></div>
+                        ))}
+                    </div>
                 </div>
             </div>
         );
