@@ -26,6 +26,13 @@ export const useDashboardSnapshot = (businessId) => {
       // ⏱️ Iniciar medición de tiempo
       const startTime = performance.now();
       
+      // ⏰ TIMEOUT: Si no responde en 30 segundos, cancelar
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+        logger.error('⏰ TIMEOUT: get-snapshot no respondió en 30 segundos');
+      }, 30000);
+      
       // Llamada a la Edge Function get-snapshot
       const { data, error: functionError } = await supabase.functions.invoke('get-snapshot', {
         body: { 
@@ -33,6 +40,8 @@ export const useDashboardSnapshot = (businessId) => {
           timestamp: new Date().toISOString()
         }
       });
+      
+      clearTimeout(timeoutId);
       
       // ⏱️ Finalizar medición de tiempo
       const endTime = performance.now();
@@ -59,16 +68,31 @@ export const useDashboardSnapshot = (businessId) => {
       setError(err);
       
       // Fallback: mostrar escenario de error (nuevo formato)
+      const errorMessage = err.name === 'AbortError' 
+        ? '⏰ La conexión está tardando demasiado. ¿Está Docker Desktop iniciado?' 
+        : 'Hubo un problema al analizar el estado. Intenta refrescar.';
+      
       setSnapshot({
         prioridad: 'ERROR',
         mood: 'serious',
-        mensaje: 'Hubo un problema al analizar el estado. Intenta refrescar.',
+        mensaje: errorMessage,
         accion: {
           id: 'refresh',
           label: '🔄 Refrescar',
           tipo: 'navigate',
           payload: { route: '/dashboard-socio-virtual' }
         },
+        bloques: [
+          {
+            id: 1,
+            categoria: 'sistema',
+            titulo: '⚠️ Error de Conexión',
+            resumen: 'No se pudo conectar con el servidor',
+            estado: 'problema',
+            prioridad: 'alto',
+            microdatos: [{ texto: 'Error', color: 'rojo', icono: '❌' }]
+          }
+        ],
         data: {},
         metadata: {}
       });

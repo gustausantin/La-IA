@@ -441,20 +441,26 @@ export default function DashboardSocioVirtual() {
                     justifyContent: 'center'
                 }}
             >
-                {/* Botón Actualizar - Posición absoluta a la derecha */}
-                <button
-                    onClick={refresh}
-                    className="absolute top-4 right-4 text-xs text-white font-bold flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-105"
-                >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    Actualizar
-                </button>
+                {/* Botón Actualizar y Fecha - Posición absoluta arriba a la derecha, MÁS ABAJO */}
+                <div className="absolute flex flex-col items-end gap-2" style={{ top: '50px', right: '40px' }}>
+                    <button
+                        onClick={refresh}
+                        className="text-xs text-white font-bold flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-105"
+                    >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        Actualizar
+                    </button>
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/80 backdrop-blur-sm rounded-full border border-gray-200 shadow-sm">
+                        <span className="text-xs font-semibold text-gray-700">
+                            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </span>
+                    </div>
+                </div>
                 
-                {/* Título centrado en toda la página */}
+                {/* Título CENTRADO */}
                 <h1 
-                    className="font-black tracking-tight mb-3"
+                    className="font-black tracking-tight"
                     style={{ 
-                        marginTop: 0,
                         fontSize: 'clamp(2.5rem, 6vw, 4rem)',
                         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
                         WebkitBackgroundClip: 'text',
@@ -462,26 +468,12 @@ export default function DashboardSocioVirtual() {
                         backgroundClip: 'text',
                         textShadow: '0 0 30px rgba(102, 126, 234, 0.3)',
                         lineHeight: '1.2',
-                        textAlign: 'center'
+                        textAlign: 'center',
+                        margin: 0
                     }}
                 >
                     La Recepción de {business?.name || 'tu negocio'}
                 </h1>
-                
-                {/* Badges centrados */}
-                <div className="flex items-center justify-center gap-2">
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full border-2 border-purple-200 shadow-sm">
-                        <div className="w-1.5 h-1.5 bg-purple-600 rounded-full animate-pulse"></div>
-                        <span className="text-xs font-bold text-purple-700">
-                            {business?.name}
-                        </span>
-                    </div>
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/80 backdrop-blur-sm rounded-full border border-gray-200 shadow-sm">
-                        <span className="text-xs font-semibold text-gray-700">
-                            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                        </span>
-                    </div>
-                </div>
             </div>
 
             {/* CONTENIDO: Grid de dos columnas - EXACTAMENTE COMO ESTABA ANTES */}
@@ -513,7 +505,7 @@ export default function DashboardSocioVirtual() {
                     <div 
                         style={{
                             position: 'relative',
-                            height: '75%',
+                            height: '67.5%',
                             width: '100%',
                             flexShrink: 0,
                             padding: '12px',
@@ -599,7 +591,7 @@ export default function DashboardSocioVirtual() {
                         className="speech-bubble"
                         style={{
                             position: 'relative',
-                            marginTop: '0px',
+                            marginTop: '80px',
                             marginLeft: '0px',
                             marginRight: 'auto',
                             maxWidth: '92%',
@@ -609,11 +601,12 @@ export default function DashboardSocioVirtual() {
                         {/* Contenido del bocadillo */}
                         <div 
                             className={`
-                                ${config.bubbleBg} ${config.borderColor} 
+                                ${config.borderColor} 
                                 backdrop-blur-md rounded-2xl p-6
                                 relative
                             `} 
                             style={{ 
+                                backgroundColor: '#F3F4F6',
                                 borderWidth: '3px',
                                 boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)'
                             }}
@@ -626,7 +619,7 @@ export default function DashboardSocioVirtual() {
                                     left: '-40px',
                                     borderStyle: 'solid',
                                     borderWidth: '20px 40px 20px 0',
-                                    borderColor: `transparent ${config.tailBg} transparent transparent`,
+                                    borderColor: 'transparent #F3F4F6 transparent transparent',
                                     filter: 'drop-shadow(-2px 0 3px rgba(0,0,0,0.08))',
                                     transform: 'translateY(0)'
                                 }}
@@ -702,7 +695,7 @@ export default function DashboardSocioVirtual() {
                     </motion.div>
 
                     {/* Sección Bandeja - Compactado 10% */}
-                    <div className="bottom-section bandeja-container" style={{ marginTop: '36px', paddingBottom: '30px' }}>
+                    <div className="bottom-section bandeja-container" style={{ marginTop: '56px', paddingBottom: '30px' }}>
                     {/* Título: Lo que tengo sobre la mesa - Compactado */}
                     <div className="mb-4">
                         <h2 
@@ -756,88 +749,90 @@ export default function DashboardSocioVirtual() {
                         </div>
                     )}
 
-                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - Debajo de los informes - Compactado */}
-                    <div style={{ marginTop: '70px' }}>
+                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - Mismo estilo que los widgets */}
+                    <div style={{ marginTop: '100px' }}>
+                        {/* Título con icono - Mismo estilo que "Lo que tengo sobre la mesa" */}
+                        <div className="mb-4">
+                            <h2 
+                                className="text-2xl font-black mb-2 flex items-center gap-3"
+                                style={{
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+                                    WebkitBackgroundClip: 'text',
+                                    WebkitTextFillColor: 'transparent',
+                                    backgroundClip: 'text',
+                                    lineHeight: '1.2'
+                                }}
+                            >
+                                <Calendar className="w-8 h-8 text-purple-600" />
+                                Lo que te espera mañana
+                            </h2>
+                            <div className="flex items-center gap-2">
+                                <span className="text-lg font-bold text-purple-700 capitalize">
+                                    {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
+                                        weekday: 'long'
+                                    })}
+                                </span>
+                                <span className="text-base font-semibold text-gray-600">
+                                    {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
+                                        day: 'numeric', 
+                                        month: 'long' 
+                                    })}
+                                </span>
+                            </div>
+                        </div>
+
                         {previewManana && (
                             <motion.div
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ delay: 0.3, duration: 0.5 }}
+                                className="grid grid-cols-2 gap-3"
                             >
-                                {/* Título destacado - Mismo estilo que "Lo que tengo sobre la mesa" */}
-                                <div className="mb-4">
-                                    <h2 
-                                        className="text-2xl font-black mb-2 flex items-center gap-2"
-                                        style={{
-                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
-                                            WebkitBackgroundClip: 'text',
-                                            WebkitTextFillColor: 'transparent',
-                                            backgroundClip: 'text',
-                                            lineHeight: '1.2'
-                                        }}
+                                {/* 4 Puntos clave en grid 2x2 - MISMO ESTILO QUE LOS WIDGETS */}
+                                {previewManana.puntos?.map((punto, idx) => (
+                                    <motion.div
+                                        key={idx}
+                                        initial={{ opacity: 0, scale: 0.95 }}
+                                        animate={{ opacity: 1, scale: 1 }}
+                                        transition={{ delay: 0.1 + (idx * 0.05), duration: 0.3 }}
+                                        className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm hover:shadow-md transition-all border border-gray-200"
                                     >
-                                        <span className="text-3xl">🌅</span>
-                                        Lo que te espera mañana
-                                    </h2>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-lg font-bold text-purple-700">
-                                            {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
-                                                weekday: 'long'
-                                            })}
-                                        </span>
-                                        <span className="text-base font-semibold text-gray-600">
-                                            {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
-                                                day: 'numeric', 
-                                                month: 'long' 
-                                            })}
-                                        </span>
-                                    </div>
-                                </div>
-
-                                {/* Contenedor con fondo destacado - Compactado */}
-                                <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-purple-200 shadow-lg">
-                                    {/* Mensaje de resumen - Compactado */}
-                                    <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 mb-4 border border-purple-100">
-                                        <p className="text-gray-800 text-sm leading-relaxed font-semibold">
-                                            {previewManana.mensaje}
-                                        </p>
-                                    </div>
-
-                                    {/* 4 Puntos clave - Grid 2x2 - Compactado */}
-                                    <div className="grid grid-cols-2 gap-2.5">
-                                        {previewManana.puntos?.map((punto, idx) => (
-                                            <motion.div
-                                                key={idx}
-                                                initial={{ opacity: 0, scale: 0.9 }}
-                                                animate={{ opacity: 1, scale: 1 }}
-                                                transition={{ delay: 0.5 + (idx * 0.1), duration: 0.3 }}
-                                                className="flex items-start gap-2 p-3 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm hover:shadow-md transition-all border border-purple-100"
-                                            >
-                                                <span className="text-2xl flex-shrink-0">{punto.icono}</span>
-                                                <span className="text-xs text-gray-700 font-medium leading-snug flex-1">
-                                                    {punto.texto}
-                                                </span>
-                                            </motion.div>
-                                        ))}
-                                    </div>
-                                </div>
+                                        <div className="flex items-start gap-3">
+                                            <span className="text-3xl flex-shrink-0">{punto.icono}</span>
+                                            <p className="text-sm text-gray-700 font-medium leading-snug flex-1">
+                                                {punto.texto}
+                                            </p>
+                                        </div>
+                                    </motion.div>
+                                ))}
                             </motion.div>
                         )}
 
-                        {/* Loading preview */}
+                        {/* Loading preview - Más discreto */}
                         {loadingPreview && !previewManana && (
-                            <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-6 border-2 border-purple-200">
+                            <div className="bg-white/50 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
                                 <div className="flex items-center gap-3">
-                                    <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center animate-pulse">
-                                        🔮
-                                    </div>
-                                    <div>
-                                        <p className="text-purple-700 font-medium">
-                                            Analizando el día de mañana...
-                                        </p>
-                                    </div>
+                                    <RefreshCw className="w-5 h-5 text-purple-600 animate-spin" />
+                                    <p className="text-gray-600 text-sm font-medium">
+                                        Analizando el día de mañana...
+                                    </p>
                                 </div>
                             </div>
+                        )}
+
+                        {/* Mensaje de resumen - Solo si existe y es corto (max 40 palabras) */}
+                        {previewManana?.mensaje && (
+                            <motion.div
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                transition={{ delay: 0.4 }}
+                                className="mt-3 bg-purple-50/50 backdrop-blur-sm rounded-lg p-3 border border-purple-100"
+                            >
+                                <p className="text-gray-700 text-sm leading-relaxed">
+                                    {previewManana.mensaje.split(' ').slice(0, 40).join(' ')}
+                                    {previewManana.mensaje.split(' ').length > 40 ? '...' : ''}
+                                </p>
+                            </motion.div>
                         )}
                     </div>
                 </div>
