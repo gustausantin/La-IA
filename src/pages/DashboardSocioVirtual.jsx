@@ -117,7 +117,7 @@ export default function DashboardSocioVirtual() {
             setLocalBusiness(business);
         }
     }, [business]);
-    
+
     // ✅ Listener OPTIMIZADO para actualización del agente (con debounce)
     useEffect(() => {
         let debounceTimer = null;
@@ -420,37 +420,106 @@ export default function DashboardSocioVirtual() {
         <div 
             className="dashboard-container"
             style={{
-                display: 'grid',
-                gridTemplateColumns: '38% 1fr',
+                display: 'flex',
+                flexDirection: 'column',
                 minHeight: '100vh',
                 height: 'auto',
-                overflow: 'visible'
+                overflow: 'visible',
+                backgroundColor: '#F3F4F6'
             }}
         >
-            {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo */}
+            {/* BANNER: Título centrado en toda la página */}
             <div 
-                className="avatar-column"
                 style={{
+                    width: '100%',
+                    padding: '20px 40px',
+                    backgroundColor: '#F3F4F6',
+                    position: 'relative',
                     display: 'flex',
                     flexDirection: 'column',
-                    minHeight: '100vh',
-                    height: 'auto',
-                    width: '100%',
-                    backgroundColor: '#F3F4F6',
-                    overflowY: 'auto'
+                    alignItems: 'center',
+                    justifyContent: 'center'
                 }}
             >
-                {/* Foto del avatar con marco elegante */}
-                <div 
-                    style={{
-                        position: 'relative',
-                        height: '75%', // Tamaño original restaurado
-                        width: '100%',
-                        flexShrink: 0,
-                        padding: '12px',
-                        backgroundColor: '#F3F4F6'
+                {/* Botón Actualizar - Posición absoluta a la derecha */}
+                <button
+                    onClick={refresh}
+                    className="absolute top-4 right-4 text-xs text-white font-bold flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-105"
+                >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Actualizar
+                </button>
+                
+                {/* Título centrado en toda la página */}
+                <h1 
+                    className="font-black tracking-tight mb-3"
+                    style={{ 
+                        marginTop: 0,
+                        fontSize: 'clamp(2.5rem, 6vw, 4rem)',
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        textShadow: '0 0 30px rgba(102, 126, 234, 0.3)',
+                        lineHeight: '1.2',
+                        textAlign: 'center'
                     }}
                 >
+                    La Recepción de {business?.name || 'tu negocio'}
+                </h1>
+                
+                {/* Badges centrados */}
+                <div className="flex items-center justify-center gap-2">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full border-2 border-purple-200 shadow-sm">
+                        <div className="w-1.5 h-1.5 bg-purple-600 rounded-full animate-pulse"></div>
+                        <span className="text-xs font-bold text-purple-700">
+                            {business?.name}
+                        </span>
+                    </div>
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/80 backdrop-blur-sm rounded-full border border-gray-200 shadow-sm">
+                        <span className="text-xs font-semibold text-gray-700">
+                            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* CONTENIDO: Grid de dos columnas - EXACTAMENTE COMO ESTABA ANTES */}
+            <div 
+                className="dashboard-container"
+                style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'minmax(300px, 38%) 1fr',
+                    minHeight: '100vh',
+                    height: 'auto',
+                    overflow: 'visible',
+                    backgroundColor: '#F3F4F6'
+                }}
+            >
+                {/* COLUMNA IZQUIERDA: Avatar con imagen de fondo */}
+                <div 
+                    className="avatar-column"
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        minHeight: '100vh',
+                        height: 'auto',
+                        width: '100%',
+                        backgroundColor: '#F3F4F6',
+                        overflowY: 'auto'
+                    }}
+                >
+                    {/* Foto del avatar con marco elegante */}
+                    <div 
+                        style={{
+                            position: 'relative',
+                            height: '75%',
+                            width: '100%',
+                            flexShrink: 0,
+                            padding: '12px',
+                            backgroundColor: '#F3F4F6'
+                        }}
+                    >
                     <div
                         style={{
                             backgroundImage: workingModeUrl ? `url(${workingModeUrl})` : 'none',
@@ -462,199 +531,80 @@ export default function DashboardSocioVirtual() {
                             width: '100%',
                             borderRadius: '16px',
                             boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15), inset 0 0 0 3px rgba(255, 255, 255, 0.3)',
-                            border: '2px solid rgba(0, 0, 0, 0.1)'
+                            border: '2px solid rgba(0, 0, 0, 0.1)',
+                            position: 'relative'
                         }}
                     >
-                        {/* Indicador de "en línea" (esquina superior derecha) */}
-                        <div className="absolute top-6 right-6 z-30">
-                            <div className="flex items-center space-x-2 bg-white/90 backdrop-blur-md px-4 py-2 rounded-full shadow-lg border-2 border-green-200">
-                                <div className="relative">
-                                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
-                                    <div className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-ping opacity-75"></div>
-                                </div>
-                                <span className="text-xs font-semibold text-green-700">En línea</span>
+                        {/* Rótulo tipo videollamada - Parte inferior central */}
+                        <div 
+                            className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30"
+                            style={{
+                                background: 'rgba(255, 255, 255, 0.95)',
+                                backdropFilter: 'blur(10px)',
+                                borderRadius: '24px',
+                                padding: '10px 20px',
+                                boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)',
+                                border: '1px solid rgba(255, 255, 255, 0.5)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '10px',
+                                minWidth: '180px',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            {/* Punto verde de estado */}
+                            <div className="relative flex-shrink-0">
+                                <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                                <div className="absolute inset-0 w-3 h-3 bg-green-400 rounded-full animate-ping opacity-75"></div>
+                            </div>
+                            
+                            {/* Nombre y subtítulo */}
+                            <div className="flex flex-col items-start">
+                                <span className="text-xl font-bold text-gray-900 leading-tight">
+                                    {agentConfig.name}
+                                </span>
+                                <span className="text-xs font-medium text-gray-600 leading-tight">
+                                    Tu Asistente Virtual
+                                </span>
                             </div>
                         </div>
                     </div>
                 </div>
+                </div>
 
-                {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - Debajo del avatar */}
-                {previewManana && (
-                    <motion.div
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4, duration: 0.5 }}
-                        style={{
-                            flex: '1',
-                            padding: '20px 12px',
-                            display: 'flex',
-                            flexDirection: 'column'
-                        }}
-                    >
-                        {/* Separador visual */}
-                        <div style={{
-                            height: '2px',
-                            background: 'linear-gradient(90deg, transparent, #9333ea, transparent)',
-                            marginBottom: '20px',
-                            borderRadius: '2px'
-                        }}></div>
-
-                        {/* Título destacado */}
-                        <div className="mb-4">
-                            <h2 
-                                className="font-black text-2xl mb-2"
-                                style={{
-                                    background: 'linear-gradient(135deg, #9333ea 0%, #3b82f6 100%)',
-                                    WebkitBackgroundClip: 'text',
-                                    WebkitTextFillColor: 'transparent',
-                                    backgroundClip: 'text',
-                                    lineHeight: '1.2'
-                                }}
-                            >
-                                Lo que te espera mañana
-                            </h2>
-                            <p className="text-sm font-semibold text-gray-600">
-                                {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
-                                    weekday: 'long', 
-                                    day: 'numeric', 
-                                    month: 'long' 
-                                })}
-                            </p>
-                        </div>
-
-                        {/* Contenedor con fondo destacado */}
-                        <div 
-                            className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 rounded-2xl p-5 border-2 border-purple-200 shadow-lg"
-                            style={{ flex: '1' }}
-                        >
-                            {/* Mensaje de resumen */}
-                            <p className="text-gray-800 text-sm mb-4 leading-relaxed font-semibold">
-                                {previewManana.mensaje}
-                            </p>
-                            
-                            {/* 4 Puntos clave - Grid 2x2 */}
-                            <div className="grid grid-cols-1 gap-2.5">
-                                {previewManana.puntos?.map((punto, idx) => (
-                                    <motion.div
-                                        key={idx}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: 0.5 + (idx * 0.1), duration: 0.3 }}
-                                        className="flex items-start gap-2.5 p-3 bg-white/90 backdrop-blur-sm rounded-xl shadow-sm hover:shadow-md transition-all border border-purple-100"
-                                    >
-                                        <span className="text-2xl flex-shrink-0">{punto.icono}</span>
-                                        <span className="text-xs text-gray-700 font-medium leading-snug flex-1">
-                                            {punto.texto}
-                                        </span>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </div>
-                    </motion.div>
-                )}
-
-                {/* Loading preview */}
-                {loadingPreview && !previewManana && (
-                    <div 
-                        style={{
-                            flex: '1',
-                            padding: '20px 12px',
-                            display: 'flex',
-                            flexDirection: 'column',
-                            justifyContent: 'center',
-                            alignItems: 'center'
-                        }}
-                    >
-                        <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-5 border-2 border-purple-200 w-full">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center animate-pulse">
-                                    🔮
-                                </div>
-                                <div>
-                                    <p className="text-purple-700 font-medium text-sm">
-                                        Analizando el día de mañana...
-                                    </p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {/* COLUMNA DERECHA: Grid de datos */}
-            <div 
-                className="data-column"
-                style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'flex-start',
-                    gap: '18px',
-                    minHeight: '100vh',
-                    height: 'auto',
-                    maxWidth: '1080px',
-                    margin: '0 auto',
-                    padding: '18px 30px 18px 50px',
-                    overflowY: 'visible',
-                    backgroundColor: '#F3F4F6',
-                    width: '100%'
-                }}
-            >
-                {/* Header con título - ARRIBA */}
-                <div className="data-header" style={{ marginTop: 0, position: 'relative' }}>
-                    <div className="flex justify-between items-start mb-4">
-                        <div>
-                            <h1 
-                                className="font-black tracking-tight mb-3"
-                                style={{ 
-                                    marginTop: 0,
-                                    fontSize: 'clamp(2rem, 5vw, 3.5rem)',
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
-                                    WebkitBackgroundClip: 'text',
-                                    WebkitTextFillColor: 'transparent',
-                                    backgroundClip: 'text',
-                                    textShadow: '0 0 30px rgba(102, 126, 234, 0.3)',
-                                    lineHeight: '1.2'
-                                }}
-                            >
-                                La Oficina de {agentConfig.name}
-                            </h1>
-                            <div className="flex items-center gap-3 mt-2">
-                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-100 to-blue-100 rounded-full border-2 border-purple-200 shadow-sm">
-                                    <div className="w-2 h-2 bg-purple-600 rounded-full animate-pulse"></div>
-                                    <span className="text-sm font-bold text-purple-700">
-                                        {business?.name}
-                                    </span>
-                                </div>
-                                <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/80 backdrop-blur-sm rounded-full border border-gray-200 shadow-sm">
-                                    <span className="text-sm font-semibold text-gray-700">
-                                        {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                        <button
-                            onClick={refresh}
-                            className="text-sm text-white font-bold flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-xl transition-all shadow-lg hover:shadow-xl hover:scale-105"
-                        >
-                            <RefreshCw className="w-4 h-4" />
-                            Actualizar
-                        </button>
-                    </div>
-
+                {/* COLUMNA DERECHA: Grid de datos */}
+                <div 
+                    className="data-column"
+                    style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-start',
+                        gap: '14px',
+                        minHeight: '100vh',
+                        height: 'auto',
+                        maxWidth: '1080px',
+                        margin: '0 auto',
+                        padding: '14px 30px 14px 50px',
+                        paddingTop: '14px',
+                        overflowY: 'visible',
+                        backgroundColor: '#F3F4F6',
+                        width: '100%'
+                    }}
+                >
                     {/* BOCADILLO GRANDE Y PROMINENTE */}
                     <motion.div
                         initial={{ opacity: 0, y: -10, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         transition={{ delay: 0.3, duration: 0.6, type: "spring" }}
                         className="speech-bubble"
-                    style={{
-                        position: 'relative',
-                        marginTop: '40px',
-                        marginLeft: '0px',
-                        marginRight: 'auto',
-                        maxWidth: '92%',
-                        zIndex: 100
-                    }}
+                        style={{
+                            position: 'relative',
+                            marginTop: '0px',
+                            marginLeft: '0px',
+                            marginRight: 'auto',
+                            maxWidth: '92%',
+                            zIndex: 100
+                        }}
                     >
                         {/* Contenido del bocadillo */}
                         <div 
@@ -716,7 +666,7 @@ export default function DashboardSocioVirtual() {
                                             animate={{ scale: [1, 1.3, 1] }}
                                             transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
                                         />
-                                    </div>
+                                </div>
                                     <span className={`text-sm font-medium ${config.accentColor}`}>
                                         Analizando...
                                     </span>
@@ -750,28 +700,34 @@ export default function DashboardSocioVirtual() {
                             )}
                         </div>
                     </motion.div>
-                </div>
 
-                {/* Sección Bandeja - Con más espacio arriba */}
-                <div className="bottom-section bandeja-container" style={{ marginTop: '48px', paddingBottom: '40px' }}>
-                    {/* Contador de informes - Elegante y discreto */}
-                    <div className="mb-5">
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-gradient-to-r from-purple-50 to-blue-50 rounded-full border border-purple-200/50">
-                            <div className="w-1.5 h-1.5 bg-purple-500 rounded-full animate-pulse"></div>
-                            <span className="text-xs font-bold text-purple-700 uppercase tracking-wide">
-                                {bloquesOrdenados.length} {bloquesOrdenados.length === 1 ? 'Informe' : 'Informes'}
-                            </span>
-                        </div>
+                    {/* Sección Bandeja - Compactado 10% */}
+                    <div className="bottom-section bandeja-container" style={{ marginTop: '36px', paddingBottom: '30px' }}>
+                    {/* Título: Lo que tengo sobre la mesa - Compactado */}
+                    <div className="mb-4">
+                        <h2 
+                            className="text-2xl font-black mb-2 flex items-center gap-2"
+                            style={{
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text',
+                                lineHeight: '1.2'
+                            }}
+                        >
+                            <span className="text-3xl">🖥️</span>
+                            Lo que tengo sobre la mesa
+                        </h2>
                     </div>
 
-                    {/* Grid de Dossiers (Acordeones) - 2 COLUMNAS exactas */}
+                    {/* Grid de Dossiers (Acordeones) - 2 COLUMNAS exactas - Compactado */}
                     {bloquesOrdenados.length > 0 ? (
                         <div 
                             className="cards-grid"
                             style={{
                                 display: 'grid',
                                 gridTemplateColumns: 'repeat(2, 1fr)',
-                                gap: '14px',
+                                gap: '12px', // Reducido de 14px a 12px
                                 alignItems: 'start'
                             }}
                         >
@@ -799,8 +755,93 @@ export default function DashboardSocioVirtual() {
                             </button>
                         </div>
                     )}
-                </div>
 
+                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - Debajo de los informes - Compactado */}
+                    <div style={{ marginTop: '70px' }}>
+                        {previewManana && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ delay: 0.3, duration: 0.5 }}
+                            >
+                                {/* Título destacado - Mismo estilo que "Lo que tengo sobre la mesa" */}
+                                <div className="mb-4">
+                                    <h2 
+                                        className="text-2xl font-black mb-2 flex items-center gap-2"
+                                        style={{
+                                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
+                                            WebkitBackgroundClip: 'text',
+                                            WebkitTextFillColor: 'transparent',
+                                            backgroundClip: 'text',
+                                            lineHeight: '1.2'
+                                        }}
+                                    >
+                                        <span className="text-3xl">🌅</span>
+                                        Lo que te espera mañana
+                                    </h2>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-lg font-bold text-purple-700">
+                                            {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
+                                                weekday: 'long'
+                                            })}
+                                        </span>
+                                        <span className="text-base font-semibold text-gray-600">
+                                            {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
+                                                day: 'numeric', 
+                                                month: 'long' 
+                                            })}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Contenedor con fondo destacado - Compactado */}
+                                <div className="bg-gradient-to-br from-purple-50 via-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-purple-200 shadow-lg">
+                                    {/* Mensaje de resumen - Compactado */}
+                                    <div className="bg-white/80 backdrop-blur-sm rounded-lg p-3 mb-4 border border-purple-100">
+                                        <p className="text-gray-800 text-sm leading-relaxed font-semibold">
+                                            {previewManana.mensaje}
+                                        </p>
+                                    </div>
+
+                                    {/* 4 Puntos clave - Grid 2x2 - Compactado */}
+                                    <div className="grid grid-cols-2 gap-2.5">
+                                        {previewManana.puntos?.map((punto, idx) => (
+                                            <motion.div
+                                                key={idx}
+                                                initial={{ opacity: 0, scale: 0.9 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                transition={{ delay: 0.5 + (idx * 0.1), duration: 0.3 }}
+                                                className="flex items-start gap-2 p-3 bg-white/90 backdrop-blur-sm rounded-lg shadow-sm hover:shadow-md transition-all border border-purple-100"
+                                            >
+                                                <span className="text-2xl flex-shrink-0">{punto.icono}</span>
+                                                <span className="text-xs text-gray-700 font-medium leading-snug flex-1">
+                                                    {punto.texto}
+                                                </span>
+                                            </motion.div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </motion.div>
+                        )}
+
+                        {/* Loading preview */}
+                        {loadingPreview && !previewManana && (
+                            <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-2xl p-6 border-2 border-purple-200">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center animate-pulse">
+                                        🔮
+                                    </div>
+                                    <div>
+                                        <p className="text-purple-700 font-medium">
+                                            Analizando el día de mañana...
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
             </div>
         </div>
     );
