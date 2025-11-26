@@ -327,3 +327,4 @@ SELECT 'Migración 20251123_03_noshows_risk_intelligence_FIXED completada exitos
 
 
 
+

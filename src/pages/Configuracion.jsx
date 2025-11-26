@@ -858,11 +858,25 @@ const Configuracion = () => {
 
                 if (error) throw error;
                 
-                // ✅ Disparar evento para que el dashboard se actualice con el nuevo agente
+                console.log('✅ Agente guardado correctamente, forzando refresh completo...');
+                
+                // ✅ FORZAR REFRESH COMPLETO: Disparar múltiples eventos para asegurar actualización
+                // 1. Evento para AuthContext
                 window.dispatchEvent(new CustomEvent('agent-updated', {
                     detail: { agent: agentData }
                 }));
-                console.log('✅ Evento agent-updated disparado');
+                
+                // 2. Evento para forzar recarga del business en AuthContext
+                window.dispatchEvent(new CustomEvent('force-business-reload'));
+                
+                // 3. Evento adicional para el Dashboard (con delay para asegurar que se procese)
+                setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent('agent-updated', {
+                        detail: { agent: agentData, force: true }
+                    }));
+                }, 100);
+                
+                console.log('✅ Eventos disparados: agent-updated + force-business-reload');
             } else if (section === "Configuración de notificaciones") {
                 // Validaciones previas para notificaciones
                 const n = settings.notifications || {};

@@ -38,10 +38,26 @@ export default function DashboardSocioVirtual() {
     // 🔮 Estado para preview de mañana
     const [previewManana, setPreviewManana] = useState(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
+    
+    // ✅ Estado para forzar re-render cuando se actualiza el agente
+    const [agentUpdateKey, setAgentUpdateKey] = useState(0);
+    // ✅ Estado local para el business (para forzar actualización inmediata)
+    const [localBusiness, setLocalBusiness] = useState(business);
 
     // Obtener configuración del agente desde business.settings
+    // ✅ Usa localBusiness para actualización inmediata
     const agentConfig = React.useMemo(() => {
-        if (!business) {
+        const currentBusiness = localBusiness || business;
+        
+        console.log('🔄 Dashboard: Recalculando agentConfig', {
+            hasBusiness: !!currentBusiness,
+            agentId: currentBusiness?.settings?.agent?.avatar_id,
+            agentName: currentBusiness?.settings?.agent?.name,
+            agentUrl: currentBusiness?.settings?.agent?.avatar_url,
+            usingLocal: !!localBusiness
+        });
+        
+        if (!currentBusiness) {
             const defaultAvatar = getAvatarById('elena');
             return {
                 name: defaultAvatar.name || 'Lua',
@@ -50,8 +66,8 @@ export default function DashboardSocioVirtual() {
             };
         }
 
-        if (business.settings?.agent) {
-            const agent = business.settings.agent;
+        if (currentBusiness.settings?.agent) {
+            const agent = currentBusiness.settings.agent;
             
             if (agent.avatar_url) {
                 return {
@@ -86,7 +102,136 @@ export default function DashboardSocioVirtual() {
             avatar_url: defaultAvatar.avatar_url,
             avatar_id: 'elena'
         };
+    }, [
+        localBusiness?.id, // ✅ Usa localBusiness
+        localBusiness?.settings?.agent?.avatar_id,
+        localBusiness?.settings?.agent?.avatar_url,
+        localBusiness?.settings?.agent?.name,
+        business?.id, // También depende de business por si acaso
+        agentUpdateKey // ✅ Key para forzar recálculo cuando se actualiza el agente
+    ]);
+    
+    // ✅ Sincronizar localBusiness con business del contexto
+    useEffect(() => {
+        if (business) {
+            setLocalBusiness(business);
+        }
     }, [business]);
+    
+    // ✅ Recargar business al montar el componente (para asegurar datos frescos)
+    useEffect(() => {
+        const reloadBusinessOnMount = async () => {
+            if (!business?.id) return;
+            
+            console.log('🔄 Dashboard: Componente montado, recargando business para asegurar datos frescos...');
+            
+            try {
+                const { data: freshBusiness, error } = await supabase
+                    .from('businesses')
+                    .select('*')
+                    .eq('id', business.id)
+                    .single();
+                
+                if (!error && freshBusiness) {
+                    console.log('✅ Dashboard: Business recargado al montar:', {
+                        agentId: freshBusiness?.settings?.agent?.avatar_id,
+                        agentName: freshBusiness?.settings?.agent?.name
+                    });
+                    setLocalBusiness(freshBusiness);
+                }
+            } catch (error) {
+                console.error('❌ Dashboard: Error al recargar business al montar:', error);
+            }
+        };
+        
+        // Pequeño delay para asegurar que todo esté listo
+        const timer = setTimeout(reloadBusinessOnMount, 200);
+        
+        return () => clearTimeout(timer);
+    }, []); // Solo al montar
+    
+    // ✅ Listener AGRESIVO para forzar actualización cuando se actualiza el agente
+    useEffect(() => {
+        const handleAgentUpdate = async (event) => {
+            const force = event?.detail?.force;
+            console.log('🔄 Dashboard: Evento agent-updated recibido', { force });
+            
+            // Obtener businessId del contexto o del business actual
+            const businessIdToUse = business?.id || localBusiness?.id;
+            
+            if (!businessIdToUse) {
+                console.warn('⚠️ Dashboard: No hay business.id, esperando 500ms y reintentando...');
+                // Retry después de un delay
+                setTimeout(() => {
+                    const retryId = business?.id || localBusiness?.id;
+                    if (retryId) {
+                        handleAgentUpdate({ detail: { force: true } });
+                    }
+                }, 500);
+                return;
+            }
+            
+            try {
+                console.log('📡 Dashboard: Recargando business desde Supabase...', { businessId: businessIdToUse });
+                
+                // ✅ RECARGAR DIRECTAMENTE desde Supabase (más rápido y confiable)
+                const { data: updatedBusiness, error } = await supabase
+                    .from('businesses')
+                    .select('*')
+                    .eq('id', businessIdToUse)
+                    .single();
+                
+                if (error) {
+                    console.error('❌ Dashboard: Error al recargar business:', error);
+                    // Retry una vez más
+                    if (!force) {
+                        setTimeout(() => handleAgentUpdate({ detail: { force: true } }), 300);
+                    }
+                    return;
+                }
+                
+                console.log('✅ Dashboard: Business recargado directamente:', {
+                    agentId: updatedBusiness?.settings?.agent?.avatar_id,
+                    agentName: updatedBusiness?.settings?.agent?.name,
+                    agentUrl: updatedBusiness?.settings?.agent?.avatar_url
+                });
+                
+                // Actualizar el estado local INMEDIATAMENTE
+                setLocalBusiness(updatedBusiness);
+                
+                // Forzar re-render múltiples veces para asegurar
+                setAgentUpdateKey(prev => prev + 1);
+                
+                // Segundo update después de un pequeño delay para asegurar
+                setTimeout(() => {
+                    setAgentUpdateKey(prev => prev + 1);
+                }, 100);
+                
+                // También disparar evento para que AuthContext se actualice
+                window.dispatchEvent(new CustomEvent('force-business-reload'));
+                
+            } catch (error) {
+                console.error('❌ Dashboard: Error en handleAgentUpdate:', error);
+            }
+        };
+        
+        window.addEventListener('agent-updated', handleAgentUpdate);
+        
+        // ✅ También recargar cuando la página vuelve a ser visible (por si el usuario cambió de pestaña)
+        const handleVisibilityChange = () => {
+            if (document.visibilityState === 'visible' && business?.id) {
+                console.log('👁️ Dashboard: Página visible, recargando business...');
+                handleAgentUpdate({ detail: { force: true } });
+            }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        
+        return () => {
+            window.removeEventListener('agent-updated', handleAgentUpdate);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [business?.id, localBusiness?.id]);
 
     // 🔮 Cargar preview de mañana DESPUÉS de que se cargue el snapshot de hoy
     useEffect(() => {
