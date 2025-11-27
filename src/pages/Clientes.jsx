@@ -581,7 +581,7 @@ export default function Clientes() {
                                 <Users className="w-6 h-6 text-white" />
                             </div>
                             <div>
-                                <h1 className="text-xl font-bold text-white">Gestión de Clientes</h1>
+                                <h1 className="text-xl font-black text-white">Gestión de Clientes</h1>
                                 <p className="text-sm text-white/80">{customers.length} clientes totales</p>
                             </div>
                         </div>

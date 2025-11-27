@@ -944,7 +944,7 @@ const Configuracion = () => {
                             <SettingsIcon className="w-6 h-6 text-white" />
                     </div>
                         <div>
-                            <h1 className="text-lg sm:text-xl font-bold">Configuración</h1>
+                            <h1 className="text-lg sm:text-xl font-black">Configuración</h1>
                             <p className="text-sm text-white/90 mt-0.5">
                                 Centro de control de tu negocio
                     </p>

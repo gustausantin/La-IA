@@ -2539,7 +2539,7 @@ export default function Reservas() {
                     {/* Título y fecha - Compactos */}
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-1.5 sm:gap-2">
-                            <h1 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-1.5 truncate">
+                            <h1 className="text-base sm:text-lg font-black text-gray-900 flex items-center gap-1.5 truncate">
                                 <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 flex-shrink-0" />
                                 <span className="truncate">Reservas</span>
                             </h1>

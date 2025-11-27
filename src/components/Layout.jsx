@@ -118,7 +118,7 @@ export default function Layout() {
                     HEADER MÓVIL/DESKTOP - MODERNIZADO
                 ======================================== */}
                 <header className="bg-white shadow-md border-b-2 border-purple-100 flex-shrink-0 z-30">
-                    <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-3 sm:py-4">
+                    <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3">
                         {/* Logo + Menú móvil */}
                         <div className="flex items-center gap-2 sm:gap-3">
                             {/* Botón menú móvil (solo visible en móvil) */}
@@ -133,20 +133,13 @@ export default function Layout() {
                                 )}
                             </button>
 
-                            {/* Logo con emoji realista (mismo estilo que Dashboard) */}
-                            <div className="flex items-center gap-3">
-                                <div className="text-2xl sm:text-3xl">
-                                    {verticalEmoji}
-                                </div>
-                                <div>
-                                    <h1 className="text-base sm:text-lg font-black bg-gradient-to-r from-purple-700 via-blue-600 to-purple-700 bg-clip-text text-transparent">
-                                        {business?.name || "Mi Negocio"}
-                                    </h1>
-                                    <p className="text-xs text-gray-500 font-medium hidden sm:block">
-                                        {currentPage}
-                                    </p>
-                                </div>
-                            </div>
+                            {/* Logo LA-IA - Compacto final */}
+                            <img 
+                                src="https://zrcsujgurtglyqoqiynr.supabase.co/storage/v1/object/public/Logo%20La-IA/LA-IA%20Tech%20Logo1.png" 
+                                alt="LA-IA"
+                                className="h-5 sm:h-6 md:h-7 w-auto object-contain"
+                                style={{ maxWidth: '120px' }}
+                            />
                         </div>
 
                         {/* Acciones derecha */}
@@ -235,21 +228,23 @@ export default function Layout() {
                     ======================================== */}
                     <aside className="hidden lg:flex lg:w-64 bg-gray-50 shadow-lg flex-col border-r border-gray-200">
                         {/* Info del negocio - Compacto y profesional */}
-                        <div className="px-4 py-4 bg-white border-b-2 border-gray-200">
-                            {/* Emoji y nombre en la misma línea */}
-                            <div className="flex items-center justify-center gap-3 mb-3">
-                                <div className="text-3xl">
+                        <div className="px-4 py-4 bg-gray-50 border-b-2 border-gray-200">
+                            <div className="flex gap-3">
+                                {/* Emoji */}
+                                <div className="text-3xl flex-shrink-0">
                                     {verticalEmoji}
                                 </div>
-                                <h3 className="font-black bg-gradient-to-r from-purple-700 via-blue-600 to-purple-700 bg-clip-text text-transparent text-lg leading-tight">
-                                    {business?.name || "Mi Negocio"}
-                                </h3>
+                                
+                                {/* Texto alineado (nombre + email) */}
+                                <div className="flex-1 min-w-0">
+                                    <h3 className="font-black bg-gradient-to-r from-purple-700 via-blue-600 to-purple-700 bg-clip-text text-transparent text-lg leading-tight mb-1">
+                                        {business?.name || "Mi Negocio"}
+                                    </h3>
+                                    <p className="text-xs text-gray-800 truncate font-semibold">
+                                        {user?.email}
+                                    </p>
+                                </div>
                             </div>
-                            
-                            {/* Email centrado */}
-                            <p className="text-xs text-gray-800 text-center truncate font-semibold">
-                                {user?.email}
-                            </p>
                         </div>
 
                         {/* Navegación completa desktop */}
@@ -298,7 +293,7 @@ export default function Layout() {
                             {/* Menú slide-in profesional */}
                             <div className="lg:hidden fixed inset-y-0 left-0 w-72 bg-white shadow-2xl z-50 flex flex-col">
                                 {/* Header del menú - Compacto */}
-                                <div className="px-4 py-4 bg-white border-b-2 border-gray-200">
+                                <div className="px-4 py-4 bg-gray-50 border-b-2 border-gray-200">
                                     <div className="flex items-center justify-between mb-4">
                                         <h2 className="text-lg font-black text-gray-800">Menú</h2>
                                         <button
@@ -309,17 +304,22 @@ export default function Layout() {
                                         </button>
                                     </div>
                                     
-                                    {/* Emoji y nombre en la misma línea */}
-                                    <div className="flex items-center justify-center gap-3 mb-3">
-                                        <div className="text-3xl">
+                                    <div className="flex gap-3">
+                                        {/* Emoji */}
+                                        <div className="text-3xl flex-shrink-0">
                                             {verticalEmoji}
                                         </div>
-                                        <p className="font-black text-lg bg-gradient-to-r from-purple-700 via-blue-600 to-purple-700 bg-clip-text text-transparent truncate">
-                                            {business?.name || "Mi Negocio"}
-                                        </p>
+                                        
+                                        {/* Texto alineado (nombre + email) */}
+                                        <div className="flex-1 min-w-0">
+                                            <p className="font-black text-lg bg-gradient-to-r from-purple-700 via-blue-600 to-purple-700 bg-clip-text text-transparent truncate mb-1">
+                                                {business?.name || "Mi Negocio"}
+                                            </p>
+                                            <p className="text-xs text-gray-800 truncate font-semibold">
+                                                {user?.email}
+                                            </p>
+                                        </div>
                                     </div>
-                                    
-                                    <p className="text-xs text-gray-800 text-center truncate font-semibold">{user?.email}</p>
                                 </div>
 
                                 {/* Navegación completa móvil */}

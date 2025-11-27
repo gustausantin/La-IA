@@ -403,7 +403,7 @@ export default function Comunicacion() {
                             <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <h1 className="text-base sm:text-xl font-bold text-gray-900 flex items-center gap-2 flex-wrap">
+                            <h1 className="text-base sm:text-xl font-black text-gray-900 flex items-center gap-2 flex-wrap">
                                 <span className="truncate">Centro de Comunicación</span>
                                 <span className="text-[10px] sm:text-xs font-normal text-purple-600 bg-purple-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap">
                                     IA Activa
