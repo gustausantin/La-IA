@@ -7,6 +7,7 @@ import {
     MessageSquare, 
     CheckCircle, 
     AlertCircle,
+    AlertTriangle,
     Clock,
     Calendar,
     TrendingDown,
@@ -52,23 +53,47 @@ export default function NoShowsSimple() {
         try {
             setLoading(true);
 
-            // 1. Métricas del mes
-            const { data: metricsData, error: metricsError } = await supabase
-                .rpc('get_simple_noshow_metrics', {
-                    p_business_id: business.id
-                });
+            // 📅 Calcular rango del mes actual
+            const now = new Date();
+            const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+            const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+            const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+            const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+
+            // 1️⃣ MÉTRICAS DEL MES - Query directa
+            const { data: allAppointments, error: metricsError } = await supabase
+                .from('appointments')
+                .select('id, status, appointment_date, appointment_time')
+                .eq('business_id', business.id)
+                .gte('appointment_date', startOfMonth.toISOString().split('T')[0])
+                .lte('appointment_date', endOfMonth.toISOString().split('T')[0]);
 
             if (metricsError) {
                 console.error('Error cargando métricas:', metricsError);
-            } else if (metricsData && metricsData.length > 0) {
-                setMetrics(metricsData[0]);
+            } else {
+                // Calcular métricas manualmente
+                const confirmed = allAppointments?.filter(a => a.status === 'confirmed').length || 0;
+                const noshow = allAppointments?.filter(a => a.status === 'no_show').length || 0;
+                const total = allAppointments?.length || 0;
+                const successRate = total > 0 ? ((confirmed / total) * 100) : 0;
+                const savedAmount = confirmed * 45; // Promedio €45 por cita
+
+                setMetrics({
+                    avoided: confirmed,
+                    success_rate: successRate,
+                    saved_amount: savedAmount,
+                    no_shows: noshow
+                });
             }
 
-            // 2. Citas de HOY con nivel de riesgo
+            // 2️⃣ CITAS DE HOY - Query directa SIN joins
             const { data: appointmentsData, error: appointmentsError } = await supabase
-                .rpc('get_risk_appointments_today', {
-                    p_business_id: business.id
-                });
+                .from('appointments')
+                .select('*')
+                .eq('business_id', business.id)
+                .eq('appointment_date', now.toISOString().split('T')[0])
+                .in('status', ['pending', 'confirmed'])
+                .order('appointment_time', { ascending: true });
 
             if (appointmentsError) {
                 console.error('Error cargando citas:', appointmentsError);
@@ -192,17 +217,22 @@ export default function NoShowsSimple() {
 
     return (
         <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
-            {/* HEADER */}
-            <div className="max-w-7xl mx-auto mb-6">
-                <div className="flex items-center justify-between mb-2">
-                    <div>
-                        <h1 className="text-3xl font-bold text-gray-900">Control de Citas</h1>
-                        <p className="text-gray-600 mt-1">Gestiona confirmaciones y evita no-shows</p>
+            {/* HEADER estilo Dashboard - limpio y espacioso */}
+            <div className="max-w-[85%] mx-auto mb-6">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex-1">
+                        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3 mb-2">
+                            <AlertTriangle className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
+                            Control de Citas
+                        </h1>
+                        <p className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-11">
+                            Gestiona confirmaciones y evita no-shows
+                        </p>
                     </div>
                     <button
                         onClick={handleRefresh}
                         disabled={refreshing}
-                        className="p-3 bg-white rounded-lg shadow-sm hover:shadow-md transition-shadow border border-gray-200"
+                        className="p-3 bg-white rounded-lg hover:bg-gray-50 transition-colors border border-gray-300 shadow-sm"
                     >
                         <RefreshCw className={`w-5 h-5 text-gray-600 ${refreshing ? 'animate-spin' : ''}`} />
                     </button>

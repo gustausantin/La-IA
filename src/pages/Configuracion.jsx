@@ -123,6 +123,31 @@ const VOICE_OPTIONS = [
     }
 ];
 
+// Función helper para formatear número de teléfono
+const formatPhoneNumber = (phone) => {
+    if (!phone) return '+34 9XX XXX XXX';
+    
+    // Remover todos los caracteres no numéricos excepto el +
+    const cleaned = phone.replace(/[^\d+]/g, '');
+    
+    // Si empieza con +34, formatear como +34 XXX XXX XXX
+    if (cleaned.startsWith('+34')) {
+        const digits = cleaned.substring(3); // Quitar +34
+        if (digits.length === 9) {
+            return `+34 ${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6)}`;
+        }
+    }
+    
+    // Si empieza con 34 (sin +), agregar el +
+    if (cleaned.startsWith('34') && cleaned.length === 11) {
+        const digits = cleaned.substring(2);
+        return `+34 ${digits.substring(0, 3)} ${digits.substring(3, 6)} ${digits.substring(6)}`;
+    }
+    
+    // Si no coincide con el formato esperado, devolver tal cual
+    return phone;
+};
+
 const Configuracion = () => {
     const { businessId, business, user } = useAuthContext();
     const { labels } = useVertical(); // 🆕 Hook para vocabulario dinámico
@@ -136,8 +161,8 @@ const Configuracion = () => {
     const [isPlayingAudio, setIsPlayingAudio] = useState(false);
     const audioRef = React.useRef(null);
     
-    // 🆕 IDs válidos de las pestañas (ya agrupadas en 5 bloques)
-    const validTabs = ['asistente', 'negocio', 'reservas', 'canales', 'cuenta'];
+    // 🆕 IDs válidos de las pestañas (6 bloques)
+    const validTabs = ['asistente', 'negocio', 'reservas', 'canales', 'integraciones', 'cuenta'];
     
     // ✅ CRÍTICO: Leer tab de la URL o del state al cargar - PRIORIDAD ABSOLUTA a OAuth redirect
     useEffect(() => {
@@ -146,7 +171,7 @@ const Configuracion = () => {
         
         // ✅ PRIORIDAD MÁXIMA: Si viene OAuth redirect, establecer tab INMEDIATAMENTE y BLOQUEAR cualquier otra lógica
         if (integrationParam === 'google_calendar') {
-            const targetTab = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'canales';
+            const targetTab = (tabParam && validTabs.includes(tabParam)) ? tabParam : 'integraciones';
             console.log('🎯 OAuth redirect detectado - Estableciendo tab INMEDIATAMENTE:', targetTab);
             setActiveTab(targetTab);
             
@@ -167,7 +192,7 @@ const Configuracion = () => {
         }
         // 🔄 Mapeo de tabs antiguos a nuevos (compatibilidad)
         const legacyMapping = {
-            // Tabs antiguos mapeados a la nueva estructura de 5 grupos
+            // Tabs antiguos mapeados a la nueva estructura de 6 grupos
             'general': 'negocio',
             'negocio': 'negocio',
             'recursos': 'negocio',
@@ -175,7 +200,7 @@ const Configuracion = () => {
             'agent': 'asistente',
             'channels': 'canales',
             'notifications': 'canales',
-            'integraciones': 'canales',
+            'integraciones': 'integraciones',
             'documentos': 'cuenta'
         };
         const legacyTab = location.state?.activeTab || searchParams.get('tab');
@@ -215,8 +240,8 @@ const Configuracion = () => {
             // ✅ PRESERVAR el tab en la URL al limpiar parámetros OAuth (después de que IntegracionesContent los procese)
             setTimeout(() => {
                 const newSearchParams = new URLSearchParams();
-                // ✅ CRÍTICO: Preservar tab=canales en la URL
-                const tabToKeep = tabFromOAuth || 'canales';
+                // ✅ CRÍTICO: Preservar tab=integraciones en la URL
+                const tabToKeep = tabFromOAuth || 'integraciones';
                 if (validTabs.includes(tabToKeep)) {
                     newSearchParams.set('tab', tabToKeep);
                 }
@@ -352,6 +377,12 @@ const Configuracion = () => {
             label: "Comunicación",
             icon: <MessageSquare className="w-4 h-4" />,
             description: "Canales de contacto, alertas y notificaciones"
+        },
+        {
+            id: "integraciones",
+            label: "Integraciones",
+            icon: <Zap className="w-4 h-4" />,
+            description: "Google Calendar y otras integraciones externas"
         },
         {
             id: "cuenta",
@@ -937,19 +968,15 @@ const Configuracion = () => {
         <div className="min-h-screen bg-gray-50">
             {/* 📱 MOBILE-FIRST: Container adaptativo */}
             <div className="w-full max-w-7xl mx-auto px-3 sm:px-4 py-3 sm:py-4">
-                {/* Header */}
-                <div className="mb-4 p-4 bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl shadow-lg text-white">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-white/20 backdrop-blur rounded-lg p-2.5">
-                            <SettingsIcon className="w-6 h-6 text-white" />
-                    </div>
-                        <div>
-                            <h1 className="text-lg sm:text-xl font-black">Configuración</h1>
-                            <p className="text-sm text-white/90 mt-0.5">
-                                Centro de control de tu negocio
+                {/* Header estilo Dashboard - limpio y espacioso */}
+                <div className="mb-6">
+                    <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3 mb-2">
+                        <SettingsIcon className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
+                        Configuración
+                    </h1>
+                    <p className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-11">
+                        Centro de control de tu negocio
                     </p>
-                        </div>
-                    </div>
                 </div>
 
                 {/* 📱 Tabs MOBILE-FIRST - Grid responsive sin scroll horizontal */}
@@ -1365,9 +1392,11 @@ const Configuracion = () => {
                                             <div>
                                                 <p className="font-semibold text-gray-900">Llamadas de Voz</p>
                                                 <p className="text-lg font-mono font-bold text-blue-600">
-                                                    {business?.assigned_phone || '+34 9XX XXX XXX'}
+                                                    {formatPhoneNumber(business?.assigned_phone)}
                                                 </p>
-                                                <p className="text-xs text-gray-500 mt-0.5">Asignado por LA-IA</p>
+                                                <p className="text-xs text-gray-500 mt-0.5">
+                                                    {business?.assigned_phone ? 'Asignado por LA-IA' : 'Pendiente de asignación'}
+                                                </p>
                                         </div>
                                     </div>
                                         <div className="flex items-center gap-2">
@@ -1386,7 +1415,7 @@ const Configuracion = () => {
                                             <div>
                                                 <p className="font-semibold text-gray-900">WhatsApp Business</p>
                                                 <p className="text-lg font-mono font-bold text-green-600">
-                                                    {business?.assigned_phone || '+34 9XX XXX XXX'}
+                                                    {formatPhoneNumber(business?.assigned_phone)}
                                                 </p>
                                                 <p className="text-xs text-gray-500 mt-0.5">Mismo número que voz</p>
                                                 </div>
@@ -1691,7 +1720,19 @@ const Configuracion = () => {
                         </div>
                     )}
 
-                    {/* 💳 CUENTA, FACTURACIÓN E INTEGRACIONES */}
+                    {/* 🔗 INTEGRACIONES */}
+                    {activeTab === "integraciones" && (
+                        <div className="space-y-4">
+                            <IntegracionesContent 
+                                settings={settings}
+                                setSettings={setSettings}
+                                saving={saving}
+                                handleSave={handleSave}
+                            />
+                        </div>
+                    )}
+
+                    {/* 💳 CUENTA Y FACTURACIÓN */}
                     {activeTab === "cuenta" && (
                         <div className="space-y-4">
                             {/* 1️⃣ Resumen del plan */}
@@ -1872,14 +1913,6 @@ const Configuracion = () => {
                                     </div>
                                 </div>
                             </SettingSection>
-
-                            {/* 5️⃣ Integraciones debajo de la información de cuenta */}
-                            <IntegracionesContent 
-                                settings={settings}
-                                setSettings={setSettings}
-                                saving={saving}
-                                handleSave={handleSave}
-                            />
 
                         </div>
                     )}

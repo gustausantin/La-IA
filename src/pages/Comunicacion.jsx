@@ -397,22 +397,18 @@ export default function Comunicacion() {
             {/* HEADER - MOBILE-FIRST */}
             <div className="bg-white">
                 <div className="max-w-[85%] mx-auto px-3 sm:px-4 py-3 sm:py-4">
-                    {/* Título + Badge - MOBILE-FIRST */}
-                    <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
-                        <div className="p-2 sm:p-2.5 bg-gradient-to-br from-purple-500 to-blue-600 rounded-lg flex-shrink-0">
-                            <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h1 className="text-base sm:text-xl font-black text-gray-900 flex items-center gap-2 flex-wrap">
-                                <span className="truncate">Centro de Comunicación</span>
-                                <span className="text-[10px] sm:text-xs font-normal text-purple-600 bg-purple-100 px-1.5 sm:px-2 py-0.5 rounded-full whitespace-nowrap">
-                                    IA Activa
-                                </span>
-                            </h1>
-                            <p className="text-[10px] sm:text-xs text-gray-600 mt-0.5 hidden sm:block">
-                                Todas las conversaciones gestionadas por tu asistente inteligente
-                            </p>
-                        </div>
+                    {/* Título estilo Dashboard - limpio y espacioso */}
+                    <div className="mb-4">
+                        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3 flex-wrap mb-2">
+                            <MessageSquare className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
+                            <span>Centro de Comunicación</span>
+                            <span className="text-xs sm:text-sm font-normal text-purple-600 bg-purple-100 px-2.5 sm:px-3 py-1 rounded-full">
+                                IA Activa
+                            </span>
+                        </h1>
+                        <p className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-11">
+                            Todas las conversaciones gestionadas por tu asistente inteligente
+                        </p>
                     </div>
 
                     {/* Panel Informativo COMPACTO */}

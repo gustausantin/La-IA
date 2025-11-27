@@ -2531,20 +2531,16 @@ export default function Reservas() {
     return (
         <div className="max-w-[85%] mx-auto space-y-4 sm:space-y-6">
             {/* ========================================
-                SECCIÓN 1: HEADER PRINCIPAL - LIMPIO Y ORGANIZADO
+                SECCIÓN 1: HEADER PRINCIPAL - ESTILO DASHBOARD
             ======================================== */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-2 sm:p-3">
-                {/* Header compacto - Todo en una línea */}
-                <div className="flex items-center justify-between gap-2 sm:gap-3">
-                    {/* Título y fecha - Compactos */}
+            <div className="mb-6">
+                <div className="flex items-center justify-between mb-4">
                     <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5 sm:gap-2">
-                            <h1 className="text-base sm:text-lg font-black text-gray-900 flex items-center gap-1.5 truncate">
-                                <Bot className="w-4 h-4 sm:w-5 sm:h-5 text-purple-600 flex-shrink-0" />
-                                <span className="truncate">Reservas</span>
-                            </h1>
-                        </div>
-                        <p className="text-[10px] sm:text-xs text-gray-500 mt-0.5 truncate">
+                        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3 mb-2">
+                            <Bot className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600 flex-shrink-0" />
+                            <span>Reservas</span>
+                        </h1>
+                        <p className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-11">
                             {format(new Date(), "EEEE d 'de' MMMM, yyyy", {
                                 locale: es,
                             })}
@@ -2552,24 +2548,24 @@ export default function Reservas() {
                     </div>
 
                     {/* Botones de acción principales */}
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 sm:gap-3">
                         {/* Botón Actualizar */}
                         <button
                             onClick={loadReservations}
                             disabled={loading}
-                            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[40px] bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm font-medium text-xs sm:text-sm transition-all touch-target flex-shrink-0 disabled:opacity-50"
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm font-medium text-sm transition-all disabled:opacity-50"
                             title="Actualizar reservas"
                         >
-                            <RefreshCw className={`w-4 h-4 sm:w-5 sm:h-5 ${loading ? 'animate-spin' : ''}`} />
+                            <RefreshCw className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} />
                             <span className="hidden sm:inline">Actualizar</span>
                         </button>
 
                         {/* Botón Nueva Reserva */}
                         <button
                             onClick={() => handleCreateReservation(null)}
-                            className="flex items-center justify-center gap-1.5 px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[40px] bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 shadow-md font-medium text-xs sm:text-sm transition-all touch-target flex-shrink-0"
+                            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 shadow-md font-medium text-sm transition-all"
                         >
-                            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
+                            <Plus className="w-5 h-5" />
                             <span className="hidden sm:inline">Nueva Reserva</span>
                             <span className="sm:hidden">Nueva</span>
                         </button>

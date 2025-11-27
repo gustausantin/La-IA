@@ -251,7 +251,7 @@ export default function Clientes() {
                 .from("appointments")
                 .select("customer_id, status")
                 .eq("business_id", businessId)
-                .eq("status", "noshow");
+                .eq("status", "no_show");
 
             // Agrupar no-shows por cliente
             const noShowsByCustomer = {};
@@ -573,34 +573,35 @@ export default function Clientes() {
     return (
         <div className="min-h-screen bg-gray-50 px-4 py-4">
             <div className="max-w-[85%] mx-auto space-y-3">
-                {/* Header simplificado y profesional */}
-                <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-xl shadow-lg p-4 text-white">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-                                <Users className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                                <h1 className="text-xl font-black text-white">Gestión de Clientes</h1>
-                                <p className="text-sm text-white/80">{customers.length} clientes totales</p>
-                            </div>
+                {/* Header estilo Dashboard - limpio y espacioso */}
+                <div className="mb-6">
+                    <div className="flex items-center justify-between mb-4">
+                        <div className="flex-1">
+                            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3 mb-2">
+                                <Users className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
+                                Gestión de Clientes
+                            </h1>
+                            <p className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-11">
+                                {customers.length} clientes totales
+                            </p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 sm:gap-3">
                             <button
                                 onClick={() => toast('Función de importación próximamente', { icon: '📥' })}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-white/10 backdrop-blur text-white border-2 border-white/40 rounded-lg hover:bg-white/20 hover:border-white/60 transition-all text-sm font-semibold shadow-lg"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 shadow-sm font-medium text-sm transition-all"
                             >
                                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                                 </svg>
-                                Importar Clientes
+                                <span className="hidden sm:inline">Importar</span>
                             </button>
                             <button
                                 onClick={handleCreateCustomer}
-                                className="flex items-center gap-2 px-5 py-2.5 bg-white text-purple-600 rounded-lg hover:bg-purple-50 transition-all text-sm font-bold shadow-lg"
+                                className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:opacity-90 shadow-md font-medium text-sm transition-all"
                             >
                                 <Plus className="w-5 h-5" />
-                                Nuevo Cliente
+                                <span className="hidden sm:inline">Nuevo Cliente</span>
+                                <span className="sm:hidden">Nuevo</span>
                             </button>
                         </div>
                     </div>

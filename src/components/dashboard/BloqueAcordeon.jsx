@@ -68,10 +68,39 @@ export default function BloqueAcordeon({
       iconColor: 'text-pink-600',
       bgColor: 'rgba(219, 39, 119, 0.06)',
       bgGradient: 'linear-gradient(to right, rgba(236, 72, 153, 0.05) 0%, rgba(255, 255, 255, 0.98) 100%)'
+    },
+    // Widgets de "MAÑANA" - Estilo morado/purple
+    'preview-0': {
+      icon: Calendar,
+      borderColor: '#a855f7', // purple-500
+      iconColor: 'text-purple-600',
+      bgColor: 'rgba(147, 51, 234, 0.06)',
+      bgGradient: 'linear-gradient(to right, rgba(168, 85, 247, 0.05) 0%, rgba(255, 255, 255, 0.98) 100%)'
+    },
+    'preview-1': {
+      icon: Users,
+      borderColor: '#3b82f6', // blue-500
+      iconColor: 'text-blue-600',
+      bgColor: 'rgba(37, 99, 235, 0.06)',
+      bgGradient: 'linear-gradient(to right, rgba(59, 130, 246, 0.05) 0%, rgba(255, 255, 255, 0.98) 100%)'
+    },
+    'preview-2': {
+      icon: AlertTriangle,
+      borderColor: '#f59e0b', // amber-500
+      iconColor: 'text-amber-600',
+      bgColor: 'rgba(245, 158, 11, 0.06)',
+      bgGradient: 'linear-gradient(to right, rgba(245, 158, 11, 0.05) 0%, rgba(255, 255, 255, 0.98) 100%)'
+    },
+    'preview-3': {
+      icon: DollarSign,
+      borderColor: '#22c55e', // green-500
+      iconColor: 'text-green-600',
+      bgColor: 'rgba(22, 163, 74, 0.06)',
+      bgGradient: 'linear-gradient(to right, rgba(34, 197, 94, 0.05) 0%, rgba(255, 255, 255, 0.98) 100%)'
     }
   };
 
-  const config = bloqueConfig[id] || bloqueConfig.RESERVAS;
+  const config = bloqueConfig[id] || bloqueConfig[titulo] || bloqueConfig.RESERVAS;
   const IconComponent = config.icon;
 
   // Determinar si es urgente (prioridad 1 o 2) - borde más grueso
@@ -135,6 +164,13 @@ export default function BloqueAcordeon({
           return { emoji: '⭐', text: `${especiales} especial${especiales > 1 ? 'es' : ''}`, color: 'bg-purple-100 text-purple-700 border-purple-300' };
         }
         return { emoji: '✅', text: 'Sin VIP hoy', color: 'bg-green-100 text-green-700 border-green-300' };
+      
+      // Widgets de "MAÑANA"
+      case 'preview-0':
+      case 'preview-1':
+      case 'preview-2':
+      case 'preview-3':
+        return { emoji: '📊', text: 'Ver datos', color: 'bg-purple-100 text-purple-700 border-purple-300' };
       
       default:
         return { emoji: '📊', text: 'Ver datos', color: 'bg-gray-100 text-gray-600 border-gray-300' };
@@ -207,7 +243,7 @@ export default function BloqueAcordeon({
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-black text-gray-900 tracking-tight truncate">
-                {titulo || id}
+                {textoColapsado || titulo || id}
               </p>
               {/* MICRO-DATO: El badge visual que resume el estado */}
               <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border-2 shadow-sm mt-0.5 ${microDato.color}`}>
@@ -474,6 +510,130 @@ function renderContenidoExpandido(id, data, config) {
             ))
           ) : (
             <p className="text-sm text-green-600">✅ Sin incidencias urgentes</p>
+          )}
+        </div>
+      );
+    
+    // ========================================
+    // WIDGETS DE "LO QUE TE ESPERA MAÑANA"
+    // ========================================
+    
+    case 'preview-0':
+    case 'preview-1':
+    case 'preview-2':
+    case 'preview-3':
+      // Datos del preview de mañana
+      const stats = data?.stats || {};
+      const punto = data?.punto || '';
+      const icono = data?.icono || '📊';
+      const index = data?.index || 0;
+      
+      // Renderizar contenido específico según el índice
+      return (
+        <div className="space-y-3">
+          {/* Widget 0: Citas agendadas */}
+          {index === 0 && (
+            <div className="space-y-2">
+              <div className="bg-purple-50 rounded-lg p-3 border border-purple-200">
+                <p className="text-xs font-semibold text-purple-700">Total de citas</p>
+                <p className="text-2xl font-black text-purple-900">{stats.total_appointments || 0}</p>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-green-50 rounded-lg p-2 border border-green-200">
+                  <p className="text-xs font-semibold text-green-700">Confirmadas</p>
+                  <p className="text-lg font-black text-green-900">{stats.confirmed || 0}</p>
+                </div>
+                <div className="bg-yellow-50 rounded-lg p-2 border border-yellow-200">
+                  <p className="text-xs font-semibold text-yellow-700">Pendientes</p>
+                  <p className="text-lg font-black text-yellow-900">{stats.pending || 0}</p>
+                </div>
+              </div>
+              
+              {stats.total_appointments === 0 && (
+                <p className="text-xs text-gray-600 mt-2">
+                  💡 Día tranquilo. Buen momento para tareas administrativas o promociones.
+                </p>
+              )}
+            </div>
+          )}
+          
+          {/* Widget 1: Empleados/Equipo */}
+          {index === 1 && (
+            <div className="space-y-2">
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                <p className="text-xs font-semibold text-blue-700">Empleados activos</p>
+                <p className="text-2xl font-black text-blue-900">{stats.employees_active || 0}</p>
+              </div>
+              
+              {stats.absences > 0 && (
+                <div className="bg-red-50 rounded-lg p-3 border border-red-200">
+                  <p className="text-xs font-semibold text-red-700">⚠️ Ausencias detectadas</p>
+                  <p className="text-lg font-black text-red-900">{stats.absences} ausencia(s)</p>
+                  <p className="text-xs text-red-600 mt-1">
+                    Revisa el calendario para ajustar horarios si es necesario.
+                  </p>
+                </div>
+              )}
+              
+              {stats.absences === 0 && (
+                <p className="text-xs text-green-600">
+                  ✅ Todo el equipo disponible para mañana
+                </p>
+              )}
+            </div>
+          )}
+          
+          {/* Widget 2: Citas no confirmadas */}
+          {index === 2 && (
+            <div className="space-y-2">
+              <div className="bg-orange-50 rounded-lg p-3 border border-orange-200">
+                <p className="text-xs font-semibold text-orange-700">Citas pendientes confirmación</p>
+                <p className="text-2xl font-black text-orange-900">{stats.pending || 0}</p>
+              </div>
+              
+              {stats.pending > 0 && (
+                <div className="bg-yellow-50 rounded-lg p-2 border border-yellow-200">
+                  <p className="text-xs font-semibold text-yellow-700">💡 Recomendación</p>
+                  <p className="text-xs text-yellow-900">
+                    Envía recordatorios de confirmación hoy para reducir no-shows mañana.
+                  </p>
+                </div>
+              )}
+              
+              {stats.pending === 0 && (
+                <p className="text-xs text-green-600">
+                  ✅ Todas las citas están confirmadas
+                </p>
+              )}
+            </div>
+          )}
+          
+          {/* Widget 3: Proyección de ingresos */}
+          {index === 3 && (
+            <div className="space-y-2">
+              <div className="bg-green-50 rounded-lg p-3 border border-green-200">
+                <p className="text-xs font-semibold text-green-700">Ingreso potencial estimado</p>
+                <p className="text-2xl font-black text-green-900">
+                  {stats.projected_revenue || 0}€
+                </p>
+                <p className="text-xs text-green-600 mt-1">
+                  Basado en {stats.total_appointments || 0} citas × ticket promedio
+                </p>
+              </div>
+              
+              <div className="bg-gray-50 rounded-lg p-2 border border-gray-200">
+                <p className="text-xs font-semibold text-gray-700">Desglose</p>
+                <div className="flex justify-between text-xs text-gray-600 mt-1">
+                  <span>Confirmadas:</span>
+                  <span className="font-bold">{(stats.confirmed || 0) * 45}€</span>
+                </div>
+                <div className="flex justify-between text-xs text-gray-600">
+                  <span>Pendientes:</span>
+                  <span className="font-bold">{(stats.pending || 0) * 45}€</span>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       );

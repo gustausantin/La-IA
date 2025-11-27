@@ -1258,19 +1258,15 @@ export default function Calendario() {
         <CalendarioErrorBoundary>
         <div className="min-h-screen bg-gray-50 px-4 py-4">
             <div className="max-w-[95%] mx-auto">
-                {/* Header */}
-                <div className="mb-3">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h1 className="text-sm font-black text-gray-900 flex items-center gap-2">
-                                <Calendar className="w-4 h-4 text-blue-600" />
-                                Horario y Calendario
-                            </h1>
-                            <p className="text-xs text-gray-600 mt-0.5">
-                                Define el horario del negocio y visualiza ausencias del equipo
-                            </p>
-                        </div>
-                    </div>
+                {/* Header estilo Dashboard - limpio y espacioso */}
+                <div className="mb-6">
+                    <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3 mb-2">
+                        <Calendar className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
+                        Horario y Calendario
+                    </h1>
+                    <p className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-11">
+                        Define el horario del negocio y visualiza ausencias del equipo
+                    </p>
                 </div>
 
                 {/* Tabs de navegación - Estilo homogéneo compacto */}

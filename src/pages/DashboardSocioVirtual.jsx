@@ -39,6 +39,9 @@ export default function DashboardSocioVirtual() {
     const [previewManana, setPreviewManana] = useState(null);
     const [loadingPreview, setLoadingPreview] = useState(false);
     
+    // Estado para controlar qué acordeón de MAÑANA está expandido
+    const [expandedMananaId, setExpandedMananaId] = useState(null);
+    
     // ✅ Estado para forzar re-render cuando se actualiza el agente
     const [agentUpdateKey, setAgentUpdateKey] = useState(0);
     // ✅ Estado local para el business (para forzar actualización inmediata)
@@ -754,12 +757,12 @@ export default function DashboardSocioVirtual() {
                         </div>
                     )}
 
-                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - Mismo estilo profesional */}
+                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - MISMO ESTILO QUE HOY */}
                     <div style={{ marginTop: '100px' }}>
                         {/* Título - Mismo formato profesional que "Lo que tienes HOY sobre la mesa" */}
                         <div className="mb-4">
                             <h2 
-                                className="text-2xl font-black mb-3 flex items-center gap-2"
+                                className="text-2xl font-black mb-2 flex items-center gap-2"
                                 style={{
                                     lineHeight: '1.2',
                                     color: '#1f2937'
@@ -788,58 +791,68 @@ export default function DashboardSocioVirtual() {
                             </div>
                         </div>
 
-                        {previewManana && (
-                            <motion.div
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: 0.3, duration: 0.5 }}
-                                className="grid grid-cols-2 gap-3"
+                        {/* Mensaje de resumen - ARRIBA (antes de las tarjetas) */}
+                        {previewManana?.mensaje && (
+                            <div 
+                                className="mb-4 bg-purple-50/80 backdrop-blur-sm rounded-xl p-4 border-2 border-purple-200 shadow-sm"
                             >
-                                {/* 4 Puntos clave en grid 2x2 - MISMO ESTILO QUE LOS WIDGETS */}
-                                {previewManana.puntos?.map((punto, idx) => (
-                                    <motion.div
-                                        key={idx}
-                                        initial={{ opacity: 0, scale: 0.95 }}
-                                        animate={{ opacity: 1, scale: 1 }}
-                                        transition={{ delay: 0.1 + (idx * 0.05), duration: 0.3 }}
-                                        className="bg-white/90 backdrop-blur-sm rounded-xl p-4 shadow-sm hover:shadow-md transition-all border border-gray-200"
-                                    >
-                                        <div className="flex items-start gap-3">
-                                            <span className="text-3xl flex-shrink-0">{punto.icono}</span>
-                                            <p className="text-sm text-gray-700 font-medium leading-snug flex-1">
-                                                {punto.texto}
-                                            </p>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </motion.div>
+                                <p className="text-gray-800 text-sm font-medium leading-relaxed">
+                                    {previewManana.mensaje}
+                                </p>
+                            </div>
                         )}
 
-                        {/* Loading preview - Más discreto */}
+                        {/* Loading preview */}
                         {loadingPreview && !previewManana && (
                             <div className="bg-white/50 backdrop-blur-sm rounded-xl p-4 border border-gray-200">
                                 <div className="flex items-center gap-3">
                                     <RefreshCw className="w-5 h-5 text-purple-600 animate-spin" />
                                     <p className="text-gray-600 text-sm font-medium">
-                                        Analizando el día de mañana...
+                                        Analizando el día de mañana con IA...
                                     </p>
                                 </div>
                             </div>
                         )}
 
-                        {/* Mensaje de resumen - Solo si existe y es corto (max 40 palabras) */}
-                        {previewManana?.mensaje && (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                transition={{ delay: 0.4 }}
-                                className="mt-3 bg-purple-50/50 backdrop-blur-sm rounded-lg p-3 border border-purple-100"
+                        {/* 4 Widgets interactivos - MISMO FORMATO QUE "HOY" */}
+                        {previewManana?.puntos && previewManana?.stats && (
+                            <div 
+                                style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(2, 1fr)',
+                                    gap: '12px',
+                                    alignItems: 'start'
+                                }}
                             >
-                                <p className="text-gray-700 text-sm leading-relaxed">
-                                    {previewManana.mensaje.split(' ').slice(0, 40).join(' ')}
-                                    {previewManana.mensaje.split(' ').length > 40 ? '...' : ''}
-                                </p>
-                            </motion.div>
+                                {previewManana.puntos.map((punto, idx) => {
+                                    // Generar ID único para cada widget
+                                    const widgetId = `preview-${idx}`;
+                                    
+                                    // Determinar prioridad por índice (primero = más urgente)
+                                    const prioridad = idx + 1;
+                                    
+                                    // Preparar data para el acordeón con TODOS los datos necesarios
+                                    const widgetData = {
+                                        punto: punto.texto,
+                                        icono: punto.icono,
+                                        stats: previewManana.stats,
+                                        index: idx
+                                    };
+
+                                    return (
+                                        <BloqueAcordeon
+                                            key={widgetId}
+                                            id={widgetId}
+                                            titulo={widgetId} // Usar widgetId como título para matchear en bloqueConfig
+                                            textoColapsado={punto.texto}
+                                            prioridad={prioridad}
+                                            data={widgetData}
+                                            isExpanded={expandedMananaId === widgetId}
+                                            onToggle={() => setExpandedMananaId(expandedMananaId === widgetId ? null : widgetId)}
+                                        />
+                                    );
+                                })}
+                            </div>
                         )}
                     </div>
                 </div>

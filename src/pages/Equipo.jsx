@@ -245,28 +245,18 @@ export default function Equipo() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-slate-50 to-gray-100 pb-24 lg:pb-8">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <div className="flex items-center gap-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center">
-                  <Users className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-black text-gray-900">
-                    👥 Tu Equipo
-                  </h1>
-                  <p className="text-sm text-gray-600">
-                    Gestiona profesionales, horarios, ausencias y recursos asignados
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+      {/* Header estilo Dashboard - limpio y espacioso */}
+      <div className="max-w-[85%] mx-auto px-3 sm:px-4 py-3 sm:py-4">
+        <div className="mb-6">
+          <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3 mb-2">
+            <Users className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
+            Tu Equipo
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-11">
+            Gestiona profesionales, horarios, ausencias y recursos asignados
+          </p>
         </div>
-      </header>
+      </div>
 
       {/* Contenido */}
       <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
@@ -291,12 +281,12 @@ export default function Equipo() {
 
         {/* Lista de empleados */}
         <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-blue-50">
+          <div className="px-4 py-3 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
-              <h2 className="text-base font-black text-gray-900">👥 Tu Equipo ({employees.length})</h2>
+              <h2 className="text-base font-black text-gray-900">Tu Equipo ({employees.length})</h2>
               <button
                 onClick={handleAddEmployee}
-                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 text-white text-sm font-semibold rounded-lg transition-all shadow-md"
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 hover:opacity-90 text-white text-sm font-medium rounded-lg transition-all shadow-md"
               >
                 <Plus className="w-4 h-4" />
                 Añadir Empleado

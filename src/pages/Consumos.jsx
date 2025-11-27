@@ -247,70 +247,70 @@ const Consumos = () => {
     return (
         <div className="min-h-screen bg-gray-50 px-4 py-4">
             <div className="max-w-[85%] mx-auto space-y-4">
-                {/* Header Principal */}
-                <div className="bg-gradient-to-r from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
+                {/* Header estilo Dashboard - limpio y espacioso */}
+                <div className="mb-6">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div className="flex items-center gap-4">
-                            <div className="w-14 h-14 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-                                <DollarSign className="w-8 h-8 text-white" />
-                            </div>
-                    <div>
-                                <h1 className="text-2xl font-bold">{verticalConfig.labels.billing}</h1>
-                                <p className="text-white/90 text-sm">Control financiero y productividad de tu {verticalConfig.name.toLowerCase()}</p>
-                            </div>
-                    </div>
+                        <div className="flex-1">
+                            <h1 className="text-2xl sm:text-3xl font-black text-gray-900 flex items-center gap-3 mb-2">
+                                <DollarSign className="w-7 h-7 sm:w-8 sm:h-8 text-purple-600" />
+                                {verticalConfig.labels.billing}
+                            </h1>
+                            <p className="text-sm sm:text-base text-gray-600 ml-10 sm:ml-11">
+                                Control financiero y productividad de tu {verticalConfig.name.toLowerCase()}
+                            </p>
+                        </div>
 
                         {/* Selector de Período */}
-                    <div className="flex items-center gap-2">
-                            <div className="bg-white/10 backdrop-blur border border-white/30 rounded-xl p-1 flex gap-1">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-white rounded-xl border border-gray-200 p-1 flex gap-1 shadow-sm">
                                 <button
                                     onClick={() => setSelectedPeriod('today')}
                                     className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                                         selectedPeriod === 'today'
-                                            ? 'bg-white text-green-600 shadow-md'
-                                            : 'text-white hover:bg-white/10'
+                                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                                            : 'text-gray-700 hover:bg-gray-100'
                                     }`}
                                 >
                                     Hoy
                                 </button>
-                            <button
+                                <button
                                     onClick={() => setSelectedPeriod('week')}
                                     className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                                         selectedPeriod === 'week'
-                                            ? 'bg-white text-green-600 shadow-md'
-                                            : 'text-white hover:bg-white/10'
+                                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                                            : 'text-gray-700 hover:bg-gray-100'
                                     }`}
                                 >
                                     Semana
-                            </button>
-                            <button
+                                </button>
+                                <button
                                     onClick={() => setSelectedPeriod('month')}
                                     className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
                                         selectedPeriod === 'month'
-                                            ? 'bg-white text-green-600 shadow-md'
-                                            : 'text-white hover:bg-white/10'
+                                            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-md'
+                                            : 'text-gray-700 hover:bg-gray-100'
                                     }`}
                                 >
                                     Mes
-                            </button>
-                        </div>
+                                </button>
+                            </div>
 
                             {selectedPeriod === 'custom' && (
-                                    <input
-                                        type="date"
+                                <input
+                                    type="date"
                                     value={customDate}
                                     onChange={(e) => setCustomDate(e.target.value)}
-                                    className="px-3 py-2 bg-white/10 border border-white/30 text-white rounded-lg focus:ring-2 focus:ring-white/50"
+                                    className="px-3 py-2 bg-white border border-gray-300 text-gray-900 rounded-lg focus:ring-2 focus:ring-purple-500 shadow-sm"
                                 />
                             )}
 
-                                <button
-                                    onClick={loadData}
-                                className="p-2.5 bg-white/10 backdrop-blur border border-white/30 rounded-lg hover:bg-white/20 transition-all"
+                            <button
+                                onClick={loadData}
+                                className="p-2.5 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm"
                                 title="Actualizar datos"
-                                >
-                                <RefreshCw className="w-5 h-5 text-white" />
-                                </button>
+                            >
+                                <RefreshCw className="w-5 h-5 text-gray-600" />
+                            </button>
                         </div>
                     </div>
                 </div>
