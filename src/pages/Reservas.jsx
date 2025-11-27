@@ -457,7 +457,7 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
                                 Ver detalles
                             </button>
 
-                            {state.actions.includes("edit") && reservation.source !== 'google_calendar' && (
+                            {state.actions.includes("edit") && (
                                 <button
                                     onClick={() => {
                                         onAction("edit", reservation);
@@ -548,7 +548,7 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
                                 </button>
                             )}
 
-                            {state.actions.includes("cancel") && reservation.source !== 'google_calendar' && (
+                            {state.actions.includes("cancel") && (
                                 <>
                                     <hr className="my-1" />
                                     <button
@@ -564,7 +564,7 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
                                 </>
                             )}
 
-                            {state.actions.includes("delete") && reservation.source !== 'google_calendar' && (
+                            {state.actions.includes("delete") && (
                                 <>
                                     <hr className="my-1" />
                                     <button
@@ -577,20 +577,6 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
                                         <Trash2 className="w-4 h-4" />
                                         Eliminar definitivamente
                                     </button>
-                                </>
-                            )}
-
-                            {/* ✅ Mostrar mensaje informativo para eventos de Google Calendar */}
-                            {reservation.source === 'google_calendar' && (
-                                <>
-                                    <hr className="my-1" />
-                                    <div className="px-3 py-2 text-xs text-gray-500 flex items-start gap-2">
-                                        <Lock className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                                        <span>
-                                            Este evento viene de Google Calendar. 
-                                            Gestiona desde allí.
-                                        </span>
-                                    </div>
                                 </>
                             )}
                         </div>
@@ -629,7 +615,6 @@ export default function Reservas() {
     const [tables, setTables] = useState([]);
     const [resources, setResources] = useState([]); // 🆕 Recursos/Profesionales para el calendario
     const [calendarExceptions, setCalendarExceptions] = useState([]); // 🆕 Excepciones de calendario (días cerrados)
-    const [employeeAbsences, setEmployeeAbsences] = useState([]); // 🆕 Ausencias de empleados (vacaciones, bajas)
     const [savingPolicy, setSavingPolicy] = useState(false);
     const [policySettings, setPolicySettings] = useState({
         min_party_size: 1,
@@ -956,36 +941,6 @@ export default function Reservas() {
             }));
         }
     }, [businessId]);
-
-    // 🏖️ Cargar ausencias de empleados
-    const loadEmployeeAbsences = useCallback(async () => {
-        if (!businessId) return;
-
-        try {
-            const today = new Date();
-            const futureDate = new Date();
-            futureDate.setDate(today.getDate() + 90); // Cargar ausencias de los próximos 3 meses
-
-            const { data, error } = await supabase
-                .from('employee_absences')
-                .select('*')
-                .eq('business_id', businessId)
-                .gte('end_date', today.toISOString().split('T')[0]) // Ausencias que terminan después de hoy
-                .lte('start_date', futureDate.toISOString().split('T')[0]); // Ausencias que empiezan antes de 3 meses
-
-            if (error) throw error;
-
-            console.log('🏖️ Ausencias de empleados cargadas:', data?.length || 0);
-            setEmployeeAbsences(data || []);
-        } catch (error) {
-            console.error('Error cargando ausencias de empleados:', error);
-        }
-    }, [businessId]);
-
-    // 🏖️ Cargar ausencias al iniciar
-    useEffect(() => {
-        loadEmployeeAbsences();
-    }, [loadEmployeeAbsences]);
 
     // Cargar reservas
     const loadReservations = useCallback(async () => {
@@ -1914,19 +1869,10 @@ export default function Reservas() {
         };
         window.addEventListener('calendar-exception-updated', handleCalendarUpdate);
         
-        // 🆕 Recargar cuando se actualicen ausencias de empleados
-        const handleAbsencesUpdate = () => {
-            console.log('🏖️ Ausencias actualizadas - recargando datos...');
-            loadEmployeeAbsences(); // Recargar ausencias
-            loadReservations(); // Recargar reservas por si se cancelaron algunas
-        };
-        window.addEventListener('absences-updated', handleAbsencesUpdate);
-        
         return () => {
             window.removeEventListener('schedule-updated', handleScheduleUpdate);
             window.removeEventListener('force-business-reload', handleBusinessReload);
             window.removeEventListener('calendar-exception-updated', handleCalendarUpdate);
-            window.removeEventListener('absences-updated', handleAbsencesUpdate);
         };
     }, [businessId, loadCalendarExceptions]);
     
@@ -2096,19 +2042,7 @@ export default function Reservas() {
     // ⚠️ Función para confirmar cancelación desde el modal
     const handleCancelConfirm = async (reservation) => {
         try {
-            // ✅ REGLA DE ORO: No permitir cancelar/eliminar eventos que vienen de Google Calendar
-            // Solo se pueden eliminar desde Google Calendar mismo
-            if (reservation.source === 'google_calendar') {
-                toast.error(
-                    '⚠️ Este evento fue creado en Google Calendar\n\n' +
-                    'Por seguridad, debes gestionarlo desde Google Calendar.\n' +
-                    'Si lo eliminas desde allí, se cancelará automáticamente aquí.',
-                    { duration: 6000 }
-                );
-                return; // Bloquear la cancelación
-            }
-
-            // 1️⃣ CANCELAR: Cambiar status a 'cancelled' (solo para reservas creadas en LA-IA)
+            // 1️⃣ CANCELAR: Cambiar status a 'cancelled'
             const { error: updateError } = await supabase
                 .from('appointments')
                 .update({ 
@@ -2119,28 +2053,25 @@ export default function Reservas() {
 
             if (updateError) throw updateError;
 
-            // ✅ Sincronizar con Google Calendar después de cancelar (solo si tiene gcal_event_id)
-            // Esto significa que fue creada desde LA-IA y sincronizada con Google Calendar
-            if (reservation.gcal_event_id) {
-                try {
-                    const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
-                        body: {
-                            business_id: businessId,
-                            action: 'update',
-                            reservation_id: reservation.id
-                        }
-                    });
-                    
-                    if (syncError) {
-                        console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
-                        // No bloquear la operación si falla la sincronización
-                    } else {
-                        console.log('✅ Reserva cancelada en Google Calendar');
+            // ✅ Sincronizar con Google Calendar después de cancelar
+            try {
+                const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                    body: {
+                        business_id: businessId,
+                        action: 'update',
+                        reservation_id: reservation.id
                     }
-                } catch (syncError) {
-                    console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
-                    // Continuar de todas formas
+                });
+                
+                if (syncError) {
+                    console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
+                    // No bloquear la operación si falla la sincronización
+                } else {
+                    console.log('✅ Reserva cancelada en Google Calendar');
                 }
+            } catch (syncError) {
+                console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                // Continuar de todas formas
             }
 
             // 2️⃣ LIBERAR SLOTS asociados (igual que eliminar)
@@ -2176,21 +2107,7 @@ export default function Reservas() {
     // 🗑️ Función para confirmar eliminación desde el modal
     const handleDeleteConfirm = async (reservation) => {
         try {
-            // ✅ REGLA DE ORO: No permitir eliminar eventos que vienen de Google Calendar
-            // Solo se pueden eliminar desde Google Calendar mismo
-            if (reservation.source === 'google_calendar') {
-                toast.error(
-                    '⚠️ Este evento fue creado en Google Calendar\n\n' +
-                    'Por seguridad, debes gestionarlo desde Google Calendar.\n' +
-                    'Si lo eliminas desde allí, se cancelará automáticamente aquí.',
-                    { duration: 6000 }
-                );
-                setShowDeleteModal(false);
-                setDeletingReservation(null);
-                return; // Bloquear la eliminación
-            }
-
-            // 1️⃣ SOFT DELETE: Cambiar status a 'deleted' (solo para reservas creadas en LA-IA)
+            // 1️⃣ SOFT DELETE: Cambiar status a 'deleted'
             const { error: updateError } = await supabase
                 .from('appointments')
                 .update({ 
@@ -2201,28 +2118,25 @@ export default function Reservas() {
 
             if (updateError) throw updateError;
 
-            // ✅ Sincronizar con Google Calendar después de eliminar (solo si tiene gcal_event_id)
-            // Esto significa que fue creada desde LA-IA y sincronizada con Google Calendar
-            if (reservation.gcal_event_id) {
-                try {
-                    const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
-                        body: {
-                            business_id: businessId,
-                            action: 'delete',
-                            reservation_id: reservation.id
-                        }
-                    });
-                    
-                    if (syncError) {
-                        console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
-                        // No bloquear la operación si falla la sincronización
-                    } else {
-                        console.log('✅ Reserva eliminada de Google Calendar');
+            // ✅ Sincronizar con Google Calendar después de eliminar
+            try {
+                const { error: syncError } = await supabase.functions.invoke('sync-google-calendar', {
+                    body: {
+                        business_id: businessId,
+                        action: 'delete',
+                        reservation_id: reservation.id
                     }
-                } catch (syncError) {
-                    console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
-                    // Continuar de todas formas
+                });
+                
+                if (syncError) {
+                    console.warn('⚠️ Error sincronizando con Google Calendar:', syncError);
+                    // No bloquear la operación si falla la sincronización
+                } else {
+                    console.log('✅ Reserva eliminada de Google Calendar');
                 }
+            } catch (syncError) {
+                console.warn('⚠️ Error en sincronización con Google Calendar:', syncError);
+                // Continuar de todas formas
             }
 
             // 2️⃣ LIBERAR SLOTS asociados
@@ -2295,18 +2209,6 @@ export default function Reservas() {
                     setShowDeleteModal(true);
                     return;
                 case "edit":
-                    // ✅ REGLA DE ORO: No permitir editar eventos que vienen de Google Calendar
-                    // Solo se pueden editar desde Google Calendar mismo
-                    if (reservation.source === 'google_calendar') {
-                        toast.error(
-                            '⚠️ Este evento fue creado en Google Calendar\n\n' +
-                            'Por seguridad, debes gestionarlo desde Google Calendar.\n' +
-                            'Si lo modificas desde allí, se actualizará automáticamente aquí.',
-                            { duration: 6000 }
-                        );
-                        return; // Bloquear la edición
-                    }
-
                     // 🔥 Cargar datos completos del cliente antes de editar
                     if (reservation.customer_id) {
                         const { data: customerData, error: customerError } = await supabase
@@ -2483,28 +2385,10 @@ export default function Reservas() {
                 return;
             }
 
-            const reservationIds = Array.from(selectedReservations);
-            const selectedReservationsData = reservations.filter(r => reservationIds.includes(r.id));
-
-            // ✅ REGLA DE ORO: No permitir cancelar/eliminar eventos que vienen de Google Calendar
-            if (action === "cancel" || action === "delete") {
-                const googleCalendarReservations = selectedReservationsData.filter(
-                    r => r.source === 'google_calendar'
-                );
-
-                if (googleCalendarReservations.length > 0) {
-                    toast.error(
-                        `⚠️ ${googleCalendarReservations.length} reserva(s) vienen de Google Calendar\n\n` +
-                        `Por seguridad, debes gestionarlas desde Google Calendar.\n` +
-                        `Si las eliminas desde allí, se cancelarán automáticamente aquí.`,
-                        { duration: 6000 }
-                    );
-                    return; // Bloquear la acción
-                }
-            }
-
             // 🔒 VALIDACIÓN: Solo permitir eliminar reservas canceladas o no-show
             if (action === "delete") {
+                const reservationIds = Array.from(selectedReservations);
+                const selectedReservationsData = reservations.filter(r => reservationIds.includes(r.id));
                 const nonDeletableReservations = selectedReservationsData.filter(
                     r => !['cancelled', 'no_show'].includes(r.status)
                 );
@@ -2704,7 +2588,6 @@ export default function Reservas() {
                         blockages={blockages} // 🆕 Bloqueos de horas
                         businessSettings={business?.settings} // 🆕 Configuración del negocio (incluye operating_hours)
                         calendarExceptions={calendarExceptions} // 🆕 Excepciones de calendario (días cerrados)
-                        employeeAbsences={employeeAbsences} // 🆕 Ausencias de empleados (vacaciones, bajas)
                         onReservationClick={(reserva) => {
                             setViewingReservation(reserva);
                             setShowDetailsModal(true);
@@ -3435,17 +3318,6 @@ export default function Reservas() {
                         setViewingReservation(null);
                     }}
                     onEdit={(reserva) => {
-                        // ✅ REGLA DE ORO: No permitir editar eventos que vienen de Google Calendar
-                        if (reserva.source === 'google_calendar') {
-                            toast.error(
-                                '⚠️ Este evento fue creado en Google Calendar\n\n' +
-                                'Por seguridad, debes gestionarlo desde Google Calendar.\n' +
-                                'Si lo modificas desde allí, se actualizará automáticamente aquí.',
-                                { duration: 6000 }
-                            );
-                            return; // Bloquear la edición
-                        }
-
                         // ✅ Abrir NewReservationModalPro en modo edición
                         setEditingReservation(reserva);
                         setShowDetailsModal(false); // Cerrar modal de detalles
@@ -3883,7 +3755,6 @@ const ReservationFormModal = ({
                 .from("customers")
                 .select("*")
                 .eq("business_id", businessId)
-                .neq("name", "Cliente de Google Calendar") // ✅ NO mostrar cliente genérico del sistema
                 .or(`phone.ilike.%${phone}%,name.ilike.%${phone}%`)
                 .order('last_visit_at', { ascending: false })
                 .limit(5);
@@ -4164,10 +4035,7 @@ const ReservationFormModal = ({
                 // 🔧 BUSCAR CLIENTE PARA GUARDAR (si no hay customer_id)
                 if (!actualCustomerId && (formData.customer_phone || formData.customer_email)) {
                     console.log('🔍 Buscando cliente para guardar...');
-                    let query = supabase.from('customers')
-                        .select('id')
-                        .eq('business_id', businessId)
-                        .neq('name', 'Cliente de Google Calendar'); // ✅ NO mostrar cliente genérico del sistema
+                    let query = supabase.from('customers').select('id').eq('business_id', businessId);
                     
                     if (formData.customer_phone) {
                         query = query.eq('phone', formData.customer_phone);
@@ -4325,10 +4193,7 @@ const ReservationFormModal = ({
                         console.log('Buscando con email:', reservationData.customer_email);
                         
                         if (reservationData.customer_phone || reservationData.customer_email) {
-                            let query = supabase.from('customers')
-                                .select('*')
-                                .eq('business_id', businessId)
-                                .neq('name', 'Cliente de Google Calendar'); // ✅ NO mostrar cliente genérico del sistema
+                            let query = supabase.from('customers').select('*').eq('business_id', businessId);
                             
                             if (reservationData.customer_phone) {
                                 query = query.eq('phone', reservationData.customer_phone);
