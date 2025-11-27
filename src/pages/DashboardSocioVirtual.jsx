@@ -20,7 +20,7 @@ import BloqueAcordeon from '../components/dashboard/BloqueAcordeon';
 import { getAvatarById } from '../config/avatars';
 
 // Iconos para botones de acción rápida
-import { Calendar, DollarSign, AlertTriangle, Users, BarChart3, RefreshCw } from 'lucide-react';
+import { Calendar, DollarSign, AlertTriangle, Users, BarChart3, RefreshCw, Monitor } from 'lucide-react';
 
 export default function DashboardSocioVirtual() {
     const { business, user } = useAuthContext();
@@ -387,30 +387,19 @@ export default function DashboardSocioVirtual() {
     if (loading) {
         return (
             <div 
-                className="dashboard-container"
+                className="min-h-screen flex items-center justify-center"
                 style={{
-                    display: 'grid',
-                    gridTemplateColumns: '38% 1fr',
-                    height: '100vh',
-                    overflow: 'hidden',
                     backgroundColor: '#F3F4F6'
                 }}
             >
-                {/* Skeleton: Columna izquierda (Avatar) */}
-                <div className="animate-pulse" style={{ padding: '20px', backgroundColor: '#F3F4F6' }}>
-                    <div className="bg-gray-200 rounded-2xl" style={{ height: '75%', marginBottom: '20px' }}></div>
-                    <div className="bg-gray-200 rounded-2xl" style={{ height: '25%' }}></div>
-                </div>
-                
-                {/* Skeleton: Columna derecha (Dashboard) */}
-                <div className="animate-pulse" style={{ padding: '30px' }}>
-                    <div className="bg-gray-200 rounded-lg h-8 w-64 mb-6"></div>
-                    <div className="bg-gray-200 rounded-lg h-6 w-48 mb-8"></div>
-                    <div className="grid grid-cols-2 gap-4">
-                        {[1, 2, 3, 4, 5, 6].map((i) => (
-                            <div key={i} className="bg-gray-200 rounded-lg h-24"></div>
-                        ))}
-                    </div>
+                <div className="text-center">
+                    <RefreshCw className="w-12 h-12 animate-spin text-purple-600 mx-auto mb-4" />
+                    <h2 className="text-xl font-bold text-gray-800 mb-2">
+                        Analizando tu negocio...
+                    </h2>
+                    <p className="text-gray-600">
+                        Preparando la mejor información para ti
+                    </p>
                 </div>
             </div>
         );
@@ -434,29 +423,12 @@ export default function DashboardSocioVirtual() {
                     width: '100%',
                     padding: '20px 40px',
                     backgroundColor: '#F3F4F6',
-                    position: 'relative',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center'
                 }}
             >
-                {/* Botón Actualizar y Fecha - Posición absoluta arriba a la derecha, MÁS ABAJO */}
-                <div className="absolute flex flex-col items-end gap-2" style={{ top: '50px', right: '40px' }}>
-                    <button
-                        onClick={refresh}
-                        className="text-xs text-white font-bold flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-lg transition-all shadow-md hover:shadow-lg hover:scale-105"
-                    >
-                        <RefreshCw className="w-3.5 h-3.5" />
-                        Actualizar
-                    </button>
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white/80 backdrop-blur-sm rounded-full border border-gray-200 shadow-sm">
-                        <span className="text-xs font-semibold text-gray-700">
-                            {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
-                        </span>
-                    </div>
-                </div>
-                
                 {/* Título CENTRADO */}
                 <h1 
                     className="font-black tracking-tight"
@@ -502,30 +474,49 @@ export default function DashboardSocioVirtual() {
                         alignSelf: 'flex-start'
                     }}
                 >
-                    {/* Foto del avatar con marco elegante */}
+                    {/* Foto del avatar con marco ESPECTACULAR */}
                     <div 
                         style={{
                             position: 'relative',
                             height: '67.5%',
                             width: '100%',
                             flexShrink: 0,
-                            padding: '12px',
+                            padding: '16px',
                             backgroundColor: '#F3F4F6'
+                        }}
+                    >
+                    {/* Contenedor con borde degradado espectacular */}
+                    <div
+                        style={{
+                            padding: '4px',
+                            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 25%, #f093fb 50%, #667eea 75%, #764ba2 100%)',
+                            borderRadius: '28px',
+                            boxShadow: `
+                                0 20px 50px rgba(102, 126, 234, 0.25),
+                                0 10px 25px rgba(118, 75, 162, 0.2),
+                                0 5px 15px rgba(124, 58, 237, 0.15)
+                            `,
+                            position: 'relative',
+                            transform: 'translateZ(0)',
+                            animation: 'borderGlow 4s ease-in-out infinite',
+                            height: '100%',
+                            width: '100%'
                         }}
                     >
                     <div
                         style={{
                             backgroundImage: workingModeUrl ? `url(${workingModeUrl})` : 'none',
                             backgroundSize: 'cover',
-                            backgroundPosition: 'center 15%',
+                            backgroundPosition: 'center 25%',
                             backgroundRepeat: 'no-repeat',
                             backgroundColor: '#F3F4F6',
                             height: '100%',
                             width: '100%',
-                            borderRadius: '16px',
-                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15), inset 0 0 0 3px rgba(255, 255, 255, 0.3)',
-                            border: '2px solid rgba(0, 0, 0, 0.1)',
-                            position: 'relative'
+                            borderRadius: '24px',
+                            position: 'relative',
+                            overflow: 'hidden',
+                            transform: 'translateZ(0)',
+                            willChange: 'auto'
                         }}
                     >
                         {/* Rótulo tipo videollamada - Parte inferior central */}
@@ -562,6 +553,7 @@ export default function DashboardSocioVirtual() {
                             </div>
                         </div>
                     </div>
+                    </div>
                 </div>
                 </div>
 
@@ -584,18 +576,16 @@ export default function DashboardSocioVirtual() {
                         width: '100%'
                     }}
                 >
-                    {/* BOCADILLO GRANDE Y PROMINENTE */}
-                    <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        transition={{ delay: 0.3, duration: 0.6, type: "spring" }}
+                    {/* BOCADILLO GRANDE Y PROMINENTE - ALTURA FIJA - SUBIDO */}
+                    <div
                         className="speech-bubble"
                         style={{
                             position: 'relative',
-                            marginTop: '80px',
+                            marginTop: '30px',
                             marginLeft: '0px',
                             marginRight: 'auto',
                             maxWidth: '92%',
+                            minHeight: '140px',
                             zIndex: 100
                         }}
                     >
@@ -609,17 +599,18 @@ export default function DashboardSocioVirtual() {
                             style={{ 
                                 backgroundColor: '#F3F4F6',
                                 borderWidth: '3px',
-                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)'
+                                boxShadow: '0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.08)',
+                                minHeight: '100px'
                             }}
                         >
-                            {/* Triángulo pronunciado que apunta hacia la cara de Lua (estilo cómic) */}
+                            {/* Triángulo pronunciado que apunta hacia la cara de Lua (estilo cómic) - MÁS LARGO */}
                             <div 
                                 className="absolute w-0 h-0"
                                 style={{
                                     bottom: '20px',
-                                    left: '-40px',
+                                    left: '-55px',
                                     borderStyle: 'solid',
-                                    borderWidth: '20px 40px 20px 0',
+                                    borderWidth: '20px 55px 20px 0',
                                     borderColor: 'transparent #F3F4F6 transparent transparent',
                                     filter: 'drop-shadow(-2px 0 3px rgba(0,0,0,0.08))',
                                     transform: 'translateY(0)'
@@ -631,9 +622,9 @@ export default function DashboardSocioVirtual() {
                                 className="absolute w-0 h-0"
                                 style={{
                                     bottom: '20px',
-                                    left: '-42px',
+                                    left: '-57px',
                                     borderStyle: 'solid',
-                                    borderWidth: '20px 40px 20px 0',
+                                    borderWidth: '20px 55px 20px 0',
                                     borderColor: `transparent ${config.tailBorder} transparent transparent`,
                                     zIndex: -1
                                 }}
@@ -645,72 +636,85 @@ export default function DashboardSocioVirtual() {
                             {showTyping ? (
                                 <div className="flex items-center gap-2">
                                     <div className="flex gap-1">
-                                        <motion.div 
-                                            className="w-2 h-2 bg-gray-400 rounded-full"
-                                            animate={{ scale: [1, 1.3, 1] }}
-                                            transition={{ duration: 0.6, repeat: Infinity, delay: 0 }}
-                                        />
-                                        <motion.div 
-                                            className="w-2 h-2 bg-gray-400 rounded-full"
-                                            animate={{ scale: [1, 1.3, 1] }}
-                                            transition={{ duration: 0.6, repeat: Infinity, delay: 0.2 }}
-                                        />
-                                        <motion.div 
-                                            className="w-2 h-2 bg-gray-400 rounded-full"
-                                            animate={{ scale: [1, 1.3, 1] }}
-                                            transition={{ duration: 0.6, repeat: Infinity, delay: 0.4 }}
-                                        />
+                                        <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                                        <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                                        <div className="w-2 h-2 bg-gray-400 rounded-full" />
                                 </div>
                                     <span className={`text-sm font-medium ${config.accentColor}`}>
                                         Analizando...
                                     </span>
                                 </div>
                             ) : (
-                                <motion.p 
-                                    initial={{ opacity: 0, y: 5 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    transition={{ duration: 0.4 }}
-                                    className={`text-base font-semibold ${config.accentColor} leading-relaxed relative z-10`}
-                                >
+                                <p className={`text-base font-semibold ${config.accentColor} leading-relaxed relative z-10`}>
                                     {mensaje}
-                                </motion.p>
+                                </p>
                             )}
                             {accion && (
-                                <motion.button
-                                    initial={{ opacity: 0, scale: 0.9 }}
-                                    animate={{ opacity: 1, scale: 1 }}
-                                    transition={{ delay: 0.5, duration: 0.3 }}
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
+                                <button
                                     onClick={() => handleAction(accion)}
-                                            className={`
+                                    className={`
                                         mt-3 w-full py-2 px-4 rounded-lg font-semibold text-white text-sm
                                         ${config.buttonBg}
                                         shadow-md transition-all duration-200 relative z-10
                                     `}
                                 >
                                     {accion.label || 'Acción'}
-                                </motion.button>
+                                </button>
                             )}
                         </div>
-                    </motion.div>
+                    </div>
+
+                    {/* BARRA DE CONTROLES - Debajo del bocadillo */}
+                    <div 
+                        className="flex items-center justify-between px-6 py-3 bg-white/60 backdrop-blur-sm rounded-2xl border border-purple-100 shadow-sm"
+                        style={{ marginTop: '24px', marginBottom: '32px' }}
+                    >
+                        <button
+                            onClick={() => {
+                                refresh();
+                                // Feedback visual
+                                const btn = document.activeElement;
+                                if (btn) {
+                                    btn.style.transform = 'rotate(360deg)';
+                                    setTimeout(() => { btn.style.transform = ''; }, 600);
+                                }
+                            }}
+                            disabled={loading}
+                            className={`text-xs text-white font-bold flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 rounded-xl transition-all shadow-md hover:shadow-lg hover:scale-105 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        >
+                            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                            {loading ? 'Actualizando...' : 'Actualizar'}
+                        </button>
+                        <div className="inline-flex items-center gap-2 px-4 py-2">
+                            <Calendar className="w-4 h-4 text-purple-600" />
+                            <span className="text-sm font-bold text-purple-700 capitalize">
+                                {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
+                            </span>
+                        </div>
+                    </div>
 
                     {/* Sección Bandeja - Compactado 10% */}
-                    <div className="bottom-section bandeja-container" style={{ marginTop: '56px', paddingBottom: '30px' }}>
-                    {/* Título: Lo que tengo sobre la mesa - Compactado */}
+                    <div className="bottom-section bandeja-container" style={{ paddingBottom: '30px' }}>
+                    {/* Título: Lo que tienes HOY sobre la mesa - PROFESIONAL Y LEGIBLE */}
                     <div className="mb-4">
                         <h2 
                             className="text-2xl font-black mb-2 flex items-center gap-2"
                             style={{
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
-                                WebkitBackgroundClip: 'text',
-                                WebkitTextFillColor: 'transparent',
-                                backgroundClip: 'text',
-                                lineHeight: '1.2'
+                                lineHeight: '1.2',
+                                color: '#1f2937'
                             }}
                         >
                             <span className="text-3xl">🖥️</span>
-                            Lo que tengo sobre la mesa
+                            Lo que tienes{' '}
+                            <span style={{
+                                color: '#7c3aed',
+                                fontSize: '1.2em',
+                                fontWeight: '900',
+                                textShadow: '0 0 20px rgba(124, 58, 237, 0.2)'
+                            }}>
+                                HOY
+                            </span>
+                            {' '}sobre la mesa
                         </h2>
                     </div>
 
@@ -750,31 +754,33 @@ export default function DashboardSocioVirtual() {
                         </div>
                     )}
 
-                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - Mismo estilo que los widgets */}
+                    {/* 🔮 SECCIÓN: LO QUE TE ESPERA MAÑANA - Mismo estilo profesional */}
                     <div style={{ marginTop: '100px' }}>
-                        {/* Título con icono - Mismo estilo que "Lo que tengo sobre la mesa" */}
+                        {/* Título - Mismo formato profesional que "Lo que tienes HOY sobre la mesa" */}
                         <div className="mb-4">
                             <h2 
-                                className="text-2xl font-black mb-2 flex items-center gap-3"
+                                className="text-2xl font-black mb-3 flex items-center gap-2"
                                 style={{
-                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%)',
-                                    WebkitBackgroundClip: 'text',
-                                    WebkitTextFillColor: 'transparent',
-                                    backgroundClip: 'text',
-                                    lineHeight: '1.2'
+                                    lineHeight: '1.2',
+                                    color: '#1f2937'
                                 }}
                             >
-                                <Calendar className="w-8 h-8 text-purple-600" />
-                                Lo que te espera mañana
-                            </h2>
-                            <div className="flex items-center gap-2">
-                                <span className="text-lg font-bold text-purple-700 capitalize">
-                                    {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
-                                        weekday: 'long'
-                                    })}
+                                <span className="text-3xl">📅</span>
+                                Lo que te espera{' '}
+                                <span style={{
+                                    color: '#7c3aed',
+                                    fontSize: '1.2em',
+                                    fontWeight: '900',
+                                    textShadow: '0 0 20px rgba(124, 58, 237, 0.2)'
+                                }}>
+                                    MAÑANA
                                 </span>
-                                <span className="text-base font-semibold text-gray-600">
+                            </h2>
+                            <div className="inline-flex items-center gap-2 px-4 py-2">
+                                <Calendar className="w-4 h-4 text-purple-600" />
+                                <span className="text-sm font-bold text-purple-700 capitalize">
                                     {new Date(new Date().setDate(new Date().getDate() + 1)).toLocaleDateString('es-ES', { 
+                                        weekday: 'long',
                                         day: 'numeric', 
                                         month: 'long' 
                                     })}
@@ -841,4 +847,26 @@ export default function DashboardSocioVirtual() {
             </div>
         </div>
     );
+}
+
+// Estilos CSS para la animación del borde
+const styles = `
+@keyframes borderGlow {
+    0%, 100% {
+        filter: brightness(1) saturate(1);
+    }
+    50% {
+        filter: brightness(1.2) saturate(1.3);
+    }
+}
+`;
+
+// Inyectar estilos en el documento
+if (typeof document !== 'undefined') {
+    const styleSheet = document.createElement("style");
+    styleSheet.innerText = styles;
+    if (!document.head.querySelector('[data-avatar-border-glow]')) {
+        styleSheet.setAttribute('data-avatar-border-glow', 'true');
+        document.head.appendChild(styleSheet);
+    }
 }

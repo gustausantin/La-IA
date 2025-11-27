@@ -1,7 +1,9 @@
 // Layout.jsx - VERSIÓN MOBILE-FIRST PROFESIONAL
+import React, { useState } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useAuthContext } from "../contexts/AuthContext";
-import { useState } from "react";
+import { useVertical } from "../hooks/useVertical";
+import { getVerticalIcon } from "./icons/VerticalIcons";
 import NotificationCenter from "./NotificationCenter";
 import EmergencyActions from "./EmergencyActions";
 import {
@@ -22,6 +24,7 @@ import {
     Menu,
     X,
     Zap,
+    Sparkles,
 } from "lucide-react";
 
 export default function Layout() {
@@ -37,6 +40,24 @@ export default function Layout() {
         markNotificationAsRead,
         markAllNotificationsAsRead,
     } = useAuthContext();
+    
+    const { config: verticalConfig } = useVertical();
+    
+    // Emojis realistas y visuales (mismo estilo que Dashboard)
+    const verticalEmojis = {
+        'peluqueria_barberia': '💈',  // Poste de barbero (MÁS realista que tijeras)
+        'fisioterapia': '⚕️',
+        'masajes_osteopatia': '💆',
+        'clinica_dental': '🦷',
+        'psicologia_coaching': '🧠',
+        'centro_estetica': '💄',
+        'centro_unas': '💅',
+        'entrenador_personal': '🏋️',
+        'yoga_pilates': '🧘',
+        'veterinaria': '🐾'
+    };
+    
+    const verticalEmoji = verticalEmojis[business?.vertical_type] || '✨';
 
     const safeAgentStatus = agentStatus || {
         active: false,
@@ -92,18 +113,18 @@ export default function Layout() {
 
     try {
         return (
-            <div className="flex flex-col h-screen bg-gray-50 overflow-hidden">
+            <div className="flex flex-col h-screen overflow-hidden" style={{ backgroundColor: '#F3F4F6' }}>
                 {/* ========================================
-                    HEADER MÓVIL/DESKTOP - RESPONSIVE
+                    HEADER MÓVIL/DESKTOP - MODERNIZADO
                 ======================================== */}
-                <header className="bg-white shadow-sm border-b border-gray-200 flex-shrink-0 z-30">
+                <header className="bg-white shadow-md border-b-2 border-purple-100 flex-shrink-0 z-30">
                     <div className="flex items-center justify-between px-3 sm:px-4 md:px-6 py-3 sm:py-4">
                         {/* Logo + Menú móvil */}
                         <div className="flex items-center gap-2 sm:gap-3">
                             {/* Botón menú móvil (solo visible en móvil) */}
                             <button
                                 onClick={() => setShowMobileMenu(!showMobileMenu)}
-                                className="lg:hidden p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                                className="lg:hidden p-2 hover:bg-gradient-to-r hover:from-purple-50 hover:to-blue-50 rounded-xl transition-all"
                             >
                                 {showMobileMenu ? (
                                     <X className="w-5 h-5 sm:w-6 sm:h-6 text-gray-700" />
@@ -112,14 +133,16 @@ export default function Layout() {
                                 )}
                             </button>
 
-                            {/* Logo */}
-                            <div className="flex items-center gap-2 sm:gap-3">
-                                <Bot className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600" />
+                            {/* Logo con emoji realista (mismo estilo que Dashboard) */}
+                            <div className="flex items-center gap-3">
+                                <div className="text-2xl sm:text-3xl">
+                                    {verticalEmoji}
+                                </div>
                                 <div>
-                                    <h1 className="text-sm sm:text-base font-bold text-gray-900">
-                                        La-IA
+                                    <h1 className="text-base sm:text-lg font-black bg-gradient-to-r from-purple-700 via-blue-600 to-purple-700 bg-clip-text text-transparent">
+                                        {business?.name || "Mi Negocio"}
                                     </h1>
-                                    <p className="text-xs text-gray-600 hidden sm:block">
+                                    <p className="text-xs text-gray-500 font-medium hidden sm:block">
                                         {currentPage}
                                     </p>
                                 </div>
@@ -210,19 +233,27 @@ export default function Layout() {
                     {/* ========================================
                         SIDEBAR DESKTOP (solo visible en lg+)
                     ======================================== */}
-                    <aside className="hidden lg:flex lg:w-64 bg-gray-100 shadow-lg flex-col border-r border-gray-200">
-                        {/* Info del negocio */}
-                        <div className="px-4 py-4 bg-gray-50 border-b border-gray-200">
-                            <h3 className="font-semibold text-gray-900 truncate">
-                                {business?.name || "Mi Negocio"}
-                            </h3>
-                            <p className="text-sm text-gray-600 truncate mt-1">
+                    <aside className="hidden lg:flex lg:w-64 bg-gray-50 shadow-lg flex-col border-r border-gray-200">
+                        {/* Info del negocio - Compacto y profesional */}
+                        <div className="px-4 py-4 bg-white border-b-2 border-gray-200">
+                            {/* Emoji y nombre en la misma línea */}
+                            <div className="flex items-center justify-center gap-3 mb-3">
+                                <div className="text-3xl">
+                                    {verticalEmoji}
+                                </div>
+                                <h3 className="font-black bg-gradient-to-r from-purple-700 via-blue-600 to-purple-700 bg-clip-text text-transparent text-lg leading-tight">
+                                    {business?.name || "Mi Negocio"}
+                                </h3>
+                            </div>
+                            
+                            {/* Email centrado */}
+                            <p className="text-xs text-gray-800 text-center truncate font-semibold">
                                 {user?.email}
                             </p>
                         </div>
 
                         {/* Navegación completa desktop */}
-                        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+                        <nav className="flex-1 p-4 space-y-2 overflow-y-auto bg-gray-50">
                             {menuItems.map((item) => (
                                 <NavLink
                                     key={item.name}
@@ -264,23 +295,31 @@ export default function Layout() {
                                 onClick={() => setShowMobileMenu(false)}
                             />
 
-                            {/* Menú slide-in */}
+                            {/* Menú slide-in profesional */}
                             <div className="lg:hidden fixed inset-y-0 left-0 w-72 bg-white shadow-2xl z-50 flex flex-col">
-                                {/* Header del menú */}
-                                <div className="px-4 py-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white">
-                                    <div className="flex items-center justify-between mb-3">
-                                        <h2 className="text-lg font-bold">Menú</h2>
+                                {/* Header del menú - Compacto */}
+                                <div className="px-4 py-4 bg-white border-b-2 border-gray-200">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h2 className="text-lg font-black text-gray-800">Menú</h2>
                                         <button
                                             onClick={() => setShowMobileMenu(false)}
-                                            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+                                            className="p-2 hover:bg-gray-100 rounded-xl transition-all"
                                         >
-                                            <X className="w-5 h-5" />
+                                            <X className="w-5 h-5 text-gray-700" />
                                         </button>
                                     </div>
-                                    <div>
-                                        <p className="font-semibold truncate">{business?.name}</p>
-                                        <p className="text-sm opacity-90 truncate">{user?.email}</p>
+                                    
+                                    {/* Emoji y nombre en la misma línea */}
+                                    <div className="flex items-center justify-center gap-3 mb-3">
+                                        <div className="text-3xl">
+                                            {verticalEmoji}
+                                        </div>
+                                        <p className="font-black text-lg bg-gradient-to-r from-purple-700 via-blue-600 to-purple-700 bg-clip-text text-transparent truncate">
+                                            {business?.name || "Mi Negocio"}
+                                        </p>
                                     </div>
+                                    
+                                    <p className="text-xs text-gray-800 text-center truncate font-semibold">{user?.email}</p>
                                 </div>
 
                                 {/* Navegación completa móvil */}
@@ -321,7 +360,7 @@ export default function Layout() {
                     {/* ========================================
                         CONTENIDO PRINCIPAL - RESPONSIVE
                     ======================================== */}
-                    <main className="flex-1 overflow-y-auto bg-gray-50">
+                    <main className="flex-1 overflow-y-auto" style={{ backgroundColor: '#F3F4F6' }}>
                         <div className="p-3 sm:p-4 md:p-6 pb-20 lg:pb-6">
                             <Outlet />
                         </div>
