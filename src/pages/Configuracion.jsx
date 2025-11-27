@@ -149,7 +149,7 @@ const formatPhoneNumber = (phone) => {
 };
 
 const Configuracion = () => {
-    const { businessId, business, user } = useAuthContext();
+    const { businessId, business, user, fetchBusinessInfo } = useAuthContext();
     const { labels } = useVertical(); // 🆕 Hook para vocabulario dinámico
     const [searchParams] = useSearchParams();
     const location = useLocation();
@@ -160,6 +160,22 @@ const Configuracion = () => {
     const [currentPlayingVoice, setCurrentPlayingVoice] = useState(null);
     const [isPlayingAudio, setIsPlayingAudio] = useState(false);
     const audioRef = React.useRef(null);
+    
+    // Debug: Log del número asignado cuando cambia
+    useEffect(() => {
+        if (business?.assigned_phone) {
+            console.log('📞 Número asignado detectado:', business.assigned_phone);
+        }
+    }, [business?.assigned_phone]);
+    
+    // Función para refrescar el contexto del negocio
+    const refreshBusiness = async () => {
+        if (user?.id) {
+            console.log('🔄 Refrescando información del negocio...');
+            await fetchBusinessInfo(user.id, true);
+            toast.success('Información actualizada');
+        }
+    };
     
     // 🆕 IDs válidos de las pestañas (6 bloques)
     const validTabs = ['asistente', 'negocio', 'reservas', 'canales', 'integraciones', 'cuenta'];
@@ -1373,15 +1389,24 @@ const Configuracion = () => {
                     {activeTab === "canales" && (
                         <div className="space-y-4">
                             {/* 1️⃣ TU ASISTENTE LA-IA (Servicio que damos) */}
-                        <SettingSection
+                            <SettingSection
                                 title="Tu Asistente LA-IA"
                                 description="Número de teléfono y WhatsApp asignado a tu negocio"
                                 icon={<Phone />}
                             >
                                 <div className="space-y-4">
-                                    <p className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3">
-                                        💡 <strong>Este es tu número de LA-IA.</strong> Dáselo a tus clientes para que puedan llamar o escribir por WhatsApp.
-                                    </p>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-sm text-gray-700 bg-blue-50 border border-blue-200 rounded-lg p-3 flex-1">
+                                            💡 <strong>Este es tu número de LA-IA.</strong> Dáselo a tus clientes para que puedan llamar o escribir por WhatsApp.
+                                        </p>
+                                        <button
+                                            onClick={refreshBusiness}
+                                            className="ml-2 p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                            title="Refrescar número"
+                                        >
+                                            <RefreshCw className="w-5 h-5" />
+                                        </button>
+                                    </div>
 
                                     {/* Llamadas de Voz */}
                                     <div className="flex items-center justify-between p-4 bg-white border-2 border-blue-200 rounded-xl">

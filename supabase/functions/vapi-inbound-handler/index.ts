@@ -71,7 +71,11 @@ serve(async (req) => {
       normalizedPhone = '+' + normalizedPhone
     }
     
-    const { data: business, error: businessError } = await supabase
+    console.log('[vapi-inbound-handler] Normalized phone:', normalizedPhone)
+    
+    // Buscar el negocio - intentar primero búsqueda exacta, luego con ilike
+    // Primero: búsqueda exacta (más rápida y precisa)
+    let { data: business, error: businessError } = await supabase
       .from('businesses')
       .select(`
         id,
@@ -83,9 +87,32 @@ serve(async (req) => {
         assigned_phone,
         phone
       `)
-      .or(`assigned_phone.ilike.%${normalizedPhone}%,phone.ilike.%${normalizedPhone}%`)
+      .or(`assigned_phone.eq.${normalizedPhone},phone.eq.${normalizedPhone}`)
       .eq('active', true)
-      .single()
+      .maybeSingle()
+    
+    // Si no se encuentra con búsqueda exacta, intentar con ilike (más flexible)
+    if (!business && !businessError) {
+      console.log('[vapi-inbound-handler] Exact match not found, trying ilike search...')
+      const { data: businessLike, error: errorLike } = await supabase
+        .from('businesses')
+        .select(`
+          id,
+          name,
+          business_name,
+          vertical_type,
+          agent_config,
+          settings,
+          assigned_phone,
+          phone
+        `)
+        .or(`assigned_phone.ilike.%${normalizedPhone}%,phone.ilike.%${normalizedPhone}%`)
+        .eq('active', true)
+        .maybeSingle()
+      
+      business = businessLike
+      businessError = errorLike
+    }
 
     if (businessError || !business) {
       console.warn('[vapi-inbound-handler] Business not found for phone:', phoneNumber, businessError)
