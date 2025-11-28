@@ -1,8 +1,11 @@
 // =====================================================
 // EDGE FUNCTION: vapi-inbound-handler (WORKFLOW MODE)
 // =====================================================
-// Devuelve workflowId + workflowOverrides (NO assistant/model/voice)
-// La voz y el modelo se configuran DENTRO del Workflow en VAPI
+// Devuelve workflowId + workflowOverrides + voice
+// - workflowId: ID del Workflow a ejecutar
+// - workflowOverrides.variableValues: Variables dinámicas
+// - voice: Fuerza la voz de ElevenLabs según el avatar
+// El modelo se configura DENTRO del Workflow en VAPI
 // =====================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -61,10 +64,16 @@ serve(async (req) => {
       msg?.customer?.number ||
       '';
 
-    // Si no hay número, devolvemos workflow sin personalizar
+    // Si no hay número, devolvemos workflow sin personalizar pero con voz por defecto
     if (!phoneNumber) {
       console.warn('⚠️ No phone number - usando workflow sin variables');
-      return new Response(JSON.stringify({ workflowId: WORKFLOW_ID }), {
+      return new Response(JSON.stringify({
+        workflowId: WORKFLOW_ID,
+        voice: {
+          provider: "11labs",
+          voiceId: AVATAR_VOICES['Default']
+        }
+      }), {
         status: 200,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });

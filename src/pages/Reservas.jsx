@@ -233,6 +233,24 @@ const CHANNELS = {
 };
 
 
+// 🎨 DETECTAR SI UNA RESERVA ES PASADA (estilo Google Calendar / Booksy)
+const esReservaPasada = (reservation) => {
+    try {
+        const fechaReserva = reservation.reservation_date || reservation.appointment_date;
+        const horaReserva = reservation.reservation_time || reservation.appointment_time;
+        
+        if (!fechaReserva || !horaReserva) return false;
+        
+        const fechaHoraReserva = parseISO(`${fechaReserva}T${horaReserva}`);
+        const ahora = new Date();
+        
+        return fechaHoraReserva < ahora;
+    } catch (error) {
+        console.error('Error detectando reserva pasada:', error);
+        return false;
+    }
+};
+
 // Componente de tarjeta de reserva mejorado
 const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
     const [showActions, setShowActions] = useState(false);
@@ -263,6 +281,9 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
         return isHighRisk && minutesUntil > 0 && minutesUntil <= 135; // 2h 15min
     }, [reservation.reservation_date, reservation.reservation_time, reservation.noshow_risk_score, reservation.risk_level]);
 
+    // 🎨 DETECTAR SI ES PASADA (estilo Google Calendar / Booksy)
+    const isPasada = esReservaPasada(reservation);
+
     const formatTime = (timeString) => {
         return timeString ? timeString.slice(0, 5) : "00:00";
     };
@@ -273,7 +294,9 @@ const ReservationCard = ({ reservation, onAction, onSelect, isSelected }) => {
                 isSelected
                     ? "ring-2 ring-blue-500 border-blue-200"
                     : "border-gray-200"
-            } ${isAgentReservation ? "border-l-2 border-l-purple-500" : ""} ${isUrgent ? "border border-red-500 bg-red-50" : ""}`}
+            } ${isAgentReservation ? "border-l-2 border-l-purple-500" : ""} ${isUrgent ? "border border-red-500 bg-red-50" : ""} ${
+                isPasada ? "opacity-40" : ""
+            }`}
         >
             {/* 🚨 BANNER URGENTE */}
             {isUrgent && (

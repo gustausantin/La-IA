@@ -46,6 +46,33 @@ const STATUS_CONFIG = {
   },
 };
 
+// 🎨 DETECTAR SI UNA RESERVA ES PASADA (estilo Google Calendar / Booksy)
+const esReservaPasada = (reservation) => {
+  try {
+    // Obtener fecha y hora de la reserva
+    const fechaReserva = reservation.reservation_date || reservation.appointment_date || reservation.date;
+    const horaReserva = reservation.reservation_time || reservation.appointment_time;
+    
+    if (!fechaReserva) return false;
+    
+    // Crear objeto Date con la fecha y hora de la reserva
+    let fechaHoraReserva;
+    if (horaReserva) {
+      fechaHoraReserva = parseISO(`${fechaReserva}T${horaReserva}`);
+    } else {
+      fechaHoraReserva = parseISO(fechaReserva);
+    }
+    
+    // Comparar con la hora actual
+    const ahora = new Date();
+    
+    return fechaHoraReserva < ahora;
+  } catch (error) {
+    console.error('Error detectando reserva pasada:', error);
+    return false;
+  }
+};
+
 const ReservationCard = ({
   reservation,
   onCall,
@@ -74,6 +101,9 @@ const ReservationCard = ({
 
   const formattedDate = format(parseISO(reservation.date || reservation.reservation_date), 'PPp', { locale: es });
   const formattedTime = format(parseISO(reservation.date || reservation.reservation_date), 'HH:mm');
+
+  // 🎨 DETECTAR SI ES PASADA (estilo Google Calendar / Booksy)
+  const isPasada = esReservaPasada(reservation);
 
   return (
     <div className="relative overflow-hidden">
@@ -119,7 +149,7 @@ const ReservationCard = ({
           onClick={() => onViewDetails?.(reservation)}
           interactive
           padding="md"
-          className="mb-3"
+          className={`mb-3 ${isPasada ? 'opacity-40' : ''}`}
         >
           {/* Header */}
           <div className="flex items-start justify-between mb-3">
@@ -215,10 +245,13 @@ export const ReservationCardCompact = ({ reservation, onClick }) => {
   const StatusIcon = statusConfig.icon;
   const time = format(parseISO(reservation.date || reservation.reservation_date), 'HH:mm');
 
+  // 🎨 DETECTAR SI ES PASADA (estilo Google Calendar / Booksy)
+  const isPasada = esReservaPasada(reservation);
+
   return (
     <div
       onClick={() => onClick?.(reservation)}
-      className="flex items-center gap-3 p-3 bg-white border-b border-gray-100 active:bg-gray-50 transition-colors"
+      className={`flex items-center gap-3 p-3 bg-white border-b border-gray-100 active:bg-gray-50 transition-colors ${isPasada ? 'opacity-40' : ''}`}
     >
       <div className="flex-shrink-0">
         <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center">

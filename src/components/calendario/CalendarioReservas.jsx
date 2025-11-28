@@ -83,6 +83,28 @@ const calcularHoraFin = (horaInicio, duracionMinutos) => {
     return `${horaFin.toString().padStart(2, '0')}:${minutoFin.toString().padStart(2, '0')}`;
 };
 
+// 🎨 DETECTAR SI UNA RESERVA ES PASADA
+const esReservaPasada = (reserva) => {
+    try {
+        // Obtener fecha y hora de la reserva
+        const fechaReserva = reserva.reservation_date || reserva.appointment_date;
+        const horaReserva = reserva.reservation_time || reserva.appointment_time;
+        
+        if (!fechaReserva || !horaReserva) return false;
+        
+        // Crear objeto Date con la fecha y hora de la reserva
+        const fechaHoraReserva = parseISO(`${fechaReserva}T${horaReserva}`);
+        
+        // Comparar con la hora actual
+        const ahora = new Date();
+        
+        return fechaHoraReserva < ahora;
+    } catch (error) {
+        console.error('Error detectando reserva pasada:', error);
+        return false;
+    }
+};
+
 export default function CalendarioReservas({ 
     reservations = [],
     resources = [], // Profesionales/Recursos (ej: Patricia Taylor, Michael Brown)
@@ -1586,6 +1608,9 @@ function VistaDia({
                                             // 60min (4 cuartos) → 4 * 27 = 108px
                                             const alturaTotal = numSlots * 27;
                                             
+                                            // 🎨 DETECTAR SI ES PASADA (estilo Google Calendar / Booksy)
+                                            const isPasada = esReservaPasada(reserva);
+                                            
                                             return (
                                                 <div
                                                     key={reserva.id}
@@ -1598,7 +1623,7 @@ function VistaDia({
                                                         onCellClick(recurso, fechaStr, timeStr, reserva, null);
                                                     }}
                                                     className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} ${employeeColor ? '' : colors.bgHover} rounded-lg shadow-md transition-all ${
-                                                        reserva.status === 'no_show' ? 'opacity-50 line-through' : ''
+                                                        reserva.status === 'no_show' ? 'opacity-50 line-through' : isPasada ? 'opacity-40' : ''
                                                     } ${
                                                         isDragging ? 'opacity-50 scale-95 rotate-2 cursor-grabbing' : 'hover:shadow-lg hover:scale-105 hover:-translate-y-0.5 cursor-grab'
                                                     }`}
@@ -1933,6 +1958,8 @@ function VistaDia({
                                                         // 60min (4 cuartos) → 4 * 27 = 108px
                                                         const alturaTotal = numSlots * 27;
                                                         
+                                                        // 🎨 DETECTAR SI ES PASADA (estilo Google Calendar / Booksy)
+                                                        const isPasada = esReservaPasada(reservaQueEmpiezaAqui);
                                                         
                                                         return (
                                                             <div
@@ -1946,7 +1973,7 @@ function VistaDia({
                                                                     onCellClick(recurso, fechaStr, timeStr, reservaQueEmpiezaAqui, null);
                                                                 }}
                                                                 className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} ${employeeColor ? '' : colors.bgHover} rounded-lg shadow-md transition-all ${
-                                                                    reservaQueEmpiezaAqui.status === 'no_show' ? 'opacity-50 line-through' : ''
+                                                                    reservaQueEmpiezaAqui.status === 'no_show' ? 'opacity-50 line-through' : isPasada ? 'opacity-40' : ''
                                                                 } ${
                                                                     isDragging ? 'opacity-50 scale-95 rotate-2 cursor-grabbing' : 'hover:shadow-lg hover:scale-105 hover:-translate-y-0.5 cursor-grab'
                                                                 }`}
@@ -2246,11 +2273,16 @@ function VistaSemana({ fecha, reservations, resources = [], horaInicio, horaFin,
                                                     const duracion = reserva.duration_minutes || reserva.service_duration_minutes || 60;
                                                     const horaFin = calcularHoraFin(horaInicio + ':00', duracion);
                                                     
+                                                    // 🎨 DETECTAR SI ES PASADA (estilo Google Calendar / Booksy)
+                                                    const isPasada = esReservaPasada(reserva);
+                                                    
                                                     return (
                                                         <div
                                                             key={reserva.id}
                                                             onClick={() => onReservationClick(reserva)}
-                                                            className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} rounded-lg p-2.5 cursor-pointer hover:shadow-lg transition-all transform hover:scale-105 hover:-translate-y-0.5`}
+                                                            className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} rounded-lg p-2.5 cursor-pointer hover:shadow-lg transition-all transform hover:scale-105 hover:-translate-y-0.5 ${
+                                                                isPasada ? 'opacity-40' : ''
+                                                            }`}
                                                             style={{
                                                                 // 🎨 Aplicar color del empleado si es evento bloqueado
                                                                 ...(employeeColor ? {
@@ -2415,6 +2447,9 @@ function VistaMes({ fecha, reservations, resources = [], onReservationClick, onD
                                     
                                     const hora = (reserva.reservation_time || reserva.appointment_time || '00:00').substring(0, 5);
                                     
+                                    // 🎨 DETECTAR SI ES PASADA (estilo Google Calendar / Booksy)
+                                    const isPasada = esReservaPasada(reserva);
+                                    
                                     return (
                                         <div
                                             key={reserva.id}
@@ -2422,7 +2457,9 @@ function VistaMes({ fecha, reservations, resources = [], onReservationClick, onD
                                                 e.stopPropagation();
                                                 onReservationClick(reserva);
                                             }}
-                                            className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} rounded-md p-1.5 cursor-pointer hover:shadow-md transition-all transform hover:scale-105 text-left group/item`}
+                                            className={`${employeeColor ? '' : colors.bg} ${employeeColor ? '' : colors.border} rounded-md p-1.5 cursor-pointer hover:shadow-md transition-all transform hover:scale-105 text-left group/item ${
+                                                isPasada ? 'opacity-40' : ''
+                                            }`}
                                             style={{
                                                 // 🎨 Aplicar color del empleado si es evento bloqueado
                                                 ...(employeeColor ? {
