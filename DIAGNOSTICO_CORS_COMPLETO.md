@@ -272,3 +272,4 @@ El problema puede estar en el proyecto de Supabase. Contacta a soporte de Supaba
 
 
 
+
