@@ -1,6 +1,7 @@
 // ============================================
-// Edge Function: get-snapshot (v3.0 - Orden Dinámico Completo)
+// Edge Function: get-snapshot (v4.0 - OPTIMIZADO)
 // Propósito: OpenAI analiza y ORDENA los 6 bloques de información dinámicamente
+// Optimización: Prompt más conciso, menos tokens, mejor rendimiento
 // ============================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -123,8 +124,8 @@ serve(async (req) => {
     console.log(`✅ Snapshot obtenido en ${sqlDuration}ms:`, JSON.stringify(snapshot).substring(0, 200) + "...");
 
     // 6. Construir prompts para OpenAI
-    const systemPrompt = buildSystemPrompt(agentName, businessName, businessType, agentBio, ownerName);
-    const userPrompt = buildUserPrompt(agentName, ownerName, snapshot);
+    const systemPrompt = buildSystemPromptOptimized(agentName, businessName, businessType, ownerName);
+    const userPrompt = buildUserPromptOptimized(snapshot);
 
     console.log("🧠 Enviando a OpenAI...");
 
@@ -144,7 +145,7 @@ serve(async (req) => {
         ],
         response_format: { type: "json_object" },
         temperature: 0.2,
-        max_tokens: 350
+        max_tokens: 300 // Reducido de 350 a 300
       })
     });
 
@@ -212,53 +213,92 @@ serve(async (req) => {
 });
 
 // ============================================
-// FUNCIÓN: Construir System Prompt
+// FUNCIÓN: System Prompt OPTIMIZADO
 // ============================================
-function buildSystemPrompt(agentName, businessName, businessType, agentBio, ownerName) {
-  return `Eres ${agentName}, asistente de ${businessName} (${businessType}). ${agentBio}
+function buildSystemPromptOptimized(agentName, businessName, businessType, ownerName) {
+  return `Eres ${agentName} de ${businessName} (${businessType}). Analiza el snapshot y genera respuesta JSON.
 
-MISIÓN: Analiza 6 bloques, detecta lo MÁS IMPORTANTE, ordénalos, genera mensaje para ${ownerName} (máx 60 palabras) y propón 1 acción SI APLICA.
+MISIÓN:
+1. Detecta lo MÁS CRÍTICO
+2. Ordena 6 bloques por prioridad (1-6)
+3. Mensaje para ${ownerName} (máx 50 palabras)
+4. Acción SI hay problema crítico
 
-REGLAS:
-- SOLO datos del snapshot (no inventes)
-- PROHIBIDO: captación, ofertas, descuentos, promociones, "atraer clientes"
-- ENFÓCATE: gestionar existente, optimizar recursos, resolver problemas
-- Mensaje: máx 60 palabras | Texto colapsado: máx 20 palabras
-- accion = null si no hay acción (NO objeto con "sin acción")
-
-BLOQUES (6): RESERVAS | EQUIPO | FACTURACION | COMUNICACIONES | NOSHOWS | CLIENTES
+BLOQUES: RESERVAS|EQUIPO|FACTURACION|COMUNICACIONES|NOSHOWS|CLIENTES
 
 PRIORIDADES:
-CRISIS (alert): ausentes_hoy>0 CON citas_afectadas | conflictos>0 → EQUIPO
-RIESGO (serious): noshows horas_hasta<2 | incidencias_urgentes>0 → NOSHOWS/COMUNICACIONES
-ATENCION (focused): VIP/nuevo minutos_hasta<240 → CLIENTES
-INFORMATIVO (zen): día normal → RESERVAS/FACTURACION
-CELEBRACION (excited): facturacion >150% promedio → FACTURACION
+CRISIS: conflictos_horario>0 | ausentes_hoy>0 CON citas_afectadas>0 → EQUIPO primero
+RIESGO: en_riesgo_hoy>0 CON horas_hasta<2 → NOSHOWS primero
+ATENCION: especiales_hoy>0 | minutos_hasta<120 → CLIENTES primero
+INFORMATIVO: día normal → RESERVAS primero
+CELEBRACION: porcentaje_vs_promedio>150 → FACTURACION primero
 
-ACCIONES (solo si hay problema):
-transferir_citas (endpoint): ausentes_hoy>0 CON alternativas
-cancelar_citas (endpoint): ausentes_hoy>0 SIN alternativas
-llamar_cliente (call): riesgo no-show <2h → {telefono}
-whatsapp_cliente (whatsapp): riesgo no-show <4h → {telefono, mensaje}
-ver_ficha_cliente (navigate): VIP/nuevo → {route: "/clientes/:id"}
-ver_reservas (navigate): muchas reservas → {route: "/reservas"}
-ver_equipo (navigate): ausencias → {route: "/equipo"}
-ver_facturacion (navigate): baja facturación → {route: "/facturacion"}
-ver_comunicaciones (navigate): mensajes pendientes → {route: "/comunicaciones"}
+REGLAS:
+- SOLO datos del snapshot
+- NO inventes números
+- NO menciones captación/promociones
+- accion=null si no hay problema urgente
+- texto_colapsado: máx 18 palabras
+
+ACCIONES (solo problemas urgentes):
+- ver_equipo: conflictos_horario>0
+- whatsapp_cliente: en_riesgo_hoy con risk_score>70
+- ver_reservas: próxima cita <30min
 
 JSON:
-{"prioridad":"CRISIS|RIESGO|ATENCION|INFORMATIVO|CELEBRACION","mood":"alert|serious|focused|zen|excited","mensaje":"max 60 palabras","accion":null O {"id":"accion_id","label":"texto","tipo":"tipo","payload":{}},"bloques":[{"id":"RESERVAS|EQUIPO|FACTURACION|COMUNICACIONES|NOSHOWS|CLIENTES","prioridad":1-6,"texto_colapsado":"max 20 palabras"}]}
+{"prioridad":"CRISIS|RIESGO|ATENCION|INFORMATIVO|CELEBRACION","mood":"alert|serious|focused|zen|excited","mensaje":"<50 palabras>","accion":null O {"id":"","label":"","tipo":"","payload":{}},"bloques":[{"id":"RESERVAS|EQUIPO|FACTURACION|COMUNICACIONES|NOSHOWS|CLIENTES","prioridad":1-6,"texto_colapsado":"<18 palabras"},...]}
 
-CRÍTICO: bloques SIEMPRE 6 elementos (1-6). accion=null si INFORMATIVO o sin problema.`;
+EJEMPLOS:
+
+Conflicto crítico:
+{"prioridad":"CRISIS","mood":"alert","mensaje":"Laura tiene 2 citas pero no tiene horario hoy. Transferir o cancelar urgente.","accion":{"id":"ver_equipo","label":"Ver equipo","tipo":"navigate","payload":{"route":"/equipo"}},"bloques":[{"id":"EQUIPO","prioridad":1,"texto_colapsado":"Laura: 2 citas sin horario"},{"id":"RESERVAS","prioridad":2,"texto_colapsado":"8 citas hoy, próxima en 15min"},...]}
+
+No-show en riesgo:
+{"prioridad":"RIESGO","mood":"serious","mensaje":"María tiene cita en 1h con 85% riesgo no-show. Confirmar por WhatsApp.","accion":{"id":"whatsapp","label":"WhatsApp María","tipo":"whatsapp","payload":{"telefono":"+34666777888"}},"bloques":[{"id":"NOSHOWS","prioridad":1,"texto_colapsado":"María 85% riesgo en 1h"},{"id":"RESERVAS","prioridad":2,"texto_colapsado":"7 citas hoy"},...]}
+
+Día normal:
+{"prioridad":"INFORMATIVO","mood":"zen","mensaje":"8 citas hoy. Próxima: Juan a las 10:30. Equipo 65% ocupado, 3 horas libres.","accion":null,"bloques":[{"id":"RESERVAS","prioridad":1,"texto_colapsado":"8 citas, próxima en 15min"},{"id":"EQUIPO","prioridad":2,"texto_colapsado":"2 empleados, 3h libres"},...]}
+
+CRÍTICO: SIEMPRE 6 bloques (1-6). accion=null si INFORMATIVO.`;
 }
 
 // ============================================
-// FUNCIÓN: Construir User Prompt
+// FUNCIÓN: User Prompt OPTIMIZADO
 // ============================================
-function buildUserPrompt(agentName, ownerName, snapshot) {
-  return `Analiza el snapshot y genera la respuesta JSON:
+function buildUserPromptOptimized(snapshot) {
+  // Extraer solo datos relevantes para reducir tokens
+  const relevantData = {
+    reservas: {
+      total_hoy: snapshot.reservas?.total_hoy || 0,
+      proxima_cita: snapshot.reservas?.proxima_cita || null,
+      conflictos: snapshot.reservas?.conflictos || 0,
+      huecos_horas: snapshot.reservas?.huecos_horas || 0
+    },
+    equipo: {
+      total_empleados: snapshot.equipo?.total_empleados || 0,
+      total_horas_libres: snapshot.equipo?.total_horas_libres || 0,
+      conflictos_horario: snapshot.equipo?.conflictos_horario || 0,
+      empleados_con_conflicto: snapshot.equipo?.empleados_con_conflicto || [],
+      ausentes_hoy: snapshot.horarios?.ausentes_hoy || snapshot.equipo?.ausentes_hoy || []
+    },
+    facturacion: {
+      total_hoy: snapshot.facturacion?.total_hoy || 0,
+      porcentaje_vs_promedio: snapshot.facturacion?.porcentaje_vs_promedio || 0,
+      citas_completadas: snapshot.facturacion?.citas_completadas || 0,
+      citas_pendientes: snapshot.facturacion?.citas_pendientes || 0
+    },
+    noshows: {
+      en_riesgo_hoy: snapshot.noshows?.en_riesgo_hoy || []
+    },
+    comunicaciones: {
+      mensajes_pendientes: snapshot.comunicaciones?.mensajes_pendientes || 0,
+      incidencias_urgentes: snapshot.comunicaciones?.incidencias_urgentes || 0
+    },
+    clientes: {
+      especiales_hoy: snapshot.clientes?.especiales_hoy || []
+    }
+  };
 
-${JSON.stringify(snapshot)}
-
-Responde JSON sin markdown.`;
+  return `Snapshot:\n${JSON.stringify(relevantData)}\n\nResponde JSON.`;
 }
+
