@@ -200,3 +200,4 @@ Si necesitas añadir más voces o cambiar el mapeo:
 
 ✅ **La voz se aplicará automáticamente según el avatar del negocio**
 
+

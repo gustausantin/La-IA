@@ -321,3 +321,4 @@ WHERE assigned_phone LIKE '%931204462%';
 
 **🚀 ¡DESPLIEGUE COMPLETADO! La Edge Function ahora controla dinámicamente las voces según el avatar de cada negocio.**
 
+
